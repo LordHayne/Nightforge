@@ -4862,14 +4862,17 @@ final class LibraryModel: ObservableObject {
                 // game with an anti-cheat: its files aren't looked into (`found` stays nil).
                 var diagnosis: [String] = []
                 var found: [StartDiagnosis]?
+                // Step E5: the message box the game ended at, if it ended at one (CloserLook.Reading.endedAtBox).
+                var endedAtBox: String?
                 // Step C: nothing in the diagnosis says why (StartDiagnosis.unexplained). Never for an anti-cheat game.
                 var unexplained = false
                 if !Task.isCancelled {
                     let hung = noPicture != nil, folder = game.installDirName, block = game.antiCheatBlock
-                    found = await Task.detached(priority: .utility) {
-                        guard !ShaderCaches.hasAntiCheat(profile: profile, block: block, installDir: installDir) else { return nil }
-                        return StartDiagnosis.diagnose(StartDiagnosis.finding(logText: log, installDir: installDir, gameFolder: folder,
-                                                                              since: startedAt, layer: layer, hung: hung))
+                    (found, endedAtBox) = await Task.detached(priority: .utility) {
+                        guard !ShaderCaches.hasAntiCheat(profile: profile, block: block, installDir: installDir) else { return (nil, nil) }
+                        let finding = StartDiagnosis.finding(logText: log, installDir: installDir, gameFolder: folder,
+                                                             since: startedAt, layer: layer, hung: hung)
+                        return (StartDiagnosis.diagnose(finding), finding.reading.endedAtBox)
                     }.value
                     diagnosis = (found ?? []).map { GameLog.redacted($0.line) }
                     unexplained = found.map(StartDiagnosis.unexplained) ?? false
@@ -4878,11 +4881,22 @@ final class LibraryModel: ObservableObject {
                 }
                 // Closed at a question of its own (the curtain saw it): the player's choice too – unless
                 // the log says the graphics failed or it crashed, as after Play in Unity's window it might.
+                // Step E5: nor when the table saw the start fail, or the window was a message box that only says
+                // something (LaunchHealth.ownQuestionWasAChoice) – Metal Gear Solid V's "Failed to load SteamAPI"
+                // went into the record as the player's choice on 11.11.2026. Then the start failed, and what
+                // comes after a failed start comes below.
                 if let end = LaunchHealth.ownQuestionEnd(game.gameID), end >= startedAt {
                     let crashedAtAll = GameLog.crashed(in: log) || !GameLog.crashReports(installDir: installDir, since: startedAt).isEmpty
                     let cannotDraw = automatic && !wayConfirmed && LaunchHealth.layerCannotDraw(analysis, layer: layer)
-                    if Self.ownQuestionEndStands(end: end, startedAt: startedAt, lastRunning: firstSecondsRunning[game.id],
-                                                 graphicsFailed: graphicsFailed || cannotDraw || direct3D9Failed, crashed: crashedAtAll) {
+                    let stands = Self.ownQuestionEndStands(end: end, startedAt: startedAt, lastRunning: firstSecondsRunning[game.id],
+                                                           graphicsFailed: graphicsFailed || cannotDraw || direct3D9Failed, crashed: crashedAtAll)
+                    let choice = LaunchHealth.ownQuestionWasAChoice(explained: StartDiagnosis.sawFailure(found ?? []), endedAtBox: endedAtBox)
+                    if stands, !choice {
+                        GameLog.note("Start of \(game.name): the window it ended at was no question – "
+                                     + (endedAtBox.map { "a message box that says \"\(GameLog.redacted(String($0.prefix(120))))\"" } ?? "the diagnosis says why it ended")
+                                     + ": a failed start")
+                    }
+                    if stands, choice {
                         GameLog.note("Start of \(game.name): it ended at a question of its own – the player's choice, no other way")
                         noteEnded("closed at a question of its own", diagnosis: diagnosis)
                         return

@@ -68,13 +68,14 @@ enum Engine {
 
     /// Settings games inherit from the background Steam. Bump `steamConfigVersion` whenever this
     /// or `steamDLLOverrides` changes, so a running Steam gets restarted with them.
-    static let steamConfigVersion = 10
+    static let steamConfigVersion = 11  // 11: every start carries CloserLook.everyStart (step E5)
     static var gameEnvironment: [String: String] {
         var env = [
             // Compile shaders in the background instead of stalling the frame that first needs them.
             "DXVK_ASYNC": "1",
-            // Into GameLog: libraries a game can't load, and MoltenVK's errors (not its chatter).
-            "WINEDEBUG": GameLog.wineDebug,
+            // Into GameLog: libraries a game can't load, and MoltenVK's errors (not its chatter) – and, since
+            // step E5, each line's process, the libraries it loads and its message boxes' texts (CloserLook.everyStart).
+            "WINEDEBUG": CloserLook.usualWineDebug,
             "MVK_CONFIG_LOG_LEVEL": "1",
             // DXVK's warnings go there as well, instead of log files in the Windows user folder.
             "DXVK_LOG_LEVEL": "warn",
@@ -216,11 +217,11 @@ enum Engine {
         set { launchSettings.withLock { $0.msync = newValue } }
     }
 
-    /// Wine's debug channels for the start about to happen: GameLog.wineDebug, or with a closer look's
-    /// channels on top (`setCloserLook`). What Steam, the process that hands a game to it and a store's
-    /// game started straight get as WINEDEBUG.
+    /// Wine's debug channels for the start about to happen: the usual ones (CloserLook.usualWineDebug), or
+    /// with a closer look's channels on top (`setCloserLook`). What Steam, the process that hands a game to
+    /// it and a store's game started straight get as WINEDEBUG.
     static var wineDebug: String {
-        launchSettings.withLock { $0.environment["WINEDEBUG"] } ?? GameLog.wineDebug
+        launchSettings.withLock { $0.environment["WINEDEBUG"] } ?? CloserLook.usualWineDebug
     }
 
     /// Whether the start about to happen carries a closer look's channels (CloserLook, step C of

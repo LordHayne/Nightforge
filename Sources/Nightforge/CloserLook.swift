@@ -15,13 +15,20 @@ enum CloserLook {
     /// WINEDEBUG of a start that looks closer.
     static var wineDebug: String { GameLog.wineDebug + "," + channels }
 
-    /// The part of them every start could carry (a proposal, docs/ENTWURF-STARTREZEPT.md 3.3 – no start
-    /// does yet): each line's process, the libraries a process loads, and the texts of message boxes. They
-    /// print at a process's start and when a box opens, not while a game runs: Alan Wake's start on
-    /// 14.11.2026 came to 88 such lines, 10 KB. What a game puts out for a debugger and certificate chains
-    /// stay a closer look's: a game can write the first with every frame, and Steam's browser builds chains
-    /// as long as it runs (3,204 of the 4,423 lines of Batman's start with all channels on).
+    /// The part of them every start carries (step E5 of docs/ENTWURF-STARTREZEPT.md 3.3, the player's
+    /// decision of 14.11.2026): each line's process, the libraries a process loads, and the texts of message
+    /// boxes. With them a game's error box is read at its first failed start, and what it loaded tells what
+    /// it draws with. They print at a process's start and when a box opens, not while a game runs: Alan
+    /// Wake's start on 14.11.2026 came to 88 such lines, 10 KB; the measuring run of that evening, 20 games
+    /// in 81 minutes with +pid,+loaddll on, to 6,888 lines of them, 866 KB of its 2.9 MB. What a game puts out
+    /// for a debugger and certificate chains stay a closer look's: a game can write the first with every
+    /// frame, and Steam's browser builds chains as long as it runs (3,204 of the 4,423 lines of Batman's
+    /// start with all channels on).
     static let everyStart = "+pid,+loaddll,+msgbox"
+
+    /// WINEDEBUG of a start without a closer look: GameLog.wineDebug and `everyStart`. What Steam and every
+    /// game start with (Engine.gameEnvironment, Engine.wineDebug).
+    static var usualWineDebug: String { GameLog.wineDebug + "," + everyStart }
 
     /// An engine test's switch: every start carries the channels, with `defaults write
     /// io.github.lordhayne.nightforge closerLook -bool true` (docs/TODO.md › Engine-Tests; there's no

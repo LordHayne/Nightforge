@@ -476,12 +476,12 @@ enum LaunchHealth {
     /// "answered by the player: no other way" – the start took it for a failure only because DXVK's own words
     /// stood against it. Metal Gear Solid V's "Failed to load SteamAPI" on 11.11. had nothing else against it
     /// and went into the record as "closed at a question of its own".
-    /// `explained`: the table found why the start ended (not StartDiagnosis.unexplained) – then it failed,
-    /// whatever the player pressed. `endedAtBox`: the text of the message box the game ended at
-    /// (CloserLook.Reading.endedAtBox), known only in a start that carried Wine's channel for them; a notice
-    /// leaves nothing to choose (CloserLook.box). Unity's window before the game and a launcher's are no
-    /// message boxes: without one the end stays the player's, as before.
-    /// Not wired in yet (docs/ENTWURF-STARTREZEPT.md 3.3).
+    /// `explained`: the table saw the start fail (StartDiagnosis.sawFailure) – then it failed, whatever the
+    /// player pressed. `endedAtBox`: the text of the message box the game ended at
+    /// (CloserLook.Reading.endedAtBox), which every start's channels print since step E5; a notice leaves
+    /// nothing to choose (CloserLook.box). Unity's window before the game and a launcher's are no message
+    /// boxes: without one the end stays the player's, as before. The start flow asks this since step E5
+    /// (LibraryModel.launch, docs/ENTWURF-STARTREZEPT.md 3.3).
     static func ownQuestionWasAChoice(explained: Bool, endedAtBox: String?) -> Bool {
         if explained { return false }
         return endedAtBox.map { CloserLook.box($0) == .question } ?? true

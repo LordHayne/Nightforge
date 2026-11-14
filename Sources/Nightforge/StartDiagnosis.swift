@@ -182,6 +182,21 @@ struct StartDiagnosis: Equatable {
         found.allSatisfy { fallbacks.contains($0.id) }
     }
 
+    /// The rules that saw the start fail: the game's own refusal, a crash at a place the table knows, Wine's
+    /// or the layer's own error. Not what only describes a start – what it loaded, a signature it checked –
+    /// and not the fallbacks. Since every start carries +loaddll (step E5), "loads-direct3d9" is found for
+    /// any Direct3D 9 game on DXMT or D3DMetal, also one that ran and was quit at its own launcher window.
+    private static let failuresSeen: Set<String> = [
+        "refused-switch", "needs-d3d12", "physx-update-loader", "nvidia-interface", "illegal-instruction", "graphics-crash",
+        "direct3d9", "graphics-failed", "missing-runtime",
+    ]
+
+    /// Something in `found` says the start failed, whatever window it ended at: then its end wasn't the
+    /// player's choice (LaunchHealth.ownQuestionWasAChoice).
+    static func sawFailure(_ found: [StartDiagnosis]) -> Bool {
+        found.contains { failuresSeen.contains($0.id) }
+    }
+
     /// The graphics layer itself said it can't draw (GameLog.graphicsFailed): the one finding that moves a
     /// way on that had worked before. Anything else leaves a proven way its place (LaunchHealth.earlyEnd).
     static func layerRefused(_ found: [StartDiagnosis]) -> Bool {
