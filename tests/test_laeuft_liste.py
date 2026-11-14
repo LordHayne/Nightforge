@@ -161,7 +161,7 @@ class GameTestTests(unittest.TestCase):
         self.assertEqual(m["fps"], {"average": 54.8, "low": 42.3, "periods": 6, "seconds": None, "slowestFrame": None, "slowestTypical": None,
                                     "source": None, "onePercentLow": None, "gpuTime": None})
         # Without its limit on record the number is neither "holds 60" nor a free one, and not one for a public list.
-        self.assertEqual((m["kind"], m["holds"], m["public"]), (None, None, False))
+        self.assertEqual((m["limitState"], m["steady"], m["public"]), (None, False, False))
         self.assertEqual(m["notPublic"], ["limitUnknown", "sizeUnknown", "durationUnknown"])
         # A format 1 report measured neither a slowest frame, a size nor the limit: said, not guessed.
         self.assertEqual([m[name] for name in ("frameLimit", "window", "swapchain", "displayMode", "noFrames")], [None] * 5)
@@ -225,7 +225,7 @@ class GameTestTests(unittest.TestCase):
         self.assertIn("Nightforge 0.3.2 (gebaut 15.11.2026 18:00 UTC)", row)
         self.assertTrue(row.endswith("| – |"))  # every condition on record: nothing against showing it
         m = entry(document, "steam.287700")["measured"]
-        self.assertEqual((m["fps"]["source"], m["kind"], m["holds"], m["public"], m["notPublic"]), ("dxmt", "holdsLimit", True, True, []))
+        self.assertEqual((m["fps"]["source"], m["limitState"], m["steady"], m["public"], m["notPublic"]), ("dxmt", "held", False, True, []))
 
     def test_a_number_under_a_limit_is_not_a_free_number_and_a_throttled_one_is_not_public(self):
         low = {"average": 2, "cores": 10, "low": True}
@@ -237,10 +237,10 @@ class GameTestTests(unittest.TestCase):
             return entry(document, "steam.1")["measured"], liste.markdown(document)
 
         m, table = one({"average": 47.0, "low": 12.0})
-        self.assertEqual((m["kind"], m["holds"]), ("holdsLimit", False))
-        self.assertIn("hält das Limit nicht: Ø 47, tiefste Periode 12, über 120 s", table)
+        self.assertEqual(m["limitState"], "notReached")
+        self.assertIn("| 60 FPS | erreicht das Limit nicht: Ø 47, tiefste Periode 12, über 120 s", table)
         m, table = one({"average": 87.4, "low": 61.0, "onePercentLow": 55.5, "gpuTime": 9.9, "source": "metal-hud"}, frameLimit=0)
-        self.assertEqual((m["kind"], m["holds"], m["public"], m["fps"]["gpuTime"]), ("free", None, True, 9.9))
+        self.assertEqual((m["limitState"], m["public"], m["fps"]["gpuTime"]), ("none", True, 9.9))
         self.assertIn("| keins | frei: Ø 87, tiefste Periode 61, 1-%-Tief 56, über 120 s |", table)
         m, table = one({"average": 30.0, "low": 29.0}, frameLimit=30, throttled="battery")
         self.assertEqual((m["public"], m["notPublic"], m["throttled"]), (False, ["throttled"], "battery"))
@@ -280,6 +280,63 @@ class GameTestTests(unittest.TestCase):
         self.assertTrue(entry(document, "steam.1")["measured"]["frameLog"])
         self.assertIn("nicht gemessen (keine im Log)", liste.markdown(document))
 
+    def test_a_limit_the_average_runs_past_does_not_hold_and_one_a_way_cannot_keep_is_none(self):
+        low = {"average": 2, "cores": 10, "low": True}
+
+        def one(average, way="dxmt", limit=60, lowest=30.0):
+            frames = {"average": average, "low": lowest, "periods": 18, "seconds": 185, "source": "metal-hud"}
+            run = report("2026-11-15T20:00:00Z", [played("Game", "steam.1", way=way, frames=frames, load=low, check={"start": "ok", "fps": "ok"},
+                                                        measure={"window": "1512×982", "frameLimit": limit, "refreshRate": 120})],
+                         version=2, built="2026-11-15T18:00:00Z", playSeconds=190, frameLog=True)
+            stock = [{"key": "steam.1", "platform": "windows", "name": "Game", "sizeBytes": 1_000_000_000, "location": "extern"}]
+            document = liste.build([], [run])
+            return (entry(document, "steam.1")["measured"], liste.markdown(document),
+                    liste.checklist_markdown(liste.checklist(stock, [], [run])))
+
+        # Within 95 to 105 % of the limit it holds; below, the game doesn't reach it; above, the limit didn't take hold.
+        self.assertEqual([one(average)[0]["limitState"] for average in (56.9, 57.0, 60.0, 63.0, 63.1)],
+                         ["notReached", "held", "held", "held", "notApplied"])
+        m, table, check = one(73.5)
+        self.assertEqual((m["limitState"], m["frameLimit"], m["public"]), ("notApplied", 60, True))
+        self.assertIn("| 60 FPS, greift nicht | Limit greift nicht: Ø 74, tiefste Periode 30, über 185 s |", table)
+        self.assertIn("ja: Limit 60 FPS greift nicht, Ø 74, 15.11.2026, dxmt", check)
+        self.assertIn("ja: erreicht 60 FPS nicht, Ø 50, 15.11.2026, dxmt", one(49.8)[2])
+        # D3DMetal has nothing that holds a limit: what a run recorded there was asked for, and the number is a free one –
+        # above the limit and below it.
+        m, table, check = one(201.1, way="d3dmetal", lowest=184.9)
+        self.assertEqual((m["limitState"], m["frameLimit"], m["steady"], m["public"]), ("noneOnWay", 60, False, True))
+        self.assertIn("| keins möglich (verlangt: 60 FPS) | frei (kein Limit auf diesem Weg): Ø 201, tiefste Periode 185, über 185 s |", table)
+        self.assertIn("ja: frei gemessen (kein Limit auf diesem Weg), Ø 201, 15.11.2026, d3dmetal", check)
+        self.assertEqual(one(49.8, way="d3dmetal")[0]["limitState"], "noneOnWay")
+        self.assertNotIn("hält", table.split("| Game |")[1])
+
+    def test_a_free_number_that_hardly_moves_is_marked_and_is_no_number_for_the_checklist(self):
+        low = {"average": 2, "cores": 10, "low": True}
+
+        def one(average, lowest, seconds=186, limit=0, way="wined3d"):
+            frames = {"average": average, "low": lowest, "periods": 17, "seconds": seconds, "source": "wine-fps"}
+            run = report("2026-11-15T20:00:00Z", [played("L4D2", "steam.550", way=way, frames=frames, load=low, check={"start": "ok", "fps": "ok"},
+                                                        measure={"window": "1512×982", "frameLimit": limit, "refreshRate": 120})],
+                         version=2, built="2026-11-15T18:00:00Z", playSeconds=190, frameLog=True, wineFps=True)
+            stock = [{"key": "steam.550", "platform": "windows", "name": "L4D2", "sizeBytes": 1_000_000_000, "location": "extern"}]
+            return entry(liste.build([], [run]), "steam.550")["measured"], liste.markdown(liste.build([], [run])), liste.checklist(stock, [], [run])
+
+        # The night of 14.11.: an intro film at 24 frames a second for the whole measuring.
+        m, table, document = one(23.9, 23.3)
+        self.assertEqual((m["steady"], m["limitState"], m["public"], m["notPublic"]), (True, "none", False, ["steady"]))
+        self.assertIn("| keins | starr, kein Leistungswert: Ø 24, tiefste Periode 23 (Wines fps-Kanal), über 186 s |", table)
+        self.assertIn("FPS nicht für die öffentliche Liste: starrer Wert (Film oder Sperre des Spiels)", table)
+        game = document["games"][0]
+        self.assertEqual((game["status"], game["start"]["ok"], game["fps"]["ok"], game["fps"]["why"]), ("offen", True, False, "steady"))
+        self.assertIn("fehlt: starrer Wert, kein Leistungswert (Film oder Sperre des Spiels) (Ø 24, 15.11.2026, wined3d)",
+                      liste.checklist_markdown(document))
+        # A number that moves is one, a short measuring says nothing about it, and under a limit that holds a steady rate is the point.
+        self.assertEqual([one(119.5, 112.4)[0]["steady"], one(23.9, 23.3, seconds=45)[0]["steady"],
+                          one(59.9, 58.7, limit=60, way="dxmt")[0]["steady"]], [False, False, False])
+        self.assertEqual(one(59.9, 58.7, limit=60, way="dxmt")[2]["games"][0]["status"], "fertig")
+        # Where the limit doesn't count, a steady number is marked like any free one.
+        self.assertTrue(one(201.0, 198.0, limit=60, way="d3dmetal")[0]["steady"])
+
     def test_wines_own_direct3d_brings_a_rate_through_wines_fps_channel(self):
         low = {"average": 2, "cores": 10, "low": True}
         rate = {"average": 55.0, "low": 48.6, "periods": 2, "seconds": 24.0, "source": "wine-fps"}
@@ -289,7 +346,7 @@ class GameTestTests(unittest.TestCase):
         document = liste.build([], [run])
         m = entry(document, "steam.35140")["measured"]
         # A rate without a limit is a free number; what the channel doesn't give stays null and is said in words.
-        self.assertEqual((m["fps"]["source"], m["kind"], m["public"], m["wineFps"]), ("wine-fps", "free", True, True))
+        self.assertEqual((m["fps"]["source"], m["limitState"], m["public"], m["wineFps"]), ("wine-fps", "none", True, True))
         self.assertEqual((m["fps"]["onePercentLow"], m["fps"]["slowestFrame"], m["fps"]["slowestTypical"]), (None, None, None))
         row = next(line for line in liste.markdown(document).splitlines() if line.startswith("| Batman"))
         self.assertIn("| keins | frei: Ø 55, tiefste Periode 49 (Wines fps-Kanal), über 24 s | gibt Wines fps-Kanal nicht her |", row)
@@ -303,7 +360,7 @@ class GameTestTests(unittest.TestCase):
         # On the checklist it's a frame rate like any other: with a clean start on the same build, done.
         stock = [{"key": "steam.35140", "platform": "windows", "name": "Batman", "sizeBytes": 8471095333, "location": "extern"}]
         game = liste.checklist(stock, [], [run])["games"][0]
-        self.assertEqual((game["status"], game["fps"]["kind"], game["fps"]["average"]), ("fertig", "free", 55.0))
+        self.assertEqual((game["status"], game["fps"]["limitState"], game["fps"]["average"]), ("fertig", "none", 55.0))
         self.assertIn("ja: frei gemessen, Ø 55, 15.11.2026, wined3d", liste.checklist_markdown(liste.checklist(stock, [], [run])))
 
     def test_a_picture_stays_one_and_a_run_without_it_is_said_beside_it(self):
@@ -461,7 +518,7 @@ class ChecklistTests(unittest.TestCase):
         document = liste.checklist(stock, [], [self.measured_run("2026-11-15T20:00:00Z", [self.clean("MGS V", "steam.287700"), quiet])])
         by = {game["key"]: game for game in document["games"]}
         self.assertEqual((by["steam.287700"]["status"], by["steam.287700"]["missing"]), ("fertig", []))
-        self.assertEqual((by["steam.287700"]["fps"]["kind"], by["steam.287700"]["fps"]["holds"], by["steam.287700"]["fps"]["public"]), ("holdsLimit", True, True))
+        self.assertEqual((by["steam.287700"]["fps"]["limitState"], by["steam.287700"]["fps"]["steady"], by["steam.287700"]["fps"]["public"]), ("held", False, True))
         self.assertEqual((by["epic.Calluna"]["status"], by["epic.Calluna"]["missing"], by["epic.Calluna"]["fps"]["why"]), ("offen", ["fps"], "wayReportsNone"))
         self.assertEqual((by["steam.239140"]["status"], by["steam.239140"]["missing"], by["steam.239140"]["start"]["why"]), ("offen", ["start", "fps"], "never"))
         self.assertEqual(document["totals"], {"fertig": {"games": 1, "bytes": 31106322849}, "offen": {"games": 2, "bytes": 78640621009},
