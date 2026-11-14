@@ -63,7 +63,7 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual((batman["name"], batman["nameFrom"]), ("Batman: Arkham Asylum GOTY Edition", "evidence"))
         self.assertEqual((batman["confirmed"]["nightforge"], batman["confirmed"]["built"], batman["confirmed"]["parts"]),
                          ("0.3.2", "2026-11-14T14:02:11Z", parts))
-        self.assertIn("bestätigt 14.11.2026, 1. Start · Nightforge 0.3.2 (gebaut 14.11.2026) · winecx@4.7.3", liste.markdown(document))
+        self.assertIn("bestätigt 14.11.2026, 1. Start · Nightforge 0.3.2 (gebaut 14.11.2026 14:02 UTC) · winecx@4.7.3", liste.markdown(document))
         self.assertNotIn("Ohne Namen", liste.markdown(document))
         # A report's name still comes first, and a line without these reads as before.
         named = liste.build([[said]], [report("2026-11-14T17:00:00Z", [played("Batman GOTY", "steam.35140", way="wined3d")])])
@@ -168,8 +168,51 @@ class GameTestTests(unittest.TestCase):
         row = next(line for line in liste.markdown(document).splitlines() if line.startswith("| ABZU"))
         self.assertEqual(row, "| ABZU | Epic Games | Windows | dxmt -dx11 | Bild im Spieletest 10.11.2026 | Bild in 1 von 1 | 12 s | nicht gemessen "
                               "| Ø 55, tiefste Periode 42 (Limit nicht aufgezeichnet) | nicht gemessen | nicht gemessen "
-                              "| 10.11.2026 · Nightforge 0.3.2 · winecx@4.7.3 · graphics@11.18-dxmt0.80-17 · 60 s "
+                              "| 10.11.2026 · Nightforge 0.3.2 · winecx@4.7.3 · graphics@11.18-dxmt0.80-17 · 60 s | Bild 10.11.2026 (Spieletest) "
                               "| FPS nicht für die öffentliche Liste: Limit nicht aufgezeichnet, Größe nicht aufgezeichnet, Messdauer nicht aufgezeichnet |")
+
+    def test_a_value_keeps_the_build_it_was_measured_on_when_a_newer_one_runs(self):
+        """What the public list shows doesn't go with a new build: the value stands with its build, and what the
+        current build has seen of the game is said beside it."""
+        low = {"average": 2, "cores": 10, "low": True}
+        good = played("MGS V", "steam.287700", frames={"average": 59.3, "low": 56.7, "periods": 12, "seconds": 190}, load=low,
+                      measure={"window": "1512×982", "frameLimit": 60, "refreshRate": 120})
+        first = report("2026-11-15T20:00:00Z", [good], version=2, built="2026-11-15T18:00:00Z", playSeconds=200)
+        newer = "2026-11-17T09:00:00Z"
+
+        def listed(*later):
+            document = liste.build([], [first] + list(later))
+            return document, entry(document, "steam.287700")
+
+        # A newer build that ran another game only: the value stays, and the current build has seen nothing of this one.
+        document, mgs = listed(report("2026-11-17T10:00:00Z", [played("ABZU", "epic.Curry")], version=2, built=newer))
+        self.assertEqual((mgs["measured"]["fps"]["average"], mgs["measured"]["built"], mgs["measured"]["public"], mgs["onCurrentBuild"]),
+                         (59.3, "2026-11-15T18:00:00Z", True, None))
+        self.assertEqual((document["currentBuilds"][MAC]["built"], document["currentBuilds"][MAC]["since"]), (newer, "2026-11-17T10:00:00Z"))
+        table = liste.markdown(document)
+        self.assertIn("Aktueller Build: Nightforge 0.3.2 (gebaut 17.11.2026 09:00 UTC)", table)
+        self.assertIn("15.11.2026 · Nightforge 0.3.2 (gebaut 15.11.2026 18:00 UTC) · winecx@4.7.3 · graphics@11.18-dxmt0.80-17 · 200 s | noch nichts |", table)
+        # A newer run with a picture and no frame rate, or one measured on battery, doesn't take the value's place.
+        silent = played("MGS V", "steam.287700", load=low, measure={"frameLimit": 60, "noFrames": "noneInLog"})
+        _, mgs = listed(report("2026-11-17T10:00:00Z", [silent], version=2, built=newer))
+        self.assertEqual((mgs["measured"]["at"], mgs["measured"]["fps"]["average"]), ("2026-11-15T20:00:00Z", 59.3))
+        self.assertEqual(mgs["onCurrentBuild"], {"at": "2026-11-17T10:00:00Z", "picture": True, "by": "gameTest"})
+        battery = dict(good, frames={"average": 29.8, "low": 28.0, "periods": 12, "seconds": 190})
+        _, mgs = listed(report("2026-11-17T10:00:00Z", [battery], version=2, built=newer, onBattery=True))
+        self.assertEqual((mgs["measured"]["fps"]["average"], mgs["measured"]["built"]), (59.3, "2026-11-15T18:00:00Z"))
+        # A newer value that can stand in public takes it, with its own build.
+        better = dict(good, frames={"average": 60.0, "low": 58.9, "periods": 12, "seconds": 190})
+        _, mgs = listed(report("2026-11-17T10:00:00Z", [better], version=2, built=newer))
+        self.assertEqual((mgs["measured"]["fps"]["average"], mgs["measured"]["built"]), (60.0, newer))
+        # No picture on the current build is said too – from a game test or from a start's own line.
+        document, mgs = listed(report("2026-11-17T10:00:00Z", [played("MGS V", "steam.287700", outcome="noPicture")], version=2, built=newer))
+        self.assertEqual(mgs["onCurrentBuild"], {"at": "2026-11-17T10:00:00Z", "picture": False, "by": "gameTest"})
+        self.assertIn("| kein Bild 17.11.2026 (Spieletest) |", liste.markdown(document))
+        parts = ["winecx@4.7.3", "d3dmetal@apple-3.0", "graphics@11.18-dxmt0.80-17"]
+        begun = started("steam.287700", "dxmt", "2026-11-18T12:00:00Z", nightforge="0.3.2", built="2026-11-18T09:00:00Z", parts=parts)
+        document = liste.build([[begun, event("steam.287700", "worked", "dxmt", "2026-11-18T12:03:10Z")]], [first])
+        self.assertEqual(entry(document, "steam.287700")["onCurrentBuild"], {"at": "2026-11-18T12:00:00Z", "picture": True, "by": "evidence"})
+        self.assertEqual(entry(document, "steam.287700")["measured"]["built"], "2026-11-15T18:00:00Z")
 
     def test_a_format_2_report_brings_the_slowest_frames_the_size_and_the_limit(self):
         frames = {"average": 59.3, "low": 56.7, "periods": 11, "seconds": 110, "slowestFrame": 310, "slowestTypical": 24, "source": "dxmt"}
@@ -179,7 +222,7 @@ class GameTestTests(unittest.TestCase):
                                            version=2, built="2026-11-15T18:00:00Z")])
         row = next(line for line in liste.markdown(document).splitlines() if line.startswith("| MGS V"))
         self.assertIn("| 60 FPS | hält das Limit: Ø 59, tiefste Periode 57, über 110 s | üblich 24 ms, schlimmster 310 ms | 1512×982@120 (Modus des Spiels) |", row)
-        self.assertIn("Nightforge 0.3.2 (gebaut 15.11.2026)", row)
+        self.assertIn("Nightforge 0.3.2 (gebaut 15.11.2026 18:00 UTC)", row)
         self.assertTrue(row.endswith("| – |"))  # every condition on record: nothing against showing it
         m = entry(document, "steam.287700")["measured"]
         self.assertEqual((m["fps"]["source"], m["kind"], m["holds"], m["public"], m["notPublic"]), ("dxmt", "holdsLimit", True, True, []))
@@ -237,13 +280,22 @@ class GameTestTests(unittest.TestCase):
         self.assertTrue(entry(document, "steam.1")["measured"]["frameLog"])
         self.assertIn("nicht gemessen (keine im Log)", liste.markdown(document))
 
-    def test_the_newest_run_decides_and_the_runs_are_counted(self):
+    def test_a_picture_stays_one_and_a_run_without_it_is_said_beside_it(self):
         tests = [report("2026-11-09T20:00:00Z", [played("Wukong", "steam.3132990", way="d3dmetal", secondsToPicture=87.1)]),
                  report("2026-11-10T20:00:00Z", [played("Wukong", "steam.3132990", outcome="hang", way="d3dmetal")]),
                  report("2026-11-11T20:00:00Z", [played("Wukong", "steam.3132990", outcome="needsPlayer", way="d3dmetal", skip="steamAsks")])]
         wukong = entry(liste.build([], tests), "steam.3132990")
-        self.assertEqual((wukong["level"], wukong["gameTest"]["runs"], wukong["gameTest"]["pictures"]), ("kein-bild", 2, 1))
-        self.assertIn("Spieletest 10.11.2026: hängt ohne Bild (Bild in 1 von 2 Läufen)", liste.markdown(liste.build([], tests)))
+        self.assertEqual((wukong["level"], wukong["gameTest"]["runs"], wukong["gameTest"]["pictures"]), ("startet", 2, 1))
+        self.assertEqual((wukong["seen"], wukong["noPictureSince"]), ({"at": "2026-11-09T20:00:00Z", "by": "gameTest"},
+                                                                      {"at": "2026-11-10T20:00:00Z", "by": "gameTest", "count": 1}))
+        self.assertEqual((wukong["measured"]["secondsToPicture"], wukong["onCurrentBuild"]), (87.1, {"at": "2026-11-10T20:00:00Z", "picture": False, "by": "gameTest"}))
+        table = liste.markdown(liste.build([], tests))
+        self.assertIn("Bild im Spieletest 9.11.2026 | Bild in 1 von 2 | 87 s |", table)
+        self.assertIn("| kein Bild 10.11.2026 (Spieletest) | danach ein Start ohne Bild, zuletzt 10.11.2026 (Spieletest) |", table)
+        # Never a picture: tried, and not on the list proper.
+        never = liste.build([], tests[1:])
+        self.assertEqual(entry(never, "steam.3132990")["level"], "kein-bild")
+        self.assertIn("Spieletest 10.11.2026: hängt ohne Bild", liste.markdown(never))
         # Confirmed by the evidence, it runs all the same – and brings the picture run's numbers.
         runs = liste.build([[started("steam.3132990", "d3dmetal", "2026-11-09T19:00:00Z", known=True)]], tests)
         self.assertEqual((entry(runs, "steam.3132990")["level"], entry(runs, "steam.3132990")["measured"]["secondsToPicture"]), ("laeuft", 87.1))
@@ -392,10 +444,14 @@ class ChecklistTests(unittest.TestCase):
                          ("0.3.2", self.BUILT, "2026-11-15T20:00:00Z", MAC))
         table = liste.checklist_markdown(document)
         self.assertIn("**Fertig: 1 Spiel, 31,1 GB. Offen: 2 Spiele, 78,6 GB. Von Hand zu prüfen: 0 Spiele, 0,0 GB.**", table)
-        self.assertIn("| MGS V | Steam | Windows | 31,1 GB | ja (Spieletest 15.11.2026, dxmt) | ja: hält 60 FPS, Ø 59, 15.11.2026, dxmt | **fertig – darf weg** |", table)
-        self.assertIn("| Control | Epic Games | Windows | 45,0 GB | ja (Spieletest 15.11.2026, d3dmetal) | fehlt: D3DMetal meldet keine (15.11.2026, d3dmetal) | offen |", table)
-        self.assertIn("| Dying Light | Steam | Mac | 33,6 GB | fehlt: auf diesem Build nie gestartet | fehlt: auf diesem Build nie gemessen | offen |", table)
-        self.assertIn("Aktueller Build: Nightforge 0.3.2 (gebaut 15.11.2026) · winecx@4.7.3", table)
+        self.assertIn("| MGS V | Steam | Windows | 31,1 GB | ja (Spieletest 15.11.2026, dxmt) | ja: hält 60 FPS, Ø 59, 15.11.2026, dxmt | B1 (aktuell) | **fertig – darf weg** |", table)
+        self.assertIn("| Control | Epic Games | Windows | 45,0 GB | ja (Spieletest 15.11.2026, d3dmetal) | fehlt: D3DMetal meldet keine (15.11.2026, d3dmetal) | B1 (aktuell) | offen |", table)
+        self.assertIn("| Dying Light | Steam | Mac | 33,6 GB | fehlt: kein Start aufgezeichnet | fehlt: nie gemessen | – | offen |", table)
+        self.assertIn("Aktueller Build: Nightforge 0.3.2 (gebaut 15.11.2026 18:00 UTC) · winecx@4.7.3", table)
+        self.assertIn("- **B1** (aktuell): Nightforge 0.3.2 (gebaut 15.11.2026 18:00 UTC) · winecx@4.7.3 · d3dmetal@apple-3.0 · graphics@11.18-dxmt0.80-17, gesehen seit 15.11.2026", table)
+        self.assertEqual(by["steam.287700"]["build"], {"nightforge": "0.3.2", "built": self.BUILT, "since": "2026-11-15T20:00:00Z", "current": True,
+                                                       "engine": ["winecx@4.7.3", "d3dmetal@apple-3.0", "graphics@11.18-dxmt0.80-17"]})
+        self.assertIsNone(by["steam.239140"]["build"])
         self.assertIn("Deinstalliert wird von hier aus nie etwas", table)
         self.assertEqual([game["key"] for game in document["games"]], ["steam.287700", "epic.Calluna", "steam.239140"])  # done first, then by size
 
@@ -405,26 +461,93 @@ class ChecklistTests(unittest.TestCase):
         abzu = liste.checklist(stock, [], [old])["games"][0]
         self.assertEqual((abzu["start"]["ok"], abzu["fps"]["ok"], abzu["fps"]["why"], abzu["fps"]["average"]), (True, False, "limitUnknown", 54.8))
         self.assertIn("fehlt: Wert ohne aufgezeichnetes Limit (Ø 55, 10.11.2026, dxmt -dx11)", liste.checklist_markdown(liste.checklist(stock, [], [old])))
-        # A newer build's first run without the game: what the old build saw no longer counts.
+        # A newer build's first run without the game: what the old build saw stays, under that build's name.
         newer = self.measured_run("2026-11-15T20:00:00Z", [self.clean("MGS V", "steam.287700")])
-        abzu = liste.checklist(stock, [], [old, newer])["games"][0]
-        self.assertEqual((abzu["start"]["why"], abzu["fps"]["why"]), ("never", "never"))
+        document = liste.checklist(stock, [], [old, newer])
+        abzu = document["games"][0]
+        self.assertEqual((abzu["start"]["ok"], abzu["fps"]["why"], abzu["build"]["current"], abzu["build"]["built"]), (True, "limitUnknown", False, None))
+        self.assertEqual(document["build"]["built"], self.BUILT)  # the current build is the newer one all the same
+        table = liste.checklist_markdown(document)
+        self.assertIn("- **B1**: Nightforge 0.3.2 · winecx@4.7.3 · d3dmetal@apple-3.0 · graphics@11.18-dxmt0.80-17, gesehen seit 10.11.2026", table)
+        self.assertIn("fehlt: Wert ohne aufgezeichnetes Limit (Ø 55, 10.11.2026, dxmt -dx11) | B1 | offen |", table)
 
-    def test_the_newest_start_decides(self):
+    def test_done_once_is_done_and_names_the_build_it_was_done_on(self):
+        """The player uninstalls a game once it's done: no newer build can measure it again, so none takes it back."""
         stock = self.stock(("steam.1", "windows", "Game", 1000000000))
-        first = self.measured_run("2026-11-15T20:00:00Z", [self.clean("Game", "steam.1")])
-        twice = self.clean("Game", "steam.1", check={"start": "severalWays", "fps": "ok"})
-        short = self.clean("Game", "steam.1", frames=None, check={"start": "tooShort", "fps": "noneInLog"})
+        done = self.measured_run("2026-11-15T20:00:00Z", [self.clean("Game", "steam.1")])
+        newer = dict(BUILT="2026-11-17T09:00:00Z")
+
+        def run(at, game, built=self.BUILT):
+            return report(at, [game], version=2, built=built, playSeconds=200)
+
+        def check(*runs, evidence=()):
+            document = liste.checklist(stock, [list(evidence)], [done] + list(runs))
+            return document, document["games"][0]
+
+        # A newer build that never saw the game: done stays, on the build it was done on.
+        other = run("2026-11-17T10:00:00Z", self.clean("MGS V", "steam.287700"), built=newer["BUILT"])
+        document, game = check(other)
+        self.assertEqual((game["status"], game["missing"], game["build"]["built"], game["build"]["current"]), ("fertig", [], self.BUILT, False))
+        self.assertEqual((document["build"]["built"], [one["built"] for one in document["builds"]]), (newer["BUILT"], [self.BUILT]))
+        self.assertIn("| ja (Spieletest 15.11.2026, dxmt) | ja: hält 60 FPS, Ø 59, 15.11.2026, dxmt | B1 | **fertig – darf weg** |", liste.checklist_markdown(document))
+        # A start that goes wrong on the newer build is said beside it and takes nothing back.
+        failed = run("2026-11-17T10:00:00Z", played("Game", "steam.1", outcome="noPicture"), built=newer["BUILT"])
+        document, game = check(failed)
+        self.assertEqual((game["status"], game["build"]["built"]), ("fertig", self.BUILT))
+        self.assertEqual(game["later"], {"count": 1, "at": "2026-11-17T10:00:00Z", "why": "noPicture", "by": "gameTest"})
+        self.assertIn("ja (Spieletest 15.11.2026, dxmt); danach ein Start ging schief, zuletzt 17.11.2026: kein Bild (Spieletest)", liste.checklist_markdown(document))
+        # … also on the same build, and from the evidence: two of them, the newest named.
+        twice = run("2026-11-15T21:00:00Z", self.clean("Game", "steam.1", check={"start": "severalWays", "fps": "ok"}))
+        begun = started("steam.1", "dxmt", "2026-11-18T12:00:00Z", nightforge="0.3.2", built=newer["BUILT"], parts=["winecx@4.7.3"])
+        document, game = check(twice, evidence=[begun, event("steam.1", "failed", "dxmt", "2026-11-18T12:00:20Z")])
+        self.assertEqual((game["status"], game["later"]), ("fertig", {"count": 2, "at": "2026-11-18T12:00:00Z", "why": "failed", "by": "evidence"}))
+        self.assertIn("danach 2 Starts gingen schief, zuletzt 18.11.2026: Fehlstart (Evidenz)", liste.checklist_markdown(document))
+        # A start that settles nothing, or one that went wrong before the clean one, is no note.
+        short = run("2026-11-15T21:00:00Z", self.clean("Game", "steam.1", frames=None, check={"start": "tooShort", "fps": "noneInLog"}))
+        self.assertIsNone(check(short)[1]["later"])
+        early = report("2026-11-15T19:00:00Z", [played("Game", "steam.1", outcome="noPicture")], version=2, built=self.BUILT, playSeconds=200)
+        self.assertEqual((check(early)[1]["status"], check(early)[1]["later"]), ("fertig", None))
+        # Done again on the newer build: the entry names the newest build that had both.
+        again = run("2026-11-17T10:00:00Z", self.clean("Game", "steam.1"), built=newer["BUILT"])
+        document, game = check(again)
+        self.assertEqual((game["status"], game["build"]["built"], game["build"]["current"], game["start"]["at"]), ("fertig", newer["BUILT"], True, "2026-11-17T10:00:00Z"))
+
+    def test_both_have_to_be_on_the_same_build(self):
+        stock = self.stock(("steam.1", "windows", "Game", 1000000000))
+        quiet = self.clean("Game", "steam.1", way="d3dmetal", frames=None, check={"start": "ok", "fps": "noneInLog"}, measure={"frameLimit": 60, "noFrames": "noneInLog"})
+        started_only = self.measured_run("2026-11-15T20:00:00Z", [quiet])
+        measured_only = report("2026-11-17T10:00:00Z", [self.clean("Game", "steam.1", check={"start": "severalWays", "fps": "ok"})], version=2,
+                               built="2026-11-17T09:00:00Z", playSeconds=200)
+        document = liste.checklist(stock, [], [started_only, measured_only])
+        game = document["games"][0]
+        # A clean start on one build and a frame rate on another: open, and what the newest build with a record says.
+        self.assertEqual((game["status"], game["missing"], game["start"]["why"], game["fps"]["ok"], game["build"]["built"]),
+                         ("offen", ["start"], "severalWays", True, "2026-11-17T09:00:00Z"))
+        self.assertIsNone(game["later"])  # no clean start on that build: nothing came "after" one
+        # Both on the older build after all: done there.
+        both = self.measured_run("2026-11-15T21:00:00Z", [self.clean("Game", "steam.1")])
+        game = liste.checklist(stock, [], [started_only, both, measured_only])["games"][0]
+        self.assertEqual((game["status"], game["build"]["built"], game["later"]["why"]), ("fertig", self.BUILT, "severalWays"))
+
+    def test_a_clean_start_stays_one_on_its_build(self):
+        stock = self.stock(("steam.1", "windows", "Game", 1000000000))
+        quiet = {"frames": None, "check": {"start": "ok", "fps": "noneInLog"}, "measure": {"frameLimit": 60, "noFrames": "noneInLog"}}
+        first = self.measured_run("2026-11-15T20:00:00Z", [self.clean("Game", "steam.1", **quiet)])
 
         def start(*later):
             runs = [first] + [self.measured_run(f"2026-11-15T2{index + 1}:00:00Z", [game]) for index, game in enumerate(later)]
             game = liste.checklist(stock, [], runs)["games"][0]
-            return game["status"], game["start"]["why"]
+            return game["status"], game["start"]["ok"], game["start"]["at"], (game["later"] or {}).get("why")
 
-        self.assertEqual(start(), ("fertig", "ok"))
-        self.assertEqual(start(twice), ("offen", "severalWays"))  # a later start that needed a second way
-        self.assertEqual(start(short), ("fertig", "ok"))  # one that settles nothing leaves the clean start standing
-        self.assertEqual(start(twice, short), ("offen", "tooShort"))  # … and is the answer after one that wasn't clean
+        twice = self.clean("Game", "steam.1", check={"start": "severalWays", "fps": "ok"})
+        short = self.clean("Game", "steam.1", frames=None, check={"start": "tooShort", "fps": "noneInLog"})
+        self.assertEqual(start(), ("offen", True, "2026-11-15T20:00:00Z", None))
+        # A later start that needed a second way brings the frame rate: with the clean start before it that is done, and said.
+        self.assertEqual(start(twice), ("fertig", True, "2026-11-15T20:00:00Z", "severalWays"))
+        self.assertEqual(start(short), ("offen", True, "2026-11-15T20:00:00Z", None))
+        # Without any clean start the newest one is the answer.
+        none = liste.checklist(stock, [], [self.measured_run("2026-11-15T20:00:00Z", [twice]), self.measured_run("2026-11-15T21:00:00Z", [short])])["games"][0]
+        self.assertEqual((none["status"], none["start"]["ok"], none["start"]["why"], none["fps"]["ok"]), ("offen", False, "tooShort", True))
 
     def test_starts_by_hand_count_from_the_evidence(self):
         stock = self.stock(("steam.35140", "windows", "Batman", 8471095333))
@@ -473,13 +596,15 @@ class ChecklistTests(unittest.TestCase):
                          ("2026-11-16T09:00:00Z", "2026-11-16T12:08:12Z", "firstStart"))
         self.assertEqual((newer["games"][0]["start"]["ok"], newer["games"][0]["fps"]["why"]), (True, "never"))
         self.assertIn("(erster aufgezeichneter Start auf diesem Build)", liste.checklist_markdown(newer))
-        # A start on an older build, or on other engine parts, says nothing of the current one – whatever its date.
+        # A start on an older build, or on other engine parts, counts on that build and is named with it – whatever its date.
         older = check(said("2026-11-15T21:00:00Z", built="2026-11-10T09:00:00Z"), event("steam.35140", "worked", "wined3d", "2026-11-15T21:04:00Z"),
                       runs=[run, self.measured_run("2026-11-15T22:00:00Z", [self.clean("MGS V", "steam.287700")])])
-        self.assertEqual((older["build"]["built"], older["games"][0]["start"]["why"]), (self.BUILT, "never"))
+        game = older["games"][0]
+        self.assertEqual((older["build"]["built"], game["start"]["ok"], game["build"]["built"], game["build"]["current"]),
+                         (self.BUILT, True, "2026-11-10T09:00:00Z", False))
         other = check(said("2026-11-15T21:00:00Z", parts=["winecx@4.7.3", "graphics@11.19"]), event("steam.35140", "worked", "wined3d", "2026-11-15T21:04:00Z"),
                       runs=[run, self.measured_run("2026-11-15T22:00:00Z", [self.clean("MGS V", "steam.287700")])])
-        self.assertEqual(other["games"][0]["start"]["why"], "never")
+        self.assertEqual((other["games"][0]["build"]["engine"], other["games"][0]["build"]["current"]), (["winecx@4.7.3", "graphics@11.19"], False))
         # No report at all: the starts alone name the build.
         alone = check(said("2026-11-16T12:08:12Z"), worked, runs=[])
         self.assertEqual((alone["build"]["nightforge"], alone["build"]["engine"], alone["games"][0]["start"]["ok"]), ("0.3.2", parts, True))
