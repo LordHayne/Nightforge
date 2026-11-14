@@ -681,9 +681,33 @@ func scansInLine() {
     check(model.route == before && model.errorMessage == nil, "B and A with nothing to answer do nothing")
 }
 
+/// A quit closes every sheet over the library through its state (Quit.closeModelSheets): one it doesn't know stays
+/// up, what AppKit ends of it comes back with the next redraw, and `NSApp.terminate` under a sheet does nothing –
+/// "didn't go through: a sheet is still open (SheetPresentationWindow)", twice on 14.11.
+@MainActor func quitClosesEverySheet() {
+    clean()
+    let model = LibraryModel()
+    check(model.openSheets.isEmpty, "nothing is up at first: \(model.openSheets)")
+    model.offersFullScreen = true
+    check(model.openSheets == ["offersFullScreen"], "the full-screen offer is named for wine.log: \(model.openSheets)")
+    model.closeAllSheets()
+    check(!model.offersFullScreen, "the full-screen offer for the controller goes with a quit")
+    model.pendingPower = .quitNightforge
+    model.closeAllSheets()
+    check(model.pendingPower == nil, "and the small menu's own \"Quit Nightforge?\"")
+    model.errorMessage = "A late word"
+    model.showingSettings = true
+    model.pendingPower = .sleepMac
+    check(model.openSheets == ["showingSettings", "errorMessage", "pendingPower"], "what's up, by its state: \(model.openSheets)")
+    model.closeAllSheets()
+    model.closeAllSheets()  // a quit closes them again while one is up
+    check(model.openSheets.isEmpty, "all of them go, and closing twice changes nothing: \(model.openSheets)")
+}
+
 @main struct Main {
     static func main() async {
         await ModelWorld.begin()
+        quitClosesEverySheet()
         await downloads()
         await staysOnItsGame()
         await marks()

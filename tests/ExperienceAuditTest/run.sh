@@ -3,7 +3,7 @@
 # bar's word for Return and A against what the press does, whose word about a save "Welcome back" waits for,
 # a message after one that was clicked, the overlay over a game that ended by itself,
 # the keys under an open panel, the on-screen keyboard without its pad,
-# the app's update under a running game:
+# the app's update under a running game, every sheet a quit has to close:
 # tests/ExperienceAuditTest/run.sh
 set -euo pipefail
 cd "$(dirname "$0")/../.."

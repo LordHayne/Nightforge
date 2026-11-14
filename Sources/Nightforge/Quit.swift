@@ -14,12 +14,19 @@ import AppKit
 /// to quit, not to keep what they were trying out.
 /// The one wait: while Nightforge removes itself (CompleteRemoval), which quits by itself once
 /// it's done – a quit halfway would leave half of it behind.
+/// A quit keeps at it (14.11.): a sheet may come after the closing – "Welcome back" once a game's
+/// curtain has gone, what a start that failed has to say, the full-screen offer the moment nothing
+/// else is open – so the sheets are closed again while one is up, and Nightforge goes the moment
+/// none is left. It used to try once after two seconds, under whatever was still open, and then
+/// stayed: twice an `osascript … quit` after a game test left Nightforge running.
 @MainActor
 enum Quit {
     enum Answer: Equatable { case quit, wait }
 
     /// Every sheet of the model's closed through its state (LibraryModel.closeAllSheets).
     static var closeModelSheets: (() -> Void)?
+    /// The model's sheets that are up, by name (LibraryModel.openSheets), for wine.log.
+    static var modelSheets: (() -> [String])?
 
     nonisolated static func answer(removing: Bool) -> Answer { removing ? .wait : .quit }
 
@@ -45,11 +52,15 @@ enum Quit {
     /// Otherwise it quits at once, as AppKit does itself.
     nonisolated static func waits(panelWaiting: Bool, sheetsLeft: Bool) -> Bool { panelWaiting || sheetsLeft }
 
-    /// How long the quit waits for the sheets, in seconds: SwiftUI's go within a fraction, AppKit's
-    /// own are ended after `endSheetsAfter`, and after `giveUpAfter` it quits all the same. By the
-    /// clock: a main thread busy redrawing made 50 ms steps take twice as long.
+    /// How long the quit waits for the sheets, in seconds: SwiftUI's go within a fraction, and while one
+    /// is up the model closes them again every `closeAgainEvery` (one may have come since); AppKit's own
+    /// are ended after `endSheetsAfter`; after `saysWhyAfter` wine.log hears what it waits for; and after
+    /// `giveUpAfter` it tries all the same, once, and stays if AppKit doesn't take it. By the clock: a
+    /// main thread busy redrawing made 50 ms steps take twice as long.
+    static let closeAgainEvery: TimeInterval = 0.5
     static let endSheetsAfter: TimeInterval = 1
-    static let giveUpAfter: TimeInterval = 2
+    static let saysWhyAfter: TimeInterval = 2
+    static let giveUpAfter: TimeInterval = 10
 
     /// Why a quit didn't go through, for wine.log.
     nonisolated static func reason(sheetsLeft: [String], panelWaiting: Bool) -> String {
@@ -57,13 +68,15 @@ enum Quit {
         return panelWaiting ? "a panel still waits for a file" : "AppKit didn't take it"
     }
 
-    /// Asked to quit (`by`, for wine.log): the sheets close and Nightforge quits – at once, or once
-    /// they're gone. `beforeQuitting` answers an Apple Event right before: whoever sent it – logging
-    /// out, restarting, `osascript` – hears yes only as Nightforge really goes (an answer first and
-    /// the quit a second later can count as a cancelled logout, review M7, 3.11.). False while it
-    /// removes itself, which says so. A quit AppKit doesn't take says why in wine.log.
+    /// Asked to quit (`by`, for wine.log): the sheets close and Nightforge quits – at once, or the moment
+    /// they're gone, for up to `patience` seconds. `beforeQuitting` answers an Apple Event right before:
+    /// whoever sent it – logging out, restarting, `osascript` – hears yes only as Nightforge really goes
+    /// (an answer first and the quit a second later can count as a cancelled logout, review M7, 3.11.).
+    /// False while it removes itself, which says so. A quit that waits, and one AppKit doesn't take, say
+    /// why in wine.log.
     @discardableResult
-    static func now(by: String, beforeQuitting: (() -> Void)? = nil, on stage: QuitStage = AppKitQuitStage()) -> Bool {
+    static func now(by: String, beforeQuitting: (() -> Void)? = nil, on stage: QuitStage = AppKitQuitStage(),
+                    patience: TimeInterval = giveUpAfter) -> Bool {
         guard answer(removing: CompleteRemoval.isRunning) == .quit else {
             stage.note("Quit by \(by) waits: Nightforge is removing itself and quits when that's done")
             return false
@@ -72,32 +85,63 @@ enum Quit {
         // own loop asked (a key, an Apple Event), so stopModal, not abortModal.
         if stage.panelWaiting { stage.stopPanel() }
         stage.closeSheets()
-        func quit() {
-            stage.note("Quit by \(by)")
-            beforeQuitting?()
-            guard !stage.terminate() else { return }
-            // Still here: AppKit didn't take it.
-            stage.note("Quit by \(by) didn't go through: \(reason(sheetsLeft: stage.sheetsLeft, panelWaiting: stage.panelWaiting))")
+        let attempt = Attempt()
+        /// One try. The sender hears yes before the first one; false when Nightforge is still here.
+        func tryQuit() -> Bool {
+            if !attempt.answered {
+                attempt.answered = true
+                stage.note("Quit by \(by)")
+                beforeQuitting?()
+            }
+            return stage.terminate()
         }
         func waiting() -> Bool { waits(panelWaiting: stage.panelWaiting, sheetsLeft: !stage.sheetsLeft.isEmpty) }
-        guard waiting() else {
-            quit()
-            return true
-        }
+        func why() -> String { reason(sheetsLeft: stage.sheetsLeft, panelWaiting: stage.panelWaiting) }
+        if !waiting(), tryQuit() { return true }
         Task {
             let start = Date()
-            var ended = false
-            while waiting(), Date().timeIntervalSince(start) < giveUpAfter {
-                if !ended, Date().timeIntervalSince(start) >= endSheetsAfter {
-                    ended = true
-                    stage.endSheets()
-                }
+            var endedSheets = false, said = attempt.answered
+            var closeAgain = closeAgainEvery, nextTry = closeAgainEvery
+            // Still here with nothing in the way: AppKit didn't take it. Said, and tried again below.
+            if attempt.answered { stage.note("Quit by \(by) didn't go through: \(why())") }
+            while true {
                 try? await Task.sleep(for: .milliseconds(50))
+                let elapsed = Date().timeIntervalSince(start)
+                guard elapsed < patience else { break }
+                if waiting() {
+                    if elapsed >= closeAgain {
+                        closeAgain = elapsed + closeAgainEvery
+                        stage.closeSheets()  // one that came since the first closing
+                    }
+                    if !endedSheets, elapsed >= endSheetsAfter {
+                        endedSheets = true
+                        stage.endSheets()
+                    }
+                    if !said, elapsed >= saysWhyAfter {
+                        said = true
+                        stage.note("Quit by \(by) waits: \(why()). It goes the moment that's gone")
+                    }
+                } else if elapsed >= nextTry || !attempt.answered {
+                    if tryQuit() { return }
+                    nextTry = elapsed + closeAgainEvery
+                    if !said {
+                        said = true
+                        stage.note("Quit by \(by) didn't go through: \(why())")
+                    }
+                }
             }
-            quit()
+            // The last try, under whatever is still open: AppKit may take it all the same.
+            if tryQuit() { return }
+            stage.note("Quit by \(by) didn't go through: \(why())")
         }
         return true
     }
+}
+
+/// One quit's tries: whether its sender has been answered.
+@MainActor
+private final class Attempt {
+    var answered = false
 }
 
 /// What a quit acts on: AppKit and the model's sheets – or a test's stand-in (CompleteRemovalTest).
@@ -122,8 +166,14 @@ struct AppKitQuitStage: QuitStage {
 
     func closeSheets() { Quit.closeModelSheets?() }
 
+    /// SwiftUI's sheets have no title and one class: with them, what the model says is up.
     var sheetsLeft: [String] {
-        NSApp.windows.compactMap(\.attachedSheet).map { $0.title.isEmpty ? String(describing: type(of: $0)) : $0.title }
+        let model = Quit.modelSheets?() ?? []
+        return NSApp.windows.compactMap(\.attachedSheet).map { sheet in
+            if !sheet.title.isEmpty { return sheet.title }
+            let kind = String(describing: type(of: sheet))
+            return model.isEmpty ? kind : "\(kind): \(model.joined(separator: ", "))"
+        }
     }
 
     func endSheets() {
