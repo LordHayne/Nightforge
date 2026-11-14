@@ -163,6 +163,22 @@ Befunde aus dem Lauf:
   Vorhang.
 - Die Werte sind die ersten drei Minuten (Vorspann, Menü, erste Sekunden), keine feste Szene: steht im Bericht.
 
+**Gezielte Live-Prüfung von Schritt E, 15.11., 00:36–00:43 (Bericht `GameTests/2026-11-15-0037`, Protokoll im
+Notizordner `closer-look/live-2026-11-15-schritt-e-gezielt.log`): die neuen Wirkungen waren nicht zu sehen.**
+
+- [ ] **E3 nicht gesehen:** It Takes Two mit dem Testprofil (`physxupdateloader`, `physxupdateloader64` =
+  `native,builtin`, so auch im Rezept der Evidenz) stürzte nicht ab: Bild nach 61 s. Der Absturz vom 10.11. lässt
+  sich so nicht mehr auslösen (Vermutung: nvapi64 ist seit dem 7.11. aus). Es braucht einen anderen Auslöser.
+- [ ] **E4 nicht gesehen:** trotz anderem Rezept stand `known` an der `started`-Zeile, die Zeile „its way was proven
+  with another recipe“ kam nicht (der Zustand trug wohl noch kein Rezept: der Start davor lief nur 40 s).
+- [ ] **E5, Fehlerfenster, nicht gesehen:** Alan Wake von Hand auf D3DMetal zeigte die Box (`trace:msgbox` mit dem
+  Text steht im Protokoll), der Spieletest brach aber mit „dialog on d3dmetal“ ab, bevor der Start endete: keine
+  Diagnosezeile, keine Evidenz. Der Nutzer sah die Box. Zu prüfen ist das mit einem normalen Start über „Spielen“.
+- Zurückgestellt: Profil (git), Zustand beider Spiele aus der Sicherung, 2 Evidenzzeilen herausgenommen, sauberer
+  Build `ded1d83` wieder eingespielt (00:43, Signatur OK). Nichts ging kaputt.
+- **Idee des Nutzers (15.11.):** Der Vorhang soll zeigen, dass Nightforge aktiv an der Fehlerbehebung arbeitet.
+  Board bei der Diagnose-Session in Auftrag (Zustände des Vorhangs, Umgang mit dem Fehlerfenster, Frage zur Wurzel).
+
 **Teil 2 eingespielt und erster Probelauf, 15.11., 00:19–00:30 (Testbuild `af20360`, mit „Ja, einspielen“ des
 Nutzers; Bericht `GameTests/2026-11-15-0020`, je 40 s):** 6 von 6 mit Bild – MGS V (Steam, dxmt, Ø 59),
 It Takes Two (Steam, d3dmetal), ABZU (Epic, dxmt -dx11), Mafia II (GOG, wined3d), Valheim (Mac), Rise of the
