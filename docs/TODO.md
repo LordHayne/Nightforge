@@ -163,6 +163,14 @@ Befunde aus dem Lauf:
   Vorhang.
 - Die Werte sind die ersten drei Minuten (Vorspann, Menü, erste Sekunden), keine feste Szene: steht im Bericht.
 
+**Ziel für den Start (der Nutzer, 15.11.):** Nightforge reagiert smart, behebt Fehlstarts selbst und vermittelt
+dem Spieler dabei, dass es aktiv an der Lösung arbeitet – „voller Problembehebung bei Fehlern automatisiert“.
+
+- [ ] Jede Abhilfe aus Schritt E braucht einen verlässlichen Weg, sie live auszulösen (Fehler gezielt einbauen),
+  damit sie nicht nur durch Tests gedeckt ist.
+- [ ] Der Vorhang zeigt die Arbeit (Board in Auftrag); Fehlerfenster des Spiels kommen nicht vor den Spieler.
+- [ ] Fehlstarts, die keine Regel kennt, sammeln und daraus Regeln machen (Diagnosetabelle wächst mit jedem Fall).
+
 **Gezielte Live-Prüfung von Schritt E, 15.11., 00:36–00:43 (Bericht `GameTests/2026-11-15-0037`, Protokoll im
 Notizordner `closer-look/live-2026-11-15-schritt-e-gezielt.log`): die neuen Wirkungen waren nicht zu sehen.**
 
