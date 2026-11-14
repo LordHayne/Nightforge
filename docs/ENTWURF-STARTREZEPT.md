@@ -153,7 +153,10 @@ stand. Daraus die Reihenfolge A bis E:
   PhysX, nicht wegen des Wegs); nur Starts ohne Profil (`GameProfile.shapesStart`, `speaksForItsWay`: It Takes Two
   läuft auf D3DMetal mit dem `-dx12` des Profils); nur Unreal und Unity mit bekannter Version.
   Live 11.11.: Dishonored auf WineD3D bestätigt; für Batman (gleiche Generation `unreal3`) sagt der Plan aus den echten
-  Daten „a game of its sort (unreal3) runs on it on this Mac“. Batmans echter Start steht aus (Fassungswechsel).
+  Daten „a game of its sort (unreal3) runs on it on this Mac“.
+  Live 14.11.: Batmans echter Erststart (normaler Start des Nutzers) trug genau diesen Plan im Protokoll, begann auf
+  WineD3D, zeigte nach 90 s ein Bild und wurde nach 181 s als `worked` festgehalten – ohne einen Fehlversuch.
+  Damit ist die Kette Steckbrief → Beweis einer Sorte → erster Weg eines neuen Spiels einmal ganz gesehen.
 - **C, offen:** Diagnose-Start – nach einem Fehlstart ohne Befund ein stiller zweiter Start mit Debug-Schaltern
   (`+wintrust,+chain`, `+loaddll`, `+debugstr`), gezielt gelesen. Neue Regel dazu: fehlende Wurzel (`800b0109`).
   Vorher klären: `wineDebug` greift heute nur bei frischem Nightforge-Start.

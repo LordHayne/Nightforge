@@ -94,7 +94,13 @@ Grund: Von vier neuen Spielen am Testabend kam keines beim ersten Mal ins Spiel.
     Nebenbefunde: `wineDebug` greift nur, wenn Nightforge nach dem Setzen frisch startet (einmal hatte das
     Beenden-Skript Nightforge selbst wieder geöffnet); Alan Wake und Dishonored: siehe unten.
   - Batman: Arkham Asylum (Steam, Unreal 3): vom Test ausgelassen (`versionSwitch`: Wechsel Mac↔Windows mit
-    Spielstand-Übertragung). Braucht einen normalen Start durch den Nutzer.
+    Spielstand-Übertragung). **Erledigt 14.11.** mit einem normalen Start des Nutzers (Build 4d7806c, „guter Start“):
+    Startplan „wined3d, dxmt, dxvk, d3dmetal; now wined3d, a game of its sort (unreal3) runs on it on this Mac“ –
+    der erste echte Erststart, den der Beweis einer Sorte (Dishonored) geordnet hat. Bild nach 90 s (1800×1125),
+    `worked` auf wined3d nach 181 s, Erststart-Zählung 3 auf dem ersten Weg (vorher 2).
+    Offen daran: auf dem Weg zum Bild lagen Steams Lizenz und drei Fenster des Spiels, die etwas fragen
+    (373×169, 492×506, 541×480; der Vorhang ging jeweils darunter) – welche davon der Spieler bedienen musste
+    (BmLauncher?), beim Nutzer erfragen; ein Kandidat fürs Konsolen-Gefühl.
   - Diagnose (Stufe 2) schwieg bei beiden Fehlstarts: kein Dump, keine Protokollzeile. Lücken: den Text im Fehlerfenster
     des Spiels liest niemand; Steckbrief erkennt Unreal 3 nicht (`Engine/Config` + `Binaries` + `<Name>Game`, Engine „other“).
 Offen: Live-Test; `+loaddll` beim ersten Start (braucht bei Steam einen Neustart); Spiel-Build in der Evidenz; „Läuft“ und „Zuletzt gespielt“ erst nach Bild (Design); Rockstar- und EA-Launcher; Controller-Menü auf dem Ladescreen; Probelauf nach dem Download.
