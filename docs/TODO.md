@@ -163,6 +163,25 @@ Befunde aus dem Lauf:
   Vorhang.
 - Die Werte sind die ersten drei Minuten (Vorspann, Menü, erste Sekunden), keine feste Szene: steht im Bericht.
 
+**Stand 14.11., 23:50:** Der zweite Commit der Läuft-Liste-Session (`15bc24a`: der Bericht des Spieletests nennt
+für D3DMetal „keins möglich (verlangt: 60 FPS)“; Regeln und drei Vorschläge in `docs/LAEUFT-LISTE.md` Abschnitt 9,
+Punkte 10 bis 12) ist geprüft (GameTestTest grün) und im Testzweig (`35e3c1b`).
+
+- **Entschieden vom Nutzer („Ja, weglassen“):** Der Spieletest nimmt bei Spielen mit eigenem Cheat-Schutz kein
+  `sample` mehr. In Arbeit bei der Läuft-Liste-Session: Feld im Profil, gesetzt für Overwatch; die einzige
+  Stelle, die `sample` aufruft, ist `GameTestRun.swift:655`.
+- **Overwatch, genauer:** Das HUD-Protokoll fehlte, weil das Fenster des Spiels nie auf dem Bildschirm war (von
+  der Session mit einem eigenen Metal-Programm belegt: nie gezeigtes Fenster, 360 Frames, 0 Zeilen). Der Vorhang
+  hatte also recht: Das Spiel zeichnete, aber ohne sichtbares Fenster. Verlangt waren 40 FPS, DXMT zählte 50.
+  Am 7.11. lief es. Offen, wer das klärt (nach Schritt E; kein sample, kein winedbg).
+- **D3DMetal auf 60 halten, drei Wege, nichts gebaut:** A Takt in `-[WineMetalLayer nextDrawable]` im
+  Mac-Treiber von Wine (Patch für `enginefix`, etwa ein Tag mit Engine-Build und Probe; empfohlen), B Bildschirm
+  für die Dauer des Spiels auf 60 Hz (hält nur Spiele mit VSync: Control ja, Wukong nicht), C DXMT statt
+  D3DMetal, wo ein Spiel dort läuft. Entscheidung des Nutzers offen.
+- Danach an die Reihe: die Protokollzeile „none possible on D3DMetal (asked 60 FPS)“ in `LibraryModel.swift`,
+  `GameLog.d3dMetalStart` und der Kommentar in `Engine.swift` (erst nach Teil 2 von Schritt E, dieselben Dateien);
+  Left 4 Dead 2 mit `-novid` über das Profil neu messen.
+
 **Stand 14.11., 23:30:** Um etwa 21:20 traf das Nutzungslimit beide Sessions, seit 23:20 arbeiten sie wieder
 (Diagnose-Start an Teil 2 von Schritt E, bisher kein Code; Läuft-Liste am Rest ihrer vier Punkte: Abschnitt 9,
 Vorschlag für ein Limit auf D3DMetal, die Anzeige bei Overwatch). Die Listen-Korrektur `ce7647c` ist geprüft
