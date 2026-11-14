@@ -50,9 +50,10 @@ final class GameTestRun {
                                  engine: EngineRollback.shared.history().current?.parts,
                                  mac: "\(ProblemReport.chip) · macOS \(ProblemReport.osVersion)",
                                  pictureWait: settings.pictureWait, playSeconds: settings.playSeconds)
-        report.built = Bundle.main.executablePath.flatMap { try? FileManager.default.attributesOfItem(atPath: $0)[.modificationDate] as? Date }
+        report.built = Updater.currentBuilt
         if model.power.onBattery { report.onBattery = true }
         if ProcessInfo.processInfo.isLowPowerModeEnabled { report.lowPower = true }
+        if GameTest.logsFrames(active: true) { report.frameLog = true }
     }
 
     private func run() async {
@@ -118,6 +119,8 @@ final class GameTestRun {
             write()
         }
         _ = await clearStage()  // a start Steam carried out after the last game's end
+        // The HUD's frame log goes with the run: a Steam that started with it starts again without.
+        model.endFrameLog()
         report.finished = Date()
         report.stopped = stopAsked
         UserDefaults.standard.removeObject(forKey: GameTest.Keys.stop)
@@ -201,6 +204,8 @@ final class GameTestRun {
         var appeared: Date?
         var idleSince: Date?
         var pids: [pid_t] = []
+        /// Every process the game had while it was watched: whose frames the HUD's log is read for.
+        var everSeen: Set<pid_t> = []
         var blind = 0  // looks in a row without a process list
         /// What only the player could do, since when: Steam's question gets `steamAskPatience` to answer itself.
         var asking: (need: GameTest.Skip, since: Date)?
@@ -282,6 +287,7 @@ final class GameTestRun {
             }
             blind = 0
             pids = listed
+            everSeen.formUnion(listed)
             if pids.isEmpty {
                 appeared = nil
                 idleSince = model.launchingID == game.id ? nil : idleSince ?? now
@@ -402,7 +408,7 @@ final class GameTestRun {
         seen.crashSigns = GameLog.crashed(in: log) || unrealCrash
         let outcome = GameTest.outcome(seen)
         // Apple's HUD frame by frame where its logging is on, else the layer's periods.
-        let frames = GameTest.hudSample(in: log).flatMap { GameTest.measuredFrames($0) }
+        let frames = GameTest.hudSample(in: log, processes: everSeen).flatMap { GameTest.measuredFrames($0) }
             ?? GameTest.measuredFrames(GameTest.periods(in: log, programs: programs))
         var entry = GameTest.Entry(candidate, outcome: outcome, skip: seen.needs)
         entry.ways = game.platform == .mac ? [GameTest.Way(way: "mac", outcome: outcome)]
@@ -416,7 +422,8 @@ final class GameTestRun {
         entry.secondsToPicture = pictureAt.map { ($0.timeIntervalSince(started) * 10).rounded() / 10 }
         entry.frames = frames
         if outcome == .picture {
-            entry.measure = GameTest.measure(of: game.name, way: entry.way, in: log, frames: frames, held: await held(game))
+            entry.measure = GameTest.measure(of: game.name, way: entry.way, in: log, frames: frames,
+                                             held: GameTest.held(of: game.name, in: log), frameLog: report.frameLog == true)
         }
         entry.check = GameTest.check(entry, playSeconds: settings.playSeconds, onBattery: report.onBattery == true, lowPower: report.lowPower == true)
         entry.stack = stack
@@ -441,20 +448,6 @@ final class GameTestRun {
         GameLog.note("Game test: \(game.name) – \(outcome.rawValue) on \(entry.way ?? "-")"
                      + (entry.secondsToPicture.map { ", picture after \(Int($0)) s" } ?? ""))
         return entry
-    }
-
-    /// What the start was held to, worked out as LibraryModel.launch does – after the start, so that what
-    /// FramePacing learned from the session before is in it. Nil for a Mac version or another bottle:
-    /// Nightforge holds neither.
-    private func held(_ game: Game) async -> GameTest.Held? {
-        guard game.platform == .windows, game.bottle.isBuiltIn else { return nil }
-        let profile = await ProfileStore.shared.profile(for: game.gameID)
-        let refreshRate = GameDisplay.screen?.maximumFramesPerSecond ?? 60
-        let options = GameOptionsStore.load(game.gameID).resolved(refreshRate: refreshRate, profile: profile)
-        let limit = FramePacing.automaticLimit(game: game.gameID, options: options, profile: profile, refreshRate: refreshRate).limit
-        let capped = PowerSource.cappedLimit(limit, onBattery: model.power.onBattery, saveBattery: Prefs.saveBattery)
-        return GameTest.Held(frameLimit: capped, refreshRate: refreshRate, metalFX: options.effectiveUpscaling(profile: profile),
-                             throttled: capped != limit ? "battery" : Hardware.current.lowPower ? "lowPower" : nil)
     }
 
     /// Nightforge in front before each start: only from there does the curtain hand the front to the

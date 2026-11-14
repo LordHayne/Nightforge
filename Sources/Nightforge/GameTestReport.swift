@@ -82,7 +82,7 @@ extension GameTest {
 
     struct Report: Codable, Equatable {
         /// 2 (14.11.2026): `measure`, `check` and `sizeBytes` per game, the frames' slowest and source, `built`,
-        /// `onBattery`, `lowPower`.
+        /// `onBattery`, `lowPower`, `frameLog`.
         /// A format 1 report reads as before.
         static let format = 2
         static let underRosetta = "x86_64 under Rosetta"
@@ -115,6 +115,10 @@ extension GameTest {
         /// with a run on mains (the battery's 30 FPS, a CPU and GPU held back). Only written when true.
         var onBattery: Bool?
         var lowPower: Bool?
+        /// The run's starts had Apple's Metal HUD log their frames (GameTest.logsFrames): a picture without
+        /// frame rates on D3DMetal or DXVK then says the HUD logged none, not that the way reports none.
+        /// Only written when true.
+        var frameLog: Bool?
         /// The test basket it went by: when it was built, how many games it has, how many of them are installed here.
         var basket: BasketUse?
         /// In German, for people: what else came up (a basket that couldn't be read).
@@ -199,6 +203,10 @@ extension GameTest {
         if let load = report.load {
             lines.append("Systemlast zu Beginn: \(decimal(load.average)) bei \(load.cores) Kernen – "
                          + (load.low ? "niedrig." : "hoch: Andere Arbeit lief mit, die FPS-Werte sind nicht verlässlich."))
+        }
+        if report.frameLog == true {
+            lines.append("Apples Metal-HUD hat die Frames mitgeschrieben (unsichtbar, wo die Leistungsanzeige aus ist): "
+                         + "FPS-Werte auf jedem Weg, der über Metal zeichnet.")
         }
         let busy = report.games.filter { $0.load?.low == false && $0.outcome != .skipped }.count
         if busy > 0 {

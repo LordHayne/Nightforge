@@ -22,6 +22,8 @@ enum GameTest {
         static let stop = "gameTest.stop"
         /// A test basket (`Basket`, compat-db's testkorb.json): its games first, by its score.
         static let basket = "gameTest.basket"
+        /// False: the run's starts don't have Apple's Metal HUD log their frames (`logsFrames`; on unless set to false).
+        static let frameLog = "gameTest.frameLog"
         /// The helper that presses "Play!" in Unity's start window is on (UnityDialog's own switch, on
         /// unless set to false, read at every start – `UnityDialog.enabled`): the run gives it time before
         /// it calls the window one that needs a click. Whether it runs for a game says UnityDialog.programs.
@@ -31,6 +33,13 @@ enum GameTest {
     /// A run is under way: nothing gets installed for a start (LibraryModel.installRuntimes), and
     /// Nightforge doesn't quit after one (Prefs.afterLaunch). Set on the main actor only.
     nonisolated(unsafe) static var active = false
+
+    /// Whether the start about to happen has Apple's Metal HUD log its frames (Engine.setFrameLog): a game
+    /// test's, so that every way that presents through Metal gets a frame rate (GameTestMeasure) – never a
+    /// start by Play.
+    static func logsFrames(active: Bool = active, defaults: UserDefaults = .standard) -> Bool {
+        active && defaults.object(forKey: Keys.frameLog) as? Bool != false
+    }
 
     struct Settings: Equatable {
         var pictureWait: TimeInterval = 120

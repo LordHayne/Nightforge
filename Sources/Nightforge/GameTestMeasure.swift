@@ -2,10 +2,12 @@ import Foundation
 
 /// What a game test measures of a picture while the game plays on (`playSeconds`): the frame rates and
 /// slowest frames its layer logged, the size it drew at, the limit it was held to – for the list of games
-/// that run (docs/LAEUFT-LISTE.md, scripts/laeuft-liste.py). Only what something reports: DXMT and
-/// Nightforge's Vulkan layer log frames; D3DMetal, Wine's own Direct3D, DXVK on MoltenVK under winecx and
-/// Mac versions log none, and then the report says "not measured" instead of a number. No way reports the
-/// slowest 1 % of frames: a period's line carries its one slowest frame.
+/// that run (docs/LAEUFT-LISTE.md, scripts/laeuft-liste.py). Only what something reports: Apple's Metal
+/// HUD logs every frame of whatever presents through a Metal layer, and a game test's starts have it on
+/// (Engine.setFrameLog); DXMT and Nightforge's Vulkan layer log periods of their own. Wine's own Direct3D
+/// draws with OpenGL, which the HUD doesn't see, and a Mac version isn't started with the HUD's logging: there
+/// the report says "not measured" instead of a number. Only the HUD gives the slowest 1 % of frames: a
+/// layer's period carries its one slowest frame.
 extension GameTest {
     /// One period a layer logged:
     /// "[nightforge-dxmt] Game: 58.2 FPS over 10 s, frames 17.2 ms on average, slowest 76 ms".
@@ -83,7 +85,7 @@ extension GameTest {
         var noFrames: String?
     }
 
-    /// What a start was held to, worked out as LibraryModel.launch does (GameTestRun.held).
+    /// What a start was held to, as LibraryModel.launch says it in the log (`limitNote`).
     struct Held: Equatable {
         var frameLimit: Int
         var refreshRate: Int
@@ -91,9 +93,38 @@ extension GameTest {
         var throttled: String?
     }
 
-    /// Why a picture has no frame rates: its way reports none (D3DMetal, Wine's own Direct3D, a Mac
-    /// version), or one that does logged none (DXMT; DXVK, whose frames come from Nightforge's Vulkan
-    /// layer – under winecx only where KosmicKrisp draws).
+    /// What a start is held to, for the log – a line per start, so that a frame rate under a limit ("holds
+    /// 60 FPS") is told from a free one by what the start had, not by working it out afterwards:
+    /// "Frame limit of <game>: 60 FPS at 120 Hz, MetalFX off" ·
+    /// "Frame limit of <game>: none at 120 Hz, MetalFX on, throttled by battery".
+    static func limitNote(game: String, _ held: Held) -> String {
+        "Frame limit of \(game): \(held.frameLimit > 0 ? "\(held.frameLimit) FPS" : "none") at \(held.refreshRate) Hz, "
+            + "MetalFX \(held.metalFX ? "on" : "off")" + (held.throttled.map { ", throttled by \($0)" } ?? "")
+    }
+
+    /// The game's last `limitNote` in a stretch of the log; nil where there's none or it doesn't read.
+    static func held(of game: String, in log: String) -> Held? {
+        let marker = "Frame limit of \(game): "
+        var found: Held?
+        for line in log.split(whereSeparator: \.isNewline) {
+            guard let start = line.range(of: marker) else { continue }
+            let parts = line[start.upperBound...].components(separatedBy: ", ")
+            let words = parts[0].split(separator: " ")
+            guard parts.count >= 2, parts[1] == "MetalFX on" || parts[1] == "MetalFX off",
+                  let at = words.firstIndex(of: "at"), words.indices.contains(at + 1), let rate = Int(words[at + 1]), rate > 0,
+                  let limit = words[0] == "none" ? 0 : Int(words[0]), limit >= 0
+            else { continue }
+            let throttled = parts.dropFirst(2).first { $0.hasPrefix("throttled by ") }.map { String($0.dropFirst("throttled by ".count)) }
+            found = Held(frameLimit: limit, refreshRate: rate, metalFX: parts[1] == "MetalFX on", throttled: throttled)
+        }
+        return found
+    }
+
+    /// Why a picture has no frame rates: its way reports none, or one that does logged none. Which ways
+    /// report hangs on the HUD's frame log (`frameLog`, Engine.setFrameLog): with it, all that present through
+    /// Metal – D3DMetal and DXVK on MoltenVK too – and not Wine's own Direct3D (OpenGL) or a Mac version;
+    /// without it, DXMT and DXVK only (DXVK's frames come from Nightforge's Vulkan layer, under winecx only
+    /// where KosmicKrisp draws).
     enum NoFrames: String {
         case wayReportsNone, noneInLog
 
@@ -102,9 +133,9 @@ extension GameTest {
         }
     }
 
-    static func noFrames(way: String?) -> NoFrames {
+    static func noFrames(way: String?, frameLog: Bool = false) -> NoFrames {
         let layer = way?.split(separator: " ").first.map(String.init) ?? ""
-        return ["d3dmetal", "wined3d", "mac"].contains(layer) ? .wayReportsNone : .noneInLog
+        return (frameLog ? ["wined3d", "mac"] : ["d3dmetal", "wined3d", "mac"]).contains(layer) ? .wayReportsNone : .noneInLog
     }
 
     /// "1512x982" or "1512×982" as "1512×982"; nil for anything else.
@@ -155,7 +186,7 @@ extension GameTest {
     }
 
     /// What holds for a picture's numbers, from the start's stretch of the log and what it was held to.
-    static func measure(of game: String, way: String?, in log: String, frames: Frames?, held: Held?) -> Measure {
+    static func measure(of game: String, way: String?, in log: String, frames: Frames?, held: Held?, frameLog: Bool = false) -> Measure {
         var measure = Measure()
         if let picture = pictureSize(of: game, in: log) {
             measure.window = picture.window
@@ -170,7 +201,7 @@ extension GameTest {
         measure.refreshRate = held?.refreshRate
         measure.metalFX = held?.metalFX
         measure.throttled = held?.throttled
-        if frames == nil { measure.noFrames = noFrames(way: way).rawValue }
+        if frames == nil { measure.noFrames = noFrames(way: way, frameLog: frameLog).rawValue }
         return measure
     }
 
@@ -189,8 +220,10 @@ extension GameTest {
         var gpuTimes: [Double]
     }
 
-    /// The frames of the process that logged the most (the game; a launcher's window logs a few).
-    static func hudSample(in log: String) -> HUDSample? {
+    /// The frames of the process that logged the most (the game; a launcher's window logs a few) – among
+    /// `processes`, the game's own as the process list had them, where any of those logged: Steam's windows
+    /// present through Metal too.
+    static func hudSample(in log: String, processes: Set<Int32> = []) -> HUDSample? {
         var byProcess: [String: HUDSample] = [:]
         for line in log.split(whereSeparator: \.isNewline) {
             guard let marker = line.range(of: "metal-HUD: ") else { continue }
@@ -206,7 +239,8 @@ extension GameTest {
             }
             byProcess[process] = sample
         }
-        return byProcess.max { ($0.value.intervals.count, $1.key) < ($1.value.intervals.count, $0.key) }?.value
+        let own = byProcess.filter { Int32($0.key).map(processes.contains) == true }
+        return (own.isEmpty ? byProcess : own).max { ($0.value.intervals.count, $1.key) < ($1.value.intervals.count, $0.key) }?.value
     }
 
     /// The HUD's frames in the report's shape: the average over all of them, the lowest stretch of ten
@@ -345,6 +379,8 @@ extension GameTest {
             return "\(Int(frames.average.rounded())) / \(Int(frames.low.rounded()))" + (entry.load?.low == false ? " (Last hoch)" : "")
         }
         guard entry.outcome == .picture else { return "–" }
+        // With the HUD's frame log on, a way that presents through Metal had its chance (`noFrames`).
+        if entry.measure?.noFrames == NoFrames.noneInLog.rawValue { return "nicht gemessen (keine im Log)" }
         let way = entry.way ?? ""
         if way.hasPrefix("d3dmetal") { return "nicht gemessen (D3DMetal meldet keine)" }
         if way == "mac" { return "nicht gemessen (Mac-Fassung meldet keine)" }
@@ -360,18 +396,21 @@ extension GameTest {
         var lines = ["## Messwerte", "",
                      "Vom ersten Frame bis zum Ende des Spielfensters (\(Int(report.playSeconds)) s nach dem ersten Bild), mit den Einstellungen, "
                      + "die das Spiel mitbringt. Keine feste Szene: meist Intro, Menü oder die ersten Sekunden im Spiel. "
-                     + "Das 1-%-Tief meldet kein Weg; „langsamster Frame“ ist der eine langsamste je Messperiode."]
+                     + "Das 1-%-Tief gibt es nur aus Apples Metal-HUD-Protokoll (jeder Frame einzeln); "
+                     + "„langsamster Frame“ ist der eine langsamste je zehn Sekunden."]
         if report.onBattery == true || report.lowPower == true {
             let how = [report.onBattery == true ? "auf Akku" : nil, report.lowPower == true ? "im Stromsparmodus" : nil].compactMap { $0 }
             lines.append("Der Mac lief \(how.joined(separator: " und ")): Die Werte sind mit anderen Läufen nicht vergleichbar.")
         }
-        lines += ["", "| Spiel | Weg | Frame-Limit | Größe | FPS Ø / tiefste Periode | Langsamster Frame |", "|---|---|---|---|---|---|"]
+        lines += ["", "| Spiel | Weg | Frame-Limit | Größe | FPS Ø / tiefste Periode | 1-%-Tief | Langsamster Frame |", "|---|---|---|---|---|---|---|"]
         for entry in pictures {
             let measure = entry.measure
             let limit = measure?.frameLimit.map { $0 > 0 ? "\($0) FPS" : "keins" } ?? "nicht gemessen"
             var frames = framesText(entry)
             if let seconds = entry.frames?.seconds { frames += " über \(Int(seconds)) s" }
-            let cells = [entry.game.replacingOccurrences(of: "|", with: "\\|"), entry.way ?? "–", limit, sizeText(measure), frames, slowestText(entry.frames)]
+            let onePercent = entry.frames?.onePercentLow.map { "\(Int($0.rounded())) FPS" } ?? "–"
+            let cells = [entry.game.replacingOccurrences(of: "|", with: "\\|"), entry.way ?? "–", limit, sizeText(measure), frames, onePercent,
+                         slowestText(entry.frames)]
             lines.append("| " + cells.joined(separator: " | ") + " |")
         }
         lines.append("")

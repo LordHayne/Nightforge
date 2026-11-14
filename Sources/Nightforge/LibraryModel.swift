@@ -2656,6 +2656,19 @@ final class LibraryModel: ObservableObject {
         return await withTaskCancellationHandler { await build.value } onCancel: { build.cancel() }
     }
 
+    /// After a game test: the Steam its starts gave the HUD's frame log (Engine.setFrameLog) starts again
+    /// without it, so the next game by Play has the environment it had before. Not left to Steam's signature:
+    /// a Steam that a game's own start began has none noted.
+    func endFrameLog() {
+        guard Engine.setFrameLog(false), SetupModel.isComplete else { return }
+        let previous = steamStartup
+        steamStartup = Task {
+            await previous?.value
+            guard let wine = await Engine.installedWine(), !macSteamBusy, !gameUnderWay, Engine.isSteamRunning else { return }
+            try? await Engine.restartSteamInBackground(wine)
+        }
+    }
+
     /// After a setting games get from Steam changed: restart it now if no game would be cut off.
     func applySteamSettings() {
         guard SetupModel.isComplete else { return }
@@ -4598,6 +4611,8 @@ final class LibraryModel: ObservableObject {
                                                                          profile: profile, refreshRate: refreshRate)
                 // On battery with "Save battery" on: 30 FPS, and nothing learned from a capped session.
                 let capped = PowerSource.cappedLimit(frameLimit, onBattery: power.onBattery, saveBattery: Prefs.saveBattery)
+                // What holds the limit below Nightforge's own for this screen, for the start's line in the log.
+                let throttled = capped != frameLimit ? "battery" : Hardware.current.lowPower ? "lowPower" : nil
                 if capped != frameLimit {
                     frameLimit = capped
                     learning = false
@@ -4641,13 +4656,18 @@ final class LibraryModel: ObservableObject {
                 // starts it (restarted below when they changed); a store's game from its own start.
                 let closerLook = game.bottle.isBuiltIn && (looksCloser || CloserLook.always)
                 let debugChanged = game.bottle.isBuiltIn && Engine.setCloserLook(closerLook)
+                // A game test's starts have Apple's Metal HUD log their frames, a start by Play has it off again
+                // (GameTest.logsFrames). It comes as the channels do: through Steam from the Steam that starts it.
+                let frameLogBefore = Engine.frameLog
+                let frameLogChanged = game.bottle.isBuiltIn && Engine.setFrameLog(GameTest.logsFrames())
                 if automatic, !attempts.isEmpty {
                     let recipe = StartRecipe.of(layer: layer, arguments: Self.argumentsPastLauncher(arguments, switch: analysis?.launcherSwitch),
                                                 profile: profile, learnedRuntimes: LearnedFixes.winetricks(game.gameID),
                                                 avx: LearnedFixes.avx(game.gameID, profile: profile),
                                                 d3dMetalEngine: runner.map { Engine.isGPTKCapable(wine: URL(fileURLWithPath: $0)) } == true)
                     StartEvidence.note(.started, game: game.gameID, way: way, engine: build?.engine, known: wayConfirmed,
-                                       kind: analysis?.kind, recipe: recipe, profiled: profile?.shapesStart, closerLook: closerLook)
+                                       kind: analysis?.kind, recipe: recipe, profiled: profile?.shapesStart, closerLook: closerLook,
+                                       name: game.name, parts: build?.parts)
                 }
                 // Another program in the game's LaunchOptions also comes with the Steam that starts it (SteamProgram).
                 let programChanged = viaSteam && game.bottle.isBuiltIn
@@ -4670,7 +4690,7 @@ final class LibraryModel: ObservableObject {
                                                    vulkan: vulkan,
                                                    vulkanLoader: Engine.vulkanLoaderEnvironment(layer: layer, d3d9: analysis?.usesD3D9 == true,
                                                                                                 wine: runner.map(URL.init(fileURLWithPath:))),
-                                                   msyncWanted: msyncWanted) || programChanged || debugChanged,
+                                                   msyncWanted: msyncWanted) || programChanged || debugChanged || frameLogChanged,
                    Engine.isSteamRunning, !anyRunning(.windows), let runner {
                     launchPhase = .signingIn
                     _ = await restartStuckSteam(URL(fileURLWithPath: runner))
@@ -4708,6 +4728,13 @@ final class LibraryModel: ObservableObject {
                 if Task.isCancelled { return }
                 launchBuildsShaders = game.bottle.isBuiltIn && LaunchPhase.isFirstStart(game.gameID, signature: shaders)
                 GameLog.note(GameTest.startNote(game: game.name, way: way, engine: build?.engine))  // the ways a start took (GameTest)
+                // What this start is held to (GameTest.held reads it): the limit goes to DXMT, DXVK and D3DMetal,
+                // as MetalFX does – Wine's own Direct3D takes neither.
+                if game.bottle.isBuiltIn {
+                    GameLog.note(GameTest.limitNote(game: game.name, GameTest.Held(
+                        frameLimit: layer == .wined3d ? 0 : frameLimit, refreshRate: refreshRate,
+                        metalFX: layer.upscales && options.effectiveUpscaling(profile: profile), throttled: throttled)))
+                }
                 // Past the game's own launcher window where its program knows the switch: straight into the
                 // game, as on a console (Guardians of the Galaxy, 9.11.2026). Not part of the way.
                 let startArguments = Self.argumentsPastLauncher(arguments, switch: analysis?.launcherSwitch)
@@ -4719,6 +4746,9 @@ final class LibraryModel: ObservableObject {
                                         frameLimit: frameLimit, layer: layer, vulkan: vulkan, usesD3D9: analysis?.usesD3D9 == true)
                 // Step C: a store's game has the channels from its own start; Steam's settings don't keep them.
                 if !viaSteam, closerLook { Engine.setCloserLook(false) }
+                // … and the frame log is back at what Steam has: the next game through Steam then asks for its
+                // restart, where one left on here would pass for Steam's own.
+                if !viaSteam, frameLogChanged { Engine.setFrameLog(frameLogBefore) }
                 guard started else { return }
                 if game.bottle.isBuiltIn { LaunchPhase.recordStart(game.gameID, signature: shaders) }
                 launchBuildsShaders = false

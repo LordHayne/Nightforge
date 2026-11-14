@@ -485,6 +485,28 @@ struct EngineLayoutTest {
         check(Engine.steamConfigSignature != quietSignature && Engine.steamConfigSignature.contains("WINEDEBUG=" + CloserLook.wineDebug),
               "… and Steam's signature says so")
         check(!Engine.setCloserLook(true), "the next start with them: no restart")
+        // The HUD's frame log for a game test's starts (GameTest.logsFrames): kept the same way.
+        do {
+            let before = Engine.steamConfigSignature, quiet = Engine.gameEnvironment
+            check(Engine.frameLogEnvironment(hudShown: false) == ["MTL_HUD_ENABLED": "1", "MTL_HUD_LOG_ENABLED": "1", "MTL_HUD_OPACITY": "0"],
+                  "the HUD off: it logs at opacity 0, drawing nothing")
+            check(Engine.frameLogEnvironment(hudShown: true) == ["MTL_HUD_ENABLED": "1", "MTL_HUD_LOG_ENABLED": "1"],
+                  "the HUD on: it logs and stays as the player has it")
+            check(!Engine.frameLog && quiet["MTL_HUD_LOG_ENABLED"] == nil && quiet["MTL_HUD_OPACITY"] == nil, "a start by Play: no frame log")
+            check(!Engine.setFrameLog(false), "off while it's off: nothing changes")
+            check(Engine.setFrameLog(true) && Engine.frameLog, "a game test's start: it changes, Steam has to restart")
+            check(Engine.gameEnvironment["MTL_HUD_LOG_ENABLED"] == "1" && Engine.gameEnvironment["MTL_HUD_ENABLED"] == "1"
+                  && Engine.steamEnvironment["MTL_HUD_LOG_ENABLED"] == "1"
+                  && Engine.directLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 0, upscaling: false)["MTL_HUD_LOG_ENABLED"] == "1",
+                  "… Steam's games and a game started straight both get it")
+            check(Engine.steamConfigSignature != before && Engine.steamConfigSignature.contains("-framelog"), "… and Steam's signature says so")
+            check(!Engine.setFrameLog(true), "the next start of the run: no restart")
+            check(!Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false)
+                  && Engine.steamEnvironment["MTL_HUD_LOG_ENABLED"] == "1" && Engine.wineDebug == CloserLook.wineDebug,
+                  "preparing a start leaves it on, beside a closer look's channels, and asks for no restart of its own")
+            check(Engine.setFrameLog(false) && Engine.gameEnvironment == quiet && Engine.steamConfigSignature == before,
+                  "the run's end, or the next start by Play: the environment and the signature are what they were")
+        }
         check(!Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false)
               && Engine.wineDebug == CloserLook.wineDebug, "preparing a start leaves them on, and asks for no restart of its own")
         check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false,

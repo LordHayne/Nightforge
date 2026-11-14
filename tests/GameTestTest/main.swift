@@ -398,6 +398,33 @@ struct GameTestTest {
         check(GameTest.noFrames(way: "wined3d") == .wayReportsNone && GameTest.noFrames(way: "mac") == .wayReportsNone
               && GameTest.noFrames(way: "dxmt -dx11") == .noneInLog && GameTest.noFrames(way: "dxvk") == .noneInLog && GameTest.noFrames(way: nil) == .noneInLog,
               "which ways report none, and which only logged none")
+        check(GameTest.noFrames(way: "d3dmetal", frameLog: true) == .noneInLog && GameTest.noFrames(way: "dxvk", frameLog: true) == .noneInLog
+              && GameTest.noFrames(way: "wined3d", frameLog: true) == .wayReportsNone && GameTest.noFrames(way: "mac", frameLog: true) == .wayReportsNone,
+              "with the HUD's frame log every way through Metal reports; OpenGL and a Mac version still don't")
+        check(GameTest.measure(of: "Control", way: "d3dmetal", in: sizes, frames: nil, held: held, frameLog: true).noFrames == "noneInLog",
+              "… and the measure says so")
+        // What a start is held to, as its line in the log says it.
+        let limits = [
+            GameTest.limitNote(game: "Control", GameTest.Held(frameLimit: 60, refreshRate: 120, metalFX: true)),
+            GameTest.limitNote(game: "ABZU", GameTest.Held(frameLimit: 0, refreshRate: 120, metalFX: false)),
+            GameTest.limitNote(game: "Mafia II", GameTest.Held(frameLimit: 30, refreshRate: 60, metalFX: false, throttled: "battery")),
+            "Frame limit of Broken: lots at 120 Hz, MetalFX on", "Frame limit of Half: 60 FPS at 120 Hz",
+            GameTest.limitNote(game: "Twice", GameTest.Held(frameLimit: 60, refreshRate: 120, metalFX: false)),
+            GameTest.limitNote(game: "Twice", GameTest.Held(frameLimit: 40, refreshRate: 120, metalFX: true, throttled: "lowPower")),
+        ]
+        check(limits[0] == "Frame limit of Control: 60 FPS at 120 Hz, MetalFX on" && limits[1] == "Frame limit of ABZU: none at 120 Hz, MetalFX off"
+              && limits[2] == "Frame limit of Mafia II: 30 FPS at 60 Hz, MetalFX off, throttled by battery", "the line as written: \(limits.prefix(3))")
+        let limitLog = limits.map { "[20:10:13] " + $0 }.joined(separator: "\n")
+        check(GameTest.held(of: "Control", in: limitLog) == GameTest.Held(frameLimit: 60, refreshRate: 120, metalFX: true)
+              && GameTest.held(of: "ABZU", in: limitLog) == GameTest.Held(frameLimit: 0, refreshRate: 120, metalFX: false)
+              && GameTest.held(of: "Mafia II", in: limitLog) == GameTest.Held(frameLimit: 30, refreshRate: 60, metalFX: false, throttled: "battery"),
+              "… and read back: a limit, none, and what lowered it")
+        check(GameTest.held(of: "Twice", in: limitLog) == GameTest.Held(frameLimit: 40, refreshRate: 120, metalFX: true, throttled: "lowPower"),
+              "the last start's line counts")
+        check(GameTest.held(of: "Broken", in: limitLog) == nil && GameTest.held(of: "Half", in: limitLog) == nil && GameTest.held(of: "Other", in: limitLog) == nil,
+              "a line that doesn't read, or none: nothing known – no limit made up")
+        check(GameTest.measure(of: "ABZU", way: "dxmt", in: limitLog, frames: full, held: GameTest.held(of: "ABZU", in: limitLog)).frameLimit == 0,
+              "no limit is a 0 in the measure, not a missing value")
         let mac = GameTest.measure(of: "Valheim", way: "mac", in: "", frames: nil, held: nil)
         check(mac == GameTest.Measure(noFrames: "wayReportsNone"), "a Mac version: nothing but that nothing reports")
         check(GameTest.sizeText(onDXMT) == "1512×982 px, MetalFX auf 3024×1964" && GameTest.sizeText(onD3DMetal) == "1512×982 px, MetalFX auf 3024×1964"
@@ -432,6 +459,22 @@ struct GameTestTest {
         check(stutter?.onePercentLow == 20 && stutter?.periods == 1 && stutter?.gpuTime == nil, "five slow frames in a hundred show in the slowest percent: \(String(describing: stutter))")
         check(GameTest.hudSample(in: "info:  nothing here") == nil && GameTest.measuredFrames(GameTest.HUDSample(intervals: [16.67], gpuTimes: [1])) == nil,
               "no HUD lines, or a single frame: not measured")
+        // Steam's own window presents through Metal too, and may log more than a game at 30 FPS: the game's processes count.
+        let busySteam = (0..<10).map { "wine[500:1] metal-HUD: \($0 * 60),1.0,2.0," + Array(repeating: "16.67,1.00", count: 60).joined(separator: ",") }
+            + (0..<10).map { "wine[777:1] metal-HUD: \($0 * 30),1.0,2.0," + Array(repeating: "33.33,9.00", count: 30).joined(separator: ",") }
+        let both = busySteam.joined(separator: "\n")
+        check(GameTest.hudSample(in: both)?.intervals.first == 16.67, "without the game's processes: whoever logged most")
+        check(GameTest.hudSample(in: both, processes: [777, 778])?.intervals == Array(repeating: 33.33, count: 300), "with them: the game's frames")
+        check(GameTest.hudSample(in: both, processes: [42])?.intervals.first == 16.67, "none of them logged: whoever logged most, as before")
+        // The switch: a game test's starts log frames unless told not to; a start by Play never does.
+        let defaults = TestDefaults.suite("frameLog")
+        check(GameTest.logsFrames(active: true, defaults: defaults) && !GameTest.logsFrames(active: false, defaults: defaults),
+              "on in a game test, off outside one")
+        defaults.set(false, forKey: GameTest.Keys.frameLog)
+        check(!GameTest.logsFrames(active: true, defaults: defaults), "gameTest.frameLog false: off in a game test too")
+        defaults.set(true, forKey: GameTest.Keys.frameLog)
+        check(GameTest.logsFrames(active: true, defaults: defaults) && !GameTest.logsFrames(active: false, defaults: defaults),
+              "set to true: still only in a game test")
 
         // Done with a game: a clean start and a frame rate that counts.
         func check2(_ entry: GameTest.Entry, play: Double = 200, battery: Bool = false, lowPower: Bool = false) -> GameTest.Check? {
@@ -646,13 +689,28 @@ struct GameTestTest {
               "a busy Mac at the start is said plainly")
         check(summary.contains("| Control \\| Ultimate | Epic Games | Windows | d3dmetal | Bild | 34 s | nicht gemessen (D3DMetal meldet keine) |"),
               "a table row, its pipe escaped")
-        check(summary.contains("## Messwerte") && summary.contains("(60 s nach dem ersten Bild)") && summary.contains("Das 1-%-Tief meldet kein Weg"),
-              "what the measures stand for")
-        check(summary.contains("| Overcooked 2 | dxmt | 60 FPS | 1512×982@120 (Modus des Spiels) | 60 / 41 über 50 s | üblich 24 ms, schlimmster 310 ms |"),
+        check(summary.contains("## Messwerte") && summary.contains("(60 s nach dem ersten Bild)")
+              && summary.contains("Das 1-%-Tief gibt es nur aus Apples Metal-HUD-Protokoll"), "what the measures stand for")
+        check(summary.contains("| Overcooked 2 | dxmt | 60 FPS | 1512×982@120 (Modus des Spiels) | 60 / 41 über 50 s | – | üblich 24 ms, schlimmster 310 ms |"),
               "a measured row:\n\(summary)")
-        check(summary.contains("| Control \\| Ultimate | d3dmetal | keins | Fenster 1512×982 Punkte | nicht gemessen (D3DMetal meldet keine) | nicht gemessen |"),
+        check(summary.contains("| Control \\| Ultimate | d3dmetal | keins | Fenster 1512×982 Punkte | nicht gemessen (D3DMetal meldet keine) | – | nicht gemessen |"),
               "a row of a way that reports nothing")
-        check(summary.contains("| Valheim | dxmt | nicht gemessen | nicht gemessen | 31 / 12 (Last hoch) | nicht gemessen |"), "a row without a measure")
+        check(summary.contains("| Valheim | dxmt | nicht gemessen | nicht gemessen | 31 / 12 (Last hoch) | – | nicht gemessen |"), "a row without a measure")
+        // With the HUD's frame log: the run says so, D3DMetal had its chance, and a HUD's frames carry the slowest percent.
+        check(!summary.contains("Metal-HUD hat die Frames mitgeschrieben"), "no frame log: no word of it")
+        var logged = report
+        logged.frameLog = true
+        if let index = logged.games.firstIndex(where: { $0.game == "Control | Ultimate" }) {
+            logged.games[index].measure?.noFrames = "noneInLog"
+        }
+        if let index = logged.games.firstIndex(where: { $0.game == "Overcooked 2" }) {
+            logged.games[index].frames?.onePercentLow = 48.4
+        }
+        let loggedSummary = GameTest.summary(logged)
+        check(loggedSummary.contains("Apples Metal-HUD hat die Frames mitgeschrieben (unsichtbar, wo die Leistungsanzeige aus ist)"), "the frame log said in the report")
+        check(loggedSummary.contains("| Control \\| Ultimate | d3dmetal | keins | Fenster 1512×982 Punkte | nicht gemessen (keine im Log) | – | nicht gemessen |"),
+              "D3DMetal with the frame log on and no lines: none in the log, not a way that reports none\n\(loggedSummary)")
+        check(loggedSummary.contains("| 60 / 41 über 50 s | 48 FPS | üblich 24 ms, schlimmster 310 ms |"), "the slowest percent where the HUD gave it")
         check(!summary.contains("auf Akku"), "on mains: no word about power")
         var onBattery = report
         onBattery.onBattery = true

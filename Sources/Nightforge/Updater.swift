@@ -26,6 +26,12 @@ enum Updater {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
     }
 
+    /// When this Nightforge was built (its program's date): test builds between two versions share the
+    /// version, not this. What a game test's report and a start's evidence name beside the version.
+    static let currentBuilt: Date? = Bundle.main.executablePath.flatMap {
+        try? FileManager.default.attributesOfItem(atPath: $0)[.modificationDate] as? Date
+    }
+
     /// The newest release, or the test release this Mac is set to.
     static func releaseURL(testRelease: String? = UserDefaults.standard.string(forKey: testReleaseKey)) -> URL {
         if let tag = testRelease, !tag.isEmpty, tag.count <= 64,

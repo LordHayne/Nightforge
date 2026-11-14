@@ -90,8 +90,41 @@ enum Engine {
         // Apple's Metal HUD: DXMT draws with Metal directly, so this is its FPS display. Only an
         // environment variable turns it on, and games get theirs from Steam, hence app-wide.
         if Prefs.performanceHUD { env["MTL_HUD_ENABLED"] = "1" }
+        if frameLog { env.merge(frameLogEnvironment(hudShown: Prefs.performanceHUD)) { _, log in log } }
         return env
     }
+
+    /// What has Apple's Metal HUD log every frame it presents, a line a second on the game's standard error
+    /// ("metal-HUD: …", read by GameTest.hudSample): on any way that presents through a Metal layer, so
+    /// D3DMetal and MoltenVK get a frame rate where only DXMT and the Vulkan layer counted. The logging counts
+    /// only with the HUD on (Apple: "Requires MTL_HUD_ENABLED=1"); a player who has it off gets it at opacity 0,
+    /// where it logs the same and draws nothing. Seen with a Metal window of its own on macOS 27.0, 14.11.2026:
+    /// four lines in five seconds either way, none without MTL_HUD_ENABLED, and none for an OpenGL window –
+    /// WineD3D gets nothing from this.
+    static func frameLogEnvironment(hudShown: Bool) -> [String: String] {
+        var env = ["MTL_HUD_ENABLED": "1", "MTL_HUD_LOG_ENABLED": "1"]
+        if !hudShown { env["MTL_HUD_OPACITY"] = "0" }
+        return env
+    }
+
+    /// Whether the start about to happen has the HUD log its frames (`frameLogEnvironment`): the game test's
+    /// starts (GameTest.logsFrames), never a start by Play.
+    static var frameLog: Bool { frameLogSetting.withLock { $0 } }
+
+    /// Kept like a closer look's channels (`setCloserLook`): in `gameEnvironment`, so a game started straight
+    /// has it from its own start, and in `steamConfigSignature`, since a game through Steam takes it from the
+    /// Steam that starts it. True when it changed: that Steam has to restart – on, and off again at the next
+    /// start without it or at the game test's end.
+    @discardableResult
+    static func setFrameLog(_ on: Bool) -> Bool {
+        frameLogSetting.withLock { current in
+            guard current != on else { return false }
+            current = on
+            return true
+        }
+    }
+
+    private static let frameLogSetting = LockedValue(false)
 
     /// Where DXMT keeps translated shaders, shared by all games (its entries are keyed by shader).
     static var shaderCache: URL {
@@ -153,6 +186,7 @@ enum Engine {
             + launch.environment.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
             + (launch.retina ? "-retina" : "") + (WineSandbox.enabled ? "-sandbox" : "")
             + (msync ? "" : "-nomsync") + (GameLog.extraWineDebug.map { "-debug" + $0 } ?? "")
+            + (frameLog ? "-framelog" : "")
             // Setting D3DMetal up gives Steam a variable it only takes at its start (`environment`).
             + (d3dMetalReady ? "-rosetta" : "")
     }

@@ -34,6 +34,14 @@ enum StartEvidence {
         var seconds: Int?
         /// With a start: a profile shaped it (GameProfile.shapesStart) – what it proves is the profile's, not its sort's.
         var profiled: Bool?
+        /// With a start: the state it ran on – Nightforge's version and when it was built (Updater.currentBuilt:
+        /// test builds share a version), the engine's parts (EngineBuild.parts) – and what the game is called, so
+        /// that a list of games that run can say what a start was seen on (scripts/laeuft-liste.py). Missing in
+        /// lines from before 14.11.2026.
+        var nightforge: String?
+        var built: Date?
+        var parts: [String]?
+        var name: String?
         /// With a start: it carried Wine's debug channels, after one nothing explained (CloserLook).
         var closerLook: Bool?
     }
@@ -51,7 +59,8 @@ enum StartEvidence {
 
     static func note(_ event: Event, game: GameID, way: String, engine: String? = nil, known: Bool? = nil,
                      reason: String? = nil, kind: GameKind? = nil, recipe: StartRecipe? = nil, diagnosis: [String]? = nil,
-                     picture: Bool? = nil, seconds: Int? = nil, profiled: Bool? = nil, closerLook: Bool? = nil, to file: URL = url) {
+                     picture: Bool? = nil, seconds: Int? = nil, profiled: Bool? = nil, closerLook: Bool? = nil,
+                     name: String? = nil, parts: [String]? = nil, to file: URL = url) {
         var entry = Entry(at: Date(), game: game.key, event: event, way: way, engine: engine, known: known)
         entry.profiled = profiled == true ? true : nil
         entry.closerLook = closerLook == true ? true : nil
@@ -60,7 +69,13 @@ enum StartEvidence {
         entry.picture = picture
         entry.seconds = seconds
         entry.diagnosis = diagnosis.flatMap { $0.isEmpty ? nil : $0.map { GameLog.redacted(String($0.prefix(240))) } }
-        if event == .started { entry.mac = "\(ProblemReport.chip) · macOS \(ProblemReport.osVersion)" }
+        if event == .started {
+            entry.mac = "\(ProblemReport.chip) · macOS \(ProblemReport.osVersion)"
+            entry.nightforge = Updater.currentVersion
+            entry.built = Updater.currentBuilt
+            entry.parts = parts.flatMap { $0.isEmpty ? nil : $0 }
+            entry.name = name.flatMap { $0.isEmpty ? nil : $0 }
+        }
         entry.reason = reason.map { GameLog.redacted(String($0.prefix(240))) }
         append(entry, to: file)
         if event == .worked || event == .gaveUp {

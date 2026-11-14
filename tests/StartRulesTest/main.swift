@@ -303,6 +303,29 @@ struct StartRulesTest {
         check(StartEvidence.summary(entries) == StartEvidence.Summary(firstWay: 1, laterWay: 1, noWay: 1, open: 1),
               "one on the first way, one later, one on none, one open; a game already proven doesn't count: \(StartEvidence.summary(entries))")
         check(entries.first?.engine == "winecx@4.7.3" && entries.first?.mac?.contains("macOS") == true, "a start says on what it ran")
+        // … and on which state: Nightforge's version, the engine's parts, the game's name (the list of games that run).
+        do {
+            let stated = folder().appendingPathComponent("stated.jsonl")
+            StartEvidence.note(.started, game: .steam(35140), way: "wined3d", engine: "winecx@4.7.3", known: false,
+                               name: "Batman: Arkham Asylum GOTY Edition", parts: ["winecx@4.7.3", "graphics@11.18-dxmt0.80-17"], to: stated)
+            StartEvidence.note(.worked, game: .steam(35140), way: "wined3d", name: "Batman: Arkham Asylum GOTY Edition", parts: ["winecx@4.7.3"], to: stated)
+            let old = #"{"at":"2026-11-09T22:45:04Z","engine":"winecx@4.7.3","event":"started","game":"steam.1","known":false,"mac":"Apple M5 · macOS 27.0","way":"dxmt"}"#
+            if let handle = try? FileHandle(forWritingTo: stated) {
+                _ = try? handle.seekToEnd()
+                try? handle.write(contentsOf: Data((old + "\n").utf8))
+                try? handle.close()
+            }
+            let read = StartEvidence.load(from: stated)
+            check(read.count == 3 && read[0].name == "Batman: Arkham Asylum GOTY Edition" && read[0].nightforge == Updater.currentVersion
+                  && read[0].parts == ["winecx@4.7.3", "graphics@11.18-dxmt0.80-17"], "a start names the game, the version and the engine's parts: \(read.first.map(String.init(describing:)) ?? "-")")
+            check(read[0].built != nil && abs((read[0].built ?? .distantPast).timeIntervalSince(Updater.currentBuilt ?? .distantFuture)) <= 1,
+                  "… and when this Nightforge was built, to the second")
+            check(read[1].name == nil && read[1].parts == nil && read[1].nightforge == nil && read[1].built == nil, "only a start says them")
+            check(read[2].way == "dxmt" && read[2].nightforge == nil && read[2].name == nil && read[2].parts == nil,
+                  "a line from before 14.11. reads as it did")
+            let text = (try? String(contentsOf: stated, encoding: .utf8)) ?? ""
+            check(!text.contains(NSHomeDirectory()) && !text.contains(NSUserName() + "/"), "nothing of the player in it")
+        }
         check(entries.first(where: { $0.event == .failed })?.reason?.contains("abc") == false, "what the game said, without secrets")
         if let handle = try? FileHandle(forWritingTo: file) {
             _ = try? handle.seekToEnd()
