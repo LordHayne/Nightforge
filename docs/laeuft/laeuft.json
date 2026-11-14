@@ -1,7 +1,7 @@
 {
  "currentBuilds": {
   "Apple M5 · macOS 27.0": {
-   "built": "2026-11-14T17:41:36Z",
+   "built": "2026-11-14T18:40:47Z",
    "engine": [
     "winecx@4.7.3",
     "d3dmetal@apple-3.0",
@@ -13,11 +13,11 @@
    ],
    "mac": "Apple M5 · macOS 27.0",
    "nightforge": "0.3.2",
-   "since": "2026-11-14T17:43:40Z",
+   "since": "2026-11-14T18:41:38Z",
    "sinceFrom": "firstRun"
   }
  },
- "dataUntil": "2026-11-14T17:52:27Z",
+ "dataUntil": "2026-11-14T19:46:05Z",
  "entries": [
   {
    "antiCheat": false,
@@ -36,8 +36,8 @@
    "evidence": {
     "failed": 0,
     "gaveUp": false,
-    "last": "2026-11-14T17:50:20Z",
-    "starts": 7,
+    "last": "2026-11-14T19:14:32Z",
+    "starts": 9,
     "ways": [
      "dxmt -dx11"
     ]
@@ -47,20 +47,21 @@
     "version": "4.12"
    },
    "gameTest": {
-    "last": "2026-11-14T17:48:41Z",
+    "last": "2026-11-14T19:14:05Z",
     "lastOutcome": "picture",
     "lastWays": [
+     "dxmt -dx11",
      "dxmt -dx11"
     ],
-    "pictures": 8,
-    "runs": 11
+    "pictures": 9,
+    "runs": 12
    },
    "key": "epic.Curry",
    "level": "laeuft",
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
-    "at": "2026-11-14T17:48:41Z",
-    "built": "2026-11-14T17:41:36Z",
+    "at": "2026-11-14T19:14:05Z",
+    "built": "2026-11-14T18:40:47Z",
     "displayMode": null,
     "endedByItself": false,
     "engine": [
@@ -73,13 +74,13 @@
      "moltenvk@1.4.2"
     ],
     "fps": {
-     "average": 57.6,
-     "gpuTime": 13.3,
-     "low": 51.9,
-     "onePercentLow": 40,
+     "average": 58.9,
+     "gpuTime": 13.1,
+     "low": 45.4,
+     "onePercentLow": 34.3,
      "periods": 19,
-     "seconds": 192,
-     "slowestFrame": 616.7,
+     "seconds": 191,
+     "slowestFrame": 579.2,
      "slowestTypical": 16.7,
      "source": "metal-hud"
     },
@@ -92,34 +93,30 @@
     "metalFX": true,
     "nightforge": "0.3.2",
     "noFrames": null,
-    "notPublic": [
-     "onBattery"
-    ],
-    "onBattery": true,
+    "notPublic": [],
+    "onBattery": false,
     "playSeconds": 190,
-    "public": false,
+    "public": true,
     "refreshRate": 120,
     "reportFormat": 2,
     "runsOn": "x86_64 under Rosetta",
     "screen": "1512×982",
-    "secondsToPicture": 11.9,
+    "secondsToPicture": 38.8,
     "swapchain": null,
     "throttled": null,
     "upscaledTo": null,
     "way": "dxmt -dx11",
     "window": "1512×982",
-    "wineFps": false
+    "wineFps": true
    },
    "name": "ABZU",
    "nameFrom": "report",
    "noPictureSince": null,
-   "notes": [
-    "batteryOrLowPower"
-   ],
+   "notes": [],
    "onCurrentBuild": {
-    "at": "2026-11-14T17:48:41Z",
-    "by": "gameTest",
-    "picture": true
+    "at": "2026-11-14T19:14:32Z",
+    "by": "evidence",
+    "picture": false
    },
    "platform": "windows",
    "seen": null,
@@ -145,8 +142,8 @@
    "evidence": {
     "failed": 0,
     "gaveUp": false,
-    "last": "2026-11-14T12:22:35Z",
-    "starts": 3,
+    "last": "2026-11-14T19:23:17Z",
+    "starts": 4,
     "ways": [
      "d3dmetal",
      "wined3d"
@@ -154,22 +151,22 @@
    },
    "gameEngine": null,
    "gameTest": {
-    "last": "2026-11-14T14:59:12Z",
-    "lastOutcome": "noWindow",
+    "last": "2026-11-14T19:23:16Z",
+    "lastOutcome": "picture",
     "lastWays": [
-     "d3dmetal"
+     "wined3d"
     ],
-    "pictures": 1,
-    "runs": 3
+    "pictures": 2,
+    "runs": 4
    },
    "key": "epic.Heron",
    "level": "laeuft",
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
-    "at": "2026-11-11T19:05:54Z",
-    "built": null,
+    "at": "2026-11-14T19:23:16Z",
+    "built": "2026-11-14T18:40:47Z",
     "displayMode": null,
-    "endedByItself": true,
+    "endedByItself": false,
     "engine": [
      "winecx@4.7.3",
      "d3dmetal@apple-3.0",
@@ -179,41 +176,51 @@
      "graphics@11.18-dxmt0.80-17",
      "moltenvk@1.4.2"
     ],
-    "fps": null,
-    "frameLimit": null,
-    "frameLog": false,
+    "fps": {
+     "average": 210.4,
+     "gpuTime": null,
+     "low": 160.5,
+     "onePercentLow": null,
+     "periods": 18,
+     "seconds": 192.4,
+     "slowestFrame": null,
+     "slowestTypical": null,
+     "source": "wine-fps"
+    },
+    "frameLimit": 0,
+    "frameLog": true,
     "holds": null,
-    "kind": null,
+    "kind": "free",
     "loadLow": true,
     "lowPower": false,
-    "metalFX": null,
+    "metalFX": false,
     "nightforge": "0.3.2",
-    "noFrames": "wayReportsNone",
-    "notPublic": [
-     "noFps"
-    ],
+    "noFrames": null,
+    "notPublic": [],
     "onBattery": false,
-    "playSeconds": 200,
-    "public": false,
-    "refreshRate": null,
-    "reportFormat": 1,
+    "playSeconds": 190,
+    "public": true,
+    "refreshRate": 120,
+    "reportFormat": 2,
     "runsOn": "x86_64 under Rosetta",
-    "screen": null,
-    "secondsToPicture": 10.6,
+    "screen": "1512×982",
+    "secondsToPicture": 12.6,
     "swapchain": null,
     "throttled": null,
     "upscaledTo": null,
     "way": "wined3d",
-    "window": null,
-    "wineFps": false
+    "window": "1512×982",
+    "wineFps": true
    },
    "name": "Alan Wake",
    "nameFrom": "report",
    "noPictureSince": null,
-   "notes": [
-    "endedByItself"
-   ],
-   "onCurrentBuild": null,
+   "notes": [],
+   "onCurrentBuild": {
+    "at": "2026-11-14T19:23:17Z",
+    "by": "evidence",
+    "picture": false
+   },
    "platform": "windows",
    "seen": null,
    "store": "epic",
@@ -238,8 +245,8 @@
    "evidence": {
     "failed": 0,
     "gaveUp": false,
-    "last": "2026-11-14T14:47:47Z",
-    "starts": 2,
+    "last": "2026-11-14T18:55:18Z",
+    "starts": 3,
     "ways": [
      "wined3d"
     ]
@@ -249,20 +256,20 @@
     "version": "3"
    },
    "gameTest": {
-    "last": "2026-11-14T14:47:16Z",
+    "last": "2026-11-14T18:55:18Z",
     "lastOutcome": "picture",
     "lastWays": [
      "wined3d"
     ],
-    "pictures": 1,
-    "runs": 1
+    "pictures": 2,
+    "runs": 2
    },
    "key": "steam.35140",
    "level": "laeuft",
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
-    "at": "2026-11-14T14:47:16Z",
-    "built": "2026-11-14T14:40:10Z",
+    "at": "2026-11-14T18:55:18Z",
+    "built": "2026-11-14T18:40:47Z",
     "displayMode": null,
     "endedByItself": false,
     "engine": [
@@ -274,39 +281,51 @@
      "graphics@11.18-dxmt0.80-17",
      "moltenvk@1.4.2"
     ],
-    "fps": null,
-    "frameLimit": 60,
-    "frameLog": false,
+    "fps": {
+     "average": 47.6,
+     "gpuTime": null,
+     "low": 27.7,
+     "onePercentLow": null,
+     "periods": 18,
+     "seconds": 192,
+     "slowestFrame": null,
+     "slowestTypical": null,
+     "source": "wine-fps"
+    },
+    "frameLimit": 0,
+    "frameLog": true,
     "holds": null,
-    "kind": "holdsLimit",
+    "kind": "free",
     "loadLow": true,
     "lowPower": false,
-    "metalFX": true,
+    "metalFX": false,
     "nightforge": "0.3.2",
-    "noFrames": "wayReportsNone",
-    "notPublic": [
-     "noFps"
-    ],
+    "noFrames": null,
+    "notPublic": [],
     "onBattery": false,
     "playSeconds": 190,
-    "public": false,
+    "public": true,
     "refreshRate": 120,
     "reportFormat": 2,
     "runsOn": "x86_64 under Rosetta",
     "screen": "1512×982",
-    "secondsToPicture": 141.4,
+    "secondsToPicture": 156,
     "swapchain": null,
     "throttled": null,
     "upscaledTo": null,
     "way": "wined3d",
     "window": "1800×1125",
-    "wineFps": false
+    "wineFps": true
    },
    "name": "Batman: Arkham Asylum GOTY Edition",
    "nameFrom": "report",
    "noPictureSince": null,
    "notes": [],
-   "onCurrentBuild": null,
+   "onCurrentBuild": {
+    "at": "2026-11-14T18:55:18Z",
+    "by": "gameTest",
+    "picture": true
+   },
    "platform": "windows",
    "seen": null,
    "store": "steam",
@@ -315,7 +334,7 @@
    "withdrawn": null
   },
   {
-   "antiCheat": null,
+   "antiCheat": false,
    "confirmed": {
     "at": "2026-11-09T23:33:30Z",
     "basis": "known",
@@ -331,28 +350,31 @@
    "evidence": {
     "failed": 0,
     "gaveUp": false,
-    "last": "2026-11-09T23:33:30Z",
-    "starts": 1,
+    "last": "2026-11-14T18:42:31Z",
+    "starts": 2,
     "ways": [
      "d3dmetal"
     ]
    },
-   "gameEngine": null,
+   "gameEngine": {
+    "engine": "unreal",
+    "version": "5.0"
+   },
    "gameTest": {
-    "last": "2026-11-09T23:32:48Z",
+    "last": "2026-11-14T18:42:14Z",
     "lastOutcome": "picture",
     "lastWays": [
      "d3dmetal"
     ],
-    "pictures": 2,
-    "runs": 5
+    "pictures": 3,
+    "runs": 6
    },
    "key": "steam.3132990",
    "level": "laeuft",
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
-    "at": "2026-11-09T23:32:48Z",
-    "built": null,
+    "at": "2026-11-14T18:42:14Z",
+    "built": "2026-11-14T18:40:47Z",
     "displayMode": null,
     "endedByItself": false,
     "engine": [
@@ -364,39 +386,53 @@
      "graphics@11.18-dxmt0.80-17",
      "moltenvk@1.4.2"
     ],
-    "fps": null,
-    "frameLimit": null,
-    "frameLog": false,
-    "holds": null,
-    "kind": null,
+    "fps": {
+     "average": 201.1,
+     "gpuTime": 4.7,
+     "low": 184.9,
+     "onePercentLow": 160.5,
+     "periods": 18,
+     "seconds": 183,
+     "slowestFrame": 653.9,
+     "slowestTypical": 13.6,
+     "source": "metal-hud"
+    },
+    "frameLimit": 60,
+    "frameLog": true,
+    "holds": true,
+    "kind": "holdsLimit",
     "loadLow": true,
     "lowPower": false,
-    "metalFX": null,
+    "metalFX": true,
     "nightforge": "0.3.2",
-    "noFrames": "wayReportsNone",
-    "notPublic": [
-     "noFps"
-    ],
+    "noFrames": null,
+    "notPublic": [],
     "onBattery": false,
-    "playSeconds": 60,
-    "public": false,
-    "refreshRate": null,
-    "reportFormat": 1,
+    "playSeconds": 190,
+    "public": true,
+    "refreshRate": 120,
+    "reportFormat": 2,
     "runsOn": "x86_64 under Rosetta",
-    "screen": null,
-    "secondsToPicture": 88.7,
+    "screen": "1512×982",
+    "secondsToPicture": 76,
     "swapchain": null,
     "throttled": null,
     "upscaledTo": null,
     "way": "d3dmetal",
-    "window": null,
-    "wineFps": false
+    "window": "1512×982",
+    "wineFps": true
    },
    "name": "Black Myth: Wukong Benchmark Tool",
    "nameFrom": "report",
    "noPictureSince": null,
-   "notes": [],
-   "onCurrentBuild": null,
+   "notes": [
+    "profiled"
+   ],
+   "onCurrentBuild": {
+    "at": "2026-11-14T18:42:31Z",
+    "by": "evidence",
+    "picture": false
+   },
    "platform": "windows",
    "seen": null,
    "store": "steam",
@@ -421,28 +457,28 @@
    "evidence": {
     "failed": 0,
     "gaveUp": false,
-    "last": "2026-11-14T17:52:27Z",
-    "starts": 3,
+    "last": "2026-11-14T19:30:47Z",
+    "starts": 4,
     "ways": [
      "d3dmetal"
     ]
    },
    "gameEngine": null,
    "gameTest": {
-    "last": "2026-11-14T17:52:25Z",
+    "last": "2026-11-14T19:30:46Z",
     "lastOutcome": "picture",
     "lastWays": [
      "d3dmetal"
     ],
-    "pictures": 5,
-    "runs": 5
+    "pictures": 6,
+    "runs": 6
    },
    "key": "epic.Calluna",
    "level": "laeuft",
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
-    "at": "2026-11-14T17:52:25Z",
-    "built": "2026-11-14T17:41:36Z",
+    "at": "2026-11-14T19:30:46Z",
+    "built": "2026-11-14T18:40:47Z",
     "displayMode": null,
     "endedByItself": false,
     "engine": [
@@ -455,13 +491,13 @@
      "moltenvk@1.4.2"
     ],
     "fps": {
-     "average": 109.2,
-     "gpuTime": 2,
-     "low": 30.2,
+     "average": 113,
+     "gpuTime": 2.3,
+     "low": 30,
      "onePercentLow": 30,
-     "periods": 19,
-     "seconds": 191,
-     "slowestFrame": 908.3,
+     "periods": 18,
+     "seconds": 189,
+     "slowestFrame": 233.3,
      "slowestTypical": 8.3,
      "source": "metal-hud"
     },
@@ -469,40 +505,35 @@
     "frameLog": true,
     "holds": true,
     "kind": "holdsLimit",
-    "loadLow": false,
+    "loadLow": true,
     "lowPower": false,
     "metalFX": true,
     "nightforge": "0.3.2",
     "noFrames": null,
-    "notPublic": [
-     "onBattery",
-     "loadHigh"
-    ],
-    "onBattery": true,
+    "notPublic": [],
+    "onBattery": false,
     "playSeconds": 190,
-    "public": false,
+    "public": true,
     "refreshRate": 120,
     "reportFormat": 2,
     "runsOn": "x86_64 under Rosetta",
     "screen": "1512×982",
-    "secondsToPicture": 8.5,
+    "secondsToPicture": 8.3,
     "swapchain": null,
     "throttled": null,
     "upscaledTo": null,
     "way": "d3dmetal",
     "window": "1512×982",
-    "wineFps": false
+    "wineFps": true
    },
    "name": "Control",
    "nameFrom": "report",
    "noPictureSince": null,
    "notes": [
-    "profiled",
-    "loadHigh",
-    "batteryOrLowPower"
+    "profiled"
    ],
    "onCurrentBuild": {
-    "at": "2026-11-14T17:52:27Z",
+    "at": "2026-11-14T19:30:47Z",
     "by": "evidence",
     "picture": false
    },
@@ -530,8 +561,8 @@
    "evidence": {
     "failed": 0,
     "gaveUp": false,
-    "last": "2026-11-11T19:49:41Z",
-    "starts": 3,
+    "last": "2026-11-14T19:38:05Z",
+    "starts": 4,
     "ways": [
      "wined3d"
     ]
@@ -541,20 +572,20 @@
     "version": "3"
    },
    "gameTest": {
-    "last": "2026-11-11T19:46:37Z",
+    "last": "2026-11-14T19:38:03Z",
     "lastOutcome": "picture",
     "lastWays": [
      "wined3d"
     ],
-    "pictures": 3,
-    "runs": 3
+    "pictures": 4,
+    "runs": 4
    },
    "key": "epic.d2da64bd4c4e422da4b1a88041492a3a",
    "level": "laeuft",
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
-    "at": "2026-11-11T19:46:37Z",
-    "built": null,
+    "at": "2026-11-14T19:38:03Z",
+    "built": "2026-11-14T18:40:47Z",
     "displayMode": null,
     "endedByItself": false,
     "engine": [
@@ -566,39 +597,51 @@
      "graphics@11.18-dxmt0.80-17",
      "moltenvk@1.4.2"
     ],
-    "fps": null,
-    "frameLimit": null,
-    "frameLog": false,
+    "fps": {
+     "average": 105.1,
+     "gpuTime": null,
+     "low": 27.5,
+     "onePercentLow": null,
+     "periods": 18,
+     "seconds": 194.5,
+     "slowestFrame": null,
+     "slowestTypical": null,
+     "source": "wine-fps"
+    },
+    "frameLimit": 0,
+    "frameLog": true,
     "holds": null,
-    "kind": null,
+    "kind": "free",
     "loadLow": true,
     "lowPower": false,
-    "metalFX": null,
+    "metalFX": false,
     "nightforge": "0.3.2",
-    "noFrames": "wayReportsNone",
-    "notPublic": [
-     "noFps"
-    ],
+    "noFrames": null,
+    "notPublic": [],
     "onBattery": false,
-    "playSeconds": 200,
-    "public": false,
-    "refreshRate": null,
-    "reportFormat": 1,
+    "playSeconds": 190,
+    "public": true,
+    "refreshRate": 120,
+    "reportFormat": 2,
     "runsOn": "x86_64 under Rosetta",
-    "screen": null,
-    "secondsToPicture": 18,
+    "screen": "1512×982",
+    "secondsToPicture": 20.2,
     "swapchain": null,
     "throttled": null,
     "upscaledTo": null,
     "way": "wined3d",
-    "window": null,
-    "wineFps": false
+    "window": "1512×982",
+    "wineFps": true
    },
    "name": "Dishonored - Definitive Edition",
    "nameFrom": "report",
    "noPictureSince": null,
    "notes": [],
-   "onCurrentBuild": null,
+   "onCurrentBuild": {
+    "at": "2026-11-14T19:38:05Z",
+    "by": "evidence",
+    "picture": false
+   },
    "platform": "windows",
    "seen": null,
    "store": "epic",
@@ -607,7 +650,117 @@
    "withdrawn": null
   },
   {
-   "antiCheat": null,
+   "antiCheat": false,
+   "confirmed": {
+    "at": "2026-11-14T19:27:44Z",
+    "basis": "worked",
+    "built": "2026-11-14T18:40:47Z",
+    "engine": "winecx@4.7.3",
+    "failedSince": 0,
+    "nightforge": "0.3.2",
+    "parts": [
+     "winecx@4.7.3",
+     "d3dmetal@apple-3.0",
+     "dxvk-macos@1.10.3-20230507",
+     "enginefix@4.7.3-4",
+     "gamepad@4.7.3-15",
+     "graphics@11.18-dxmt0.80-17",
+     "moltenvk@1.4.2"
+    ],
+    "starts": 1,
+    "way": "dxmt",
+    "ways": 1
+   },
+   "evidence": {
+    "failed": 0,
+    "gaveUp": false,
+    "last": "2026-11-14T19:27:44Z",
+    "starts": 1,
+    "ways": [
+     "dxmt"
+    ]
+   },
+   "gameEngine": null,
+   "gameTest": {
+    "last": "2026-11-14T19:26:59Z",
+    "lastOutcome": "picture",
+    "lastWays": [
+     "dxmt"
+    ],
+    "pictures": 1,
+    "runs": 1
+   },
+   "key": "epic.b2e00fc16632475782a7730d1bd7cb60",
+   "level": "laeuft",
+   "mac": "Apple M5 · macOS 27.0",
+   "measured": {
+    "at": "2026-11-14T19:26:59Z",
+    "built": "2026-11-14T18:40:47Z",
+    "displayMode": null,
+    "endedByItself": false,
+    "engine": [
+     "winecx@4.7.3",
+     "d3dmetal@apple-3.0",
+     "dxvk-macos@1.10.3-20230507",
+     "enginefix@4.7.3-4",
+     "gamepad@4.7.3-15",
+     "graphics@11.18-dxmt0.80-17",
+     "moltenvk@1.4.2"
+    ],
+    "fps": {
+     "average": 60,
+     "gpuTime": 19.4,
+     "low": 59.4,
+     "onePercentLow": 60,
+     "periods": 18,
+     "seconds": 186,
+     "slowestFrame": 115.6,
+     "slowestTypical": 16.7,
+     "source": "metal-hud"
+    },
+    "frameLimit": 60,
+    "frameLog": true,
+    "holds": true,
+    "kind": "holdsLimit",
+    "loadLow": true,
+    "lowPower": false,
+    "metalFX": true,
+    "nightforge": "0.3.2",
+    "noFrames": null,
+    "notPublic": [],
+    "onBattery": false,
+    "playSeconds": 190,
+    "public": true,
+    "refreshRate": 120,
+    "reportFormat": 2,
+    "runsOn": "x86_64 under Rosetta",
+    "screen": "1512×982",
+    "secondsToPicture": 16,
+    "swapchain": null,
+    "throttled": null,
+    "upscaledTo": null,
+    "way": "dxmt",
+    "window": "1512×982",
+    "wineFps": true
+   },
+   "name": "Frostpunk",
+   "nameFrom": "report",
+   "noPictureSince": null,
+   "notes": [],
+   "onCurrentBuild": {
+    "at": "2026-11-14T19:27:00Z",
+    "by": "evidence",
+    "picture": true
+   },
+   "platform": "windows",
+   "seen": null,
+   "store": "epic",
+   "storeID": "b2e00fc16632475782a7730d1bd7cb60",
+   "way": "dxmt",
+   "withdrawn": null
+  },
+  {
+   "antiCheat": false,
    "confirmed": {
     "at": "2026-11-09T20:34:07Z",
     "basis": "worked",
@@ -623,28 +776,31 @@
    "evidence": {
     "failed": 0,
     "gaveUp": false,
-    "last": "2026-11-09T23:51:43Z",
-    "starts": 3,
+    "last": "2026-11-14T19:18:16Z",
+    "starts": 4,
     "ways": [
      "d3dmetal"
     ]
    },
-   "gameEngine": null,
+   "gameEngine": {
+    "engine": "unreal",
+    "version": "4.27"
+   },
    "gameTest": {
-    "last": "2026-11-09T23:51:42Z",
+    "last": "2026-11-14T19:18:15Z",
     "lastOutcome": "picture",
     "lastWays": [
      "d3dmetal"
     ],
-    "pictures": 1,
-    "runs": 2
+    "pictures": 2,
+    "runs": 3
    },
    "key": "epic.fa4240e57a3c46b39f169041b7811293",
    "level": "laeuft",
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
-    "at": "2026-11-09T23:51:42Z",
-    "built": null,
+    "at": "2026-11-14T19:18:15Z",
+    "built": "2026-11-14T18:40:47Z",
     "displayMode": null,
     "endedByItself": false,
     "engine": [
@@ -656,39 +812,51 @@
      "graphics@11.18-dxmt0.80-17",
      "moltenvk@1.4.2"
     ],
-    "fps": null,
-    "frameLimit": null,
-    "frameLog": false,
-    "holds": null,
-    "kind": null,
+    "fps": {
+     "average": 101.9,
+     "gpuTime": 9.2,
+     "low": 37.7,
+     "onePercentLow": 40,
+     "periods": 18,
+     "seconds": 187,
+     "slowestFrame": 983.3,
+     "slowestTypical": 16.7,
+     "source": "metal-hud"
+    },
+    "frameLimit": 60,
+    "frameLog": true,
+    "holds": true,
+    "kind": "holdsLimit",
     "loadLow": true,
     "lowPower": false,
-    "metalFX": null,
+    "metalFX": true,
     "nightforge": "0.3.2",
-    "noFrames": "wayReportsNone",
-    "notPublic": [
-     "noFps"
-    ],
+    "noFrames": null,
+    "notPublic": [],
     "onBattery": false,
-    "playSeconds": 60,
-    "public": false,
-    "refreshRate": null,
-    "reportFormat": 1,
+    "playSeconds": 190,
+    "public": true,
+    "refreshRate": 120,
+    "reportFormat": 2,
     "runsOn": "x86_64 under Rosetta",
-    "screen": null,
-    "secondsToPicture": 80.8,
+    "screen": "1512×982",
+    "secondsToPicture": 88.9,
     "swapchain": null,
     "throttled": null,
     "upscaledTo": null,
     "way": "d3dmetal",
-    "window": null,
-    "wineFps": false
+    "window": "1512×982",
+    "wineFps": true
    },
    "name": "Hogwarts Legacy",
    "nameFrom": "report",
    "noPictureSince": null,
    "notes": [],
-   "onCurrentBuild": null,
+   "onCurrentBuild": {
+    "at": "2026-11-14T19:18:16Z",
+    "by": "evidence",
+    "picture": false
+   },
    "platform": "windows",
    "seen": null,
    "store": "epic",
@@ -713,8 +881,8 @@
    "evidence": {
     "failed": 3,
     "gaveUp": true,
-    "last": "2026-11-14T15:09:09Z",
-    "starts": 10,
+    "last": "2026-11-14T19:06:42Z",
+    "starts": 11,
     "ways": [
      "d3dmetal",
      "dxmt -dx11",
@@ -726,20 +894,20 @@
     "version": "4.26"
    },
    "gameTest": {
-    "last": "2026-11-10T19:54:37Z",
+    "last": "2026-11-14T19:06:42Z",
     "lastOutcome": "picture",
     "lastWays": [
      "d3dmetal"
     ],
-    "pictures": 3,
-    "runs": 5
+    "pictures": 4,
+    "runs": 6
    },
    "key": "steam.1426210",
    "level": "laeuft",
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
-    "at": "2026-11-10T19:54:37Z",
-    "built": null,
+    "at": "2026-11-14T19:06:42Z",
+    "built": "2026-11-14T18:40:47Z",
     "displayMode": null,
     "endedByItself": false,
     "engine": [
@@ -751,33 +919,41 @@
      "graphics@11.18-dxmt0.80-17",
      "moltenvk@1.4.2"
     ],
-    "fps": null,
-    "frameLimit": null,
-    "frameLog": false,
-    "holds": null,
-    "kind": null,
+    "fps": {
+     "average": 73.5,
+     "gpuTime": 14.5,
+     "low": 66.7,
+     "onePercentLow": 63.8,
+     "periods": 18,
+     "seconds": 187,
+     "slowestFrame": 141.2,
+     "slowestTypical": 16.1,
+     "source": "metal-hud"
+    },
+    "frameLimit": 60,
+    "frameLog": true,
+    "holds": true,
+    "kind": "holdsLimit",
     "loadLow": true,
     "lowPower": false,
-    "metalFX": null,
+    "metalFX": true,
     "nightforge": "0.3.2",
-    "noFrames": "wayReportsNone",
-    "notPublic": [
-     "noFps"
-    ],
+    "noFrames": null,
+    "notPublic": [],
     "onBattery": false,
-    "playSeconds": 30,
-    "public": false,
-    "refreshRate": null,
-    "reportFormat": 1,
+    "playSeconds": 190,
+    "public": true,
+    "refreshRate": 120,
+    "reportFormat": 2,
     "runsOn": "x86_64 under Rosetta",
-    "screen": null,
-    "secondsToPicture": 79.6,
+    "screen": "1512×982",
+    "secondsToPicture": 15.9,
     "swapchain": null,
     "throttled": null,
     "upscaledTo": null,
     "way": "d3dmetal",
-    "window": null,
-    "wineFps": false
+    "window": "1512×982",
+    "wineFps": true
    },
    "name": "It Takes Two",
    "nameFrom": "report",
@@ -785,7 +961,11 @@
    "notes": [
     "profiled"
    ],
-   "onCurrentBuild": null,
+   "onCurrentBuild": {
+    "at": "2026-11-14T19:06:42Z",
+    "by": "gameTest",
+    "picture": true
+   },
    "platform": "windows",
    "seen": null,
    "store": "steam",
@@ -794,7 +974,7 @@
    "withdrawn": null
   },
   {
-   "antiCheat": null,
+   "antiCheat": false,
    "confirmed": {
     "at": "2026-11-09T20:56:29Z",
     "basis": "worked",
@@ -810,28 +990,28 @@
    "evidence": {
     "failed": 0,
     "gaveUp": false,
-    "last": "2026-11-09T23:55:57Z",
-    "starts": 2,
+    "last": "2026-11-14T19:34:25Z",
+    "starts": 3,
     "ways": [
      "dxmt"
     ]
    },
    "gameEngine": null,
    "gameTest": {
-    "last": "2026-11-09T23:55:57Z",
+    "last": "2026-11-14T19:34:24Z",
     "lastOutcome": "picture",
     "lastWays": [
      "dxmt"
     ],
-    "pictures": 2,
-    "runs": 2
+    "pictures": 3,
+    "runs": 3
    },
    "key": "epic.Kakopo",
    "level": "laeuft",
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
-    "at": "2026-11-09T23:55:57Z",
-    "built": null,
+    "at": "2026-11-14T19:34:24Z",
+    "built": "2026-11-14T18:40:47Z",
     "displayMode": null,
     "endedByItself": false,
     "engine": [
@@ -844,50 +1024,50 @@
      "moltenvk@1.4.2"
     ],
     "fps": {
-     "average": 46.8,
-     "gpuTime": null,
-     "low": 11.5,
-     "onePercentLow": null,
-     "periods": 5,
-     "seconds": null,
-     "slowestFrame": null,
-     "slowestTypical": null,
-     "source": null
+     "average": 57.2,
+     "gpuTime": 17.8,
+     "low": 25.1,
+     "onePercentLow": 30,
+     "periods": 18,
+     "seconds": 184,
+     "slowestFrame": 912.5,
+     "slowestTypical": 20.8,
+     "source": "metal-hud"
     },
-    "frameLimit": null,
-    "frameLog": false,
-    "holds": null,
-    "kind": null,
+    "frameLimit": 60,
+    "frameLog": true,
+    "holds": true,
+    "kind": "holdsLimit",
     "loadLow": true,
     "lowPower": false,
-    "metalFX": null,
+    "metalFX": true,
     "nightforge": "0.3.2",
     "noFrames": null,
-    "notPublic": [
-     "limitUnknown",
-     "sizeUnknown",
-     "durationUnknown"
-    ],
+    "notPublic": [],
     "onBattery": false,
-    "playSeconds": 60,
-    "public": false,
-    "refreshRate": null,
-    "reportFormat": 1,
+    "playSeconds": 190,
+    "public": true,
+    "refreshRate": 120,
+    "reportFormat": 2,
     "runsOn": "x86_64 under Rosetta",
-    "screen": null,
-    "secondsToPicture": 7.5,
+    "screen": "1512×982",
+    "secondsToPicture": 7.4,
     "swapchain": null,
     "throttled": null,
     "upscaledTo": null,
     "way": "dxmt",
-    "window": null,
-    "wineFps": false
+    "window": "1512×982",
+    "wineFps": true
    },
    "name": "Just Cause 4",
    "nameFrom": "report",
    "noPictureSince": null,
    "notes": [],
-   "onCurrentBuild": null,
+   "onCurrentBuild": {
+    "at": "2026-11-14T19:34:25Z",
+    "by": "evidence",
+    "picture": false
+   },
    "platform": "windows",
    "seen": null,
    "store": "epic",
@@ -896,7 +1076,7 @@
    "withdrawn": null
   },
   {
-   "antiCheat": null,
+   "antiCheat": false,
    "confirmed": {
     "at": "2026-11-09T23:43:34Z",
     "basis": "known",
@@ -912,28 +1092,28 @@
    "evidence": {
     "failed": 0,
     "gaveUp": false,
-    "last": "2026-11-10T00:53:51Z",
-    "starts": 2,
+    "last": "2026-11-14T18:51:34Z",
+    "starts": 3,
     "ways": [
      "wined3d"
     ]
    },
    "gameEngine": null,
    "gameTest": {
-    "last": "2026-11-10T00:53:51Z",
+    "last": "2026-11-14T18:51:33Z",
     "lastOutcome": "picture",
     "lastWays": [
      "wined3d"
     ],
-    "pictures": 3,
-    "runs": 3
+    "pictures": 4,
+    "runs": 4
    },
    "key": "steam.550",
    "level": "laeuft",
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
-    "at": "2026-11-10T00:53:51Z",
-    "built": null,
+    "at": "2026-11-14T18:51:33Z",
+    "built": "2026-11-14T18:40:47Z",
     "displayMode": null,
     "endedByItself": false,
     "engine": [
@@ -945,39 +1125,51 @@
      "graphics@11.18-dxmt0.80-17",
      "moltenvk@1.4.2"
     ],
-    "fps": null,
-    "frameLimit": null,
-    "frameLog": false,
+    "fps": {
+     "average": 23.9,
+     "gpuTime": null,
+     "low": 23.3,
+     "onePercentLow": null,
+     "periods": 17,
+     "seconds": 186,
+     "slowestFrame": null,
+     "slowestTypical": null,
+     "source": "wine-fps"
+    },
+    "frameLimit": 0,
+    "frameLog": true,
     "holds": null,
-    "kind": null,
+    "kind": "free",
     "loadLow": true,
     "lowPower": false,
-    "metalFX": null,
+    "metalFX": false,
     "nightforge": "0.3.2",
-    "noFrames": "wayReportsNone",
-    "notPublic": [
-     "noFps"
-    ],
+    "noFrames": null,
+    "notPublic": [],
     "onBattery": false,
-    "playSeconds": 60,
-    "public": false,
-    "refreshRate": null,
-    "reportFormat": 1,
+    "playSeconds": 190,
+    "public": true,
+    "refreshRate": 120,
+    "reportFormat": 2,
     "runsOn": "x86_64 under Rosetta",
-    "screen": null,
-    "secondsToPicture": 13.8,
+    "screen": "1512×982",
+    "secondsToPicture": 14.9,
     "swapchain": null,
     "throttled": null,
     "upscaledTo": null,
     "way": "wined3d",
-    "window": null,
-    "wineFps": false
+    "window": "1512×982",
+    "wineFps": true
    },
    "name": "Left 4 Dead 2",
    "nameFrom": "report",
    "noPictureSince": null,
    "notes": [],
-   "onCurrentBuild": null,
+   "onCurrentBuild": {
+    "at": "2026-11-14T18:51:34Z",
+    "by": "evidence",
+    "picture": false
+   },
    "platform": "windows",
    "seen": null,
    "store": "steam",
@@ -986,7 +1178,7 @@
    "withdrawn": null
   },
   {
-   "antiCheat": null,
+   "antiCheat": false,
    "confirmed": {
     "at": "2026-11-09T22:00:52Z",
     "basis": "known",
@@ -1002,28 +1194,28 @@
    "evidence": {
     "failed": 0,
     "gaveUp": false,
-    "last": "2026-11-10T00:34:11Z",
-    "starts": 3,
+    "last": "2026-11-14T19:46:05Z",
+    "starts": 4,
     "ways": [
      "wined3d"
     ]
    },
    "gameEngine": null,
    "gameTest": {
-    "last": "2026-11-10T00:34:03Z",
+    "last": "2026-11-14T19:45:58Z",
     "lastOutcome": "picture",
     "lastWays": [
      "wined3d"
     ],
-    "pictures": 6,
-    "runs": 6
+    "pictures": 7,
+    "runs": 7
    },
    "key": "gog.1816059595",
    "level": "laeuft",
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
-    "at": "2026-11-10T00:34:03Z",
-    "built": null,
+    "at": "2026-11-14T19:45:58Z",
+    "built": "2026-11-14T18:40:47Z",
     "displayMode": null,
     "endedByItself": false,
     "engine": [
@@ -1035,44 +1227,170 @@
      "graphics@11.18-dxmt0.80-17",
      "moltenvk@1.4.2"
     ],
-    "fps": null,
-    "frameLimit": null,
-    "frameLog": false,
+    "fps": {
+     "average": 119.5,
+     "gpuTime": null,
+     "low": 112.4,
+     "onePercentLow": null,
+     "periods": 18,
+     "seconds": 192.9,
+     "slowestFrame": null,
+     "slowestTypical": null,
+     "source": "wine-fps"
+    },
+    "frameLimit": 0,
+    "frameLog": true,
     "holds": null,
-    "kind": null,
+    "kind": "free",
     "loadLow": true,
     "lowPower": false,
-    "metalFX": null,
+    "metalFX": false,
     "nightforge": "0.3.2",
-    "noFrames": "wayReportsNone",
-    "notPublic": [
-     "noFps"
-    ],
+    "noFrames": null,
+    "notPublic": [],
     "onBattery": false,
-    "playSeconds": 200,
-    "public": false,
-    "refreshRate": null,
-    "reportFormat": 1,
+    "playSeconds": 190,
+    "public": true,
+    "refreshRate": 120,
+    "reportFormat": 2,
     "runsOn": "x86_64 under Rosetta",
-    "screen": null,
-    "secondsToPicture": 19.2,
+    "screen": "1512×982",
+    "secondsToPicture": 21,
     "swapchain": null,
     "throttled": null,
     "upscaledTo": null,
     "way": "wined3d",
-    "window": null,
-    "wineFps": false
+    "window": "1512×982",
+    "wineFps": true
    },
    "name": "Mafia II (Classic)",
    "nameFrom": "report",
    "noPictureSince": null,
-   "notes": [],
-   "onCurrentBuild": null,
+   "notes": [
+    "profiled"
+   ],
+   "onCurrentBuild": {
+    "at": "2026-11-14T19:46:05Z",
+    "by": "evidence",
+    "picture": false
+   },
    "platform": "windows",
    "seen": null,
    "store": "gog",
    "storeID": "1816059595",
    "way": "wined3d",
+   "withdrawn": null
+  },
+  {
+   "antiCheat": false,
+   "confirmed": {
+    "at": "2026-11-14T19:44:59Z",
+    "basis": "worked",
+    "built": "2026-11-14T18:40:47Z",
+    "engine": "winecx@4.7.3",
+    "failedSince": 0,
+    "nightforge": "0.3.2",
+    "parts": [
+     "winecx@4.7.3",
+     "d3dmetal@apple-3.0",
+     "dxvk-macos@1.10.3-20230507",
+     "enginefix@4.7.3-4",
+     "gamepad@4.7.3-15",
+     "graphics@11.18-dxmt0.80-17",
+     "moltenvk@1.4.2"
+    ],
+    "starts": 7,
+    "way": "d3dmetal",
+    "ways": 3
+   },
+   "evidence": {
+    "failed": 2,
+    "gaveUp": false,
+    "last": "2026-11-14T19:44:59Z",
+    "starts": 7,
+    "ways": [
+     "d3dmetal",
+     "dxmt",
+     "dxvk"
+    ]
+   },
+   "gameEngine": null,
+   "gameTest": {
+    "last": "2026-11-14T19:41:55Z",
+    "lastOutcome": "picture",
+    "lastWays": [
+     "d3dmetal"
+    ],
+    "pictures": 2,
+    "runs": 3
+   },
+   "key": "epic.63a665088eb1480298f1e57943b225d8",
+   "level": "laeuft",
+   "mac": "Apple M5 · macOS 27.0",
+   "measured": {
+    "at": "2026-11-14T19:41:55Z",
+    "built": "2026-11-14T18:40:47Z",
+    "displayMode": null,
+    "endedByItself": false,
+    "engine": [
+     "winecx@4.7.3",
+     "d3dmetal@apple-3.0",
+     "dxvk-macos@1.10.3-20230507",
+     "enginefix@4.7.3-4",
+     "gamepad@4.7.3-15",
+     "graphics@11.18-dxmt0.80-17",
+     "moltenvk@1.4.2"
+    ],
+    "fps": {
+     "average": 49.8,
+     "gpuTime": 18.7,
+     "low": 29.3,
+     "onePercentLow": 26.7,
+     "periods": 19,
+     "seconds": 191,
+     "slowestFrame": 616.7,
+     "slowestTypical": 21.8,
+     "source": "metal-hud"
+    },
+    "frameLimit": 60,
+    "frameLog": true,
+    "holds": false,
+    "kind": "holdsLimit",
+    "loadLow": true,
+    "lowPower": false,
+    "metalFX": true,
+    "nightforge": "0.3.2",
+    "noFrames": null,
+    "notPublic": [],
+    "onBattery": false,
+    "playSeconds": 190,
+    "public": true,
+    "refreshRate": 120,
+    "reportFormat": 2,
+    "runsOn": "x86_64 under Rosetta",
+    "screen": "1512×982",
+    "secondsToPicture": 31,
+    "swapchain": null,
+    "throttled": null,
+    "upscaledTo": null,
+    "way": "d3dmetal",
+    "window": "1512×982",
+    "wineFps": true
+   },
+   "name": "Marvel's Guardians of the Galaxy",
+   "nameFrom": "report",
+   "noPictureSince": null,
+   "notes": [],
+   "onCurrentBuild": {
+    "at": "2026-11-14T19:41:56Z",
+    "by": "evidence",
+    "picture": true
+   },
+   "platform": "windows",
+   "seen": null,
+   "store": "epic",
+   "storeID": "63a665088eb1480298f1e57943b225d8",
+   "way": "d3dmetal",
    "withdrawn": null
   },
   {
@@ -1092,8 +1410,8 @@
    "evidence": {
     "failed": 0,
     "gaveUp": false,
-    "last": "2026-11-11T19:24:30Z",
-    "starts": 7,
+    "last": "2026-11-14T19:03:00Z",
+    "starts": 8,
     "ways": [
      "d3dmetal",
      "dxmt"
@@ -1101,22 +1419,22 @@
    },
    "gameEngine": null,
    "gameTest": {
-    "last": "2026-11-11T19:23:05Z",
+    "last": "2026-11-14T19:03:00Z",
     "lastOutcome": "picture",
     "lastWays": [
      "dxmt"
     ],
-    "pictures": 1,
-    "runs": 7
+    "pictures": 2,
+    "runs": 8
    },
    "key": "steam.287700",
    "level": "laeuft",
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
-    "at": "2026-11-11T19:23:05Z",
-    "built": null,
+    "at": "2026-11-14T19:03:00Z",
+    "built": "2026-11-14T18:40:47Z",
     "displayMode": null,
-    "endedByItself": true,
+    "endedByItself": false,
     "engine": [
      "winecx@4.7.3",
      "d3dmetal@apple-3.0",
@@ -1127,52 +1445,50 @@
      "moltenvk@1.4.2"
     ],
     "fps": {
-     "average": 59.3,
-     "gpuTime": null,
-     "low": 56.7,
-     "onePercentLow": null,
-     "periods": 11,
-     "seconds": null,
-     "slowestFrame": null,
-     "slowestTypical": null,
-     "source": null
+     "average": 59.9,
+     "gpuTime": 15,
+     "low": 58.7,
+     "onePercentLow": 40,
+     "periods": 19,
+     "seconds": 192,
+     "slowestFrame": 104.2,
+     "slowestTypical": 25,
+     "source": "metal-hud"
     },
-    "frameLimit": null,
-    "frameLog": false,
-    "holds": null,
-    "kind": null,
+    "frameLimit": 60,
+    "frameLog": true,
+    "holds": true,
+    "kind": "holdsLimit",
     "loadLow": true,
     "lowPower": false,
-    "metalFX": null,
+    "metalFX": true,
     "nightforge": "0.3.2",
     "noFrames": null,
-    "notPublic": [
-     "limitUnknown",
-     "sizeUnknown",
-     "durationUnknown"
-    ],
+    "notPublic": [],
     "onBattery": false,
-    "playSeconds": 200,
-    "public": false,
-    "refreshRate": null,
-    "reportFormat": 1,
+    "playSeconds": 190,
+    "public": true,
+    "refreshRate": 120,
+    "reportFormat": 2,
     "runsOn": "x86_64 under Rosetta",
-    "screen": null,
-    "secondsToPicture": 57.4,
+    "screen": "1512×982",
+    "secondsToPicture": 10.7,
     "swapchain": null,
     "throttled": null,
     "upscaledTo": null,
     "way": "dxmt",
-    "window": null,
-    "wineFps": false
+    "window": "1512×982",
+    "wineFps": true
    },
    "name": "METAL GEAR SOLID V: THE PHANTOM PAIN",
    "nameFrom": "report",
    "noPictureSince": null,
-   "notes": [
-    "endedByItself"
-   ],
-   "onCurrentBuild": null,
+   "notes": [],
+   "onCurrentBuild": {
+    "at": "2026-11-14T19:03:00Z",
+    "by": "gameTest",
+    "picture": true
+   },
    "platform": "windows",
    "seen": null,
    "store": "steam",
@@ -1181,7 +1497,7 @@
    "withdrawn": null
   },
   {
-   "antiCheat": null,
+   "antiCheat": false,
    "confirmed": {
     "at": "2026-11-09T23:49:25Z",
     "basis": "known",
@@ -1197,21 +1513,21 @@
    "evidence": {
     "failed": 0,
     "gaveUp": false,
-    "last": "2026-11-09T23:49:25Z",
-    "starts": 1,
+    "last": "2026-11-14T19:10:29Z",
+    "starts": 2,
     "ways": [
      "dxmt"
     ]
    },
    "gameEngine": null,
    "gameTest": {
-    "last": "2026-11-09T23:49:25Z",
-    "lastOutcome": "picture",
+    "last": "2026-11-14T19:10:29Z",
+    "lastOutcome": "hang",
     "lastWays": [
      "dxmt"
     ],
     "pictures": 1,
-    "runs": 5
+    "runs": 6
    },
    "key": "steam.2357570",
    "level": "laeuft",
@@ -1273,8 +1589,14 @@
    "name": "Overwatch®",
    "nameFrom": "report",
    "noPictureSince": null,
-   "notes": [],
-   "onCurrentBuild": null,
+   "notes": [
+    "profiled"
+   ],
+   "onCurrentBuild": {
+    "at": "2026-11-14T19:10:29Z",
+    "by": "gameTest",
+    "picture": false
+   },
    "platform": "windows",
    "seen": null,
    "store": "steam",
@@ -1373,7 +1695,7 @@
    "withdrawn": null
   },
   {
-   "antiCheat": null,
+   "antiCheat": false,
    "confirmed": {
     "at": "2026-11-09T23:45:04Z",
     "basis": "known",
@@ -1389,13 +1711,16 @@
    "evidence": {
     "failed": 0,
     "gaveUp": false,
-    "last": "2026-11-09T23:45:04Z",
-    "starts": 1,
+    "last": "2026-11-14T19:01:24Z",
+    "starts": 2,
     "ways": [
      "dxmt -dx11"
     ]
    },
-   "gameEngine": null,
+   "gameEngine": {
+    "engine": "unreal",
+    "version": "5.4"
+   },
    "gameTest": {
     "last": "2026-11-09T23:45:04Z",
     "lastOutcome": "picture",
@@ -1466,7 +1791,11 @@
    "nameFrom": "report",
    "noPictureSince": null,
    "notes": [],
-   "onCurrentBuild": null,
+   "onCurrentBuild": {
+    "at": "2026-11-14T19:01:24Z",
+    "by": "evidence",
+    "picture": false
+   },
    "platform": "windows",
    "seen": null,
    "store": "steam",
@@ -1491,8 +1820,8 @@
    "evidence": {
     "failed": 0,
     "gaveUp": false,
-    "last": "2026-11-14T17:44:13Z",
-    "starts": 2,
+    "last": "2026-11-14T18:47:02Z",
+    "starts": 3,
     "ways": [
      "dxvk"
     ]
@@ -1502,20 +1831,20 @@
     "version": "5.6"
    },
    "gameTest": {
-    "last": "2026-11-14T17:43:46Z",
+    "last": "2026-11-14T18:47:01Z",
     "lastOutcome": "picture",
     "lastWays": [
      "dxvk"
     ],
-    "pictures": 4,
-    "runs": 6
+    "pictures": 5,
+    "runs": 7
    },
    "key": "steam.242760",
    "level": "laeuft",
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
-    "at": "2026-11-14T17:43:46Z",
-    "built": "2026-11-14T17:41:36Z",
+    "at": "2026-11-14T18:47:01Z",
+    "built": "2026-11-14T18:40:47Z",
     "displayMode": null,
     "endedByItself": false,
     "engine": [
@@ -1529,12 +1858,12 @@
     ],
     "fps": {
      "average": 59.7,
-     "gpuTime": 12.1,
-     "low": 55,
+     "gpuTime": 15.1,
+     "low": 55.2,
      "onePercentLow": 60,
      "periods": 18,
-     "seconds": 189,
-     "slowestFrame": 691.7,
+     "seconds": 187,
+     "slowestFrame": 662.5,
      "slowestTypical": 16.7,
      "source": "metal-hud"
     },
@@ -1547,32 +1876,28 @@
     "metalFX": true,
     "nightforge": "0.3.2",
     "noFrames": null,
-    "notPublic": [
-     "onBattery"
-    ],
-    "onBattery": true,
+    "notPublic": [],
+    "onBattery": false,
     "playSeconds": 190,
-    "public": false,
+    "public": true,
     "refreshRate": 120,
     "reportFormat": 2,
     "runsOn": "x86_64 under Rosetta",
     "screen": "1512×982",
-    "secondsToPicture": 82.8,
+    "secondsToPicture": 62.2,
     "swapchain": null,
     "throttled": null,
     "upscaledTo": null,
     "way": "dxvk",
     "window": "1512×982",
-    "wineFps": false
+    "wineFps": true
    },
    "name": "The Forest",
    "nameFrom": "report",
    "noPictureSince": null,
-   "notes": [
-    "batteryOrLowPower"
-   ],
+   "notes": [],
    "onCurrentBuild": {
-    "at": "2026-11-14T17:44:13Z",
+    "at": "2026-11-14T18:47:02Z",
     "by": "evidence",
     "picture": false
    },
@@ -1589,20 +1914,20 @@
    "evidence": null,
    "gameEngine": null,
    "gameTest": {
-    "last": "2026-11-10T00:01:00Z",
+    "last": "2026-11-14T19:49:49Z",
     "lastOutcome": "picture",
     "lastWays": [
      "mac"
     ],
-    "pictures": 4,
-    "runs": 4
+    "pictures": 5,
+    "runs": 5
    },
    "key": "steam.1815780",
    "level": "startet",
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
-    "at": "2026-11-10T00:01:00Z",
-    "built": null,
+    "at": "2026-11-14T19:49:49Z",
+    "built": "2026-11-14T18:40:47Z",
     "displayMode": null,
     "endedByItself": false,
     "engine": [
@@ -1616,7 +1941,7 @@
     ],
     "fps": null,
     "frameLimit": null,
-    "frameLog": false,
+    "frameLog": true,
     "holds": null,
     "kind": null,
     "loadLow": true,
@@ -1628,28 +1953,32 @@
      "noFps"
     ],
     "onBattery": false,
-    "playSeconds": 60,
+    "playSeconds": 190,
     "public": false,
     "refreshRate": null,
-    "reportFormat": 1,
+    "reportFormat": 2,
     "runsOn": "x86_64 under Rosetta",
-    "screen": null,
-    "secondsToPicture": 30.9,
+    "screen": "1512×982",
+    "secondsToPicture": 47.8,
     "swapchain": null,
     "throttled": null,
     "upscaledTo": null,
     "way": "mac",
-    "window": null,
-    "wineFps": false
+    "window": "1512×853",
+    "wineFps": true
    },
    "name": "Asphalt Legends",
    "nameFrom": "report",
    "noPictureSince": null,
    "notes": [],
-   "onCurrentBuild": null,
+   "onCurrentBuild": {
+    "at": "2026-11-14T19:49:49Z",
+    "by": "gameTest",
+    "picture": true
+   },
    "platform": "mac",
    "seen": {
-    "at": "2026-11-10T00:01:00Z",
+    "at": "2026-11-14T19:49:49Z",
     "by": "gameTest"
    },
    "store": "steam",
@@ -1736,107 +2065,23 @@
   {
    "antiCheat": null,
    "confirmed": null,
-   "evidence": {
-    "failed": 2,
-    "gaveUp": false,
-    "last": "2026-11-09T23:57:28Z",
-    "starts": 6,
-    "ways": [
-     "d3dmetal",
-     "dxmt",
-     "dxvk"
-    ]
-   },
-   "gameEngine": null,
-   "gameTest": {
-    "last": "2026-11-09T23:57:27Z",
-    "lastOutcome": "picture",
-    "lastWays": [
-     "d3dmetal"
-    ],
-    "pictures": 1,
-    "runs": 2
-   },
-   "key": "epic.63a665088eb1480298f1e57943b225d8",
-   "level": "startet",
-   "mac": "Apple M5 · macOS 27.0",
-   "measured": {
-    "at": "2026-11-09T23:57:27Z",
-    "built": null,
-    "displayMode": null,
-    "endedByItself": false,
-    "engine": [
-     "winecx@4.7.3",
-     "d3dmetal@apple-3.0",
-     "dxvk-macos@1.10.3-20230507",
-     "enginefix@4.7.3-4",
-     "gamepad@4.7.3-15",
-     "graphics@11.18-dxmt0.80-17",
-     "moltenvk@1.4.2"
-    ],
-    "fps": null,
-    "frameLimit": null,
-    "frameLog": false,
-    "holds": null,
-    "kind": null,
-    "loadLow": true,
-    "lowPower": false,
-    "metalFX": null,
-    "nightforge": "0.3.2",
-    "noFrames": "wayReportsNone",
-    "notPublic": [
-     "noFps"
-    ],
-    "onBattery": false,
-    "playSeconds": 60,
-    "public": false,
-    "refreshRate": null,
-    "reportFormat": 1,
-    "runsOn": "x86_64 under Rosetta",
-    "screen": null,
-    "secondsToPicture": 30.7,
-    "swapchain": null,
-    "throttled": null,
-    "upscaledTo": null,
-    "way": "d3dmetal",
-    "window": null,
-    "wineFps": false
-   },
-   "name": "Marvel's Guardians of the Galaxy",
-   "nameFrom": "report",
-   "noPictureSince": null,
-   "notes": [],
-   "onCurrentBuild": null,
-   "platform": "windows",
-   "seen": {
-    "at": "2026-11-09T23:57:27Z",
-    "by": "gameTest"
-   },
-   "store": "epic",
-   "storeID": "63a665088eb1480298f1e57943b225d8",
-   "way": "d3dmetal",
-   "withdrawn": null
-  },
-  {
-   "antiCheat": null,
-   "confirmed": null,
    "evidence": null,
    "gameEngine": null,
    "gameTest": {
-    "last": "2026-11-10T00:05:02Z",
+    "last": "2026-11-14T19:54:22Z",
     "lastOutcome": "picture",
     "lastWays": [
      "mac"
     ],
-    "pictures": 1,
-    "runs": 3
+    "pictures": 2,
+    "runs": 4
    },
    "key": "steam.203160",
    "level": "startet",
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
-    "at": "2026-11-10T00:05:02Z",
-    "built": null,
+    "at": "2026-11-14T19:54:22Z",
+    "built": "2026-11-14T18:40:47Z",
     "displayMode": null,
     "endedByItself": false,
     "engine": [
@@ -1850,7 +2095,7 @@
     ],
     "fps": null,
     "frameLimit": null,
-    "frameLog": false,
+    "frameLog": true,
     "holds": null,
     "kind": null,
     "loadLow": true,
@@ -1862,28 +2107,32 @@
      "noFps"
     ],
     "onBattery": false,
-    "playSeconds": 60,
+    "playSeconds": 190,
     "public": false,
     "refreshRate": null,
-    "reportFormat": 1,
+    "reportFormat": 2,
     "runsOn": "x86_64 under Rosetta",
-    "screen": null,
-    "secondsToPicture": 31.9,
+    "screen": "1512×982",
+    "secondsToPicture": 28.6,
     "swapchain": null,
     "throttled": null,
     "upscaledTo": null,
     "way": "mac",
-    "window": null,
-    "wineFps": false
+    "window": "930×668",
+    "wineFps": true
    },
    "name": "Tomb Raider",
    "nameFrom": "report",
    "noPictureSince": null,
    "notes": [],
-   "onCurrentBuild": null,
+   "onCurrentBuild": {
+    "at": "2026-11-14T19:54:22Z",
+    "by": "gameTest",
+    "picture": true
+   },
    "platform": "mac",
    "seen": {
-    "at": "2026-11-10T00:05:02Z",
+    "at": "2026-11-14T19:54:22Z",
     "by": "gameTest"
    },
    "store": "steam",
@@ -1897,20 +2146,20 @@
    "evidence": null,
    "gameEngine": null,
    "gameTest": {
-    "last": "2026-11-10T00:07:03Z",
+    "last": "2026-11-14T19:58:30Z",
     "lastOutcome": "picture",
     "lastWays": [
      "mac"
     ],
-    "pictures": 1,
-    "runs": 1
+    "pictures": 2,
+    "runs": 2
    },
    "key": "steam.892970",
    "level": "startet",
    "mac": "Apple M5 · macOS 27.0",
    "measured": {
-    "at": "2026-11-10T00:07:03Z",
-    "built": null,
+    "at": "2026-11-14T19:58:30Z",
+    "built": "2026-11-14T18:40:47Z",
     "displayMode": null,
     "endedByItself": false,
     "engine": [
@@ -1924,7 +2173,7 @@
     ],
     "fps": null,
     "frameLimit": null,
-    "frameLog": false,
+    "frameLog": true,
     "holds": null,
     "kind": null,
     "loadLow": true,
@@ -1936,28 +2185,32 @@
      "noFps"
     ],
     "onBattery": false,
-    "playSeconds": 60,
+    "playSeconds": 190,
     "public": false,
     "refreshRate": null,
-    "reportFormat": 1,
+    "reportFormat": 2,
     "runsOn": "x86_64 under Rosetta",
-    "screen": null,
-    "secondsToPicture": 30.7,
+    "screen": "1512×982",
+    "secondsToPicture": 28.6,
     "swapchain": null,
     "throttled": null,
     "upscaledTo": null,
     "way": "mac",
-    "window": null,
-    "wineFps": false
+    "window": "1512×949",
+    "wineFps": true
    },
    "name": "Valheim",
    "nameFrom": "report",
    "noPictureSince": null,
    "notes": [],
-   "onCurrentBuild": null,
+   "onCurrentBuild": {
+    "at": "2026-11-14T19:58:30Z",
+    "by": "gameTest",
+    "picture": true
+   },
    "platform": "mac",
    "seen": {
-    "at": "2026-11-10T00:07:03Z",
+    "at": "2026-11-14T19:58:30Z",
     "by": "gameTest"
    },
    "store": "steam",
@@ -2006,7 +2259,7 @@
  ],
  "formatVersion": 1,
  "sources": {
-  "evidenceEntries": 74,
-  "gameTestRuns": 29
+  "evidenceEntries": 95,
+  "gameTestRuns": 30
  }
 }

@@ -1,6 +1,6 @@
 {
  "build": {
-  "built": "2026-11-14T17:41:36Z",
+  "built": "2026-11-14T18:40:47Z",
   "engine": [
    "winecx@4.7.3",
    "d3dmetal@apple-3.0",
@@ -12,12 +12,12 @@
   ],
   "mac": "Apple M5 · macOS 27.0",
   "nightforge": "0.3.2",
-  "since": "2026-11-14T17:43:40Z",
+  "since": "2026-11-14T18:41:38Z",
   "sinceFrom": "firstRun"
  },
  "builds": [
   {
-   "built": "2026-11-14T17:41:36Z",
+   "built": "2026-11-14T18:40:47Z",
    "current": true,
    "engine": [
     "winecx@4.7.3",
@@ -29,22 +29,7 @@
     "moltenvk@1.4.2"
    ],
    "nightforge": "0.3.2",
-   "since": "2026-11-14T17:43:40Z"
-  },
-  {
-   "built": "2026-11-14T14:40:10Z",
-   "current": false,
-   "engine": [
-    "winecx@4.7.3",
-    "d3dmetal@apple-3.0",
-    "dxvk-macos@1.10.3-20230507",
-    "enginefix@4.7.3-4",
-    "gamepad@4.7.3-15",
-    "graphics@11.18-dxmt0.80-17",
-    "moltenvk@1.4.2"
-   ],
-   "nightforge": "0.3.2",
-   "since": "2026-11-14T14:47:10Z"
+   "since": "2026-11-14T18:41:38Z"
   },
   {
    "built": null,
@@ -60,26 +45,669 @@
    ],
    "nightforge": "0.3.2",
    "since": "2026-11-09T22:45:04Z"
-  },
-  {
-   "built": null,
-   "current": false,
-   "engine": [
-    "winecx@4.7.3",
-    "d3dmetal@apple-3.0",
-    "dxvk-macos@1.10.3-20230507",
-    "enginefix@4.7.3-4",
-    "gamepad@4.7.3-15",
-    "graphics@11.18-dxmt0.80-17",
-    "moltenvk@1.4.2"
-   ],
-   "nightforge": "0.3.1",
-   "since": "2026-11-06T18:32:38Z"
   }
  ],
- "dataUntil": "2026-11-14T17:52:27Z",
+ "dataUntil": "2026-11-14T19:46:05Z",
  "formatVersion": 1,
  "games": [
+  {
+   "build": {
+    "built": "2026-11-14T18:40:47Z",
+    "current": true,
+    "engine": [
+     "winecx@4.7.3",
+     "d3dmetal@apple-3.0",
+     "dxvk-macos@1.10.3-20230507",
+     "enginefix@4.7.3-4",
+     "gamepad@4.7.3-15",
+     "graphics@11.18-dxmt0.80-17",
+     "moltenvk@1.4.2"
+    ],
+    "nightforge": "0.3.2",
+    "since": "2026-11-14T18:41:38Z"
+   },
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-14T19:41:55Z",
+    "average": 49.8,
+    "frameLimit": 60,
+    "holds": false,
+    "kind": "holdsLimit",
+    "ok": true,
+    "public": true,
+    "way": "d3dmetal",
+    "why": "ok"
+   },
+   "key": "epic.63a665088eb1480298f1e57943b225d8",
+   "later": null,
+   "location": "extern",
+   "missing": [],
+   "name": "Marvel's Guardians of the Galaxy",
+   "platform": "windows",
+   "sizeBytes": 82615812112,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-14T19:41:56Z",
+    "by": "evidence",
+    "ok": true,
+    "way": "d3dmetal",
+    "why": "ok"
+   },
+   "status": "fertig",
+   "store": "epic",
+   "storeID": "63a665088eb1480298f1e57943b225d8"
+  },
+  {
+   "build": {
+    "built": "2026-11-14T18:40:47Z",
+    "current": true,
+    "engine": [
+     "winecx@4.7.3",
+     "d3dmetal@apple-3.0",
+     "dxvk-macos@1.10.3-20230507",
+     "enginefix@4.7.3-4",
+     "gamepad@4.7.3-15",
+     "graphics@11.18-dxmt0.80-17",
+     "moltenvk@1.4.2"
+    ],
+    "nightforge": "0.3.2",
+    "since": "2026-11-14T18:41:38Z"
+   },
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-14T19:18:15Z",
+    "average": 101.9,
+    "frameLimit": 60,
+    "holds": true,
+    "kind": "holdsLimit",
+    "ok": true,
+    "public": true,
+    "way": "d3dmetal",
+    "why": "ok"
+   },
+   "key": "epic.fa4240e57a3c46b39f169041b7811293",
+   "later": null,
+   "location": "extern",
+   "missing": [],
+   "name": "Hogwarts Legacy",
+   "platform": "windows",
+   "sizeBytes": 76700981001,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-14T19:18:15Z",
+    "by": "gameTest",
+    "ok": true,
+    "way": "d3dmetal",
+    "why": "ok"
+   },
+   "status": "fertig",
+   "store": "epic",
+   "storeID": "fa4240e57a3c46b39f169041b7811293"
+  },
+  {
+   "build": {
+    "built": "2026-11-14T18:40:47Z",
+    "current": true,
+    "engine": [
+     "winecx@4.7.3",
+     "d3dmetal@apple-3.0",
+     "dxvk-macos@1.10.3-20230507",
+     "enginefix@4.7.3-4",
+     "gamepad@4.7.3-15",
+     "graphics@11.18-dxmt0.80-17",
+     "moltenvk@1.4.2"
+    ],
+    "nightforge": "0.3.2",
+    "since": "2026-11-14T18:41:38Z"
+   },
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-14T19:34:24Z",
+    "average": 57.2,
+    "frameLimit": 60,
+    "holds": true,
+    "kind": "holdsLimit",
+    "ok": true,
+    "public": true,
+    "way": "dxmt",
+    "why": "ok"
+   },
+   "key": "epic.Kakopo",
+   "later": null,
+   "location": "extern",
+   "missing": [],
+   "name": "Just Cause 4",
+   "platform": "windows",
+   "sizeBytes": 50528184896,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-14T19:34:24Z",
+    "by": "gameTest",
+    "ok": true,
+    "way": "dxmt",
+    "why": "ok"
+   },
+   "status": "fertig",
+   "store": "epic",
+   "storeID": "Kakopo"
+  },
+  {
+   "build": {
+    "built": "2026-11-14T18:40:47Z",
+    "current": true,
+    "engine": [
+     "winecx@4.7.3",
+     "d3dmetal@apple-3.0",
+     "dxvk-macos@1.10.3-20230507",
+     "enginefix@4.7.3-4",
+     "gamepad@4.7.3-15",
+     "graphics@11.18-dxmt0.80-17",
+     "moltenvk@1.4.2"
+    ],
+    "nightforge": "0.3.2",
+    "since": "2026-11-14T18:41:38Z"
+   },
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-14T19:06:42Z",
+    "average": 73.5,
+    "frameLimit": 60,
+    "holds": true,
+    "kind": "holdsLimit",
+    "ok": true,
+    "public": true,
+    "way": "d3dmetal",
+    "why": "ok"
+   },
+   "key": "steam.1426210",
+   "later": null,
+   "location": "extern",
+   "missing": [],
+   "name": "It Takes Two",
+   "platform": "windows",
+   "sizeBytes": 48392303260,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-14T19:06:42Z",
+    "by": "gameTest",
+    "ok": true,
+    "way": "d3dmetal",
+    "why": "ok"
+   },
+   "status": "fertig",
+   "store": "steam",
+   "storeID": "1426210"
+  },
+  {
+   "build": {
+    "built": "2026-11-14T18:40:47Z",
+    "current": true,
+    "engine": [
+     "winecx@4.7.3",
+     "d3dmetal@apple-3.0",
+     "dxvk-macos@1.10.3-20230507",
+     "enginefix@4.7.3-4",
+     "gamepad@4.7.3-15",
+     "graphics@11.18-dxmt0.80-17",
+     "moltenvk@1.4.2"
+    ],
+    "nightforge": "0.3.2",
+    "since": "2026-11-14T18:41:38Z"
+   },
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-14T19:30:46Z",
+    "average": 113,
+    "frameLimit": 60,
+    "holds": true,
+    "kind": "holdsLimit",
+    "ok": true,
+    "public": true,
+    "way": "d3dmetal",
+    "why": "ok"
+   },
+   "key": "epic.Calluna",
+   "later": null,
+   "location": "extern",
+   "missing": [],
+   "name": "Control",
+   "platform": "windows",
+   "sizeBytes": 45010292103,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-14T19:30:46Z",
+    "by": "gameTest",
+    "ok": true,
+    "way": "d3dmetal",
+    "why": "ok"
+   },
+   "status": "fertig",
+   "store": "epic",
+   "storeID": "Calluna"
+  },
+  {
+   "build": {
+    "built": "2026-11-14T18:40:47Z",
+    "current": true,
+    "engine": [
+     "winecx@4.7.3",
+     "d3dmetal@apple-3.0",
+     "dxvk-macos@1.10.3-20230507",
+     "enginefix@4.7.3-4",
+     "gamepad@4.7.3-15",
+     "graphics@11.18-dxmt0.80-17",
+     "moltenvk@1.4.2"
+    ],
+    "nightforge": "0.3.2",
+    "since": "2026-11-14T18:41:38Z"
+   },
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-14T19:03:00Z",
+    "average": 59.9,
+    "frameLimit": 60,
+    "holds": true,
+    "kind": "holdsLimit",
+    "ok": true,
+    "public": true,
+    "way": "dxmt",
+    "why": "ok"
+   },
+   "key": "steam.287700",
+   "later": null,
+   "location": "extern",
+   "missing": [],
+   "name": "METAL GEAR SOLID V: THE PHANTOM PAIN",
+   "platform": "windows",
+   "sizeBytes": 31106322849,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-14T19:03:00Z",
+    "by": "gameTest",
+    "ok": true,
+    "way": "dxmt",
+    "why": "ok"
+   },
+   "status": "fertig",
+   "store": "steam",
+   "storeID": "287700"
+  },
+  {
+   "build": {
+    "built": "2026-11-14T18:40:47Z",
+    "current": true,
+    "engine": [
+     "winecx@4.7.3",
+     "d3dmetal@apple-3.0",
+     "dxvk-macos@1.10.3-20230507",
+     "enginefix@4.7.3-4",
+     "gamepad@4.7.3-15",
+     "graphics@11.18-dxmt0.80-17",
+     "moltenvk@1.4.2"
+    ],
+    "nightforge": "0.3.2",
+    "since": "2026-11-14T18:41:38Z"
+   },
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-14T19:38:03Z",
+    "average": 105.1,
+    "frameLimit": 0,
+    "holds": null,
+    "kind": "free",
+    "ok": true,
+    "public": true,
+    "way": "wined3d",
+    "why": "ok"
+   },
+   "key": "epic.d2da64bd4c4e422da4b1a88041492a3a",
+   "later": null,
+   "location": "extern",
+   "missing": [],
+   "name": "Dishonored - Definitive Edition",
+   "platform": "windows",
+   "sizeBytes": 17357748207,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-14T19:38:03Z",
+    "by": "gameTest",
+    "ok": true,
+    "way": "wined3d",
+    "why": "ok"
+   },
+   "status": "fertig",
+   "store": "epic",
+   "storeID": "d2da64bd4c4e422da4b1a88041492a3a"
+  },
+  {
+   "build": {
+    "built": "2026-11-14T18:40:47Z",
+    "current": true,
+    "engine": [
+     "winecx@4.7.3",
+     "d3dmetal@apple-3.0",
+     "dxvk-macos@1.10.3-20230507",
+     "enginefix@4.7.3-4",
+     "gamepad@4.7.3-15",
+     "graphics@11.18-dxmt0.80-17",
+     "moltenvk@1.4.2"
+    ],
+    "nightforge": "0.3.2",
+    "since": "2026-11-14T18:41:38Z"
+   },
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-14T18:51:33Z",
+    "average": 23.9,
+    "frameLimit": 0,
+    "holds": null,
+    "kind": "free",
+    "ok": true,
+    "public": true,
+    "way": "wined3d",
+    "why": "ok"
+   },
+   "key": "steam.550",
+   "later": null,
+   "location": "extern",
+   "missing": [],
+   "name": "Left 4 Dead 2",
+   "platform": "windows",
+   "sizeBytes": 14964354280,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-14T18:51:33Z",
+    "by": "gameTest",
+    "ok": true,
+    "way": "wined3d",
+    "why": "ok"
+   },
+   "status": "fertig",
+   "store": "steam",
+   "storeID": "550"
+  },
+  {
+   "build": {
+    "built": "2026-11-14T18:40:47Z",
+    "current": true,
+    "engine": [
+     "winecx@4.7.3",
+     "d3dmetal@apple-3.0",
+     "dxvk-macos@1.10.3-20230507",
+     "enginefix@4.7.3-4",
+     "gamepad@4.7.3-15",
+     "graphics@11.18-dxmt0.80-17",
+     "moltenvk@1.4.2"
+    ],
+    "nightforge": "0.3.2",
+    "since": "2026-11-14T18:41:38Z"
+   },
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-14T19:23:16Z",
+    "average": 210.4,
+    "frameLimit": 0,
+    "holds": null,
+    "kind": "free",
+    "ok": true,
+    "public": true,
+    "way": "wined3d",
+    "why": "ok"
+   },
+   "key": "epic.Heron",
+   "later": null,
+   "location": "extern",
+   "missing": [],
+   "name": "Alan Wake",
+   "platform": "windows",
+   "sizeBytes": 9666507981,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-14T19:23:16Z",
+    "by": "gameTest",
+    "ok": true,
+    "way": "wined3d",
+    "why": "ok"
+   },
+   "status": "fertig",
+   "store": "epic",
+   "storeID": "Heron"
+  },
+  {
+   "build": {
+    "built": "2026-11-14T18:40:47Z",
+    "current": true,
+    "engine": [
+     "winecx@4.7.3",
+     "d3dmetal@apple-3.0",
+     "dxvk-macos@1.10.3-20230507",
+     "enginefix@4.7.3-4",
+     "gamepad@4.7.3-15",
+     "graphics@11.18-dxmt0.80-17",
+     "moltenvk@1.4.2"
+    ],
+    "nightforge": "0.3.2",
+    "since": "2026-11-14T18:41:38Z"
+   },
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-14T19:26:59Z",
+    "average": 60,
+    "frameLimit": 60,
+    "holds": true,
+    "kind": "holdsLimit",
+    "ok": true,
+    "public": true,
+    "way": "dxmt",
+    "why": "ok"
+   },
+   "key": "epic.b2e00fc16632475782a7730d1bd7cb60",
+   "later": null,
+   "location": "extern",
+   "missing": [],
+   "name": "Frostpunk",
+   "platform": "windows",
+   "sizeBytes": 9640470926,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-14T19:27:00Z",
+    "by": "evidence",
+    "ok": true,
+    "way": "dxmt",
+    "why": "ok"
+   },
+   "status": "fertig",
+   "store": "epic",
+   "storeID": "b2e00fc16632475782a7730d1bd7cb60"
+  },
+  {
+   "build": {
+    "built": "2026-11-14T18:40:47Z",
+    "current": true,
+    "engine": [
+     "winecx@4.7.3",
+     "d3dmetal@apple-3.0",
+     "dxvk-macos@1.10.3-20230507",
+     "enginefix@4.7.3-4",
+     "gamepad@4.7.3-15",
+     "graphics@11.18-dxmt0.80-17",
+     "moltenvk@1.4.2"
+    ],
+    "nightforge": "0.3.2",
+    "since": "2026-11-14T18:41:38Z"
+   },
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-14T18:55:18Z",
+    "average": 47.6,
+    "frameLimit": 0,
+    "holds": null,
+    "kind": "free",
+    "ok": true,
+    "public": true,
+    "way": "wined3d",
+    "why": "ok"
+   },
+   "key": "steam.35140",
+   "later": null,
+   "location": "extern",
+   "missing": [],
+   "name": "Batman: Arkham Asylum GOTY Edition",
+   "platform": "windows",
+   "sizeBytes": 8471095333,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-14T18:55:18Z",
+    "by": "gameTest",
+    "ok": true,
+    "way": "wined3d",
+    "why": "ok"
+   },
+   "status": "fertig",
+   "store": "steam",
+   "storeID": "35140"
+  },
+  {
+   "build": {
+    "built": "2026-11-14T18:40:47Z",
+    "current": true,
+    "engine": [
+     "winecx@4.7.3",
+     "d3dmetal@apple-3.0",
+     "dxvk-macos@1.10.3-20230507",
+     "enginefix@4.7.3-4",
+     "gamepad@4.7.3-15",
+     "graphics@11.18-dxmt0.80-17",
+     "moltenvk@1.4.2"
+    ],
+    "nightforge": "0.3.2",
+    "since": "2026-11-14T18:41:38Z"
+   },
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-14T19:45:58Z",
+    "average": 119.5,
+    "frameLimit": 0,
+    "holds": null,
+    "kind": "free",
+    "ok": true,
+    "public": true,
+    "way": "wined3d",
+    "why": "ok"
+   },
+   "key": "gog.1816059595",
+   "later": null,
+   "location": "extern",
+   "missing": [],
+   "name": "Mafia II (Classic)",
+   "platform": "windows",
+   "sizeBytes": 8441968765,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-14T19:45:58Z",
+    "by": "gameTest",
+    "ok": true,
+    "way": "wined3d",
+    "why": "ok"
+   },
+   "status": "fertig",
+   "store": "gog",
+   "storeID": "1816059595"
+  },
+  {
+   "build": {
+    "built": "2026-11-14T18:40:47Z",
+    "current": true,
+    "engine": [
+     "winecx@4.7.3",
+     "d3dmetal@apple-3.0",
+     "dxvk-macos@1.10.3-20230507",
+     "enginefix@4.7.3-4",
+     "gamepad@4.7.3-15",
+     "graphics@11.18-dxmt0.80-17",
+     "moltenvk@1.4.2"
+    ],
+    "nightforge": "0.3.2",
+    "since": "2026-11-14T18:41:38Z"
+   },
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-14T18:42:14Z",
+    "average": 201.1,
+    "frameLimit": 60,
+    "holds": true,
+    "kind": "holdsLimit",
+    "ok": true,
+    "public": true,
+    "way": "d3dmetal",
+    "why": "ok"
+   },
+   "key": "steam.3132990",
+   "later": null,
+   "location": "extern",
+   "missing": [],
+   "name": "Black Myth: Wukong Benchmark Tool",
+   "platform": "windows",
+   "sizeBytes": 8365222843,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-14T18:42:14Z",
+    "by": "gameTest",
+    "ok": true,
+    "way": "d3dmetal",
+    "why": "ok"
+   },
+   "status": "fertig",
+   "store": "steam",
+   "storeID": "3132990"
+  },
+  {
+   "build": {
+    "built": "2026-11-14T18:40:47Z",
+    "current": true,
+    "engine": [
+     "winecx@4.7.3",
+     "d3dmetal@apple-3.0",
+     "dxvk-macos@1.10.3-20230507",
+     "enginefix@4.7.3-4",
+     "gamepad@4.7.3-15",
+     "graphics@11.18-dxmt0.80-17",
+     "moltenvk@1.4.2"
+    ],
+    "nightforge": "0.3.2",
+    "since": "2026-11-14T18:41:38Z"
+   },
+   "byHand": null,
+   "fps": {
+    "at": "2026-11-14T18:47:01Z",
+    "average": 59.7,
+    "frameLimit": 60,
+    "holds": true,
+    "kind": "holdsLimit",
+    "ok": true,
+    "public": true,
+    "way": "dxvk",
+    "why": "ok"
+   },
+   "key": "steam.242760",
+   "later": null,
+   "location": "extern",
+   "missing": [],
+   "name": "The Forest",
+   "platform": "windows",
+   "sizeBytes": 5950220689,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-14T18:47:01Z",
+    "by": "gameTest",
+    "ok": true,
+    "way": "dxvk",
+    "why": "ok"
+   },
+   "status": "fertig",
+   "store": "steam",
+   "storeID": "242760"
+  },
   {
    "build": {
     "built": null,
@@ -109,7 +737,12 @@
     "why": "limitUnknown"
    },
    "key": "steam.2357570",
-   "later": null,
+   "later": {
+    "at": "2026-11-14T19:10:29Z",
+    "by": "gameTest",
+    "count": 1,
+    "why": "noPicture"
+   },
    "location": "extern",
    "missing": [
     "fps"
@@ -128,391 +761,6 @@
    "status": "offen",
    "store": "steam",
    "storeID": "2357570"
-  },
-  {
-   "build": {
-    "built": null,
-    "current": false,
-    "engine": [
-     "winecx@4.7.3",
-     "d3dmetal@apple-3.0",
-     "dxvk-macos@1.10.3-20230507",
-     "enginefix@4.7.3-4",
-     "gamepad@4.7.3-15",
-     "graphics@11.18-dxmt0.80-17",
-     "moltenvk@1.4.2"
-    ],
-    "nightforge": "0.3.2",
-    "since": "2026-11-09T22:45:04Z"
-   },
-   "byHand": null,
-   "fps": {
-    "at": "2026-11-09T23:57:27Z",
-    "average": null,
-    "frameLimit": null,
-    "holds": null,
-    "kind": null,
-    "ok": false,
-    "public": false,
-    "way": "d3dmetal",
-    "why": "wayReportsNone"
-   },
-   "key": "epic.63a665088eb1480298f1e57943b225d8",
-   "later": null,
-   "location": "extern",
-   "missing": [
-    "start",
-    "fps"
-   ],
-   "name": "Marvel's Guardians of the Galaxy",
-   "platform": "windows",
-   "sizeBytes": 82615812112,
-   "skipped": null,
-   "start": {
-    "at": "2026-11-09T23:57:28Z",
-    "by": "evidence",
-    "ok": false,
-    "way": "d3dmetal",
-    "why": "noOutcome"
-   },
-   "status": "offen",
-   "store": "epic",
-   "storeID": "63a665088eb1480298f1e57943b225d8"
-  },
-  {
-   "build": {
-    "built": null,
-    "current": false,
-    "engine": [
-     "winecx@4.7.3",
-     "d3dmetal@apple-3.0",
-     "dxvk-macos@1.10.3-20230507",
-     "enginefix@4.7.3-4",
-     "gamepad@4.7.3-15",
-     "graphics@11.18-dxmt0.80-17",
-     "moltenvk@1.4.2"
-    ],
-    "nightforge": "0.3.1",
-    "since": "2026-11-06T18:32:38Z"
-   },
-   "byHand": null,
-   "fps": {
-    "at": null,
-    "average": null,
-    "frameLimit": null,
-    "holds": null,
-    "kind": null,
-    "ok": false,
-    "public": false,
-    "way": null,
-    "why": "never"
-   },
-   "key": "epic.fa4240e57a3c46b39f169041b7811293",
-   "later": {
-    "at": "2026-11-09T23:09:15Z",
-    "by": "gameTest",
-    "count": 1,
-    "why": "noPicture"
-   },
-   "location": "extern",
-   "missing": [
-    "fps"
-   ],
-   "name": "Hogwarts Legacy",
-   "platform": "windows",
-   "sizeBytes": 76700981001,
-   "skipped": null,
-   "start": {
-    "at": "2026-11-09T20:31:04Z",
-    "by": "evidence",
-    "ok": true,
-    "way": "d3dmetal",
-    "why": "ok"
-   },
-   "status": "offen",
-   "store": "epic",
-   "storeID": "fa4240e57a3c46b39f169041b7811293"
-  },
-  {
-   "build": {
-    "built": null,
-    "current": false,
-    "engine": [
-     "winecx@4.7.3",
-     "d3dmetal@apple-3.0",
-     "dxvk-macos@1.10.3-20230507",
-     "enginefix@4.7.3-4",
-     "gamepad@4.7.3-15",
-     "graphics@11.18-dxmt0.80-17",
-     "moltenvk@1.4.2"
-    ],
-    "nightforge": "0.3.2",
-    "since": "2026-11-09T22:45:04Z"
-   },
-   "byHand": null,
-   "fps": {
-    "at": "2026-11-09T23:55:57Z",
-    "average": 46.8,
-    "frameLimit": null,
-    "holds": null,
-    "kind": null,
-    "ok": false,
-    "public": false,
-    "way": "dxmt",
-    "why": "limitUnknown"
-   },
-   "key": "epic.Kakopo",
-   "later": null,
-   "location": "extern",
-   "missing": [
-    "fps"
-   ],
-   "name": "Just Cause 4",
-   "platform": "windows",
-   "sizeBytes": 50528184896,
-   "skipped": null,
-   "start": {
-    "at": "2026-11-09T23:55:57Z",
-    "by": "gameTest",
-    "ok": true,
-    "way": "dxmt",
-    "why": "ok"
-   },
-   "status": "offen",
-   "store": "epic",
-   "storeID": "Kakopo"
-  },
-  {
-   "build": {
-    "built": null,
-    "current": false,
-    "engine": [
-     "winecx@4.7.3",
-     "d3dmetal@apple-3.0",
-     "dxvk-macos@1.10.3-20230507",
-     "enginefix@4.7.3-4",
-     "gamepad@4.7.3-15",
-     "graphics@11.18-dxmt0.80-17",
-     "moltenvk@1.4.2"
-    ],
-    "nightforge": "0.3.2",
-    "since": "2026-11-09T22:45:04Z"
-   },
-   "byHand": null,
-   "fps": {
-    "at": "2026-11-10T19:54:37Z",
-    "average": null,
-    "frameLimit": null,
-    "holds": null,
-    "kind": null,
-    "ok": false,
-    "public": false,
-    "way": "d3dmetal",
-    "why": "wayReportsNone"
-   },
-   "key": "steam.1426210",
-   "later": null,
-   "location": "extern",
-   "missing": [
-    "fps"
-   ],
-   "name": "It Takes Two",
-   "platform": "windows",
-   "sizeBytes": 48392303260,
-   "skipped": null,
-   "start": {
-    "at": "2026-11-10T00:28:48Z",
-    "by": "evidence",
-    "ok": true,
-    "way": "d3dmetal",
-    "why": "ok"
-   },
-   "status": "offen",
-   "store": "steam",
-   "storeID": "1426210"
-  },
-  {
-   "build": {
-    "built": "2026-11-14T17:41:36Z",
-    "current": true,
-    "engine": [
-     "winecx@4.7.3",
-     "d3dmetal@apple-3.0",
-     "dxvk-macos@1.10.3-20230507",
-     "enginefix@4.7.3-4",
-     "gamepad@4.7.3-15",
-     "graphics@11.18-dxmt0.80-17",
-     "moltenvk@1.4.2"
-    ],
-    "nightforge": "0.3.2",
-    "since": "2026-11-14T17:43:40Z"
-   },
-   "byHand": null,
-   "fps": {
-    "at": "2026-11-14T17:52:25Z",
-    "average": 109.2,
-    "frameLimit": 60,
-    "holds": true,
-    "kind": "holdsLimit",
-    "ok": false,
-    "public": false,
-    "way": "d3dmetal",
-    "why": "throttled"
-   },
-   "key": "epic.Calluna",
-   "later": null,
-   "location": "extern",
-   "missing": [
-    "fps"
-   ],
-   "name": "Control",
-   "platform": "windows",
-   "sizeBytes": 45010292103,
-   "skipped": null,
-   "start": {
-    "at": "2026-11-14T17:52:25Z",
-    "by": "gameTest",
-    "ok": true,
-    "way": "d3dmetal",
-    "why": "ok"
-   },
-   "status": "offen",
-   "store": "epic",
-   "storeID": "Calluna"
-  },
-  {
-   "build": null,
-   "byHand": null,
-   "fps": {
-    "at": null,
-    "average": null,
-    "frameLimit": null,
-    "holds": null,
-    "kind": null,
-    "ok": false,
-    "public": false,
-    "way": null,
-    "why": "never"
-   },
-   "key": "steam.239140",
-   "later": null,
-   "location": "extern",
-   "missing": [
-    "start",
-    "fps"
-   ],
-   "name": "Dying Light",
-   "platform": "mac",
-   "sizeBytes": 33640621009,
-   "skipped": null,
-   "start": {
-    "at": null,
-    "by": null,
-    "ok": false,
-    "way": null,
-    "why": "never"
-   },
-   "status": "offen",
-   "store": "steam",
-   "storeID": "239140"
-  },
-  {
-   "build": {
-    "built": null,
-    "current": false,
-    "engine": [
-     "winecx@4.7.3",
-     "d3dmetal@apple-3.0",
-     "dxvk-macos@1.10.3-20230507",
-     "enginefix@4.7.3-4",
-     "gamepad@4.7.3-15",
-     "graphics@11.18-dxmt0.80-17",
-     "moltenvk@1.4.2"
-    ],
-    "nightforge": "0.3.2",
-    "since": "2026-11-09T22:45:04Z"
-   },
-   "byHand": null,
-   "fps": {
-    "at": "2026-11-11T19:23:05Z",
-    "average": 59.3,
-    "frameLimit": null,
-    "holds": null,
-    "kind": null,
-    "ok": false,
-    "public": false,
-    "way": "dxmt",
-    "why": "limitUnknown"
-   },
-   "key": "steam.287700",
-   "later": null,
-   "location": "extern",
-   "missing": [
-    "fps"
-   ],
-   "name": "METAL GEAR SOLID V: THE PHANTOM PAIN",
-   "platform": "windows",
-   "sizeBytes": 31106322849,
-   "skipped": null,
-   "start": {
-    "at": "2026-11-11T19:23:41Z",
-    "by": "evidence",
-    "ok": true,
-    "way": "dxmt",
-    "why": "ok"
-   },
-   "status": "offen",
-   "store": "steam",
-   "storeID": "287700"
-  },
-  {
-   "build": {
-    "built": null,
-    "current": false,
-    "engine": [
-     "winecx@4.7.3",
-     "d3dmetal@apple-3.0",
-     "dxvk-macos@1.10.3-20230507",
-     "enginefix@4.7.3-4",
-     "gamepad@4.7.3-15",
-     "graphics@11.18-dxmt0.80-17",
-     "moltenvk@1.4.2"
-    ],
-    "nightforge": "0.3.2",
-    "since": "2026-11-09T22:45:04Z"
-   },
-   "byHand": null,
-   "fps": {
-    "at": "2026-11-11T19:46:37Z",
-    "average": null,
-    "frameLimit": null,
-    "holds": null,
-    "kind": null,
-    "ok": false,
-    "public": false,
-    "way": "wined3d",
-    "why": "wayReportsNone"
-   },
-   "key": "epic.d2da64bd4c4e422da4b1a88041492a3a",
-   "later": null,
-   "location": "extern",
-   "missing": [
-    "fps"
-   ],
-   "name": "Dishonored - Definitive Edition",
-   "platform": "windows",
-   "sizeBytes": 17357748207,
-   "skipped": null,
-   "start": {
-    "at": "2026-11-11T19:46:38Z",
-    "by": "evidence",
-    "ok": true,
-    "way": "wined3d",
-    "why": "ok"
-   },
-   "status": "offen",
-   "store": "epic",
-   "storeID": "d2da64bd4c4e422da4b1a88041492a3a"
   },
   {
    "build": {
@@ -565,8 +813,8 @@
   },
   {
    "build": {
-    "built": null,
-    "current": false,
+    "built": "2026-11-14T18:40:47Z",
+    "current": true,
     "engine": [
      "winecx@4.7.3",
      "d3dmetal@apple-3.0",
@@ -577,11 +825,11 @@
      "moltenvk@1.4.2"
     ],
     "nightforge": "0.3.2",
-    "since": "2026-11-09T22:45:04Z"
+    "since": "2026-11-14T18:41:38Z"
    },
    "byHand": null,
    "fps": {
-    "at": "2026-11-10T00:05:02Z",
+    "at": "2026-11-14T19:54:22Z",
     "average": null,
     "frameLimit": null,
     "holds": null,
@@ -595,7 +843,6 @@
    "later": null,
    "location": "extern",
    "missing": [
-    "start",
     "fps"
    ],
    "name": "Tomb Raider",
@@ -603,11 +850,11 @@
    "sizeBytes": 16493299501,
    "skipped": null,
    "start": {
-    "at": "2026-11-10T00:05:02Z",
+    "at": "2026-11-14T19:54:22Z",
     "by": "gameTest",
-    "ok": false,
+    "ok": true,
     "way": "mac",
-    "why": "tooShort"
+    "why": "ok"
    },
    "status": "offen",
    "store": "steam",
@@ -615,8 +862,8 @@
   },
   {
    "build": {
-    "built": null,
-    "current": false,
+    "built": "2026-11-14T18:40:47Z",
+    "current": true,
     "engine": [
      "winecx@4.7.3",
      "d3dmetal@apple-3.0",
@@ -627,151 +874,11 @@
      "moltenvk@1.4.2"
     ],
     "nightforge": "0.3.2",
-    "since": "2026-11-09T22:45:04Z"
+    "since": "2026-11-14T18:41:38Z"
    },
    "byHand": null,
    "fps": {
-    "at": "2026-11-10T00:53:51Z",
-    "average": null,
-    "frameLimit": null,
-    "holds": null,
-    "kind": null,
-    "ok": false,
-    "public": false,
-    "way": "wined3d",
-    "why": "wayReportsNone"
-   },
-   "key": "steam.550",
-   "later": null,
-   "location": "extern",
-   "missing": [
-    "start",
-    "fps"
-   ],
-   "name": "Left 4 Dead 2",
-   "platform": "windows",
-   "sizeBytes": 14964354280,
-   "skipped": null,
-   "start": {
-    "at": "2026-11-10T00:53:51Z",
-    "by": "evidence",
-    "ok": false,
-    "way": "wined3d",
-    "why": "noOutcome"
-   },
-   "status": "offen",
-   "store": "steam",
-   "storeID": "550"
-  },
-  {
-   "build": {
-    "built": null,
-    "current": false,
-    "engine": [
-     "winecx@4.7.3",
-     "d3dmetal@apple-3.0",
-     "dxvk-macos@1.10.3-20230507",
-     "enginefix@4.7.3-4",
-     "gamepad@4.7.3-15",
-     "graphics@11.18-dxmt0.80-17",
-     "moltenvk@1.4.2"
-    ],
-    "nightforge": "0.3.2",
-    "since": "2026-11-09T22:45:04Z"
-   },
-   "byHand": null,
-   "fps": {
-    "at": "2026-11-11T19:05:54Z",
-    "average": null,
-    "frameLimit": null,
-    "holds": null,
-    "kind": null,
-    "ok": false,
-    "public": false,
-    "way": "wined3d",
-    "why": "wayReportsNone"
-   },
-   "key": "epic.Heron",
-   "later": {
-    "at": "2026-11-14T14:59:12Z",
-    "by": "gameTest",
-    "count": 1,
-    "why": "noPicture"
-   },
-   "location": "extern",
-   "missing": [
-    "fps"
-   ],
-   "name": "Alan Wake",
-   "platform": "windows",
-   "sizeBytes": 9666507981,
-   "skipped": null,
-   "start": {
-    "at": "2026-11-11T19:05:56Z",
-    "by": "evidence",
-    "ok": true,
-    "way": "wined3d",
-    "why": "ok"
-   },
-   "status": "offen",
-   "store": "epic",
-   "storeID": "Heron"
-  },
-  {
-   "build": null,
-   "byHand": null,
-   "fps": {
-    "at": null,
-    "average": null,
-    "frameLimit": null,
-    "holds": null,
-    "kind": null,
-    "ok": false,
-    "public": false,
-    "way": null,
-    "why": "never"
-   },
-   "key": "epic.b2e00fc16632475782a7730d1bd7cb60",
-   "later": null,
-   "location": "extern",
-   "missing": [
-    "start",
-    "fps"
-   ],
-   "name": "Frostpunk",
-   "platform": "windows",
-   "sizeBytes": 9640470926,
-   "skipped": null,
-   "start": {
-    "at": null,
-    "by": null,
-    "ok": false,
-    "way": null,
-    "why": "never"
-   },
-   "status": "offen",
-   "store": "epic",
-   "storeID": "b2e00fc16632475782a7730d1bd7cb60"
-  },
-  {
-   "build": {
-    "built": null,
-    "current": false,
-    "engine": [
-     "winecx@4.7.3",
-     "d3dmetal@apple-3.0",
-     "dxvk-macos@1.10.3-20230507",
-     "enginefix@4.7.3-4",
-     "gamepad@4.7.3-15",
-     "graphics@11.18-dxmt0.80-17",
-     "moltenvk@1.4.2"
-    ],
-    "nightforge": "0.3.2",
-    "since": "2026-11-09T22:45:04Z"
-   },
-   "byHand": null,
-   "fps": {
-    "at": "2026-11-10T00:01:00Z",
+    "at": "2026-11-14T19:49:49Z",
     "average": null,
     "frameLimit": null,
     "holds": null,
@@ -785,7 +892,6 @@
    "later": null,
    "location": "extern",
    "missing": [
-    "start",
     "fps"
    ],
    "name": "Asphalt Legends",
@@ -793,163 +899,15 @@
    "sizeBytes": 9064369430,
    "skipped": null,
    "start": {
-    "at": "2026-11-10T00:01:00Z",
+    "at": "2026-11-14T19:49:49Z",
     "by": "gameTest",
-    "ok": false,
+    "ok": true,
     "way": "mac",
-    "why": "tooShort"
+    "why": "ok"
    },
    "status": "offen",
    "store": "steam",
    "storeID": "1815780"
-  },
-  {
-   "build": {
-    "built": "2026-11-14T14:40:10Z",
-    "current": false,
-    "engine": [
-     "winecx@4.7.3",
-     "d3dmetal@apple-3.0",
-     "dxvk-macos@1.10.3-20230507",
-     "enginefix@4.7.3-4",
-     "gamepad@4.7.3-15",
-     "graphics@11.18-dxmt0.80-17",
-     "moltenvk@1.4.2"
-    ],
-    "nightforge": "0.3.2",
-    "since": "2026-11-14T14:47:10Z"
-   },
-   "byHand": null,
-   "fps": {
-    "at": "2026-11-14T14:47:16Z",
-    "average": null,
-    "frameLimit": 60,
-    "holds": null,
-    "kind": "holdsLimit",
-    "ok": false,
-    "public": false,
-    "way": "wined3d",
-    "why": "wayReportsNone"
-   },
-   "key": "steam.35140",
-   "later": null,
-   "location": "extern",
-   "missing": [
-    "fps"
-   ],
-   "name": "Batman: Arkham Asylum GOTY Edition",
-   "platform": "windows",
-   "sizeBytes": 8471095333,
-   "skipped": null,
-   "start": {
-    "at": "2026-11-14T14:47:16Z",
-    "by": "gameTest",
-    "ok": true,
-    "way": "wined3d",
-    "why": "ok"
-   },
-   "status": "offen",
-   "store": "steam",
-   "storeID": "35140"
-  },
-  {
-   "build": {
-    "built": null,
-    "current": false,
-    "engine": [
-     "winecx@4.7.3",
-     "d3dmetal@apple-3.0",
-     "dxvk-macos@1.10.3-20230507",
-     "enginefix@4.7.3-4",
-     "gamepad@4.7.3-15",
-     "graphics@11.18-dxmt0.80-17",
-     "moltenvk@1.4.2"
-    ],
-    "nightforge": "0.3.2",
-    "since": "2026-11-09T22:45:04Z"
-   },
-   "byHand": null,
-   "fps": {
-    "at": "2026-11-10T00:34:03Z",
-    "average": null,
-    "frameLimit": null,
-    "holds": null,
-    "kind": null,
-    "ok": false,
-    "public": false,
-    "way": "wined3d",
-    "why": "wayReportsNone"
-   },
-   "key": "gog.1816059595",
-   "later": null,
-   "location": "extern",
-   "missing": [
-    "fps"
-   ],
-   "name": "Mafia II (Classic)",
-   "platform": "windows",
-   "sizeBytes": 8441968765,
-   "skipped": null,
-   "start": {
-    "at": "2026-11-10T00:34:03Z",
-    "by": "gameTest",
-    "ok": true,
-    "way": "wined3d",
-    "why": "ok"
-   },
-   "status": "offen",
-   "store": "gog",
-   "storeID": "1816059595"
-  },
-  {
-   "build": {
-    "built": null,
-    "current": false,
-    "engine": [
-     "winecx@4.7.3",
-     "d3dmetal@apple-3.0",
-     "dxvk-macos@1.10.3-20230507",
-     "enginefix@4.7.3-4",
-     "gamepad@4.7.3-15",
-     "graphics@11.18-dxmt0.80-17",
-     "moltenvk@1.4.2"
-    ],
-    "nightforge": "0.3.2",
-    "since": "2026-11-09T22:45:04Z"
-   },
-   "byHand": null,
-   "fps": {
-    "at": "2026-11-09T23:32:48Z",
-    "average": null,
-    "frameLimit": null,
-    "holds": null,
-    "kind": null,
-    "ok": false,
-    "public": false,
-    "way": "d3dmetal",
-    "why": "wayReportsNone"
-   },
-   "key": "steam.3132990",
-   "later": null,
-   "location": "extern",
-   "missing": [
-    "start",
-    "fps"
-   ],
-   "name": "Black Myth: Wukong Benchmark Tool",
-   "platform": "windows",
-   "sizeBytes": 8365222843,
-   "skipped": null,
-   "start": {
-    "at": "2026-11-09T23:33:30Z",
-    "by": "evidence",
-    "ok": false,
-    "way": "d3dmetal",
-    "why": "noOutcome"
-   },
-   "status": "offen",
-   "store": "steam",
-   "storeID": "3132990"
   },
   {
    "build": {
@@ -989,7 +947,7 @@
    "name": "OxyRail",
    "platform": "windows",
    "sizeBytes": 7359381270,
-   "skipped": null,
+   "skipped": "update",
    "start": {
     "at": "2026-11-09T23:47:56Z",
     "by": "evidence",
@@ -1003,7 +961,7 @@
   },
   {
    "build": {
-    "built": "2026-11-14T17:41:36Z",
+    "built": "2026-11-14T18:40:47Z",
     "current": true,
     "engine": [
      "winecx@4.7.3",
@@ -1015,85 +973,36 @@
      "moltenvk@1.4.2"
     ],
     "nightforge": "0.3.2",
-    "since": "2026-11-14T17:43:40Z"
+    "since": "2026-11-14T18:41:38Z"
    },
    "byHand": null,
    "fps": {
-    "at": "2026-11-14T17:43:46Z",
-    "average": 59.7,
+    "at": "2026-11-14T19:14:05Z",
+    "average": 58.9,
     "frameLimit": 60,
     "holds": true,
     "kind": "holdsLimit",
-    "ok": false,
-    "public": false,
-    "way": "dxvk",
-    "why": "throttled"
-   },
-   "key": "steam.242760",
-   "later": null,
-   "location": "extern",
-   "missing": [
-    "fps"
-   ],
-   "name": "The Forest",
-   "platform": "windows",
-   "sizeBytes": 5950220689,
-   "skipped": null,
-   "start": {
-    "at": "2026-11-14T17:43:46Z",
-    "by": "gameTest",
     "ok": true,
-    "way": "dxvk",
-    "why": "ok"
-   },
-   "status": "offen",
-   "store": "steam",
-   "storeID": "242760"
-  },
-  {
-   "build": {
-    "built": "2026-11-14T17:41:36Z",
-    "current": true,
-    "engine": [
-     "winecx@4.7.3",
-     "d3dmetal@apple-3.0",
-     "dxvk-macos@1.10.3-20230507",
-     "enginefix@4.7.3-4",
-     "gamepad@4.7.3-15",
-     "graphics@11.18-dxmt0.80-17",
-     "moltenvk@1.4.2"
-    ],
-    "nightforge": "0.3.2",
-    "since": "2026-11-14T17:43:40Z"
-   },
-   "byHand": null,
-   "fps": {
-    "at": "2026-11-14T17:48:41Z",
-    "average": 57.6,
-    "frameLimit": 60,
-    "holds": true,
-    "kind": "holdsLimit",
-    "ok": false,
-    "public": false,
+    "public": true,
     "way": "dxmt -dx11",
-    "why": "throttled"
+    "why": "ok"
    },
    "key": "epic.Curry",
    "later": null,
    "location": "extern",
    "missing": [
-    "fps"
+    "start"
    ],
    "name": "ABZU",
    "platform": "windows",
    "sizeBytes": 4818969865,
    "skipped": null,
    "start": {
-    "at": "2026-11-14T17:48:41Z",
+    "at": "2026-11-14T19:14:32Z",
     "by": "evidence",
-    "ok": true,
+    "ok": false,
     "way": "dxmt -dx11",
-    "why": "ok"
+    "why": "noOutcome"
    },
    "status": "offen",
    "store": "epic",
@@ -1101,8 +1010,8 @@
   },
   {
    "build": {
-    "built": null,
-    "current": false,
+    "built": "2026-11-14T18:40:47Z",
+    "current": true,
     "engine": [
      "winecx@4.7.3",
      "d3dmetal@apple-3.0",
@@ -1113,11 +1022,11 @@
      "moltenvk@1.4.2"
     ],
     "nightforge": "0.3.2",
-    "since": "2026-11-09T22:45:04Z"
+    "since": "2026-11-14T18:41:38Z"
    },
    "byHand": null,
    "fps": {
-    "at": "2026-11-10T00:07:03Z",
+    "at": "2026-11-14T19:58:30Z",
     "average": null,
     "frameLimit": null,
     "holds": null,
@@ -1131,7 +1040,6 @@
    "later": null,
    "location": "extern",
    "missing": [
-    "start",
     "fps"
    ],
    "name": "Valheim",
@@ -1139,11 +1047,11 @@
    "sizeBytes": 4586639854,
    "skipped": null,
    "start": {
-    "at": "2026-11-10T00:07:03Z",
+    "at": "2026-11-14T19:58:30Z",
     "by": "gameTest",
-    "ok": false,
+    "ok": true,
     "way": "mac",
-    "why": "tooShort"
+    "why": "ok"
    },
    "status": "offen",
    "store": "steam",
@@ -1187,7 +1095,7 @@
    "name": "Drawful 2",
    "platform": "mac",
    "sizeBytes": 248585110,
-   "skipped": null,
+   "skipped": "update",
    "start": {
     "at": "2026-11-10T00:03:05Z",
     "by": "gameTest",
@@ -1198,21 +1106,57 @@
    "status": "offen",
    "store": "steam",
    "storeID": "442070"
+  },
+  {
+   "build": null,
+   "byHand": "versionSwitch",
+   "fps": {
+    "at": null,
+    "average": null,
+    "frameLimit": null,
+    "holds": null,
+    "kind": null,
+    "ok": false,
+    "public": false,
+    "way": null,
+    "why": "never"
+   },
+   "key": "steam.239140",
+   "later": null,
+   "location": "extern",
+   "missing": [
+    "start",
+    "fps"
+   ],
+   "name": "Dying Light",
+   "platform": "mac",
+   "sizeBytes": 33640621009,
+   "skipped": "versionSwitch",
+   "start": {
+    "at": null,
+    "by": null,
+    "ok": false,
+    "way": null,
+    "why": "never"
+   },
+   "status": "von-hand",
+   "store": "steam",
+   "storeID": "239140"
   }
  ],
  "mac": "Apple M5 · macOS 27.0",
  "totals": {
   "fertig": {
-   "bytes": 0,
-   "games": 0
+   "bytes": 417211485245,
+   "games": 14
   },
   "offen": {
-   "bytes": 594758387890,
-   "games": 23
+   "bytes": 143906281636,
+   "games": 8
   },
   "von-hand": {
-   "bytes": 0,
-   "games": 0
+   "bytes": 33640621009,
+   "games": 1
   }
  }
 }

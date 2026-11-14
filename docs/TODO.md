@@ -111,6 +111,49 @@ bei Deckkraft 0 (die Leistungsanzeige des Nutzers ist an).
   die Abhakliste braucht es dort einen eigenen Messweg oder eine Entscheidung des Nutzers.
 - **Messabend:** am Netzteil, ohne laufende Sessions (Last), Befehle in `docs/LAEUFT-LISTE.md` Abschnitt 6.
 
+**Messlauf fertig, 14.11., 19:41–21:02 (Testbuild `c453e40`, Bericht `GameTests/2026-11-14-1941`):** die ganze
+Zeit am Netzteil, Last zu Beginn 4,6 bei 10 Kernen, keine Session arbeitete. 19 gestartet, 18 mit Bild, 1 „hängt“
+(Overwatch), 1 abgebrochen (REANIMAL), 4 ausgelassen. Danach die Schalter weg, Nightforge normal neu gestartet
+(21:03). Listen neu erzeugt: **14 fertig (417,2 GB), 8 offen, 1 von Hand.**
+
+- **Fertig:** Guardians of the Galaxy, Hogwarts Legacy, Just Cause 4, It Takes Two, Control, MGS V, Dishonored,
+  Left 4 Dead 2, Alan Wake, Frostpunk, Batman: Arkham Asylum, Mafia II, Wukong Benchmark, The Forest.
+- **Offen:** Overwatch (Start), REANIMAL (Steams Lizenz ist noch offen: die nimmt nur der Spieler an), ABZU
+  (zweiter Anlauf nötig), OxyRail und Drawful 2 (ein Update stünde an), Tomb Raider, Asphalt Legends, Valheim
+  (Start gesehen, Mac-Fassung ohne FPS). Von Hand: Dying Light (erster Start der anderen Fassung), Hearthstone.
+- **Gesehen: Wines fps-Kanal liefert.** 1285 Zeilen, zwei Arten:
+  `06e4:0030:trace:fps:wined3d_cs_exec_present 0A8D1530 @ approx 49.97fps` und
+  `06e4:0030:trace:fps:wglSwapBuffers @ approx 23.76fps, total 23.64fps`. Alle fünf WineD3D-Spiele haben Werte
+  (Batman Ø 48, Alan Wake Ø 210, Dishonored Ø 105, Mafia II Ø 120, Left 4 Dead 2 Ø 24).
+- **Gesehen: das Beenden geht nach E12 jedes Mal beim ersten Anlauf durch** (viermal an diesem Abend).
+
+Befunde aus dem Lauf:
+
+- [ ] **D3DMetal hält das Frame-Limit nicht, in vier Spielen.** Limit 60 aufgezeichnet, gemessen Wukong Ø 201,
+  Control Ø 113, Hogwarts Ø 102, It Takes Two Ø 74 (üblicher Frame bei Control 8 ms = 120 Hz). `D3DM_MAX_FPS`
+  greift also nicht. DXMT und DXVK halten es (MGS V 60, Frostpunk 60, The Forest 60). Der Nutzer mag gerade die
+  Sperre auf 60. An die Läuft-Liste-Session gegeben (Ursache suchen).
+- [ ] **Die Listen sagen dazu „hält das Limit: Ø 201“.** Gemeint ist „erreicht es“, es liest sich aber, als
+  griffe die Sperre. Über dem Limit muss es „Limit greift nicht“ heißen, bevor die Landingpage die Daten nimmt.
+- [ ] **Overwatch: der Spieletest sagt „hängt ohne Bild“, das Spiel zeichnete aber** (DXMT-Protokoll Ø 49 über
+  170 s, Limit 40). Vorhang: erst „picture here“ (1512×853 L0), dann das Fenster auf der Abschirmungsebene
+  (L2147483628) und „picture elsewhere“; „its window isn't on the screen: fetching it back (1)/(2)“, beide Male
+  „Nightforge didn't get the front to hand it over“, dann das Overlay „startet nicht?“. Am 7.11. lief es. Ob auf
+  dem Bildschirm ein Bild war, hat niemand gesehen. Zu klären: Vorhang oder Spiel.
+- [ ] **Der Spieletest nahm dabei ein `sample` von Overwatch** (steam.2357570.sample.txt). Overwatch bringt einen
+  eigenen Cheat-Schutz mit; für solche Spiele gilt sonst „kein sample“. Frage an den Nutzer: der Spieletest lässt
+  das `sample` bei Online-Spielen mit Cheat-Schutz weg (Feld im Profil).
+- [ ] **Left 4 Dead 2: 122 von 123 Werten zwischen 22 und 26 FPS, drei Minuten lang.** Das sieht nach einem Film
+  oder einer Begrenzung aus, nicht nach der Leistung des Spiels; der Bericht meldet „wenig FPS“. Ungeprüft. Der
+  Wert taugt nicht für die Landingpage.
+- [ ] **ABZU endete beim ersten Anlauf nach Sekunden ohne Fenster, der zweite auf demselben Weg zeigte nach 11 s
+  ein Bild.** Die Liste zählt das als „brauchte mehrere Wege“. Im Probelauf um 18:43 kam es beim ersten Anlauf.
+  Für Schritt E (derselbe Weg noch einmal) ein echter Fall.
+- [ ] **Batman: 156 s bis zum Bild**, davor zwei Fenster des Spiels mit einer Frage (492×506, dann 541×480), der
+  erste Prozess endete, ein zweiter kam. Zählt als sauberer Start. Für den Spieler sind das zweieinhalb Minuten
+  Vorhang.
+- Die Werte sind die ersten drei Minuten (Vorspann, Menü, erste Sekunden), keine feste Szene: steht im Bericht.
+
 **Messlauf gestartet, 14.11., 19:41 (Testbuild `c453e40`, Bericht `GameTests/2026-11-14-1941`):** 20 von 24
 geladenen Spielen, 190 s je Spiel, am Netzteil, mit `wineDebug` `+fps,+pid,+loaddll,+timestamp` für die
 WineD3D-Spiele. Im Build: die Abendrunde des Erlebnis-Audits (E4, E8, Beenden an jedem Blatt vorbei, Testreihen
