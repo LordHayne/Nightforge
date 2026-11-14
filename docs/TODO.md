@@ -165,6 +165,15 @@ Befunde aus dem Lauf:
 Testbuild auf dem Mac bleibt `c453e40`, weil sich am Verhalten nichts ändert. Teil 2 (die Startschleife
 verdrahten) wartet auf die vier Entscheidungen des Nutzers (Entwurf 3.3).
 
+**Entschieden vom Nutzer, 14.11. abends („Ja, wie empfohlen“), Entwurf 3.3 › Entscheidungen:**
+1. Ein bewährter Weg, der wieder scheitert, bekommt den genaueren Blick: ein stiller Start mehr im selben
+   „Spielen“, einmal je Spiel und Engine-Stand.
+2. `untrusted-root` wird eine Frage an den Spieler, nur für eine Wurzel, die `WindowsRoots` mit festem
+   Fingerabdruck kennt. Board zuerst. Jede weitere Wurzel in `WindowsRoots` braucht weiter das OK des Nutzers.
+3. Alle Starts tragen `+pid,+loaddll,+msgbox`.
+4. Vorhang beim Start auf demselben Weg: Vorlage A („Noch ein Versuch …“). Board zuerst.
+Teil 2 (E1 bis E5 verdrahten, E6 mit Boards) ist an die Diagnose-Session gegeben.
+
 **Messlauf gestartet, 14.11., 19:41 (Testbuild `c453e40`, Bericht `GameTests/2026-11-14-1941`):** 20 von 24
 geladenen Spielen, 190 s je Spiel, am Netzteil, mit `wineDebug` `+fps,+pid,+loaddll,+timestamp` für die
 WineD3D-Spiele. Im Build: die Abendrunde des Erlebnis-Audits (E4, E8, Beenden an jedem Blatt vorbei, Testreihen
