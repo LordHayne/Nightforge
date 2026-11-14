@@ -220,9 +220,9 @@ struct StartRulesTest {
         let plain = folder()
         try? Data("..UseLauncher..launcher_play..".utf8).write(to: plain.appendingPathComponent("Game.exe"))
         check(GameAnalysis.analyze(installDir: plain, launchExecutable: "Game.exe").launcherSwitch == nil, "a launcher's words without the switch: none")
-        check(LibraryModel.argumentsPastLauncher(["-dx12"], switch: "-nolauncher") == ["-dx12", "-nolauncher"], "after the way's own")
-        check(LibraryModel.argumentsPastLauncher(["-NOLAUNCHER"], switch: "-nolauncher") == ["-NOLAUNCHER"], "never twice")
-        check(LibraryModel.argumentsPastLauncher([], switch: nil) == [], "none without")
+        check(StartRecipe.pastLauncher(["-dx12"], switch: "-nolauncher") == ["-dx12", "-nolauncher"], "after the way's own")
+        check(StartRecipe.pastLauncher(["-NOLAUNCHER"], switch: "-nolauncher") == ["-NOLAUNCHER"], "never twice")
+        check(StartRecipe.pastLauncher([], switch: nil) == [], "none without")
 
         // MARK: The log says why
         let plan = LaunchHealth.plan("Guardians", attempts: [LaunchAttempt(graphics: .d3dmetal), LaunchAttempt(graphics: .dxmt)], index: 0, confirmed: false,

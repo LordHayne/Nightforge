@@ -11,7 +11,8 @@ import Foundation
 /// the module all along. Here the first failure answers with the same way and the loader off, and the
 /// player notices a longer wait.
 ///
-/// Not wired in yet: LibraryModel's loop still decides by its branches.
+/// LibraryModel's loop goes by it (step E2): it gathers what is known about the failed start, asks here, and
+/// does what the answer says. Since step E3 every remedy of the table acts, for a game without an anti-cheat.
 enum NextStart {
     /// The start that failed and what is known about it.
     struct Failed {
@@ -23,6 +24,9 @@ enum NextStart {
         var proven = false
         /// What its recipe carried from the table already (LearnedFixes.learned).
         var learned = StartRecipe.Learned()
+        /// What the start was made of. What it had already is no change: a start that didn't offer Rosetta's
+        /// AVX – its profile's choice – isn't started again without it. nil: not known, every remedy counts.
+        var recipe: StartRecipe?
         /// What the table read from the start (StartDiagnosis.diagnose). For a game with an anti-cheat: from
         /// Wine's log alone, as before – its files aren't looked into.
         var found: [StartDiagnosis] = []
@@ -76,8 +80,14 @@ enum NextStart {
         var learned = failed.learned
         var why: [String] = []
         for diagnosis in failed.found {
-            guard let remedy = diagnosis.remedy else { continue }
+            guard var remedy = diagnosis.remedy else { continue }
             if failed.antiCheat, case .dllsOff = remedy { continue }
+            if remedy == .noAVX, failed.recipe?.avx == false { continue }
+            // A DLL the failed start had off already – its profile's, or Nightforge's for every game – isn't
+            // what a start without it would change.
+            if case .dllsOff(let dlls) = remedy, let recipe = failed.recipe {
+                remedy = .dllsOff(dlls.filter { recipe.dllOverrides[StartRecipe.Learned.dllName($0)] != "" })
+            }
             if let changed = learned.applying(remedy, rule: diagnosis.id) {
                 learned = changed
                 why.append(diagnosis.id)
@@ -87,12 +97,30 @@ enum NextStart {
         if !why.isEmpty, mayRepeat { return .again(learned, why: why) }
 
         guard failed.ladder.indices.contains(failed.index) else { return .noOtherWay }
-        // Nothing explains it and no way is left to carry the channels: this one again, with them.
+        // Nothing explains it and no way is left to carry the channels – the last way, or one that had worked
+        // before and keeps its place (step E6): this one again, with them.
         if failed.look == .sameWayAgain, mayRepeat { return .again(failed.learned, why: [closerLook]) }
         if failed.proven, !StartDiagnosis.layerRefused(failed.found) { return .keepsItsPlace }
-        let pointer = failed.found.first { $0.remedy?.picksAWay == true }
+        let pointer = pointer(in: failed.found)
         guard let next = way(answering: pointer?.remedy, after: failed.index, in: failed.ladder) else { return .giveUp }
         return .way(next, why: pointer?.id)
+    }
+
+    /// The finding that picks the way to come: one that names what the way has to be (a layer, no switches)
+    /// before one that only rules this layer out, before one that knows nothing better than the next. Among
+    /// equals the table's order. Alan Wake on D3DMetal (11.11.2026) draws with Direct3D 9: should its d3d9.dll
+    /// crash too, "another layer" would send it to DXMT, where Direct3D 9 is DXVK's just the same.
+    static func pointer(in found: [StartDiagnosis]) -> StartDiagnosis? {
+        func rank(_ remedy: StartRemedy?) -> Int? {
+            switch remedy {
+            case .dropArguments?, .layer?: return 0
+            case .nextLayer?: return 1
+            case .nextWay?: return 2
+            default: return nil
+            }
+        }
+        return found.enumerated().compactMap { place, finding in rank(finding.remedy).map { (rank: $0, place: place, finding: finding) } }
+            .min { ($0.rank, $0.place) < ($1.rank, $1.place) }?.finding
     }
 
     /// The way of `ladder` after `index` that answers `remedy`, and the next one where none does or the
@@ -110,6 +138,51 @@ enum NextStart {
         default: answers = nil
         }
         return answers.flatMap { answers in following.first { answers(ladder[$0]) } } ?? following.first
+    }
+
+    // MARK: - A root the player is asked about
+
+    // Step E6, the player's decision of 14.11.2026: "untrusted-root" becomes a question, for a root
+    // WindowsRoots knows by fixed fingerprints; any other is only said, as before. The decision is here; the
+    // question itself isn't built – its board comes first – so nothing asks yet, and WindowsRoots has no root
+    // that waits for a yes (all it knows go into every prefix, each with the user's OK).
+
+    static let untrustedRoot = "untrusted-root"
+
+    /// The root a failed start's signature check stopped at, when the player can be asked about it: the
+    /// finding names it, `known` says it can be put into the prefix (by fingerprint, and it isn't there yet),
+    /// and this Play hasn't asked about it. A game with an anti-cheat has no such finding: its files aren't read.
+    static func rootToAskAbout(_ found: [StartDiagnosis], known: (String) -> Bool, askedBefore: Set<String> = []) -> String? {
+        for finding in found where finding.id == untrustedRoot {
+            if case .trustRoot(let name?) = finding.remedy, known(name), !askedBefore.contains(name) { return name }
+        }
+        return nil
+    }
+
+    enum AfterRoot: Equatable {
+        /// The root is in the prefix: the same way once more, noted as the rule's.
+        case again(why: [String])
+        /// No start comes after this one in this Play.
+        case ends
+    }
+
+    /// What comes after the player's answer. Yes – the caller has put the root into the prefix: the same way
+    /// once more, within the cap on such starts (past it the next Play starts with the root in place). No:
+    /// the start ends here – the game checks the same file on every way, so going through the others would
+    /// only take the player's time – and the ladder stays where it is.
+    static func after(rootTrusted: Bool, againSoFar: Int) -> AfterRoot {
+        rootTrusted && againSoFar < againLimit ? .again(why: [untrustedRoot]) : .ends
+    }
+
+    /// The rules whose remedies changed a start before step E: the three things a game says that point to a
+    /// way, and what Wine's log says of a missing runtime and an illegal instruction.
+    static let actedBefore: Set<String> = ["refused-switch", "needs-d3d12", "direct3d9", "missing-runtime", "illegal-instruction"]
+
+    /// `found` with only the remedies that acted before step E. All a game with an anti-cheat gets: its
+    /// starts change the way they always did, and no further. The other findings stay as what was seen –
+    /// the layer's own failure still moves a proven way on (StartDiagnosis.layerRefused) – and change nothing.
+    static func asBefore(_ found: [StartDiagnosis]) -> [StartDiagnosis] {
+        found.map { actedBefore.contains($0.id) ? $0 : StartDiagnosis(id: $0.id, because: $0.because, remedy: nil) }
     }
 
     /// What a game said, as the remedy the table gives for it (StartDiagnosis.rules).

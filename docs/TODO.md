@@ -421,11 +421,35 @@ Grund: Von vier neuen Spielen am Testabend kam keines beim ersten Mal ins Spiel.
   - Zum Fund „Fehlerfenster zählt als Wahl des Spielers“: Am 14.11. schrieb die Vorhangwache die Zeile; der Start
     selbst nahm das Ende nicht als Wahl, weil `direct3D9Failed` dagegen sprach. Die Lücke bleibt für Fenster ohne
     anderen Befund (Metal Gear Solid V am 11.11.: „closed at a question of its own“ in der Evidenz).
-  - **Teil 2 (Verdrahten) offen**, in dieser Reihenfolge: E1 ein Rezept je Start ohne Wirkung, E2 die Entscheidung
-    ersetzt die sieben Zweige bei gleichem Verhalten, E3 DLL-Abhilfen wirken, E4 Beweise je Rezept wirken, E5
-    Fehlerfenster mit `+pid,+loaddll,+msgbox` bei jedem Start. Berührt `LibraryModel`, `Engine`, `Launcher`, `GameLog`.
-  - **Entscheidungen des Nutzers offen** (Entwurf 3.3, je mit Empfehlung): genauerer Blick für einen bewährten Weg;
-    `untrusted-root` als Frage; die drei Kanäle bei jedem Start; der Text auf dem Vorhang (Board zuerst).
+  - **Teil 2 (Verdrahten), E1 bis E3 gebaut (14.11., spät, derselbe Zweig, noch nicht eingespielt, nichts live
+    gesehen):** E1 – die Schleife baut je Start ein Rezept, und Prefix, Argumente und AVX lesen daraus; kein Start
+    ändert sich. E2 – `NextStart.after` ersetzt die Zweige der Schleife; anders sind nur „alles auf demselben Weg in
+    einem Start“ und der Deckel von drei; ein Test hält die Entscheidung gegen die alten Zweige (4.000 Fälle). E3 –
+    für Spiele ohne Anti-Cheat wirkt die ganze Tabelle: DLLs aus und derselbe Weg noch einmal, der Weg, auf den ein
+    Befund zeigt. Einzelheiten und Abweichungen im Entwurf 3.3 › „Teil 2: Was verdrahtet ist“.
+    - **Live zu prüfen** (Anleitung im Notizordner, `closer-look/live-pruefung-schritt-e.md`): E1 jeder Weg einmal;
+      E2 ein Spiel mit fehlender Laufzeit, Hogwarts Legacy ohne Profil; E3 It Takes Two mit einem Testprofil, das
+      den Loader zurückholt.
+    - **Zu wissen:** Die Erststart-Zählung zählt seit E3 Wege statt Starts, auch rückwirkend. Auf D3DMetal nimmt
+      `nvidia-interface` einem Spiel DLSS über MetalFX, dauerhaft, bis `learned.dllsOff.<Spiel>` gelöscht wird.
+  - **E4 bis E6 gebaut (14.11., nachts, derselbe Zweig, nicht eingespielt, nichts live gesehen):** E4 – ein Weg ist
+    für das Rezept bewährt, mit dem er lief; ein Start mit anderem Rezept wird wieder bis zum Bild beobachtet. E5 –
+    jeder Start trägt `+pid,+loaddll,+msgbox` (ein Steam-Neustart einmalig), und ein Fehlerfenster zählt als
+    Fehlstart. E6 – ein bewährter Weg, der ohne Erklärung wieder endet, startet einmal still mit den Kanälen und
+    behält seinen Platz; was auf ein Ja oder Nein zur Wurzel folgt, ist entschieden, aber niemand fragt.
+    - **Live zu prüfen:** E4 ein bewährtes Spiel nach einer Profiländerung; E5 der eine Steam-Neustart, Alan Wake
+      auf D3DMetal (Fehlerfenster → Fehlstart → Wines Direct3D), The Forest (Beenden in Unitys Fenster bleibt die
+      Wahl des Spielers); E6 ein bewährtes Spiel, das abstürzt.
+    - **Zu wissen:** Nach einem Update, das die DLL-Schalter eines Layers oder ein Profil ändert, wird der nächste
+      Start jedes betroffenen Spiels wie ein erster beobachtet (E4). ABZUs stilles zweites Mal trägt die Kanäle
+      des genaueren Blicks bewusst nicht.
+  - **Offen in Teil 2:** die zwei Oberflächen als Board, deutsch und englisch – die Vorhangzeile beim Start auf
+    demselben Weg (der Satz „hat die Ursache gefunden“ stimmt beim genaueren Blick nicht) und die Frage zur Wurzel.
+    Vorlagen im Entwurf 3.3. Für die Wurzel-Frage fehlt außerdem eine Liste von Wurzeln, die nur auf Ja in den
+    Prefix kommen: `WindowsRoots.all` trägt heute jede bekannte für alle ein.
+  - **Entscheidungen des Nutzers (14.11., alle wie empfohlen):** genauerer Blick für einen bewährten Weg ja;
+    `untrusted-root` als Frage, nur für eine Wurzel, die `WindowsRoots` kennt; die drei Kanäle bei jedem Start;
+    Vorhang beim Start auf demselben Weg nach Vorlage A, Board zuerst.
   - Offen dabei: Eine gelernte Änderung bleibt beim Spiel, auch wenn sie nicht half. `physx-update-loader` greift nur
     noch, wenn ein Profil den Loader zurückholt; als neue Wirkung bleibt zunächst `nvidia-interface`.
 - **Engine-Test 11.11. (988e721), vier Spiele mit Engines, die nie gestartet waren** (Bericht GameTests/2026-11-11-1925):

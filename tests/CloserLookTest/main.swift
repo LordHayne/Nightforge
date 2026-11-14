@@ -200,7 +200,46 @@ struct CloserLookTest {
               && CloserLook.box("Fatal error! Would you like to send a crash report?") == .notice
               && CloserLook.box("Das Spiel ist abgestürzt. Bericht senden?") == .notice, "a failure that asks what to do about it is still a failure")
         check(CloserLook.everyStart == "+pid,+loaddll,+msgbox" && CloserLook.everyStart.split(separator: ",").allSatisfy { CloserLook.channels.contains($0) },
-              "the channels proposed for every start are a part of a closer look's")
+              "the channels of every start are a part of a closer look's")
+
+        // MARK: Step E5 – every start carries +pid, +loaddll and +msgbox
+
+        check(CloserLook.usualWineDebug == GameLog.wineDebug + ",+pid,+loaddll,+msgbox" && Engine.gameEnvironment["WINEDEBUG"] == CloserLook.usualWineDebug,
+              "what Steam and every game start with")
+        check(Engine.steamConfigVersion == 11, "a Steam started before gets its one restart for them")
+        // With +pid every line of Wine's begins with the process: what reads the log for a start's failure
+        // looks inside the line, not at its beginning.
+        let pidLines = """
+            0124:0128:err:module:import_dll Library MSVCP120.dll (which is needed by L"C:\\Games\\Night Game\\Game.exe") not found
+            0124:0128:err:module:import_dll Library d3dx9_43.dll (which is needed by L"C:\\Games\\Night Game\\Game.exe") not found
+            0124:0128:err:module:LdrInitializeThunk Importing dlls for L"C:\\Games\\Night Game\\Game.exe" failed, status c0000135
+            0130:0134:err:seh:NtRaiseException Unhandled illegal instruction at 0x7b0123
+            wine: Unhandled page fault on read access to 0000000000000000 at address 0000000140001000 (thread 0128), starting debugger...
+            0124:0128:err:mscoree:CLRRuntimeInfo_GetRuntimeHost Wine Mono is not installed
+            """
+        let missing = GameLog.missingRuntimes(in: pidLines, gameFolder: "Night Game")
+        check(missing.contains(GameLog.wineMono) && missing.count >= 3, "missing runtimes are read from lines that begin with a process (\(missing))")
+        check(GameLog.illegalInstruction(in: pidLines) && GameLog.crashed(in: pidLines), "… and an illegal instruction, and a crash")
+        check(CloserLook.read(pidLines, gameFolder: "Night Game").boxes.isEmpty && !CloserLook.read(pidLines, gameFolder: "Night Game").channelsOn,
+              "error lines alone are no reading")
+        // Alan Wake's start of 14.11. carried the three and more: its box is read from them alone.
+        let usualOnly = wake.split(whereSeparator: \.isNewline)
+            .filter { $0.contains(":loaddll:") || $0.contains(":msgbox:") || !$0.contains(":trace:") && !$0.contains(":warn:") }.joined(separator: "\n")
+        let usualReading = CloserLook.read(usualOnly, gameFolder: "AlanWake")
+        check(usualReading.endedAtBox == woke.endedAtBox && usualReading.endedAtBox != nil && usualReading.loadsOnlyDirect3D9 && usualReading.signatures.isEmpty,
+              "the usual channels alone give the box the game ended at and what it draws with")
+        // The window a start ended at: a failure the table saw, or a message box that only says something, is no
+        // choice of the player's; what describes a start – what it loaded, a signature – leaves it one.
+        func found(_ id: String) -> StartDiagnosis { StartDiagnosis(id: id, because: "seen", remedy: nil) }
+        check(StartDiagnosis.sawFailure([found("said"), found("direct3d9")]) && StartDiagnosis.sawFailure([found("missing-runtime")])
+              && StartDiagnosis.sawFailure([found("nvidia-interface")]), "a failure the table saw")
+        check(!StartDiagnosis.sawFailure([]) && !StartDiagnosis.sawFailure([found("loads-direct3d9"), found("signature"), found("untrusted-root")])
+              && !StartDiagnosis.sawFailure([found("crash"), found("said"), found("debug-said"), found("hung")]),
+              "what a start loaded or checked, and the fallbacks, aren't one")
+        check(LaunchHealth.ownQuestionWasAChoice(explained: StartDiagnosis.sawFailure([found("loads-direct3d9")]), endedAtBox: nil),
+              "a Direct3D 9 game quit at its own launcher window: still the player's choice")
+        check(!LaunchHealth.ownQuestionWasAChoice(explained: false, endedAtBox: usualReading.endedAtBox),
+              "Alan Wake's error box under the curtain, OK pressed: a failed start")
 
         // MARK: When a start carries the channels
 

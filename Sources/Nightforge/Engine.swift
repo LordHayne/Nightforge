@@ -68,13 +68,14 @@ enum Engine {
 
     /// Settings games inherit from the background Steam. Bump `steamConfigVersion` whenever this
     /// or `steamDLLOverrides` changes, so a running Steam gets restarted with them.
-    static let steamConfigVersion = 10
+    static let steamConfigVersion = 11  // 11: every start carries CloserLook.everyStart (step E5)
     static var gameEnvironment: [String: String] {
         var env = [
             // Compile shaders in the background instead of stalling the frame that first needs them.
             "DXVK_ASYNC": "1",
-            // Into GameLog: libraries a game can't load, and MoltenVK's errors (not its chatter).
-            "WINEDEBUG": GameLog.wineDebug,
+            // Into GameLog: libraries a game can't load, and MoltenVK's errors (not its chatter) – and, since
+            // step E5, each line's process, the libraries it loads and its message boxes' texts (CloserLook.everyStart).
+            "WINEDEBUG": CloserLook.usualWineDebug,
             "MVK_CONFIG_LOG_LEVEL": "1",
             // DXVK's warnings go there as well, instead of log files in the Windows user folder.
             "DXVK_LOG_LEVEL": "warn",
@@ -216,11 +217,11 @@ enum Engine {
         set { launchSettings.withLock { $0.msync = newValue } }
     }
 
-    /// Wine's debug channels for the start about to happen: GameLog.wineDebug, or with a closer look's
-    /// channels on top (`setCloserLook`). What Steam, the process that hands a game to it and a store's
-    /// game started straight get as WINEDEBUG.
+    /// Wine's debug channels for the start about to happen: the usual ones (CloserLook.usualWineDebug), or
+    /// with a closer look's channels on top (`setCloserLook`). What Steam, the process that hands a game to
+    /// it and a store's game started straight get as WINEDEBUG.
     static var wineDebug: String {
-        launchSettings.withLock { $0.environment["WINEDEBUG"] } ?? GameLog.wineDebug
+        launchSettings.withLock { $0.environment["WINEDEBUG"] } ?? CloserLook.usualWineDebug
     }
 
     /// Whether the start about to happen carries a closer look's channels (CloserLook, step C of
@@ -2050,7 +2051,10 @@ enum Engine {
     /// profile's DLL overrides and Windows version. Rewritten in full when anything in them differs
     /// from what the prefix holds (GameRegistryRecord), so a changed choice or profile never leaves
     /// stale entries. The profile's registry entries go in as well, at every launch.
-    static func applyGameSettings(_ choice: GraphicsLayer, profile: GameProfile?, installDir: URL, wine: URL) {
+    /// `recipe`: what the start is made of (StartRecipe, step E1) – its DLL overrides and Windows version
+    /// are the ones written, the same value its record carries. Without one: the layer's and the profile's.
+    static func applyGameSettings(_ choice: GraphicsLayer, profile: GameProfile?, installDir: URL, wine: URL,
+                                  recipe: StartRecipe? = nil) {
         let layer = choice == .automatic ? (profile?.graphics ?? defaultGraphics) : choice
         let d3dMetalEngine = isGPTKCapable(wine: wine)
         if d3dMetalEngine, let dxvk = installedComponentNow(dxvkID) {
@@ -2063,16 +2067,10 @@ enum Engine {
         // Roots Windows trusts and the Mac no longer carries, for games that check signatures (WindowsRoots).
         let roots = WindowsRoots.registrySection
         if !roots.isEmpty { sections.append(GameRegistryRecord.Section(key: "WindowsRoots", text: roots)) }
+        let overrides = recipe?.dllOverrides ?? gameDllOverrides(layer, profile: profile, d3dMetalEngine: d3dMetalEngine)
+        let version = recipe != nil ? recipe?.windowsVersion : profile?.windowsVersion
         for exe in exes where isPlainProgramName(exe) {
-            let app = "HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\\(exe)"
-            let overrides = gameDllOverrides(layer, profile: profile, d3dMetalEngine: d3dMetalEngine)
-            var section = "[-\(app)\\DllOverrides]"
-            if !overrides.isEmpty {
-                section += "\n[\(app)\\DllOverrides]\n" + overrides.sorted { $0.key < $1.key }
-                    .map { "\(regString($0.key))=\(regString($0.value))" }.joined(separator: "\n")
-            }
-            section += "\n[\(app)]\n\"Version\"=" + (profile?.windowsVersion.map(regString) ?? "-")
-            sections.append(GameRegistryRecord.Section(key: exe, text: section))
+            sections.append(GameRegistryRecord.Section(key: exe, text: appDefaults(exe, dllOverrides: overrides, windowsVersion: version)))
         }
         let imported = gameSettingsLock.withLock {
             GameRegistryRecord.importIfChanged(sections, unrecorded: (profile?.registry ?? []).compactMap(regSection),
@@ -2082,6 +2080,19 @@ enum Engine {
             }
         }
         if !imported { GameLog.note("Game settings as the prefix has them: no regedit") }
+    }
+
+    /// One program's AppDefaults as regedit takes them: its DLL overrides written afresh, none left from
+    /// before, and its Windows version ("-" takes one away).
+    static func appDefaults(_ exe: String, dllOverrides overrides: [String: String], windowsVersion: String?) -> String {
+        let app = "HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\\(exe)"
+        var section = "[-\(app)\\DllOverrides]"
+        if !overrides.isEmpty {
+            section += "\n[\(app)\\DllOverrides]\n" + overrides.sorted { $0.key < $1.key }
+                .map { "\(regString($0.key))=\(regString($0.value))" }.joined(separator: "\n")
+        }
+        section += "\n[\(app)]\n\"Version\"=" + (windowsVersion.map(regString) ?? "-")
+        return section
     }
 
     /// One start at a time compares with the record, imports and notes what it wrote.

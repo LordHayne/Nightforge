@@ -15,13 +15,20 @@ enum CloserLook {
     /// WINEDEBUG of a start that looks closer.
     static var wineDebug: String { GameLog.wineDebug + "," + channels }
 
-    /// The part of them every start could carry (a proposal, docs/ENTWURF-STARTREZEPT.md 3.3 – no start
-    /// does yet): each line's process, the libraries a process loads, and the texts of message boxes. They
-    /// print at a process's start and when a box opens, not while a game runs: Alan Wake's start on
-    /// 14.11.2026 came to 88 such lines, 10 KB. What a game puts out for a debugger and certificate chains
-    /// stay a closer look's: a game can write the first with every frame, and Steam's browser builds chains
-    /// as long as it runs (3,204 of the 4,423 lines of Batman's start with all channels on).
+    /// The part of them every start carries (step E5 of docs/ENTWURF-STARTREZEPT.md 3.3, the player's
+    /// decision of 14.11.2026): each line's process, the libraries a process loads, and the texts of message
+    /// boxes. With them a game's error box is read at its first failed start, and what it loaded tells what
+    /// it draws with. They print at a process's start and when a box opens, not while a game runs: Alan
+    /// Wake's start on 14.11.2026 came to 88 such lines, 10 KB; the measuring run of that evening, 20 games
+    /// in 81 minutes with +pid,+loaddll on, to 6,888 lines of them, 866 KB of its 2.9 MB. What a game puts out
+    /// for a debugger and certificate chains stay a closer look's: a game can write the first with every
+    /// frame, and Steam's browser builds chains as long as it runs (3,204 of the 4,423 lines of Batman's
+    /// start with all channels on).
     static let everyStart = "+pid,+loaddll,+msgbox"
+
+    /// WINEDEBUG of a start without a closer look: GameLog.wineDebug and `everyStart`. What Steam and every
+    /// game start with (Engine.gameEnvironment, Engine.wineDebug).
+    static var usualWineDebug: String { GameLog.wineDebug + "," + everyStart }
 
     /// An engine test's switch: every start carries the channels, with `defaults write
     /// io.github.lordhayne.nightforge closerLook -bool true` (docs/TODO.md › Engine-Tests; there's no
@@ -339,7 +346,7 @@ enum CloserLook {
         case none
         /// The ways still to come start with the channels: no start of its own.
         case nextWay
-        /// No way is left: the last one once more, with the channels.
+        /// No way is left, or the way had worked before and keeps its place: this one once more, with the channels.
         case sameWayAgain
     }
 
@@ -348,10 +355,14 @@ enum CloserLook {
     /// one look per Play. `takenBefore`: one was taken for this game on this engine build (`taken`): a game
     /// that fails every time isn't started twice at every Play. `canCarry`: the start to come can have the
     /// channels at all – a game through Steam gets them from a Steam started with them, and Steam doesn't
-    /// restart under another game.
-    static func step(unexplained: Bool, antiCheat: Bool, carried: Bool, takenBefore: Bool, canCarry: Bool, lastWay: Bool) -> Step {
+    /// restart under another game. `proven`: the way had worked before this Play (step E6, the player's
+    /// decision of 14.11.2026) – it keeps its place whatever the look finds, so no way to come could carry the
+    /// channels: this one starts once more with them, quietly, and what it ended over is on record before
+    /// the next Play watches it again.
+    static func step(unexplained: Bool, antiCheat: Bool, carried: Bool, takenBefore: Bool, canCarry: Bool, lastWay: Bool,
+                     proven: Bool = false) -> Step {
         guard unexplained, !antiCheat, !carried, !takenBefore, canCarry else { return .none }
-        return lastWay ? .sameWayAgain : .nextWay
+        return lastWay || proven ? .sameWayAgain : .nextWay
     }
 
     private static func key(_ game: GameID) -> String { "closerLook.\(game.key)" }

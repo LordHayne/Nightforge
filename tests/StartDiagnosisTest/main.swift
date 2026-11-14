@@ -416,7 +416,7 @@ struct StartDiagnosisTest {
         let tested = profile(#"{"graphics": "d3dmetal", "arguments": ["-dx12"], "winetricks": ["xact"], "windowsVersion": "win10"}"#)
         let recipe = StartRecipe.of(layer: .d3dmetal, arguments: ["-nolauncher"], profile: tested, learnedRuntimes: ["d3dx9", "xact"],
                                     avx: true, d3dMetalEngine: true)
-        check(recipe.graphics == "d3dmetal" && recipe.arguments == ["-nolauncher", "-dx12"], "a recipe: the layer, the way's arguments and the profile's")
+        check(recipe.graphics == "d3dmetal" && recipe.arguments == ["-dx12", "-nolauncher"], "a recipe: the layer, the profile's arguments and the way's, as the game gets them")
         check(recipe.runtimes == ["d3dx9", "xact"] && recipe.avx && recipe.windowsVersion == "win10", "… its runtimes once each, AVX, the Windows version")
         check(recipe.dllOverrides["physxupdateloader64"] == "" && recipe.dllOverrides["d3d12"] == "builtin", "… and every DLL override the start gets")
         let other = StartRecipe.of(layer: .dxmt, arguments: ["-dx11"], profile: tested, learnedRuntimes: [], avx: false, d3dMetalEngine: true)

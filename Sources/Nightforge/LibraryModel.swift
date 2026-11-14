@@ -4586,7 +4586,12 @@ final class LibraryModel: ObservableObject {
             // carry Wine's debug channels (CloserLook). The places below are marked "Step C": where a start
             // gets them, what the diagnosis says of its end, and the decision after a failure.
             var looksCloser = false
-            while true {
+            // Step E2: starts on the same way again in this Play, for the cap on them (NextStart.againLimit).
+            var sameWayAgain = 0
+            // Step E6: the way that had worked before and got a closer look in this Play. It keeps its place after
+            // the one start more the look takes on it, which runs as a way not confirmed.
+            var lookedAtProven: String?
+            starts: while true {
                 // Another way after one that didn't take: the curtain stays up through all the next
                 // one needs first (an engine, runtimes, Steam restarted for its settings), saying so.
                 if judging?.id == game.id, !Task.isCancelled { raiseCurtain(for: game) }
@@ -4601,8 +4606,11 @@ final class LibraryModel: ObservableObject {
                     runner = engine.wine.path
                     build = engine.build
                 }
+                // What earlier starts taught about this game (LearnedFixes.learned), read once per start: its
+                // runtimes are set up here, and with the way and the profile it makes the start's recipe below.
+                let learned = LearnedFixes.learned(game.gameID)
                 if let runner {
-                    await installRuntimes(for: game, profile: profile, analysis: analysis,
+                    await installRuntimes(for: game, profile: profile, analysis: analysis, learned: learned.runtimes,
                                           wine: URL(fileURLWithPath: runner), showStatus: true)
                     if game.provider == .gog { await setUpGOG(game, wine: URL(fileURLWithPath: runner), showStatus: true) }
                 }
@@ -4682,11 +4690,24 @@ final class LibraryModel: ObservableObject {
                 // (GameTest.logsFrames). It comes as the channels do: through Steam from the Steam that starts it.
                 let frameLogBefore = Engine.frameLog
                 let frameLogChanged = game.bottle.isBuiltIn && Engine.setFrameLog(GameTest.logsFrames())
+                // DXVK's Direct3D 9 draws on KosmicKrisp under winecx – on a held build too: DXVK-macOS's
+                // d3d9 gets its device there as well (31.10.2026). Not with the engine test's loader on: that way wins.
+                let winecx = game.bottle.isBuiltIn && runner.map { Engine.isGPTKCapable(wine: URL(fileURLWithPath: $0)) } == true
+                // Step E1: all this start is made of, as one value (StartRecipe) – the way, the profile and what
+                // was learned. Its record, the prefix's settings for the game's programs, its arguments and
+                // Rosetta's AVX are all read from it, so what is recorded is what started.
+                let recipe = StartRecipe.of(way: LaunchAttempt(graphics: layer, arguments: arguments), learned: learned, profile: profile,
+                                            launcherSwitch: analysis?.launcherSwitch, d3dMetalEngine: winecx)
+                // Step E4: a way is proven for what it was started with (LaunchHealth.holds). Made of something
+                // else now – its profile changed, a start taught something, another engine's DLLs – it counts
+                // as not proven for this start: watched to its picture again, and confirmed anew with this recipe.
+                if wayConfirmed, !LaunchHealth.holds(game.gameID, attempts, for: recipe) {
+                    GameLog.note("\(game.name): its way was proven with another recipe – this start is watched to its picture again")
+                    LaunchHealth.unconfirm(game.gameID, attempts)
+                    LaunchHealth.recordStart(game.gameID, attempts)
+                    wayConfirmed = false
+                }
                 if automatic, !attempts.isEmpty {
-                    let recipe = StartRecipe.of(layer: layer, arguments: Self.argumentsPastLauncher(arguments, switch: analysis?.launcherSwitch),
-                                                profile: profile, learnedRuntimes: LearnedFixes.winetricks(game.gameID),
-                                                avx: LearnedFixes.avx(game.gameID, profile: profile),
-                                                d3dMetalEngine: runner.map { Engine.isGPTKCapable(wine: URL(fileURLWithPath: $0)) } == true)
                     StartEvidence.note(.started, game: game.gameID, way: way, engine: build?.engine, known: wayConfirmed,
                                        kind: analysis?.kind, recipe: recipe, profiled: profile?.shapesStart, closerLook: closerLook,
                                        name: game.name, parts: build?.parts)
@@ -4697,15 +4718,12 @@ final class LibraryModel: ObservableObject {
                         SteamProgram.prepare(game, route: SteamProgram.route(game, layer: layer, options: options, profile: profile))
                     }
                     : false
-                // DXVK's Direct3D 9 draws on KosmicKrisp under winecx – on a held build too: DXVK-macOS's
-                // d3d9 gets its device there as well (31.10.2026). Not with the engine test's loader on: that way wins.
-                let winecx = game.bottle.isBuiltIn && runner.map { Engine.isGPTKCapable(wine: URL(fileURLWithPath: $0)) } == true
                 let vulkan = Engine.vulkanDriver(layer: layer, analysis: analysis, winecx: winecx,
                                                  kosmicKrisp: Engine.kosmicKrispReady ? Engine.kosmicKrispNow : nil)
                 // A session has msync or doesn't: a game joining one that runs takes it as it is.
                 let msyncWanted = anyRunning(.windows) ? nil : Engine.msyncWanted(profile: profile)
                 if viaSteam, game.bottle.isBuiltIn,
-                   Engine.prepareLaunchEnvironment(avx: LearnedFixes.avx(game.gameID, profile: profile), d3dMetal: layer == .d3dmetal,
+                   Engine.prepareLaunchEnvironment(avx: recipe.avx, d3dMetal: layer == .d3dmetal,
                                                    frameLimit: frameLimit, upscaling: options.effectiveUpscaling(profile: profile),
                                                    retina: options.retina(profile: profile, layer: layer, analysis: analysis),
                                                    environment: GameEnvironment.wanted(for: game.gameID, profile: profile),
@@ -4758,13 +4776,14 @@ final class LibraryModel: ObservableObject {
                         metalFX: layer.upscales && options.effectiveUpscaling(profile: profile), throttled: throttled)))
                 }
                 // Past the game's own launcher window where its program knows the switch: straight into the
-                // game, as on a console (Guardians of the Galaxy, 9.11.2026). Not part of the way.
-                let startArguments = Self.argumentsPastLauncher(arguments, switch: analysis?.launcherSwitch)
-                if startArguments != arguments { GameLog.note("\(game.name) starts past its own launcher window (\(startArguments.last ?? ""))") }
+                // game, as on a console (Guardians of the Galaxy, 9.11.2026). Not part of the way; the recipe has it.
+                if let past = analysis?.launcherSwitch, StartRecipe.pastLauncher(arguments, switch: past) != arguments {
+                    GameLog.note("\(game.name) starts past its own launcher window (\(past))")
+                }
                 raiseCurtain(for: game)
                 let started = viaSteam
-                    ? await start(game, runner: runner, options: options, profile: profile, arguments: startArguments, frameLimit: frameLimit)
-                    : await startDirect(game, runner: runner, options: options, profile: profile, arguments: startArguments,
+                    ? await start(game, runner: runner, options: options, profile: profile, recipe: recipe, frameLimit: frameLimit)
+                    : await startDirect(game, runner: runner, options: options, profile: profile, recipe: recipe,
                                         frameLimit: frameLimit, layer: layer, vulkan: vulkan, usesD3D9: analysis?.usesD3D9 == true)
                 // Step C: a store's game has the channels from its own start; Steam's settings don't keep them.
                 if !viaSteam, closerLook { Engine.setCloserLook(false) }
@@ -4799,7 +4818,7 @@ final class LibraryModel: ObservableObject {
                 }
                 if firstSeconds != .ended {
                     if judging?.id == game.id { judging = nil }  // its end is a session's like any other
-                    confirmOnceDrawing(game, attempts: automatic ? attempts : [], build: build, way: way, logMark: logMark,
+                    confirmOnceDrawing(game, attempts: automatic ? attempts : [], build: build, way: way, recipe: recipe, logMark: logMark,
                                        startedAt: startedAt, wasConfirmed: wayConfirmed)
                     break
                 }
@@ -4835,35 +4854,54 @@ final class LibraryModel: ObservableObject {
                 if outcome == .confirm {
                     // The game is gone; Nightforge comes back as after any game (watchForGameEnd).
                     if automatic, !attempts.isEmpty {
-                        LaunchHealth.confirm(game.gameID, attempts)
+                        LaunchHealth.confirm(game.gameID, attempts, recipe: recipe)
                         if !wayConfirmed { StartEvidence.note(.worked, game: game.gameID, way: way) }
                     }
                     if let build { EngineRollback.shared.recordGood(game.gameID, build: build, way: way) }
                     return
                 }
                 // What the start left behind, read through the table (StartDiagnosis): said in the log, kept for
-                // the record and the problem report – not acted on yet. Never for a game with an anti-cheat.
+                // the record and the problem report, and what the decision below goes by (step E3). Never for a
+                // game with an anti-cheat: its files aren't looked into (`found` stays nil).
                 var diagnosis: [String] = []
+                var found: [StartDiagnosis]?
+                // Step E5: the message box the game ended at, if it ended at one (CloserLook.Reading.endedAtBox).
+                var endedAtBox: String?
                 // Step C: nothing in the diagnosis says why (StartDiagnosis.unexplained). Never for an anti-cheat game.
                 var unexplained = false
                 if !Task.isCancelled {
                     let hung = noPicture != nil, folder = game.installDirName, block = game.antiCheatBlock
-                    (diagnosis, unexplained) = await Task.detached(priority: .utility) {
-                        guard !ShaderCaches.hasAntiCheat(profile: profile, block: block, installDir: installDir) else { return ([], false) }
-                        let found = StartDiagnosis.diagnose(StartDiagnosis.finding(logText: log, installDir: installDir, gameFolder: folder,
-                                                                                   since: startedAt, layer: layer, hung: hung))
-                        return (found.map { GameLog.redacted($0.line) }, StartDiagnosis.unexplained(found))
+                    (found, endedAtBox) = await Task.detached(priority: .utility) {
+                        guard !ShaderCaches.hasAntiCheat(profile: profile, block: block, installDir: installDir) else { return (nil, nil) }
+                        let finding = StartDiagnosis.finding(logText: log, installDir: installDir, gameFolder: folder,
+                                                             since: startedAt, layer: layer, hung: hung)
+                        return (StartDiagnosis.diagnose(finding), finding.reading.endedAtBox)
                     }.value
+                    diagnosis = (found ?? []).map { GameLog.redacted($0.line) }
+                    unexplained = found.map(StartDiagnosis.unexplained) ?? false
                     for line in diagnosis { GameLog.note("Diagnosis for \(game.name): \(line)") }
                     StartDiagnosis.remember(diagnosis, for: game.gameID)
                 }
                 // Closed at a question of its own (the curtain saw it): the player's choice too – unless
                 // the log says the graphics failed or it crashed, as after Play in Unity's window it might.
+                // Step E5: nor when the table saw the start fail, or the window was a message box that only says
+                // something (LaunchHealth.ownQuestionWasAChoice) – Metal Gear Solid V's "Failed to load SteamAPI"
+                // went into the record as the player's choice on 11.11.2026. Then the start failed, and what
+                // comes after a failed start comes below.
                 if let end = LaunchHealth.ownQuestionEnd(game.gameID), end >= startedAt {
                     let crashedAtAll = GameLog.crashed(in: log) || !GameLog.crashReports(installDir: installDir, since: startedAt).isEmpty
                     let cannotDraw = automatic && !wayConfirmed && LaunchHealth.layerCannotDraw(analysis, layer: layer)
-                    if Self.ownQuestionEndStands(end: end, startedAt: startedAt, lastRunning: firstSecondsRunning[game.id],
-                                                 graphicsFailed: graphicsFailed || cannotDraw || direct3D9Failed, crashed: crashedAtAll) {
+                    let stands = Self.ownQuestionEndStands(end: end, startedAt: startedAt, lastRunning: firstSecondsRunning[game.id],
+                                                           graphicsFailed: graphicsFailed || cannotDraw || direct3D9Failed, crashed: crashedAtAll)
+                    let failureSeen = StartDiagnosis.sawFailure(found ?? [])
+                    let choice = LaunchHealth.ownQuestionWasAChoice(explained: failureSeen, endedAtBox: endedAtBox)
+                    if stands, !choice {
+                        GameLog.note("Start of \(game.name): the window it ended at was no question – "
+                                     + (failureSeen ? "the diagnosis says why it ended"
+                                                    : "a message box that only says \"\(GameLog.redacted(String((endedAtBox ?? "").prefix(120))))\"")
+                                     + ": a failed start")
+                    }
+                    if stands, choice {
                         GameLog.note("Start of \(game.name): it ended at a question of its own – the player's choice, no other way")
                         noteEnded("closed at a question of its own", diagnosis: diagnosis)
                         return
@@ -4909,74 +4947,112 @@ final class LibraryModel: ObservableObject {
                     errorMessage = L10n.t("%@ is still running, or it hangs. Quit it first, then press Play again.", game.name)
                     return
                 }
+                // Step E2: what comes after this start is one decision (NextStart.after), where the loop had a
+                // branch each for the engine before, a missing runtime, a settings file fixed, no AVX, a closer
+                // look and the next way. The loop gathers what is known, asks, and does what the answer says.
                 // It ran well this way on the engine before and ends at once on the newest: the newest
-                // broke it, so it starts with the one before – the way stays.
+                // broke it, so it starts with the one before – the way stays (EngineRollback holds it).
                 if let build, case .rollBack = EngineRollback.shared.afterFailedStart(game.gameID, build: build, way: way) {
-                    launchPhase = .rollingBack
-                    continue
+                    if case .again = NextStart.after(NextStart.Failed(engineBefore: true)) {
+                        launchPhase = .rollingBack
+                        continue
+                    }
                 }
-                let needed = GameLog.missingRuntimes(since: logMark, gameFolder: game.installDirName)
-                    .filter { !LearnedFixes.winetricks(game.gameID).contains($0) }
-                if !needed.isEmpty {
-                    // Wine said what's missing: install it and try the same way again.
-                    LearnedFixes.addWinetricks(needed, for: game.gameID)
-                    continue
-                }
-                if game.bottle.isBuiltIn, Engine.applyFileEdits(profile?.fileEdits ?? [], installDir: game.installDir, game: game.gameID.key) {
-                    // The game wrote its settings file at its first start, with a setting its
-                    // profile turns off: the same way again, with the file fixed.
-                    continue
-                }
-                if game.bottle.isBuiltIn, LearnedFixes.avx(game.gameID, profile: profile),
-                   GameLog.illegalInstruction(since: logMark, installDir: game.installDir, startedAt: startedAt) {
-                    // Rosetta's AVX hint sent it down a path Rosetta can't run: the same way without it.
-                    LearnedFixes.setNoAVX(game.gameID)
-                    continue
-                }
-                // Graphics chosen by hand, or nothing known about the game: no other way to try.
-                guard automatic, !attempts.isEmpty else { break }
-                // A way that worked before and ended without a graphics error keeps its place:
-                // watched again at the next start. Nightforge stays in front.
-                if wayConfirmed && !graphicsFailed {
-                    StartEvidence.note(.failed, game: game.gameID, way: way, reason: "a proven way ended in its first seconds again",
-                                       diagnosis: diagnosis)
-                    return
-                }
+                // The game wrote its settings file at its first start, with a setting its profile turns off
+                // (Engine.applyFileEdits): fixed here, and a reason for the same way again.
+                let filesFixed = game.bottle.isBuiltIn
+                    && Engine.applyFileEdits(profile?.fileEdits ?? [], installDir: game.installDir, game: game.gameID.key)
                 // What the game itself said goes first: it can rule out ways without trying them.
                 let crashTexts = await Task.detached(priority: .utility) {
                     GameLog.crashMessages(installDir: installDir, since: startedAt)
                 }.value
-                if let said = crashTexts.first { GameLog.note("\(game.name) says: \(GameLog.redacted(String(said.prefix(200))))") }
-                StartEvidence.note(.failed, game: game.gameID, way: way, reason: crashTexts.first ?? noPicture, diagnosis: diagnosis)
+                // What acted on a failed start before step E, read as before: the game's words in its crash
+                // reports, and Wine's log for a missing runtime, an illegal instruction and the layer's failure.
+                // For a game with an anti-cheat this is all the decision ever gets (NextStart.asBefore); for
+                // every other game the whole diagnosis decides, with every remedy of the table (step E3).
+                let antiCheat = found == nil || analysis?.antiCheat.isEmpty == false
+                let decides = !antiCheat ? found ?? [] : NextStart.asBefore(StartDiagnosis.diagnose(StartFinding(
+                    messages: crashTexts,
+                    missingRuntimes: GameLog.missingRuntimes(since: logMark, gameFolder: game.installDirName),
+                    illegalInstruction: game.bottle.isBuiltIn && recipe.avx
+                        && GameLog.illegalInstruction(since: logMark, installDir: game.installDir, startedAt: startedAt),
+                    graphicsFailed: graphicsFailed, direct3D9Failed: direct3D9Failed, layer: layer)))
+                let onLadder = automatic && !attempts.isEmpty
+                let index = onLadder ? LaunchHealth.current(game.gameID, attempts).index : 0
                 // Step C: nothing explains this end – the ways still to come carry Wine's debug channels, and
                 // with no way left the last one starts once more with them, as quietly as a proven way's
                 // second start; after that the ladder ends as before. Once per game and engine build.
-                // Decided before `advance`, which sets the ladder back to its first way when none is left.
+                // Step E6: a way that had worked before gets that one start more too, and keeps its place after it.
+                let proven = wayConfirmed || lookedAtProven == way
                 let engineID = build?.engine ?? "unknown"
-                let look = CloserLook.step(unexplained: unexplained, antiCheat: analysis?.antiCheat.isEmpty == false,
-                                           carried: closerLook, takenBefore: CloserLook.taken(game.gameID, engine: engineID),
-                                           // Steam restarts for them only with no other Windows game running; this
-                                           // one may still be on the list for a moment.
-                                           canCarry: game.bottle.isBuiltIn && (!viaSteam || runningGame(.windows).map { $0.id == game.id } != false),
-                                           lastWay: LaunchHealth.current(game.gameID, attempts).index + 1 >= attempts.count)
-                if look != .none {
+                let look = !onLadder ? CloserLook.Step.none
+                    : CloserLook.step(unexplained: unexplained, antiCheat: antiCheat,
+                                      carried: closerLook, takenBefore: CloserLook.taken(game.gameID, engine: engineID),
+                                      // Steam restarts for them only with no other Windows game running; this
+                                      // one may still be on the list for a moment.
+                                      canCarry: game.bottle.isBuiltIn && (!viaSteam || runningGame(.windows).map { $0.id == game.id } != false),
+                                      lastWay: index + 1 >= attempts.count, proven: proven)
+                let next = NextStart.after(NextStart.Failed(
+                    ladder: onLadder ? attempts : [], index: index, proven: proven, learned: learned, recipe: recipe,
+                    found: decides, antiCheat: antiCheat,
+                    againSoFar: sameWayAgain, filesFixed: filesFixed, look: look))
+                /// What the ladder's own steps – a closer look, the next way, giving up – put on record first.
+                func noteFailed() {
+                    if let said = crashTexts.first { GameLog.note("\(game.name) says: \(GameLog.redacted(String(said.prefix(200))))") }
+                    StartEvidence.note(.failed, game: game.gameID, way: way, reason: crashTexts.first ?? noPicture, diagnosis: diagnosis)
+                }
+                /// The start to come carries the closer look's channels (step C).
+                func lookCloser(_ how: String) {
                     looksCloser = true
                     CloserLook.noteTaken(game.gameID, engine: engineID)
-                    GameLog.note("\(game.name): nothing explains why it ended – "
-                                 + (look == .sameWayAgain ? "it starts once more on this way with Wine's debug channels"
-                                                          : "the next start carries Wine's debug channels"))
-                    if look == .sameWayAgain { continue }
+                    GameLog.note("\(game.name): nothing explains why it ended – \(how)")
                 }
-                if LaunchHealth.advance(game.gameID, attempts, answering: StartFailure.read(crashTexts) ?? (direct3D9Failed ? .needsD3D9 : nil)) {
-                    let next = attempts[LaunchHealth.current(game.gameID, attempts).index]
-                    launchPhase = .retrying(next.label)
+                switch next {
+                case .again(let changed, let why):
+                    // The same way once more: with what Wine said is missing installed, the settings file
+                    // fixed, without Rosetta's AVX hint, with a DLL kept unloaded that the crash came from –
+                    // all of it in this one start – or for a closer look.
+                    sameWayAgain += 1
+                    if why == [NextStart.closerLook] {
+                        noteFailed()
+                        if proven { lookedAtProven = way }
+                        lookCloser("it starts once more on this way with Wine's debug channels")
+                    } else {
+                        if changed != learned {
+                            LearnedFixes.keep(changed, for: game.gameID)
+                            // The recipe changes: this one failed, on record, so that the way's proof is told
+                            // apart by what it was started with (StartEvidence.Proof.failedWith).
+                            if onLadder { noteFailed() }
+                        }
+                        GameLog.note("\(game.name) starts once more on the same way: \(why.joined(separator: ", "))")
+                    }
                     continue
+                case .noOtherWay:
+                    // Graphics chosen by hand, or nothing known about the game: no other way to try.
+                    break starts
+                case .keepsItsPlace:
+                    // A way that worked before and ended without a graphics error keeps its place:
+                    // watched again at the next start. Nightforge stays in front.
+                    StartEvidence.note(.failed, game: game.gameID, way: way, reason: "a proven way ended in its first seconds again",
+                                       diagnosis: diagnosis)
+                    return
+                case .way(let other, _):
+                    // On to the way that answers what the game said, or simply the next.
+                    noteFailed()
+                    if look == .nextWay { lookCloser("the next start carries Wine's debug channels") }
+                    LaunchHealth.advance(game.gameID, attempts, to: other)
+                    launchPhase = .retrying(attempts[other].label)
+                    continue
+                case .giveUp:
+                    noteFailed()
+                    // No way is left: the list starts over next time.
+                    LaunchHealth.advance(game.gameID, attempts, to: 0)
+                    // One way only (Vulkan, DirectX 12): what the game draws with says more than a layer.
+                    let tried = attempts.count > 1 ? attempts.map(\.label) : [analysis?.summary ?? attempts.first?.label ?? ""]
+                    StartEvidence.note(.gaveUp, game: game.gameID, way: way)
+                    failedLaunch = FailedLaunch(game: game, tried: tried)
+                    return
                 }
-                // One way only (Vulkan, DirectX 12): what the game draws with says more than a layer.
-                let tried = attempts.count > 1 ? attempts.map(\.label) : [analysis?.summary ?? attempts.first?.label ?? ""]
-                StartEvidence.note(.gaveUp, game: game.gameID, way: way)
-                failedLaunch = FailedLaunch(game: game, tried: tried)
-                return
             }
 
             // Not behind it once a new start has the curtain: its page would take that start's place.
@@ -4984,11 +5060,11 @@ final class LibraryModel: ObservableObject {
         }
     }
 
-    /// Runtimes the profile asks for and those an earlier start turned out to need, and Wine Mono
-    /// for .NET games. `showStatus` says so on the Play button while it takes.
-    private func installRuntimes(for game: Game, profile: GameProfile?, analysis: GameAnalysis?,
+    /// Runtimes the profile asks for and those an earlier start turned out to need (`learned`:
+    /// StartRecipe.Learned.runtimes), and Wine Mono for .NET games. `showStatus` says so on the Play button
+    /// while it takes.
+    private func installRuntimes(for game: Game, profile: GameProfile?, analysis: GameAnalysis?, learned: [String],
                                  wine: URL, showStatus: Bool) async {
-        let learned = LearnedFixes.winetricks(game.gameID)
         // What the game is known to need from the start (PCGamingWiki, macSources) goes in before its first start.
         let known = macSources.runtimes(for: game)
         let missing = Engine.missingWinetricks((profile?.winetricks ?? []) + learned.filter { $0 != GameLog.wineMono } + known)
@@ -5022,7 +5098,8 @@ final class LibraryModel: ObservableObject {
             guard let wine = await Engine.installedWine() else { return }
             let profile = await ProfileStore.shared.profile(for: game.gameID)
             let analysis = await insight(of: game)?.analysis
-            await installRuntimes(for: game, profile: profile, analysis: analysis, wine: wine, showStatus: false)
+            await installRuntimes(for: game, profile: profile, analysis: analysis, learned: LearnedFixes.learned(game.gameID).runtimes,
+                                  wine: wine, showStatus: false)
             if game.provider == .gog { await setUpGOG(game, wine: wine, showStatus: false) }
         }
     }
@@ -5030,7 +5107,7 @@ final class LibraryModel: ObservableObject {
     /// Hands the game to Steam and follows Steam's log until the game runs. True once it does; a
     /// question from Steam can take as long as the player needs, no sign of life ends after 2 min.
     private func start(_ game: Game, runner: String?, options: GameOptions, profile: GameProfile?,
-                       arguments: [String], frameLimit: Int) async -> Bool {
+                       recipe: StartRecipe, frameLimit: Int) async -> Bool {
         var watcher = LaunchWatcher(steamRoot: game.steamRoot, appID: game.appID)
         var licenceLog = SteamLicenceLog(steamRoot: game.steamRoot, appID: game.appID)
         launchAsksLicence = false
@@ -5044,7 +5121,7 @@ final class LibraryModel: ObservableObject {
             // would freeze the window for a moment.
             client = try await Task.detached(priority: .userInitiated) {
                 try Launcher.launch(game, runnerPath: runner ?? "", options: options, profile: profile,
-                                    frameLimit: frameLimit, extraArguments: arguments)
+                                    frameLimit: frameLimit, recipe: recipe)
             }.value
         } catch {
             errorMessage = error.localizedDescription
@@ -5133,7 +5210,7 @@ final class LibraryModel: ObservableObject {
                              + (answerStored ? "" : " (the answer isn't to be seen in its record)") + ", at \(GameLog.clock())")
                 client = try? await Task.detached(priority: .userInitiated) {
                     try Launcher.launch(game, runnerPath: runner ?? "", options: options, profile: profile,
-                                        frameLimit: frameLimit, extraArguments: arguments)
+                                        frameLimit: frameLimit, recipe: recipe)
                 }.value
                 continue
             }
@@ -5191,7 +5268,7 @@ final class LibraryModel: ObservableObject {
                         sentAt = Date()
                         client = try? await Task.detached(priority: .userInitiated) {
                             try Launcher.launch(game, runnerPath: runner, options: options, profile: profile,
-                                                frameLimit: frameLimit, extraArguments: arguments)
+                                                frameLimit: frameLimit, recipe: recipe)
                         }.value
                     }
                     launchPhase = nil
@@ -5207,7 +5284,7 @@ final class LibraryModel: ObservableObject {
                         sentAt = Date()
                         client = try? await Task.detached(priority: .userInitiated) {
                             try Launcher.launch(game, runnerPath: runner ?? "", options: options, profile: profile,
-                                                frameLimit: frameLimit, extraArguments: arguments)
+                                                frameLimit: frameLimit, recipe: recipe)
                         }.value
                         continue
                     }
@@ -5223,7 +5300,7 @@ final class LibraryModel: ObservableObject {
                         sentAt = Date()
                         client = try? await Task.detached(priority: .userInitiated) {
                             try Launcher.launch(game, runnerPath: runner, options: options, profile: profile,
-                                                frameLimit: frameLimit, extraArguments: arguments)
+                                                frameLimit: frameLimit, recipe: recipe)
                         }.value
                     }
                     launchPhase = nil
@@ -5293,7 +5370,7 @@ final class LibraryModel: ObservableObject {
     /// info file), and Nightforge waits until its process is there. Whether it keeps running,
     /// `survivesFirstSeconds` sees. `usesD3D9`: from the start's analysis (`insight`).
     private func startDirect(_ game: Game, runner: String?, options: GameOptions, profile: GameProfile?,
-                             arguments: [String], frameLimit: Int, layer: GraphicsLayer, vulkan: Engine.VulkanDriver?,
+                             recipe: StartRecipe, frameLimit: Int, layer: GraphicsLayer, vulkan: Engine.VulkanDriver?,
                              usesD3D9: Bool) async -> Bool {
         guard let runner else {
             errorMessage = L10n.t("Nightforge's engine isn't installed yet. Open Settings › Stores, or restart Nightforge to set it up.")
@@ -5312,7 +5389,7 @@ final class LibraryModel: ObservableObject {
         }
         launchPhase = nil
         guard !Task.isCancelled else { return false }
-        let environment = Engine.directLaunchEnvironment(avx: LearnedFixes.avx(game.gameID, profile: profile), d3dMetal: layer == .d3dmetal,
+        let environment = Engine.directLaunchEnvironment(avx: recipe.avx, d3dMetal: layer == .d3dmetal,
                                                          frameLimit: frameLimit, upscaling: options.effectiveUpscaling(profile: profile),
                                                          vulkan: vulkan)
         if layer == .d3dmetal {
@@ -5324,7 +5401,7 @@ final class LibraryModel: ObservableObject {
         do {
             process = try await Task.detached(priority: .userInitiated) {
                 try Launcher.launchDirect(game, command: command, runnerPath: runner, options: options, profile: profile,
-                                          frameLimit: frameLimit, extraArguments: arguments, environment: environment,
+                                          frameLimit: frameLimit, recipe: recipe, environment: environment,
                                           usesD3D9: usesD3D9)
             }.value
         } catch {
@@ -5346,7 +5423,7 @@ final class LibraryModel: ObservableObject {
     /// Confirms the way a game started with once it has drawn frames (LaunchHealth.verdict), watching
     /// in the background from the end of its first seconds. One that ends without a frame stays
     /// unconfirmed and is watched again next time.
-    private func confirmOnceDrawing(_ game: Game, attempts: [LaunchAttempt], build: EngineBuild?, way: String,
+    private func confirmOnceDrawing(_ game: Game, attempts: [LaunchAttempt], build: EngineBuild?, way: String, recipe: StartRecipe,
                                     logMark: UInt64, startedAt: Date, wasConfirmed: Bool = false) {
         let folders = Self.processFolders([game])
         let installDir = game.installDir
@@ -5367,7 +5444,7 @@ final class LibraryModel: ObservableObject {
                 switch LaunchHealth.afterFirstSeconds(verdict) {
                 case .confirm:
                     if !attempts.isEmpty {
-                        LaunchHealth.confirm(game.gameID, attempts)
+                        LaunchHealth.confirm(game.gameID, attempts, recipe: recipe)  // proven for what it was made of (step E4)
                         if !wasConfirmed { StartEvidence.note(.worked, game: game.gameID, way: way) }
                     }
                     if let build { EngineRollback.shared.recordGood(game.gameID, build: build, way: way) }
@@ -5485,12 +5562,6 @@ final class LibraryModel: ObservableObject {
                 return "hung without a picture"
             }
         }
-    }
-
-    /// A start's arguments with the switch past the game's own launcher window, once.
-    nonisolated static func argumentsPastLauncher(_ arguments: [String], switch launcherSwitch: String?) -> [String] {
-        guard let launcherSwitch, !arguments.contains(where: { $0.caseInsensitiveCompare(launcherSwitch) == .orderedSame }) else { return arguments }
-        return arguments + [launcherSwitch]
     }
 
     /// What a game's files reveal (read once per game and app run) and the ways to start it.

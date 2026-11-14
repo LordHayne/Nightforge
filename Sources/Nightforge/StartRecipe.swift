@@ -1,11 +1,11 @@
 import Foundation
 
 /// All that decides how a game starts, as one value: the graphics layer, the arguments, the DLLs it
-/// gets or doesn't, the runtimes set up for it. Today these come together from the profile, the ladder
-/// and what earlier starts taught (LaunchHealth, LearnedFixes, Engine.gameDllOverrides); the recipe is
-/// what a start is recorded with (StartEvidence), so that what worked can be told from what was only
-/// tried. The start itself doesn't go by it yet: step E makes it what a start is made of
-/// (docs/ENTWURF-STARTREZEPT.md 3.3).
+/// gets or doesn't, the runtimes set up for it. It comes together from the ladder's way, the profile and
+/// what earlier starts taught (LaunchHealth, LearnedFixes, Engine.gameDllOverrides), once per start
+/// (LibraryModel.launch), and is what the start is made of and what it is recorded with (StartEvidence):
+/// the prefix's settings for the game's programs, its arguments and Rosetta's AVX are read from it, so
+/// that what worked can be told from what was only tried (docs/ENTWURF-STARTREZEPT.md 3.3, step E1).
 struct StartRecipe: Codable, Equatable {
     var graphics: String
     var arguments: [String]
@@ -20,11 +20,12 @@ struct StartRecipe: Codable, Equatable {
     var steps: [String]?
 
     /// The recipe of a start on `layer`. `arguments`: the way's own and the switch past the game's
-    /// launcher window; the profile's come on top where they belong to this layer.
+    /// launcher window; the profile's go before them where they belong to this layer – the order the game
+    /// gets them in (Launcher.launch). Lines recorded before 14.11.2026 have the profile's last (`startsLike`).
     static func of(layer: GraphicsLayer, arguments: [String], profile: GameProfile?, learnedRuntimes: [String],
                    avx: Bool, d3dMetalEngine: Bool) -> StartRecipe {
         StartRecipe(graphics: layer.rawValue,
-                    arguments: arguments + (profile?.arguments(on: layer) ?? []),
+                    arguments: (profile?.arguments(on: layer) ?? []) + arguments,
                     dllOverrides: Engine.gameDllOverrides(layer, profile: profile, d3dMetalEngine: d3dMetalEngine),
                     runtimes: Array(Set((profile?.winetricks ?? []) + learnedRuntimes)).sorted(),
                     avx: avx,
@@ -37,20 +38,26 @@ struct StartRecipe: Codable, Equatable {
     /// layer's DLLs: it answers a failure seen in this game on this Mac.
     static func of(way: LaunchAttempt, learned: Learned, profile: GameProfile?, launcherSwitch: String? = nil,
                    d3dMetalEngine: Bool) -> StartRecipe {
-        var arguments = way.arguments
-        if let launcherSwitch, !arguments.contains(where: { $0.caseInsensitiveCompare(launcherSwitch) == .orderedSame }) {
-            arguments.append(launcherSwitch)
-        }
-        var recipe = of(layer: way.graphics, arguments: arguments, profile: profile, learnedRuntimes: learned.runtimes,
+        var recipe = of(layer: way.graphics, arguments: pastLauncher(way.arguments, switch: launcherSwitch), profile: profile,
+                        learnedRuntimes: learned.runtimes,
                         avx: profile?.avx != false && !learned.noAVX, d3dMetalEngine: d3dMetalEngine)
         for dll in learned.dllsOff { recipe.dllOverrides[dll] = "" }
         recipe.steps = learned.steps.isEmpty ? nil : learned.steps
         return recipe
     }
 
+    /// A start's arguments with the switch past the game's own launcher window, once: straight into the
+    /// game, as on a console (Guardians of the Galaxy, 9.11.2026). Not part of the way.
+    static func pastLauncher(_ arguments: [String], switch launcherSwitch: String?) -> [String] {
+        guard let launcherSwitch, !arguments.contains(where: { $0.caseInsensitiveCompare(launcherSwitch) == .orderedSame }) else { return arguments }
+        return arguments + [launcherSwitch]
+    }
+
     /// The same start, whatever led to it: all that reaches Wine, not which rule asked for it (`steps`).
+    /// The arguments count whatever their order: the profile's stood behind the way's in the record up to
+    /// 14.11.2026 and stand before them since, as the game gets them – the same start both times.
     func startsLike(_ other: StartRecipe) -> Bool {
-        graphics == other.graphics && arguments == other.arguments && dllOverrides == other.dllOverrides
+        graphics == other.graphics && arguments.sorted() == other.arguments.sorted() && dllOverrides == other.dllOverrides
             && Set(runtimes) == Set(other.runtimes) && avx == other.avx && windowsVersion == other.windowsVersion
     }
 

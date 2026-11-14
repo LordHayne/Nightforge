@@ -312,6 +312,53 @@ struct LaunchHealthTest {
         check(LaunchHealth.advance(mafia, d3d9) && LaunchHealth.current(mafia, d3d9) == (1, false), "a graphics error: on to WineD3D")
         LaunchHealth.reset(mafia)
 
+        // MARK: A way is proven for what it was started with (step E4)
+        let twoGame = GameID.steam(1_426_210)
+        let twoWays = [LaunchAttempt(graphics: .d3dmetal), LaunchAttempt(graphics: .dxmt, arguments: ["-dx11"])]
+        let nothing = StartRecipe.Learned()
+        let loaderOn = try? JSONDecoder().decode(GameProfile.self, from: Data(#"{"dllOverrides": {"physxupdateloader64": "native,builtin"}}"#.utf8))
+        let plainStart = StartRecipe.of(way: twoWays[0], learned: nothing, profile: nil, d3dMetalEngine: true)
+        let withLoader = StartRecipe.of(way: twoWays[0], learned: nothing, profile: loaderOn, d3dMetalEngine: true)
+        LaunchHealth.reset(twoGame)
+        // Confirmed before recipes were kept here, or by Steam's log alone: it holds for whatever it is started with.
+        LaunchHealth.confirm(twoGame, twoWays)
+        check(LaunchHealth.current(twoGame, twoWays) == (0, true) && LaunchHealth.holds(twoGame, twoWays, for: plainStart)
+              && LaunchHealth.holds(twoGame, twoWays, for: withLoader), "a way confirmed without a recipe holds for any start")
+        UserDefaults.standard.set(Data(#"{"ladder":["d3dmetal","dxmt -dx11"],"confirmed":true,"proof":2,"index":0}"#.utf8), forKey: "launchHealth.steam.1426210")
+        check(LaunchHealth.current(twoGame, twoWays) == (0, true) && LaunchHealth.holds(twoGame, twoWays, for: withLoader),
+              "what was saved before 14.11. reads on and keeps its value")
+        // Its next good start puts the recipe on record: from then on the proof is that start's.
+        LaunchHealth.confirm(twoGame, twoWays, recipe: plainStart)
+        check(LaunchHealth.holds(twoGame, twoWays, for: plainStart) && !LaunchHealth.holds(twoGame, twoWays, for: withLoader),
+              "confirmed with a recipe: proven for that start, not for one with other DLLs")
+        var reordered = plainStart, renamed = plainStart
+        reordered.arguments = ["-b", "-a"]
+        renamed.steps = ["missing-runtime"]
+        var ordered = plainStart
+        ordered.arguments = ["-a", "-b"]
+        LaunchHealth.confirm(twoGame, twoWays, recipe: ordered)
+        check(LaunchHealth.holds(twoGame, twoWays, for: reordered) && !LaunchHealth.holds(twoGame, twoWays, for: plainStart),
+              "the same arguments in another order are the same start, other arguments aren't")
+        LaunchHealth.confirm(twoGame, twoWays, recipe: plainStart)
+        check(LaunchHealth.holds(twoGame, twoWays, for: renamed), "which rule asked for a start doesn't make it another")
+        // A confirmation without a recipe (Steam's log, `review`) leaves the one on record.
+        LaunchHealth.confirm(twoGame, twoWays)
+        check(!LaunchHealth.holds(twoGame, twoWays, for: withLoader), "a later confirmation without a recipe keeps what was proven")
+        // Losing the confirmation or moving on takes the recipe along: the next way starts clean.
+        LaunchHealth.unconfirm(twoGame, twoWays)
+        check(LaunchHealth.current(twoGame, twoWays) == (0, false) && LaunchHealth.holds(twoGame, twoWays, for: withLoader),
+              "unconfirmed: nothing proven, nothing to hold against a start")
+        LaunchHealth.confirm(twoGame, twoWays, recipe: plainStart)
+        LaunchHealth.advance(twoGame, twoWays, to: 1)
+        LaunchHealth.confirm(twoGame, twoWays)
+        check(LaunchHealth.current(twoGame, twoWays) == (1, true) && LaunchHealth.holds(twoGame, twoWays, for: withLoader),
+              "the way before's recipe doesn't stand for the next way")
+        LaunchHealth.confirm(twoGame, twoWays, recipe: plainStart)
+        _ = LaunchHealth.advance(twoGame, twoWays)
+        LaunchHealth.confirm(twoGame, twoWays)
+        check(LaunchHealth.holds(twoGame, twoWays, for: withLoader), "nor after the list started over")
+        LaunchHealth.reset(twoGame)
+
         // MARK: A confirmed way loses its confirmation only on evidence
         // The player quits after 20 s (OxyRail after 22 s) on a layer that logs no frames.
         check(LaunchHealth.earlyEnd(trusted: true, graphicsFailed: false, crashed: false, drew: false, shortEndsBefore: 0) == .keep,

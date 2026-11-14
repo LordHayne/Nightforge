@@ -266,6 +266,10 @@ enum LaunchHealth {
         var shortEnds: Int?
         /// When the current, unconfirmed way was last started.
         var startedAt: Date?
+        /// What the way was made of when it was confirmed (step E4 of docs/ENTWURF-STARTREZEPT.md 3.3): its
+        /// proof holds for that start (`holds`). nil: confirmed before recipes were kept here (up to
+        /// 14.11.2026), or by Steam's log alone (`review`) – then it holds for whatever the way is started with.
+        var recipe: StartRecipe?
 
         var trusted: Bool { confirmed && proof == LaunchHealth.proof }
     }
@@ -328,13 +332,25 @@ enum LaunchHealth {
         save(game, state)
     }
 
-    static func confirm(_ game: GameID, _ attempts: [LaunchAttempt]) {
+    /// `recipe`: what the start that proved the way was made of; without one what is kept stays.
+    static func confirm(_ game: GameID, _ attempts: [LaunchAttempt], recipe: StartRecipe? = nil) {
         var state = load(game, attempts)
         state.confirmed = true
         state.proof = proof
         state.shortEnds = nil
         state.startedAt = nil
+        if let recipe { state.recipe = recipe }
         save(game, state)
+    }
+
+    /// Whether the confirmed way's proof holds for a start made of `recipe` (step E4): a way is proven for
+    /// what it was started with, not for its graphics layer alone – It Takes Two ran on D3DMetal with the
+    /// PhysX update loader off and crashed there with it on (10.11.2026). The same start, whatever led to it
+    /// (StartRecipe.startsLike); and a way confirmed without a recipe on record holds for any, so what was
+    /// proven before 14.11.2026 keeps its value.
+    static func holds(_ game: GameID, _ attempts: [LaunchAttempt], for recipe: StartRecipe) -> Bool {
+        guard let with = load(game, attempts).recipe else { return true }
+        return with.startsLike(recipe)
     }
 
     /// How many starts of the confirmed way in a row ended early without a picture or an error.
@@ -354,6 +370,7 @@ enum LaunchHealth {
         state.confirmed = false
         state.proof = nil
         state.shortEnds = nil
+        state.recipe = nil
         save(game, state)
     }
 
@@ -364,6 +381,7 @@ enum LaunchHealth {
         state.startedAt = nil
         state.confirmed = false
         state.proof = nil
+        state.recipe = nil
         let following = Array(attempts.indices.dropFirst(state.index + 1))
         let next = following.first { failure?.answered(by: attempts[$0]) ?? true } ?? following.first
         state.index = next ?? 0
@@ -380,6 +398,7 @@ enum LaunchHealth {
         state.confirmed = false
         state.proof = nil
         state.shortEnds = nil
+        state.recipe = nil
         state.index = index
         save(game, state)
     }
@@ -457,12 +476,12 @@ enum LaunchHealth {
     /// "answered by the player: no other way" – the start took it for a failure only because DXVK's own words
     /// stood against it. Metal Gear Solid V's "Failed to load SteamAPI" on 11.11. had nothing else against it
     /// and went into the record as "closed at a question of its own".
-    /// `explained`: the table found why the start ended (not StartDiagnosis.unexplained) – then it failed,
-    /// whatever the player pressed. `endedAtBox`: the text of the message box the game ended at
-    /// (CloserLook.Reading.endedAtBox), known only in a start that carried Wine's channel for them; a notice
-    /// leaves nothing to choose (CloserLook.box). Unity's window before the game and a launcher's are no
-    /// message boxes: without one the end stays the player's, as before.
-    /// Not wired in yet (docs/ENTWURF-STARTREZEPT.md 3.3).
+    /// `explained`: the table saw the start fail (StartDiagnosis.sawFailure) – then it failed, whatever the
+    /// player pressed. `endedAtBox`: the text of the message box the game ended at
+    /// (CloserLook.Reading.endedAtBox), which every start's channels print since step E5; a notice leaves
+    /// nothing to choose (CloserLook.box). Unity's window before the game and a launcher's are no message
+    /// boxes: without one the end stays the player's, as before. The start flow asks this since step E5
+    /// (LibraryModel.launch, docs/ENTWURF-STARTREZEPT.md 3.3).
     static func ownQuestionWasAChoice(explained: Bool, endedAtBox: String?) -> Bool {
         if explained { return false }
         return endedAtBox.map { CloserLook.box($0) == .question } ?? true
