@@ -219,13 +219,35 @@ der Generator weiter; ihnen fehlen diese Felder, und die Liste sagt dann „nich
 - **Einstellungen:** die das Spiel mitbringt. Niemand stellt Grafik ein.
 - **FPS Ø** ist nach Periodenlänge gewichtet. **Tiefste Periode** ist der schlechteste 10-Sekunden-Schnitt, kein
   1-%-Tief.
-- **Unter Limit oder frei – nie vermischt.** „Scharf & flüssig“ hält ein Spiel auf 120 Hz bei 60 FPS. Ein Wert unter
-  Limit (`kind: holdsLimit`) sagt „hält 60 FPS“ oder „hält sie nicht“ (`holds`: Ø mindestens 95 % des Limits, wie
-  `FramePacing`), nicht „schafft nur 59“. Eine freie Zahl (`kind: free`) gibt es nur aus einem Lauf ohne Limit
-  (`frameLimit: 0`). Ist das Limit nicht aufgezeichnet (Format 1), ist der Wert keines von beiden. Jeder Start
-  schreibt, was für ihn gilt, als Zeile ins Protokoll („Frame limit of <Spiel>: 60 FPS at 120 Hz, MetalFX on“, bei
-  Drosselung mit „throttled by battery“ oder „lowPower“); der Spieletest liest sie und rechnet nichts nach. WineD3D
-  nimmt weder Limit noch MetalFX: Dort steht „none“ und „MetalFX off“.
+- **Unter Limit oder frei – nie vermischt.** „Scharf & flüssig“ hält ein Spiel auf 120 Hz bei 60 FPS. Was das Limit
+  mit einer Zahl gemacht hat, steht als eigenes Feld `measured.limitState` (seit dem 14.11.; `kind` und `holds` gibt es
+  nicht mehr):
+
+  | `limitState` | Regel | Wortlaut |
+  |---|---|---|
+  | `held` | Ø zwischen 95 % und 105 % des Limits (95 % wie `FramePacing`) | „hält das Limit“ |
+  | `notReached` | Ø unter 95 % | „erreicht das Limit nicht“ |
+  | `notApplied` | Ø über 105 % (bei 60 also über 63): Die Sperre hat nicht gegriffen, die Zahl ist frei | „Limit greift nicht“ |
+  | `noneOnWay` | Der Weg hat nichts, was ein Limit hält (heute D3DMetal); `frameLimit` nennt, was verlangt war | „frei (kein Limit auf diesem Weg)“, Spalte Frame-Limit: „keins möglich (verlangt: 60 FPS)“ |
+  | `none` | kein Limit gesetzt (`frameLimit: 0`) | „frei“ |
+  | `null` | Limit nicht aufgezeichnet (Format 1) oder kein FPS-Wert | „(Limit nicht aufgezeichnet)“ |
+
+  Die Schwelle von 105 % ist ein Vorschlag: Im Messlauf vom 14.11. lagen die Werte, bei denen die Sperre greift, bei
+  57 bis 60 (DXMT, DXVK), die ohne Sperre bei 74 bis 201. Jeder Start schreibt, was für ihn verlangt ist, als Zeile
+  ins Protokoll („Frame limit of <Spiel>: 60 FPS at 120 Hz, MetalFX on“, bei Drosselung mit „throttled by battery“
+  oder „lowPower“); der Spieletest liest sie und rechnet nichts nach. WineD3D nimmt weder Limit noch MetalFX: Dort
+  steht „none“ und „MetalFX off“.
+- **D3DMetal kennt kein Frame-Limit** (belegt 14.11.): In Apples D3DMetal 3.0 aus winecx 4.7.3 stehen 26
+  `D3DM_`-Schalter, keiner für die Bildrate (`strings` auf die Bibliothek; `D3DM_MAX_FPS` kommt nicht vor), und im
+  Messlauf liefen die fünf D3DMetal-Spiele bei verlangten 60 mit Ø 50 bis 201. Die Zeile „Frame limit of …: 60 FPS“
+  nennt dort also nur, was verlangt war. Der Generator führt D3DMetal-Zahlen deshalb als freie (`LIMITLESS` im
+  Skript), bis ein Engine-Teil die Sperre bringt (Abschnitt 9, Punkt 10).
+- **Starrer Wert** (`measured.steady`): eine freie Zahl, deren tiefste zehn Sekunden bei mindestens 95 % des Schnitts
+  liegen, über mindestens 60 s. Dann gibt ein Film oder eine Sperre des Spiels den Takt vor, nicht der Mac. Die Liste
+  sagt „starr, kein Leistungswert“, der Wert ist nicht öffentlich (`notPublic: steady`) und zählt auf der Abhakliste
+  nicht als FPS-Wert. Anlass: Left 4 Dead 2 am 14.11. mit Ø 24 über 186 s – das Messfenster war der Vorspann
+  (`valve.bik` 13 s mit 23,3 Bildern je Sekunde, `l4d2_intro.bik` 174 s mit 23,98, aus den Köpfen der Filmdateien
+  gelesen). Unter einem Limit, das hält, ist ein starrer Wert der Zweck und wird nicht markiert.
 - **Was das Limit senkt:** „Akku sparen“ (30 FPS) und der Stromsparmodus stehen als `throttled`; solche Werte sind
   nicht öffentlich. Ein von `FramePacing` gelerntes niedrigeres Limit (40 statt 60) ist Nightforges eigene Wahl und
   steht als Limit da. Das V-Sync des Spiels selbst ist nicht aufgezeichnet: Auch eine freie Zahl kann daran hängen.
@@ -425,10 +447,12 @@ FPS-Werte offen zeigen, als Übersicht für alle.
 - **Datei:** `docs/laeuft/laeuft.json`, beim Bau der Seite eingelesen. Nur `level` `laeuft` und `startet`. Die
   Abhakliste gehört nicht auf die Seite: Sie ist das Arbeitsblatt dieses Macs.
 - **Zwei Arten von Zahl, sichtbar getrennt:**
-  - *Unter Limit* (`measured.kind: holdsLimit`): „hält 60 FPS“ oder „hält 60 FPS nicht (Ø 47)“, daneben „langsamstes
+  - *Unter Limit* (`measured.limitState`: `held` oder `notReached`): „hält 60 FPS“ oder „erreicht 60 FPS nicht (Ø 47)“, daneben „langsamstes
     Bild üblich 24 ms“ (`fps.slowestTypical`) und, wo vorhanden, „1-%-Tief 56“ und „GPU 10 ms je Bild“. Keine große
     FPS-Zahl: Sie wäre immer 60.
-  - *Frei gemessen* (`kind: free`): „Ø 87 FPS, 1-%-Tief 61“, mit dem Wort „ohne Limit“.
+  - *Frei gemessen* (`limitState`: `none`, `noneOnWay`, `notApplied`): „Ø 87 FPS, 1-%-Tief 61“, mit dem Wort „ohne
+    Limit“ – bei `notApplied` mit „Limit greift nicht“. Nie „hält das Limit“ aus dem Schnitt allein ableiten.
+  - *Starr* (`measured.steady`): nicht als Leistungswert zeigen.
 - **Werte verschwinden nicht mit einem neuen Build:** Jede Zahl steht mit dem Build, auf dem sie gemessen ist. Was der
   jüngste Build von dem Spiel gesehen hat (`onCurrentBuild`: Bild, kein Bild, noch nichts), kann als eigene, kleine
   Angabe daneben stehen („zuletzt geprüft auf …“).

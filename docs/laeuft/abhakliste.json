@@ -71,10 +71,10 @@
     "at": "2026-11-14T19:41:55Z",
     "average": 49.8,
     "frameLimit": 60,
-    "holds": false,
-    "kind": "holdsLimit",
+    "limitState": "noneOnWay",
     "ok": true,
     "public": true,
+    "steady": false,
     "way": "d3dmetal",
     "why": "ok"
    },
@@ -118,10 +118,10 @@
     "at": "2026-11-14T19:18:15Z",
     "average": 101.9,
     "frameLimit": 60,
-    "holds": true,
-    "kind": "holdsLimit",
+    "limitState": "noneOnWay",
     "ok": true,
     "public": true,
+    "steady": false,
     "way": "d3dmetal",
     "why": "ok"
    },
@@ -165,10 +165,10 @@
     "at": "2026-11-14T19:34:24Z",
     "average": 57.2,
     "frameLimit": 60,
-    "holds": true,
-    "kind": "holdsLimit",
+    "limitState": "held",
     "ok": true,
     "public": true,
+    "steady": false,
     "way": "dxmt",
     "why": "ok"
    },
@@ -212,10 +212,10 @@
     "at": "2026-11-14T19:06:42Z",
     "average": 73.5,
     "frameLimit": 60,
-    "holds": true,
-    "kind": "holdsLimit",
+    "limitState": "noneOnWay",
     "ok": true,
     "public": true,
+    "steady": false,
     "way": "d3dmetal",
     "why": "ok"
    },
@@ -259,10 +259,10 @@
     "at": "2026-11-14T19:30:46Z",
     "average": 113,
     "frameLimit": 60,
-    "holds": true,
-    "kind": "holdsLimit",
+    "limitState": "noneOnWay",
     "ok": true,
     "public": true,
+    "steady": false,
     "way": "d3dmetal",
     "why": "ok"
    },
@@ -306,10 +306,10 @@
     "at": "2026-11-14T19:03:00Z",
     "average": 59.9,
     "frameLimit": 60,
-    "holds": true,
-    "kind": "holdsLimit",
+    "limitState": "held",
     "ok": true,
     "public": true,
+    "steady": false,
     "way": "dxmt",
     "why": "ok"
    },
@@ -353,10 +353,10 @@
     "at": "2026-11-14T19:38:03Z",
     "average": 105.1,
     "frameLimit": 0,
-    "holds": null,
-    "kind": "free",
+    "limitState": "none",
     "ok": true,
     "public": true,
+    "steady": false,
     "way": "wined3d",
     "why": "ok"
    },
@@ -397,60 +397,13 @@
    },
    "byHand": null,
    "fps": {
-    "at": "2026-11-14T18:51:33Z",
-    "average": 23.9,
-    "frameLimit": 0,
-    "holds": null,
-    "kind": "free",
-    "ok": true,
-    "public": true,
-    "way": "wined3d",
-    "why": "ok"
-   },
-   "key": "steam.550",
-   "later": null,
-   "location": "extern",
-   "missing": [],
-   "name": "Left 4 Dead 2",
-   "platform": "windows",
-   "sizeBytes": 14964354280,
-   "skipped": null,
-   "start": {
-    "at": "2026-11-14T18:51:33Z",
-    "by": "gameTest",
-    "ok": true,
-    "way": "wined3d",
-    "why": "ok"
-   },
-   "status": "fertig",
-   "store": "steam",
-   "storeID": "550"
-  },
-  {
-   "build": {
-    "built": "2026-11-14T18:40:47Z",
-    "current": true,
-    "engine": [
-     "winecx@4.7.3",
-     "d3dmetal@apple-3.0",
-     "dxvk-macos@1.10.3-20230507",
-     "enginefix@4.7.3-4",
-     "gamepad@4.7.3-15",
-     "graphics@11.18-dxmt0.80-17",
-     "moltenvk@1.4.2"
-    ],
-    "nightforge": "0.3.2",
-    "since": "2026-11-14T18:41:38Z"
-   },
-   "byHand": null,
-   "fps": {
     "at": "2026-11-14T19:23:16Z",
     "average": 210.4,
     "frameLimit": 0,
-    "holds": null,
-    "kind": "free",
+    "limitState": "none",
     "ok": true,
     "public": true,
+    "steady": false,
     "way": "wined3d",
     "why": "ok"
    },
@@ -494,10 +447,10 @@
     "at": "2026-11-14T19:26:59Z",
     "average": 60,
     "frameLimit": 60,
-    "holds": true,
-    "kind": "holdsLimit",
+    "limitState": "held",
     "ok": true,
     "public": true,
+    "steady": false,
     "way": "dxmt",
     "why": "ok"
    },
@@ -541,10 +494,10 @@
     "at": "2026-11-14T18:55:18Z",
     "average": 47.6,
     "frameLimit": 0,
-    "holds": null,
-    "kind": "free",
+    "limitState": "none",
     "ok": true,
     "public": true,
+    "steady": false,
     "way": "wined3d",
     "why": "ok"
    },
@@ -588,10 +541,10 @@
     "at": "2026-11-14T19:45:58Z",
     "average": 119.5,
     "frameLimit": 0,
-    "holds": null,
-    "kind": "free",
+    "limitState": "none",
     "ok": true,
     "public": true,
+    "steady": false,
     "way": "wined3d",
     "why": "ok"
    },
@@ -635,10 +588,10 @@
     "at": "2026-11-14T18:42:14Z",
     "average": 201.1,
     "frameLimit": 60,
-    "holds": true,
-    "kind": "holdsLimit",
+    "limitState": "noneOnWay",
     "ok": true,
     "public": true,
+    "steady": false,
     "way": "d3dmetal",
     "why": "ok"
    },
@@ -682,10 +635,10 @@
     "at": "2026-11-14T18:47:01Z",
     "average": 59.7,
     "frameLimit": 60,
-    "holds": true,
-    "kind": "holdsLimit",
+    "limitState": "held",
     "ok": true,
     "public": true,
+    "steady": false,
     "way": "dxvk",
     "why": "ok"
    },
@@ -729,10 +682,10 @@
     "at": "2026-11-09T23:49:25Z",
     "average": 28.4,
     "frameLimit": null,
-    "holds": null,
-    "kind": null,
+    "limitState": null,
     "ok": false,
     "public": false,
+    "steady": false,
     "way": "dxmt",
     "why": "limitUnknown"
    },
@@ -763,6 +716,42 @@
    "storeID": "2357570"
   },
   {
+   "build": null,
+   "byHand": null,
+   "fps": {
+    "at": null,
+    "average": null,
+    "frameLimit": null,
+    "limitState": null,
+    "ok": false,
+    "public": false,
+    "steady": false,
+    "way": null,
+    "why": "never"
+   },
+   "key": "epic.f7cc1c999ac146f39b356f53e3489514",
+   "later": null,
+   "location": "extern",
+   "missing": [
+    "start",
+    "fps"
+   ],
+   "name": "Rise of the Tomb Raider: 20 Year Celebration",
+   "platform": "windows",
+   "sizeBytes": 38583062825,
+   "skipped": null,
+   "start": {
+    "at": null,
+    "by": null,
+    "ok": false,
+    "way": null,
+    "why": "never"
+   },
+   "status": "offen",
+   "store": "epic",
+   "storeID": "f7cc1c999ac146f39b356f53e3489514"
+  },
+  {
    "build": {
     "built": null,
     "current": false,
@@ -783,10 +772,10 @@
     "at": "2026-11-09T23:45:04Z",
     "average": 57.2,
     "frameLimit": null,
-    "holds": null,
-    "kind": null,
+    "limitState": null,
     "ok": false,
     "public": false,
+    "steady": false,
     "way": "dxmt -dx11",
     "why": "limitUnknown"
    },
@@ -832,10 +821,10 @@
     "at": "2026-11-14T19:54:22Z",
     "average": null,
     "frameLimit": null,
-    "holds": null,
-    "kind": null,
+    "limitState": null,
     "ok": false,
     "public": false,
+    "steady": false,
     "way": "mac",
     "why": "wayReportsNone"
    },
@@ -878,13 +867,62 @@
    },
    "byHand": null,
    "fps": {
+    "at": "2026-11-14T18:51:33Z",
+    "average": 23.9,
+    "frameLimit": 0,
+    "limitState": "none",
+    "ok": false,
+    "public": false,
+    "steady": true,
+    "way": "wined3d",
+    "why": "steady"
+   },
+   "key": "steam.550",
+   "later": null,
+   "location": "extern",
+   "missing": [
+    "fps"
+   ],
+   "name": "Left 4 Dead 2",
+   "platform": "windows",
+   "sizeBytes": 14964354280,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-14T18:51:33Z",
+    "by": "gameTest",
+    "ok": true,
+    "way": "wined3d",
+    "why": "ok"
+   },
+   "status": "offen",
+   "store": "steam",
+   "storeID": "550"
+  },
+  {
+   "build": {
+    "built": "2026-11-14T18:40:47Z",
+    "current": true,
+    "engine": [
+     "winecx@4.7.3",
+     "d3dmetal@apple-3.0",
+     "dxvk-macos@1.10.3-20230507",
+     "enginefix@4.7.3-4",
+     "gamepad@4.7.3-15",
+     "graphics@11.18-dxmt0.80-17",
+     "moltenvk@1.4.2"
+    ],
+    "nightforge": "0.3.2",
+    "since": "2026-11-14T18:41:38Z"
+   },
+   "byHand": null,
+   "fps": {
     "at": "2026-11-14T19:49:49Z",
     "average": null,
     "frameLimit": null,
-    "holds": null,
-    "kind": null,
+    "limitState": null,
     "ok": false,
     "public": false,
+    "steady": false,
     "way": "mac",
     "why": "wayReportsNone"
    },
@@ -930,10 +968,10 @@
     "at": "2026-11-09T23:47:55Z",
     "average": null,
     "frameLimit": null,
-    "holds": null,
-    "kind": null,
+    "limitState": null,
     "ok": false,
     "public": false,
+    "steady": false,
     "way": "dxvk",
     "why": "noneInLog"
    },
@@ -980,10 +1018,10 @@
     "at": "2026-11-14T19:14:05Z",
     "average": 58.9,
     "frameLimit": 60,
-    "holds": true,
-    "kind": "holdsLimit",
+    "limitState": "held",
     "ok": true,
     "public": true,
+    "steady": false,
     "way": "dxmt -dx11",
     "why": "ok"
    },
@@ -1029,10 +1067,10 @@
     "at": "2026-11-14T19:58:30Z",
     "average": null,
     "frameLimit": null,
-    "holds": null,
-    "kind": null,
+    "limitState": null,
     "ok": false,
     "public": false,
+    "steady": false,
     "way": "mac",
     "why": "wayReportsNone"
    },
@@ -1078,10 +1116,10 @@
     "at": "2026-11-10T00:03:05Z",
     "average": null,
     "frameLimit": null,
-    "holds": null,
-    "kind": null,
+    "limitState": null,
     "ok": false,
     "public": false,
+    "steady": false,
     "way": "mac",
     "why": "wayReportsNone"
    },
@@ -1114,10 +1152,10 @@
     "at": null,
     "average": null,
     "frameLimit": null,
-    "holds": null,
-    "kind": null,
+    "limitState": null,
     "ok": false,
     "public": false,
+    "steady": false,
     "way": null,
     "why": "never"
    },
@@ -1147,12 +1185,12 @@
  "mac": "Apple M5 · macOS 27.0",
  "totals": {
   "fertig": {
-   "bytes": 417211485245,
-   "games": 14
+   "bytes": 402247130965,
+   "games": 13
   },
   "offen": {
-   "bytes": 143906281636,
-   "games": 8
+   "bytes": 197453698741,
+   "games": 10
   },
   "von-hand": {
    "bytes": 33640621009,

@@ -34,6 +34,17 @@ LEVELS = ("laeuft", "startet", "anti-cheat", "kein-bild")
 LAYERS = ("wined3d", "dxvk", "dxmt", "d3dmetal", "mac")
 # Ways that report no frame rates at all (GameTest.noFrames).
 SILENT = ("d3dmetal", "wined3d", "mac")
+# A frame limit and a number measured under it. An average from REACHED of the limit on reaches it (FramePacing's
+# share); one above PAST of it ran past it: the limit didn't take hold, and the number is a free one.
+REACHED, PAST = 0.95, 1.05
+# Ways with nothing that holds a limit, whatever a run recorded as asked for: Apple's D3DMetal 3.0 (winecx 4.7.3)
+# has no switch for the frame rate (docs/LAEUFT-LISTE.md, section 3). Goes once an engine part paces it.
+LIMITLESS = ("d3dmetal",)
+# The limit states that leave a number free.
+FREE = ("none", "noneOnWay", "notApplied")
+# A free number whose lowest ten seconds stay this close to its average hardly moved over the whole measuring:
+# a film or a lock of the game's own sets that pace, not the Mac. Said from a minute of measuring on.
+STEADY, STEADY_SECONDS = 0.95, 60
 # Outcomes of a game test that say nothing about the game: nobody tried, or only the player could go on.
 UNTRIED = ("skipped", "needsPlayer", "unknown")
 UNKNOWN_MAC = "unbekannt"
@@ -350,6 +361,27 @@ def public_gaps(run, fps):
     return gaps
 
 
+def limit_state(way, limit, fps):
+    """What the frame limit did to a number: "held", "notReached", "notApplied" (the average ran past it),
+    "noneOnWay" (the way has nothing that holds one), "none" (none was set). None without a number or a limit on record."""
+    if limit is None or not fps:
+        return None
+    if limit <= 0:
+        return "none"
+    if layer(way) in LIMITLESS:
+        return "noneOnWay"
+    if fps["average"] > limit * PAST:
+        return "notApplied"
+    return "held" if fps["average"] >= limit * REACHED else "notReached"
+
+
+def steady(state, fps):
+    """A free number that hardly moved: no measure of what the Mac can do."""
+    if state not in FREE or fps.get("low") is None or (fps.get("seconds") or 0) < STEADY_SECONDS:
+        return False
+    return fps["low"] >= fps["average"] * STEADY
+
+
 def measured(run):
     """What one run with a picture measured, in one shape whatever the report's format: what it doesn't hold is null."""
     frames, measure = run["frames"], run["measure"]
@@ -360,13 +392,13 @@ def measured(run):
     none = None
     if fps is None:
         none = no_frames(run)
-    # Under a limit a number says whether the game holds it (FramePacing's 95 %), not what the Mac could do.
-    limit = measure.get("frameLimit")
-    kind = None if limit is None else "holdsLimit" if limit > 0 else "free"
-    holds = fps["average"] >= limit * 0.95 if fps and kind == "holdsLimit" else None
-    gaps = public_gaps(run, fps)
+    # Under a limit a number says what the limit did to it, not what the Mac could do; a free one that hardly
+    # moved says neither.
+    state = limit_state(run["way"], measure.get("frameLimit"), fps)
+    still = steady(state, fps) if fps else False
+    gaps = public_gaps(run, fps) + (["steady"] if still else [])
     return {
-        "kind": kind, "holds": holds, "public": not gaps, "notPublic": gaps, "throttled": measure.get("throttled"), "built": run["built"],
+        "limitState": state, "steady": still, "public": not gaps, "notPublic": gaps, "throttled": measure.get("throttled"), "built": run["built"],
         "at": run["at"], "nightforge": run["nightforge"], "engine": run["engine"], "runsOn": run["runsOn"],
         "reportFormat": run["format"], "way": run["way"], "playSeconds": run["playSeconds"],
         "secondsToPicture": run["secondsToPicture"], "loadLow": run["loadLow"],
@@ -695,13 +727,16 @@ def start_on(starts):
 
 def fps_on(pictures):
     """One build's answer on the frame rate: its newest run with one that counts, else why its newest has none."""
-    fps = {"ok": False, "why": "never", "at": None, "way": None, "average": None, "frameLimit": None, "kind": None, "holds": None, "public": False}
+    fps = {"ok": False, "why": "never", "at": None, "way": None, "average": None, "frameLimit": None, "limitState": None, "steady": False,
+           "public": False}
     for run in sorted(pictures, key=lambda run: run["at"], reverse=True):
         m, code = measured(run), check_of(run)[1]
         if code == "ok" and "limitUnknown" in m["notPublic"]:
             code = "limitUnknown"  # a number without its limit isn't one with its conditions
+        elif code == "ok" and m["steady"]:
+            code = "steady"  # a film's or a lock's pace is no number for a list of what runs how well
         found = {"ok": code == "ok", "why": code, "at": run["at"], "way": run["way"], "average": m["fps"]["average"] if m["fps"] else None,
-                 "frameLimit": m["frameLimit"], "kind": m["kind"], "holds": m["holds"], "public": m["public"]}
+                 "frameLimit": m["frameLimit"], "limitState": m["limitState"], "steady": m["steady"], "public": m["public"]}
         if found["ok"] or fps["why"] == "never":
             fps = found
         if found["ok"]:
@@ -847,8 +882,12 @@ def proof_text(entry):
     return "–"
 
 
+LIMIT_LEADS = {"held": "hält das Limit: ", "notReached": "erreicht das Limit nicht: ", "notApplied": "Limit greift nicht: ",
+               "noneOnWay": "frei (kein Limit auf diesem Weg): ", "none": "frei: "}
+
+
 def frames_text(m):
-    """Under a limit: whether the game holds it. Without one: a free number. Never the one for the other."""
+    """Under a limit: what the limit did to the number. Without one: a free number. Never the one for the other."""
     if not m:
         return "nicht gemessen"
     if m["fps"]:
@@ -860,9 +899,9 @@ def frames_text(m):
             text += f", 1-%-Tief {number(fps['onePercentLow'])}"
         if fps.get("seconds"):
             text += f", über {number(fps['seconds'])} s"
-        if m["kind"] == "holdsLimit":
-            return ("hält das Limit: " if m["holds"] else "hält das Limit nicht: ") + text
-        return "frei: " + text if m["kind"] == "free" else text + " (Limit nicht aufgezeichnet)"
+        if m["steady"]:
+            return "starr, kein Leistungswert: " + text
+        return LIMIT_LEADS[m["limitState"]] + text if m["limitState"] else text + " (Limit nicht aufgezeichnet)"
     silent = {"d3dmetal": "D3DMetal meldet keine", "wined3d": "WineD3D meldet keine ohne Wines fps-Kanal", "mac": "Mac-Fassung meldet keine"}
     # With the HUD's frame log a way through Metal had its chance: then the log held none.
     return f"nicht gemessen ({'keine im Log' if m['noFrames'] == 'noneInLog' else silent.get(layer(m['way']), 'keine im Log')})"
@@ -892,7 +931,11 @@ def size_text(m):
 def limit_text(m):
     if not m or m["frameLimit"] is None:
         return "nicht gemessen"
-    return f"{m['frameLimit']} FPS" if m["frameLimit"] > 0 else "keins"
+    if m["frameLimit"] <= 0:
+        return "keins"
+    if layer(m["way"]) in LIMITLESS:
+        return f"keins möglich (verlangt: {m['frameLimit']} FPS)"
+    return f"{m['frameLimit']} FPS" + (", greift nicht" if m["limitState"] == "notApplied" else "")
 
 
 def run_text(m):
@@ -920,6 +963,7 @@ GAPS = {
     "limitUnknown": "Limit nicht aufgezeichnet", "onBattery": "auf Akku", "lowPower": "Stromsparmodus", "throttled": "Limit gedrosselt",
     "loadHigh": "Last hoch", "loadUnknown": "Last nicht aufgezeichnet", "buildUnknown": "Build nicht aufgezeichnet",
     "sizeUnknown": "Größe nicht aufgezeichnet", "durationUnknown": "Messdauer nicht aufgezeichnet",
+    "steady": "starrer Wert (Film oder Sperre des Spiels)",
 }
 
 
@@ -1036,7 +1080,10 @@ START = {
 NO_FPS = {
     "noPicture": "kein Bild", "noneInLog": "keine im Log", "throttled": "auf Akku oder gedrosselt gemessen", "loadHigh": "Last war hoch",
     "limitUnknown": "Wert ohne aufgezeichnetes Limit", "never": "auf diesem Build nicht gemessen", "nowhere": "nie gemessen",
+    "steady": "starrer Wert, kein Leistungswert (Film oder Sperre des Spiels)",
 }
+HELD = {"held": "hält {} FPS", "notReached": "erreicht {} FPS nicht", "notApplied": "Limit {} FPS greift nicht",
+        "noneOnWay": "frei gemessen (kein Limit auf diesem Weg)", "none": "frei gemessen"}
 SKIPS = dict(BY_HAND, signIn="bräuchte eine Anmeldung", update="ein Update stünde an", runtimes="bräuchte erst Laufzeiten",
              d3dMetal="braucht D3DMetal, das nicht eingerichtet ist", macSteamSetup="Steam für Mac ist nicht eingerichtet",
              steamAsks="Steam fragte etwas", macOSAsks="macOS fragt um Erlaubnis", stopped="Test vorher angehalten", gone="nicht mehr installiert")
@@ -1062,7 +1109,7 @@ def fps_text(fps, nowhere=False):
     value = f"Ø {number(fps['average'])}" if fps["average"] is not None else None
     where = f"{date(fps['at'])}" + (f", {fps['way']}" if fps["way"] else "") if fps["at"] else None
     if fps["ok"]:
-        held = "frei gemessen" if fps["kind"] == "free" else ("hält" if fps["holds"] else "hält nicht") + f" {fps['frameLimit']} FPS" if fps["kind"] else None
+        held = HELD[fps["limitState"]].format(fps["frameLimit"]) if fps["limitState"] else None
         return "ja: " + ", ".join(filter(None, [held, value, where]))
     silent = {"d3dmetal": "D3DMetal meldet keine", "wined3d": "WineD3D meldet keine ohne Wines fps-Kanal", "mac": "Mac-Fassung meldet keine"}
     why = silent.get(layer(fps["way"]), "der Weg meldet keine") if fps["why"] == "wayReportsNone" else NO_FPS.get(fps["why"], fps["why"])
