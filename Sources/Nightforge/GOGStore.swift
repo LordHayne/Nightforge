@@ -637,6 +637,37 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
         [GOGDL.windowsGamesDir, GOGDL.macGamesDir] + (DriveLibrary.drive(of: folder).map { [DriveLibrary.gog(on: $0)] } ?? [])
     }
 
+    // MARK: - Games that lie on a drive already
+
+    /// What taking a drive's games over goes by (DriveFinds.look); nil while GOG isn't connected.
+    func knownInstalls() -> KnownInstalls.GOG? {
+        loadFromDisk()
+        guard isConnected else { return nil }
+        return KnownInstalls.GOG(installed: installs.mapValues(\.path), owned: Set(catalog.games.map(\.id)),
+                                 downloading: Set(wanted.map(\.id)))
+    }
+
+    /// Records a game that lies in `folder` on a drive as installed – nothing is downloaded and nothing in
+    /// the folder changes. gogdl keeps no list of games: Nightforge's own record is all a GOG game needs to
+    /// show and to start (its start comes from its own info file). `size`: what the folder takes.
+    /// False when it isn't taken: not the account's, known already, a download of it in line, its info file
+    /// not there – or a Mac version this Mac won't start.
+    @discardableResult
+    func adopt(_ found: DriveContents.GOGGame, folder: URL, size: Int64) -> Bool {
+        loadFromDisk()
+        guard isConnected, catalog.games.contains(where: { $0.id == found.id }), installs[found.id] == nil,
+              !wanted.contains(where: { $0.id == found.id }), downloads[found.id] == nil,
+              let info = GOGGameInfo.read(id: found.id, in: folder)
+        else { return false }
+        if found.platform == .mac,
+           MachO.runsHere(file: folder.pathExtension == "app" ? folder : folder.appendingPathComponent(info.path)) == false { return false }
+        installs[found.id] = GOGInstall(id: found.id, path: folder, platform: found.platform, build: found.build,
+                                        language: found.language, size: size, dlcs: found.dlcs)
+        save(installs, to: Self.installedFile)
+        objectWillChange.send()
+        return true
+    }
+
     // MARK: - A drive that's gone
 
     /// Nightforge's list of GOG installs without the games on a drive that isn't plugged in (or just `id`'s),
