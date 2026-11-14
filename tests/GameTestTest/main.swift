@@ -778,6 +778,14 @@ struct GameTestTest {
         check(summary.contains("| Control \\| Ultimate | d3dmetal | keins | Fenster 1512×982 Punkte | nicht gemessen (D3DMetal meldet keine) | – | nicht gemessen |"),
               "a row of a way that reports nothing")
         check(summary.contains("| Valheim | dxmt | nicht gemessen | nicht gemessen | 31 / 12 (Last hoch) | – | nicht gemessen |"), "a row without a measure")
+        // D3DMetal has nothing that holds a limit: the row says what was asked for, not that it held.
+        var underLimit = GameTest.Measure()
+        underLimit.frameLimit = 60
+        check(GameTest.limitText(underLimit, way: "d3dmetal") == "keins möglich (verlangt: 60 FPS)"
+              && GameTest.limitText(underLimit, way: "dxmt -dx11") == "60 FPS" && GameTest.limitText(nil, way: "d3dmetal") == "nicht gemessen",
+              "a limit D3DMetal was underLimit for is no limit it holds")
+        underLimit.frameLimit = 0
+        check(GameTest.limitText(underLimit, way: "d3dmetal") == "keins" && GameTest.limitText(underLimit, way: "wined3d") == "keins", "no limit underLimit for: none")
         // With the HUD's frame log: the run says so, D3DMetal had its chance, and a HUD's frames carry the slowest percent.
         check(!summary.contains("Metal-HUD hat die Frames mitgeschrieben"), "no frame log: no word of it")
         var logged = report

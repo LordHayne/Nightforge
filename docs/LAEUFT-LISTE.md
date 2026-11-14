@@ -89,7 +89,7 @@ und mit einem eigenen kleinen Metal-Programm (unten: „Probe“).
 | DXMT | **ja**, immer: `[nightforge-dxmt]` alle 10 s, nach zwei Minuten jede Minute | **ja, belegt:** 538 Zeilen im `wine.log` vom 7.11. (Overwatch, ABZU) | nein; der Anzeigemodus, wenn das Spiel einen setzt |
 | DXVK auf KosmicKrisp (Direct3D 9), Vulkan-Spiele | **ja**, immer: `[nightforge-vulkan]`, gleiches Format | erwartet (zeichnet über einen Metal-Layer), unter Wine noch nicht gesehen | **ja:** Swapchain in Pixeln und MetalFX-Ziel |
 | DXVK auf MoltenVK (Direct3D 10/11) | nein | erwartet: Die Anzeige hängt sich laut Log an; Protokollzeilen unter Wine noch nicht gesehen | nein |
-| D3DMetal | nein | erwartet: wie oben | nein |
+| D3DMetal | nein | **ja, belegt:** Messlauf vom 14.11., fünf Spiele | nein |
 | WineD3D (OpenGL) | **mit Wines fps-Kanal** (`WINEDEBUG=+fps`, unten): die Bildrate alle 1,5 s – Ø und tiefste zehn Sekunden, kein langsamster Frame, kein 1-%-Tief | **nein:** Ein OpenGL-Fenster bekommt weder Anzeige noch Zeilen (Probe) | nein |
 | Mac-Fassung | nein | **nicht im Spieletest:** Das Spiel startet Steam für Mac, die Umgebungsvariable erreicht es nicht, und die Zeilen gingen an seine eigene Fehlerausgabe (Abschnitt 9, Punkt 4) | nein |
 | alle | Sekunden bis zum Bild; Fenstergröße und Bildschirm in Punkten (Zeile des Vorhangs); Frame-Limit, Bildwiederholrate, MetalFX an/aus und ob das Limit gedrosselt war (Zeile des Starts, nur Windows-Fassungen); Last, Akku, Stromsparmodus; Größe auf der Platte | | |
@@ -142,11 +142,21 @@ Frame-Zeit) und die GPU-Zeit je Frame (`source: metal-hud`). Stehen keine solche
 Zählung der Schicht. Der Bericht sagt mit `frameLog`, dass das Protokoll an war; ein Bild ohne Zeilen auf D3DMetal
 oder DXVK heißt dann „keine im Log“, nicht mehr „der Weg meldet keine“.
 
-- **Mit dem Protokoll messbar (erwartet):** alles, was über Metal zeichnet – DXMT, DXVK auf MoltenVK und KosmicKrisp,
-  D3DMetal. Unter Wine gesehen ist es bisher nur auf DXMT (7.11.); D3DMetal und MoltenVK zeigt der erste Messlauf.
+- **Mit dem Protokoll messbar:** alles, was über Metal zeichnet – DXMT, DXVK auf MoltenVK und KosmicKrisp,
+  D3DMetal. Unter Wine gesehen auf D3DMetal, DXMT und DXVK (unten).
 - **Unter Wine gesehen** (Probelauf 14.11., Bericht `2026-11-14-1843`): Zeilen auf DXVK (The Forest), DXMT (ABZU) und
   D3DMetal (Control), dazu die Limit-Zeile und Steams Neustart hin und zurück. Die Werte selbst zählen nicht (Akku,
   andere Arbeit lief mit).
+- **Messlauf 14.11.** (Bericht `2026-11-14-1941`, am Netz, Last niedrig, 190 s je Spiel): 2117 `metal-HUD:`-Zeilen,
+  Werte für alle zehn Spiele mit Bild auf D3DMetal, DXMT und DXVK; 1285 Zeilen aus Wines fps-Kanal, Werte für alle
+  fünf WineD3D-Spiele.
+- **Das Protokoll schweigt, solange das Fenster nicht auf dem Bildschirm ist** (Probe 14.11.: dasselbe Metal-Programm,
+  360 Frames präsentiert, Fenster nie nach vorn geholt – 0 Zeilen; mit Fenster 5 Zeilen in 6 s). So war es bei
+  Overwatch im Messlauf: Die Anzeige war geladen (`[libMTLHud]`-Zeilen im Prozess des Spiels), das Fenster kam nie
+  auf den Bildschirm, es gab keine einzige `metal-HUD:`-Zeile – DXMTs eigene Zählung lief trotzdem (Ø 49). Die zählt,
+  was das Spiel abgibt, nicht was jemand sieht: Ein Wert aus `source: dxmt` zu einem Lauf ohne Bild ist kein FPS-Wert
+  des Spiels. Der Generator nimmt ihn nicht (nur Läufe mit Bild); der Bericht des Laufs zeigt ihn noch (Abschnitt 9,
+  Punkt 12).
 - **Nicht über die Anzeige messbar:** WineD3D (OpenGL: auf diesem Mac Dishonored, Left 4 Dead 2, Alan Wake, Mafia II,
   Batman – 58,9 GB) – dafür gibt es Wines fps-Kanal, nächster Abschnitt – und Mac-Fassungen (Tomb Raider, Asphalt
   Legends, Valheim, Drawful 2, Dying Light – 64,0 GB), Abschnitt 9.
@@ -202,8 +212,19 @@ Eine Zeile im Protokoll sieht damit so aus (Kopf aus `dlls/ntdll/unix/debug.c`: 
   Er gilt für **alle** Starts, bis er zurückgenommen ist (Abschnitt 6): `+loaddll` schreibt beim Start jedes
   Prozesses einige hundert Zeilen, `+fps` eine alle 1,5 s. Der Bericht nennt den Kanal mit `wineFps`; ein Bild auf
   WineD3D ohne Zeile heißt dann „keine im Log“.
-- **Nicht gesehen:** eine echte Zeile. Das Format stammt aus der Quelle; der Funktionsname in der Zeile ist dem Leser
-  gleich (er liest Kanal und Text), die erste echte Zeile kommt aus dem Messlauf.
+- **Gesehen im Messlauf vom 14.11.:** 1285 Zeilen, je Bild-Zeitraum zwei Arten mit demselben Wert:
+
+  ```
+  25605.152:06e4:0030:trace:fps:wined3d_cs_exec_present 0A8D1530 @ approx 23.45fps
+  25605.152:06e4:0030:trace:fps:wglSwapBuffers @ approx 23.45fps, total 24.10fps
+  ```
+
+  Die erste ist die aus der Quelle oben. Die zweite schreibt Wines OpenGL-Seite; sie trägt keinen Zeiger und endet
+  auf den Gesamtschnitt. Der Leser zählt nur die erste: Bei der zweiten ist der Text hinter „approx“ keine Zahl, sie
+  fällt heraus. Nachgerechnet an Left 4 Dead 2 (123 Zeilen je Art, in allen 123 Paaren derselbe Wert): Bericht und
+  Nachrechnung ergeben Ø 23,9 über 186 s – nichts geht doppelt in die Kette. Dass die zweite Art herausfällt, ist
+  bisher Folge des Formats, kein eigener Test: Die zwei Zeilen oben gehören in `tests/GameTestTest` (Abschnitt 9,
+  Punkt 5). Die erste Zeile jeder Swapchain nennt 0,00 und fällt wie vorgesehen weg.
 
 Der Spieletest schreibt seit Berichtsformat 2 je Spiel (`GameTestMeasure.swift`): `frames` mit `average`, `low`,
 `periods`, `seconds`, `slowestFrame`, `slowestTypical`, `source`, `onePercentLow`, `gpuTime`; `measure` mit `window`,
@@ -265,9 +286,9 @@ der Generator weiter; ihnen fehlen diese Felder, und die Liste sagt dann „nich
 Ein FPS-Wert ist `public`, wenn seine Bedingungen vollständig im Datensatz stehen: Mac und macOS, Nightforge-Version
 (seit Format 2 mit Baudatum) und Engine-Teile, Grafikweg, Größe, Datum, Messdauer, Limit und MetalFX – und wenn er am
 Netz, außerhalb des Stromsparmodus, ohne gedrosseltes Limit und bei niedriger Last gemessen ist. Sonst nennt
-`notPublic` die Gründe, und die Tabelle sagt „FPS nicht für die öffentliche Liste: …“. Am 14.11. ist **kein** Wert
-öffentlich: Alle stammen aus Berichten im Format 1, ohne Limit, Größe und Messdauer; der erste Lauf im Format 2
-(14.11., nur Batman auf WineD3D) hat keinen FPS-Wert.
+`notPublic` die Gründe, und die Tabelle sagt „FPS nicht für die öffentliche Liste: …“. Ein starrer Wert (oben) ist es
+ebenfalls nicht. Seit dem Messlauf vom 14.11. (Format 2) sind 14 Werte öffentlich; die aus Berichten im Format 1
+(ohne Limit, Größe und Messdauer) bleiben es nicht.
 
 ## 4. Die Abhakliste: fertig, darf weg
 
@@ -313,7 +334,7 @@ Spieletest-Lauf mit FPS-Wert bringt in aller Regel beides zugleich.
 | Status | Bedeutet |
 |---|---|
 | **fertig – darf weg** | (a) und (b) lagen einmal auf demselben Build vor. Bleibt, auch auf neueren Builds. |
-| **offen** | Die Liste sagt, was fehlt: „Start fehlt: brauchte mehrere Wege“, „FPS fehlt: D3DMetal meldet keine“ … Ließ der jüngste Spieletest das Spiel aus (Update, Laufzeiten, Anmeldung), steht das dabei. |
+| **offen** | Die Liste sagt, was fehlt: „Start fehlt: brauchte mehrere Wege“, „FPS fehlt: D3DMetal meldet keine“, „FPS fehlt: starrer Wert, kein Leistungswert“ … Ließ der jüngste Spieletest das Spiel aus (Update, Laufzeiten, Anmeldung), steht das dabei. |
 | **von Hand zu prüfen** | Kein Spieletest wird es je starten: Anti-Cheat, nur VR, CrossOver-Flasche, Battle.net – und der erste Start der anderen Fassung (`versionSwitch`), bis der Nutzer ihn einmal von Hand gemacht hat. Anti-Cheat-Spiele werden nicht geprüft; über sie entscheidet der Nutzer ohne Messung. |
 
 Stand 14.11. abends: 23 geladene Spiele, 594,8 GB; **0 fertig**. Am 14.11. liefen zwei Testbuilds (gebaut 14:40 und
@@ -426,6 +447,7 @@ Damit Zahlen von heute und von in vier Wochen nebeneinander stehen können und d
    standhält.
 6. **Freie Zahlen** (ohne Limit) brauchen einen eigenen Durchgang: „Scharf & flüssig“ in den Einstellungen aus, dann
    hält Nightforge kein Limit, und der Bericht zeigt `frameLimit: 0`. Nicht live geprüft; MetalFX steht als `metalFX` dabei.
+   Auf D3DMetal und WineD3D sind die Zahlen schon heute frei: Dort hält nichts ein Limit (Abschnitt 3).
 7. **Danach:** Der Bericht liegt in `~/Library/Application Support/Nightforge/GameTests/<Datum>/report.md` und endet
    mit seiner eigenen Abhakliste. Die Liste über alle Läufe und Starts entsteht mit
 
@@ -487,10 +509,9 @@ Nutzers, kein Nebeneffekt dieser Liste.
 
 Die Punkte 1 bis 3 sind seit dem 14.11. gebaut; offen ist, was nur ein Lauf zeigt:
 
-1. **Protokoll der Leistungsanzeige** – gebaut (Abschnitt 3). Live zu sehen, je einmal: Kommen die Zeilen unter Wine
-   auf D3DMetal und auf DXVK/MoltenVK an (auf DXMT sind sie belegt)? Bleibt die Anzeige bei Deckkraft 0 auch im Spiel
-   unsichtbar (im eigenen Fenster der Probe ist sie es)? Startet Steam für den Test neu und danach zurück? Kostet das
-   Protokoll Frames (auf DXMT: Zählung der Schicht gegen HUD im selben Lauf vergleichen)?
+1. **Protokoll der Leistungsanzeige** – gebaut und im Messlauf vom 14.11. auf D3DMetal, DXMT und DXVK gesehen
+   (Abschnitt 3). Offen: Kostet das Protokoll Frames (auf DXMT: Zählung der Schicht gegen HUD im selben Lauf
+   vergleichen)?
 2. **Evidenz mit Version, Baudatum, Engine-Teilen und Namen** – gebaut. Zeilen von vor dem 14.11. zählen weiter nach
    Datum.
 3. **Frame-Limit im Log** – gebaut. Der eine Format-2-Lauf vom 14.11. stammt noch von davor und nennt für Batman auf
@@ -517,6 +538,8 @@ Die Punkte 1 bis 3 sind seit dem 14.11. gebaut; offen ist, was nur ein Lauf zeig
    in Steams Signatur) und mit `+pid,+loaddll,+timestamp` dazu. Das kostet je Wechsel zwischen einem WineD3D-Spiel und
    einem anderen einen Neustart von Steam; in einem Lauf also am besten die WineD3D-Spiele hintereinander. Dateien:
    `Engine.swift`, `LibraryModel.swift`. Langsamster Frame und 1-%-Tief bräuchten weiter einen Engine-Build.
+   Dazu ein Test mit den zwei echten Zeilenarten aus dem Messlauf (Abschnitt 3), damit die `wglSwapBuffers`-Zeile
+   nie mitzählt; das Protokoll des Laufs liegt im Notizordner des Koordinators (`messlauf/2026-11-14-1941-wine.log`).
 6. **Gezeichnete Auflösung unter DXMT und D3DMetal** (`engine/patches/dxmt-0.80-frame-log.patch`): eine Zeile zur
    Backbuffer-Größe. Braucht einen Engine-Build. (Die Anzeige selbst zeigt die Größe, ihr Protokoll nennt sie nicht.)
 7. **Der Spieletest bestätigt bei 60 s keinen Weg** (steht schon in `docs/TODO.md`); am 10.11. blieb ABZU nach vier
@@ -524,3 +547,37 @@ Die Punkte 1 bis 3 sind seit dem 14.11. gebaut; offen ist, was nur ein Lauf zeig
 8. **Von Hand geformte Starts erkennen:** `started` könnte sagen, ob ein versteckter Engine-Schalter gesetzt war.
 9. **Die Notiz „Start of <Spiel>: it ended at a question of its own …“** (`LibraryModel.swift`) sieht aus wie eine
    Wege-Zeile. `GameTest.starts` liest sie seit dem 14.11. nicht mehr als Weg; ein anderer Wortlaut wäre sauberer.
+10. **D3DMetal auf 60 halten – Vorschlag, nichts gebaut.** Befund (Abschnitt 3): Apples D3DMetal 3.0 hat keinen
+    Schalter für die Bildrate; `D3DM_MAX_FPS` aus `Engine.prepareLaunchEnvironment` und `directLaunchEnvironment`
+    wirkt nicht, der Kommentar dort („Apple's readme“) stimmt nicht. Wege, die weder Spieldateien ändern noch
+    Hardware vortäuschen:
+
+    | Weg | Beleg | Hält | Aufwand | Offen |
+    |---|---|---|---|---|
+    | **A. Takt im Mac-Treiber von Wine.** `-[WineMetalLayer nextDrawable]` gibt das nächste Bild erst frei, wenn seit dem vorigen 1/Limit vergangen ist; das Limit kommt als eigene Umgebungsvariable, wie heute `D3DM_MAX_FPS` (auch über Steams Start-Umgebung). | `winemac.so` aus winecx 4.7.3 hat die Klasse `WineMetalLayer` (Unterklasse von `CAMetalLayer`) mit eigener Methode `nextDrawable` (`otool -ov`); Apples `libd3dshared.dylib` ruft `nextDrawable` und holt die Ebene über `macdrv_functions` aus dem Treiber; D3DMetal selbst kennt nur `presentDrawable:` und `setDisplaySyncEnabled:`. Jedes Bild geht also einmal durch eine Methode in einem Teil, den Nightforge aus dem winecx-Quelltext bauen kann (LGPL; `scripts/build-enginefix.sh` baut daraus schon `ntdll.so` und `winecoreaudio.so`). | jedes D3DMetal-Spiel, gleich was es selbst einstellt | ein Patch (`engine/patches/winecx-winemac-…`), `winemac.so` in den Teil `enginefix`, ein Engine-Build, Probe mit Wukong (Ø 201) und Control (Ø 113): etwa ein Tag | Was `nextDrawable` dort heute tut, ist nicht gelesen (der Quelltext lag dieser Sitzung nicht vor). Warten in `nextDrawable` taktet gröber als Metals `presentDrawable:afterMinimumDuration:`; ob die Frame-Zeiten gleichmäßig bleiben, zeigt erst das HUD-Protokoll. `winemac.so` trägt auch Fenster und Eingabe: Ein eigener Bau davon gehört durch den ganzen Starttest. |
+    | **B. Bildschirm für die Dauer des Spiels auf 60 Hz**, das Spiel gleicht selbst ab. | D3DMetal schaltet `setDisplaySyncEnabled:`; Control lief im Messlauf im Takt des Bildschirms (übliche langsamste Frames 8,3 ms = 120 Hz, GPU-Zeit 2,3 ms). Den Modus setzt Wine schon auf Wunsch eines Spiels (Zeile „Setting display mode: 1512x982@60“ bei Overwatch). | nur Spiele, die mit VSync zeichnen; der Wukong-Benchmark (Ø 201 bei 120 Hz) nicht | halber Tag und Live-Proben; kein Engine-Build | ProMotion ist währenddessen für alles aus (auch für Nightforges Overlay); ob ein Spiel abgleicht, liegt an seinen eigenen Einstellungen. |
+    | **C. DXMT statt D3DMetal**, wo ein Spiel auf beidem läuft. | Auf DXMT hält die Sperre: MGS V Ø 60, Frostpunk Ø 60, ABZU Ø 59. | Direct3D-11-Spiele | je Spiel ein Profil und ein Lauf | Direct3D 12 bleibt auf D3DMetal (Wukong, Hogwarts); DXMT muss das Spiel sauber starten. |
+
+    Nicht in Frage: die Sperre in den Einstellungen des Spiels (seine Dateien), ProMotion in den Systemeinstellungen
+    oder der Stromsparmodus (Einstellungen von macOS), vorgetäuschte Hardware.
+    **Empfehlung:** A, vorher eine Stunde den Quelltext von `WineMetalLayer` lesen; C sofort für Spiele, die auf DXMT
+    schon belegt sind. **Bis dahin ehrlich** – gebaut: die Liste (`limitState: noneOnWay`, „keins möglich (verlangt:
+    60 FPS)“) und der Bericht des Spieletests (`GameTest.limitText`). Offen in fremden Dateien: die Protokollzeile
+    in `LibraryModel.swift` – für `.d3dmetal` „Frame limit of <Spiel>: none possible on D3DMetal (asked 60 FPS) at
+    120 Hz, MetalFX on“; `GameTest.held` liest das schon heute als Limit 0 –, `GameLog.d3dMetalStart` (nennt
+    `D3DM_MAX_FPS`) und der Kommentar in `Engine.swift`.
+11. **Starre Werte – was über die Kennzeichnung hinaus fehlt.** Gebaut ist die Markierung im Generator (Abschnitt 3).
+    Vorschläge: (a) Der Spieletest selbst sagt es: `GameTest.check` mit `fps: steady`, und `lowFrameRate` („wenig
+    FPS“, Ergebnis „Probleme“) entfällt für einen starren Wert – Left 4 Dead 2 steht im Bericht vom 14.11. deshalb
+    unter „Probleme“. (b) Für Source-Spiele die Startoption `-novid` über das Profil (überspringt die Filme; keine
+    Spieldatei, nicht Steams `localconfig`, wenn Nightforge sie beim Start mitgibt – zu prüfen); gemessen würde dann
+    das Menü. (c) Eine freie Zahl am Takt des Bildschirms kennzeichnen („am Bildschirmtakt, 120 Hz“): Mafia II lief
+    mit Ø 119,5 bei 120 Hz, tiefste zehn Sekunden 112 – nach der 95-%-Regel knapp nicht starr, aber sehr
+    wahrscheinlich VSync. Allgemein gilt weiter: Gemessen sind die ersten drei Minuten ohne Eingabe.
+12. **Bericht: FPS zu einem Lauf ohne Bild.** Overwatch steht im Bericht vom 14.11. mit „hängt ohne Bild“ und
+    FPS 49 / 36. Der Wert stammt aus DXMTs eigener Zählung (`[nightforge-dxmt] Overwatch: 49.9 FPS over 10 s`, zwölf
+    Perioden, 170 s), nicht aus dem HUD: Das Fenster kam nie auf den Bildschirm, und dann schreibt Apples Anzeige
+    nichts (Abschnitt 3). Vorschlag für `GameTestReport`: zu einem Lauf ohne Bild keinen FPS-Wert in der Tabelle,
+    stattdessen in der Zeile des Spiels „zeichnete ohne sichtbares Fenster (DXMT zählte Ø 49)“ – für die Fehlersuche
+    ist genau das der Hinweis: Das Spiel läuft, nur sein Fenster fehlt. Nebenbefund: Verlangt waren 40 FPS („Frame
+    limit of Overwatch®: 40 FPS“), gezählt sind 50 bei einem Modus mit 60 Hz.

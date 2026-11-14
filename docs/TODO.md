@@ -214,28 +214,31 @@ Zweck (der Nutzer, 14.11.): geladene Spiele abhaken und deinstallieren können, 
 FPS-Wert vorliegen; die FPS-Werte offen auf der Landingpage. Gebaut: `docs/LAEUFT-LISTE.md` (Regeln),
 `scripts/laeuft-liste.py` → `docs/laeuft/` (`laeuft.json`, `LAEUFT.md`, `abhakliste.json`, `ABHAKLISTE.md`,
 `namen.json`), Spieletest-Bericht im Format 2 (`GameTestMeasure.swift`: Messwerte, Prüfung je Spiel, Größe, Baudatum,
-Leseseite für Apples Metal-HUD-Protokoll). Stand der echten Daten: 15 „läuft“, 6 „startet“; 23 geladene Spiele mit
-594,8 GB, davon **0 fertig**. Format 2 ist am 14.11. einmal live gelaufen (Batman, 190 s): Baudatum, Größe, Prüfung
-und Messwerte stehen im Bericht.
+Leseseite für Apples Metal-HUD-Protokoll).
 
 Nachzug am 14.11. (derselbe Zweig): Jeder Start eines Spieletests lässt Apples Metal-HUD die Frames mitschreiben
-(`Engine.setFrameLog`, unsichtbar bei ausgeschalteter Leistungsanzeige – mit einem eigenen Metal-Programm belegt),
-`started` nennt Version, Baudatum, Engine-Teile und Namen, jeder Start schreibt sein Limit und MetalFX als Zeile ins
-Protokoll, und der Generator zählt Starts nach ihrem Build. Nichts davon ist in einem Spiel gelaufen.
+(`Engine.setFrameLog`, unsichtbar bei ausgeschalteter Leistungsanzeige), `started` nennt Version, Baudatum,
+Engine-Teile und Namen, jeder Start schreibt sein Limit und MetalFX als Zeile ins Protokoll, WineD3D meldet seine
+Bildrate über Wines fps-Kanal, und der Generator zählt Starts nach ihrem Build. **Messlauf am 14.11.** (Bericht
+`2026-11-14-1941`): HUD-Werte für alle zehn Spiele mit Bild auf D3DMetal, DXMT und DXVK, fps-Kanal-Werte für alle fünf
+WineD3D-Spiele. Seitdem sagt die Liste, was das Limit mit einer Zahl gemacht hat (`limitState`: hält, erreicht nicht,
+greift nicht, kein Limit auf diesem Weg, frei), führt D3DMetal-Zahlen als frei und markiert starre Werte
+(Left 4 Dead 2: Ø 24 war der Vorspann) – die zählen auf der Abhakliste nicht. Stand: 13 fertig, 10 offen, 1 von Hand.
 
 Als Nächstes (Anfang jeweils `docs/LAEUFT-LISTE.md`):
 
-- **Messlauf** nach Abschnitt 6: `gameTest.playSeconds` 190, alle geladenen Spiele auf einem Build (anderthalb bis
-  knapp drei Stunden), danach `scripts/laeuft-liste.py`. Was einmal fertig ist, bleibt es auch auf neueren Builds;
-  Start und FPS-Wert zählen zusammen nur auf demselben Build.
-- **Live zu sehen im ersten Lauf** (Abschnitt 9, Punkt 1): `metal-HUD:`-Zeilen unter Wine auf D3DMetal und auf
-  DXVK/MoltenVK (auf DXMT sind sie belegt); die Anzeige bleibt bei Deckkraft 0 im Spiel unsichtbar; Steam startet für
-  den Test einmal neu und danach zurück; die Zeile „Frame limit of …“ steht im Protokoll und im Bericht; ein Start von
-  Hand schreibt Version, Baudatum, Teile und Namen in die Evidenz.
-- **WineD3D** (5 Spiele, 58,9 GB) meldet seine Bildrate über Wines fps-Kanal: Schalter `wineDebug` mit
-  `+fps,+pid,+loaddll,+timestamp` vor dem Messlauf, danach wieder löschen (Abschnitt 6). Der Leser ist nach Wines
-  Quelle gebaut; eine echte Zeile gibt es erst aus dem Lauf – dann den Test damit ergänzen. Nächster Schritt: Der
-  Spieletest setzt den Kanal selbst, nur für WineD3D-Starts (Abschnitt 9, Punkt 5; `Engine.swift`, `LibraryModel.swift`).
+- **D3DMetal auf 60 halten** (Abschnitt 9, Punkt 10; der Nutzer legt Wert auf die Sperre): Apples D3DMetal 3.0 hat
+  keinen Schalter für die Bildrate. Empfohlen: Takt in `-[WineMetalLayer nextDrawable]` des Mac-Treibers
+  (`winemac.so` aus dem winecx-Quelltext, in den Teil `enginefix`), vorher den Quelltext der Klasse lesen; daneben
+  DXMT für Spiele, die dort belegt sind. Bis dahin: Protokollzeile in `LibraryModel.swift` und `GameLog.d3dMetalStart`
+  ehrlich machen, den Kommentar in `Engine.swift` berichtigen (Liste und Bericht sind es schon).
+- **Starre Werte im Spieletest selbst** (Punkt 11): `check.fps: steady`, kein „wenig FPS“ dafür; `-novid` für
+  Source-Spiele über das Profil prüfen; freie Zahlen am Bildschirmtakt kennzeichnen (Mafia II Ø 119,5 bei 120 Hz).
+- **Bericht ohne FPS zu einem Lauf ohne Bild** (Punkt 12): Overwatchs Ø 49 kam aus DXMTs Zählung bei einem Fenster,
+  das nie auf dem Bildschirm war; Apples Anzeige schreibt dann nichts (Probe).
+- **Test mit den zwei echten Zeilenarten des fps-Kanals** (Punkt 5), und: Der Spieletest setzt den Kanal selbst, nur
+  für WineD3D-Starts (`Engine.swift`, `LibraryModel.swift`). Bis dahin vor einem Lauf `wineDebug` setzen und danach
+  löschen (Abschnitt 6).
 - **Mac-Fassungen** (5 Spiele, 64,0 GB) bleiben ohne FPS-Wert, bis der Nutzer zwischen den Wegen in Abschnitt 9,
   Punkt 4 gewählt hat: Steam für Mac mit der Variable starten (Probe, dann ein halber Tag) oder nur den Start zählen.
 
@@ -248,6 +251,9 @@ Zu entscheiden (der Nutzer):
 - **Freie Zahlen:** Zusätzlich zu „hält 60 FPS“ ein Durchgang ohne Limit („Scharf & flüssig“ aus) für die Seite?
 - **Seite:** Board für die Landingpage (Vorschlag Abschnitt 7): unter Limit „hält 60 FPS“ plus langsamstes Bild, frei
   gemessen als eigene Zahl, nur Werte mit vollständigen Bedingungen.
+- **Schwellen:** „Limit greift nicht“ ab Ø über 105 % des Limits, „starr“ ab tiefsten zehn Sekunden bei 95 % des
+  Schnitts über mindestens 60 s (Abschnitt 3) – beides Vorschläge. Und: Soll ein starrer Wert auf der Abhakliste
+  wirklich nicht zählen (Left 4 Dead 2 ist dadurch wieder offen)?
 - **Abhakliste im Repository?** Sie nennt alle geladenen Spiele dieses Macs mit Größe (keine Pfade, keine Laufwerks-
   namen) und veraltet mit jedem Deinstallieren. Behalten, oder nur lokal erzeugen?
 - **Overwatch:** steht unter „läuft“ (Weg vor der Aufzeichnung bestätigt, Bild in 1 von 5 Spieletests); ob es
