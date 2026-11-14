@@ -29,6 +29,35 @@ nirgends stand:
 Abgegeben am 14.11.: Schritt C des Startrezepts (Diagnose-Start, mit dem Text der Fehlerfenster als erster Form von D)
 an eine eigene Session, Zweig von `claude/start-logik-033`. Schritt E wartet darauf (gleiche Startschleife).
 
+## Läuft-Liste (14.11., Zweig `claude/laeuft-liste-033-c4dd4a`)
+
+Gebaut: `docs/LAEUFT-LISTE.md` (was die Liste behauptet), `scripts/laeuft-liste.py` → `docs/laeuft/` (`laeuft.json`,
+`LAEUFT.md`, `namen.json`), Spieletest-Bericht im Format 2 mit Messwerten (`GameTestMeasure.swift`). Erste Liste aus
+den echten Daten: 15 „läuft“, 6 „startet“, 1 ohne Bild. Nichts davon ist live gelaufen: Format 2 schreibt erst der
+nächste Spieletest.
+
+Zu entscheiden (der Nutzer):
+
+- **Stufen:** Zählt „vor der Aufzeichnung bestätigt“ (`known`, 8 der 15) als „läuft“, oder erst ein `worked` mit Datum?
+  Und: ABZU steht unter „startet“, weil Nightforge die Bestätigung am 10.11. zurückzog – so lassen?
+- **FPS mit oder ohne Limit:** Die Liste misst, wie Nightforge spielt (60 FPS auf 120 Hz). Zusätzlich ein Lauf ohne
+  Limit für „was der Mac schafft“? Dann bräuchte der Spieletest einen Schalter dafür.
+- **Veröffentlichen:** `docs/laeuft/` nennt die Spiele der eigenen Bibliothek, sonst nichts Persönliches. Auf die
+  Landingpage? Dann Board zuerst (Spaltenvorschlag in `docs/LAEUFT-LISTE.md`, Abschnitt 6).
+- **Overwatch:** steht unter „läuft“ (Weg vor der Aufzeichnung bestätigt, Bild in 1 von 5 Spieletests), ob es
+  Anti-Cheat hat, ist für es nicht aufgezeichnet. Braucht die Liste eine von Hand gepflegte Hinweis-Datei?
+- **Community-Beiträge:** Die Evidenz „bleibt auf dem Mac“. Ein Export, den der Spieler selbst auslöst – ja oder nein
+  (Abschnitt 7)?
+- **Engine-Build für Messwerte:** 1-%-Tief und gezeichnete Auflösung (DXMT-Patch, Vulkan-Schicht) und Frames auf
+  D3DMetal über das Metal-HUD – lohnt das einen Build?
+
+Als Nächstes (Anfang jeweils `docs/LAEUFT-LISTE.md`):
+
+- **Messabend** nach Abschnitt 5: `gameTest.playSeconds` 200, zweimal, zuerst Batman (nie im Spieletest). Danach
+  `scripts/import-game-test.py`, `scripts/laeuft-liste.py`.
+- **Evidenz erweitern**, sobald die Diagnose-Session `StartEvidence.swift` und `LibraryModel.swift` freigibt:
+  Nightforge-Version, Engine-Teile und Name in `started`; das Frame-Limit als Logzeile (Abschnitt 8, Punkte 1 und 2).
+
 ## Smarte Startlogik (9.11., Zweig `claude/start-logik-033`)
 
 Grund: Von vier neuen Spielen am Testabend kam keines beim ersten Mal ins Spiel. Gebaut: `StartRules.swift`, `StartEvidence.swift`.
