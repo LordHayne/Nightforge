@@ -375,9 +375,21 @@ Grund: Von vier neuen Spielen am Testabend kam keines beim ersten Mal ins Spiel.
       den Loader zurückholt.
     - **Zu wissen:** Die Erststart-Zählung zählt seit E3 Wege statt Starts, auch rückwirkend. Auf D3DMetal nimmt
       `nvidia-interface` einem Spiel DLSS über MetalFX, dauerhaft, bis `learned.dllsOff.<Spiel>` gelöscht wird.
-  - **Offen in Teil 2:** E4 Beweise je Rezept wirken, E5 `+pid,+loaddll,+msgbox` bei jedem Start und die
-    Fenster-Regel, E6 die Logik zum genaueren Blick für den bewährten Weg und zur Frage nach einer Wurzel; die zwei
-    Oberflächen (Frage zur Wurzel, Vorhangzeile) erst als Board.
+  - **E4 bis E6 gebaut (14.11., nachts, derselbe Zweig, nicht eingespielt, nichts live gesehen):** E4 – ein Weg ist
+    für das Rezept bewährt, mit dem er lief; ein Start mit anderem Rezept wird wieder bis zum Bild beobachtet. E5 –
+    jeder Start trägt `+pid,+loaddll,+msgbox` (ein Steam-Neustart einmalig), und ein Fehlerfenster zählt als
+    Fehlstart. E6 – ein bewährter Weg, der ohne Erklärung wieder endet, startet einmal still mit den Kanälen und
+    behält seinen Platz; was auf ein Ja oder Nein zur Wurzel folgt, ist entschieden, aber niemand fragt.
+    - **Live zu prüfen:** E4 ein bewährtes Spiel nach einer Profiländerung; E5 der eine Steam-Neustart, Alan Wake
+      auf D3DMetal (Fehlerfenster → Fehlstart → Wines Direct3D), The Forest (Beenden in Unitys Fenster bleibt die
+      Wahl des Spielers); E6 ein bewährtes Spiel, das abstürzt.
+    - **Zu wissen:** Nach einem Update, das die DLL-Schalter eines Layers oder ein Profil ändert, wird der nächste
+      Start jedes betroffenen Spiels wie ein erster beobachtet (E4). ABZUs stilles zweites Mal trägt die Kanäle
+      des genaueren Blicks bewusst nicht.
+  - **Offen in Teil 2:** die zwei Oberflächen als Board, deutsch und englisch – die Vorhangzeile beim Start auf
+    demselben Weg (der Satz „hat die Ursache gefunden“ stimmt beim genaueren Blick nicht) und die Frage zur Wurzel.
+    Vorlagen im Entwurf 3.3. Für die Wurzel-Frage fehlt außerdem eine Liste von Wurzeln, die nur auf Ja in den
+    Prefix kommen: `WindowsRoots.all` trägt heute jede bekannte für alle ein.
   - **Entscheidungen des Nutzers (14.11., alle wie empfohlen):** genauerer Blick für einen bewährten Weg ja;
     `untrusted-root` als Frage, nur für eine Wurzel, die `WindowsRoots` kennt; die drei Kanäle bei jedem Start;
     Vorhang beim Start auf demselben Weg nach Vorlage A, Board zuerst.
