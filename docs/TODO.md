@@ -7,6 +7,28 @@ Umstieg auf winecx 4.7.3 mit D3DMetal (PR #7), dem Controller-Paket (PR #8) und 
 Neue Punkte unten in den passenden Abschnitt, Erledigtes löschen (die Geschichte steht im Git-Log).
 Jeder Punkt nennt, wo man anfängt.
 
+## Sessions aufgeräumt (14.11.)
+
+Sechs Sessions sind archiviert, ihre Zweige stecken alle in `claude/staging-033` (Testbuild 4d7806c): Audit
+(`claude/audit-033-rest`), Konsolen-Gefühl (`claude/lizenz-randfaelle-033`), Engine/Leerlauf-Ruhe
+(`claude/ruhe-im-leerlauf-033`), Ladescreen-Audit (`claude/ruhiger-ladescreen-033`), Overlay (`claude/overlay-entwurf`),
+Shader (`claude/recursing-kapitsa-658edc`). Offen bleibt nur die Landingpage-Session. Was sie offen ließen und sonst
+nirgends stand:
+
+- **Länder-Lizenz (Konsolen-Gefühl):** Hat ein Spiel eine normale und eine Länder-Lizenz und Steam fragt beide, zählt
+  das Speichern der ersten schon als Ja; der eine Neustart geht dann zu früh raus, Steam fragt die zweite noch einmal.
+  GTA betrifft es nicht. Anfang: `SteamLicenceFiles`, `SteamLicenceTest`.
+- **Leistungsanzeige unter der Overlay-Karte (Overlay):** zwei ungetestete Wege – `MTL_HUD_ALIGNMENT=topleft` (ab dem
+  nächsten Spielstart, nur wo Nightforge die Umgebung setzt) oder die Karte rechts senkrecht mittig (weicht vom Board ab).
+  Empfehlung der Session: lassen, solange das Spiel bei offenem Overlay steht.
+- **Audit:** Entscheidung N2 (Pad ohne Touchpad erreicht ein kleines Fenster über dem Spiel nur mit der Maus), N1 offen,
+  vier Live-Tests – alles im Nachtrag von `docs/AUDIT-0.3.3.md`.
+- **Leerlauf-Ruhe, Vorhang-Fix, Overlay-Größen, Shader-Kurztest:** nur noch Live-Prüfungen mit dem Nutzer (Abendliste
+  W1–W2, R1, R6/T3, S1–S3; Leerlauf-Punkte weiter unten in dieser Datei).
+
+Abgegeben am 14.11.: Schritt C des Startrezepts (Diagnose-Start, mit dem Text der Fehlerfenster als erster Form von D)
+an eine eigene Session, Zweig von `claude/start-logik-033`. Schritt E wartet darauf (gleiche Startschleife).
+
 ## Smarte Startlogik (9.11., Zweig `claude/start-logik-033`)
 
 Grund: Von vier neuen Spielen am Testabend kam keines beim ersten Mal ins Spiel. Gebaut: `StartRules.swift`, `StartEvidence.swift`.
@@ -98,9 +120,8 @@ Grund: Von vier neuen Spielen am Testabend kam keines beim ersten Mal ins Spiel.
     Startplan „wined3d, dxmt, dxvk, d3dmetal; now wined3d, a game of its sort (unreal3) runs on it on this Mac“ –
     der erste echte Erststart, den der Beweis einer Sorte (Dishonored) geordnet hat. Bild nach 90 s (1800×1125),
     `worked` auf wined3d nach 181 s, Erststart-Zählung 3 auf dem ersten Weg (vorher 2).
-    Offen daran: auf dem Weg zum Bild lagen Steams Lizenz und drei Fenster des Spiels, die etwas fragen
-    (373×169, 492×506, 541×480; der Vorhang ging jeweils darunter) – welche davon der Spieler bedienen musste
-    (BmLauncher?), beim Nutzer erfragen; ein Kandidat fürs Konsolen-Gefühl.
+    Der Nutzer dazu: „einmal die lizenz aber der rest lief super durch für einen erststart“ – die drei Fenster des
+    Spiels auf dem Weg (373×169, 492×506, 541×480; der Vorhang ging jeweils darunter) brauchten keinen Handgriff.
   - Diagnose (Stufe 2) schwieg bei beiden Fehlstarts: kein Dump, keine Protokollzeile. Lücken: den Text im Fehlerfenster
     des Spiels liest niemand; Steckbrief erkennt Unreal 3 nicht (`Engine/Config` + `Binaries` + `<Name>Game`, Engine „other“).
 Offen: Live-Test; `+loaddll` beim ersten Start (braucht bei Steam einen Neustart); Spiel-Build in der Evidenz; „Läuft“ und „Zuletzt gespielt“ erst nach Bild (Design); Rockstar- und EA-Launcher; Controller-Menü auf dem Ladescreen; Probelauf nach dem Download.
