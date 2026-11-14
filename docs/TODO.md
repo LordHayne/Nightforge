@@ -40,6 +40,45 @@ ist und ein FPS-Wert in der Benchmark-Liste steht; die Werte sollen offen auf di
 **Erlebnis-Audit (der Nutzer, 14.11.):** eine Session sucht Fehler in Oberfläche und Logik entlang der Wege des Spielers,
 belegt sie mit Tests, behebt die klaren und listet den Rest in `docs/AUDIT-ERLEBNIS-0.3.3.md`. Die Dateien der beiden
 anderen Sessions fasst sie nicht an, Fehler dort beschreibt sie nur.
+## Läuft-Liste und Abhakliste (14.11., Zweig `claude/laeuft-liste-033-c4dd4a`)
+
+Zweck (der Nutzer, 14.11.): geladene Spiele abhaken und deinstallieren können, sobald ein 100%iger Start und ein
+FPS-Wert vorliegen; die FPS-Werte offen auf der Landingpage. Gebaut: `docs/LAEUFT-LISTE.md` (Regeln),
+`scripts/laeuft-liste.py` → `docs/laeuft/` (`laeuft.json`, `LAEUFT.md`, `abhakliste.json`, `ABHAKLISTE.md`,
+`namen.json`), Spieletest-Bericht im Format 2 (`GameTestMeasure.swift`: Messwerte, Prüfung je Spiel, Größe, Baudatum,
+Leseseite für Apples Metal-HUD-Protokoll). Stand der echten Daten: 15 „läuft“, 6 „startet“; 23 geladene Spiele mit
+594,8 GB, davon **0 fertig**. Nichts davon ist live gelaufen: Format 2 schreibt erst der nächste Spieletest.
+
+Als Nächstes (Anfang jeweils `docs/LAEUFT-LISTE.md`):
+
+- **FPS auf jedem Weg:** `MTL_HUD_LOG_ENABLED=1` neben `MTL_HUD_ENABLED=1` für Starts im Spieletest (`Engine.swift`
+  Zeile 92, `Launcher.swift` Zeilen 614 und 726; Abschnitt 9, Punkt 1) – sobald die Diagnose-Session die Dateien
+  freigibt. Ohne das bekommen 16 der 23 Spiele nie einen FPS-Wert (D3DMetal, WineD3D, Mac-Fassungen, OxyRail). Live zu
+  prüfen: Zeilen auf D3DMetal, MoltenVK, WineD3D? Protokoll bei Deckkraft 0? Mac-Fassungen und WineD3D sind offen.
+- **Messlauf** nach Abschnitt 6: `gameTest.playSeconds` 190, alle geladenen Spiele (anderthalb bis knapp drei Stunden).
+  Danach `scripts/import-game-test.py`, `scripts/laeuft-liste.py`. Schon ohne den Punkt darüber können 6 Spiele
+  (193,7 GB, DXMT und Vulkan-Schicht) fertig werden.
+- **Evidenz erweitern** (`StartEvidence.swift`, `LibraryModel.swift`): Nightforge-Version mit Baudatum, Engine-Teile
+  und Name in `started`; das Frame-Limit als Logzeile (Abschnitt 9, Punkte 2 und 3). Bis dahin zählt die Abhakliste
+  Starts von Hand nur nach Datum; für einen Build ohne Spieletest `--since` angeben.
+
+Zu entscheiden (der Nutzer):
+
+- **Stufen:** Zählt „vor der Aufzeichnung bestätigt“ (`known`, 8 der 15) als „läuft“, oder erst ein `worked` mit Datum?
+  Und: ABZU steht unter „startet“, weil Nightforge die Bestätigung am 10.11. zurückzog – so lassen?
+- **100%iger Start:** Reicht die Regel aus Abschnitt 4 (jüngster Start, erster Weg, bestätigt)? Zählt ein Start von
+  Hand aus der Evidenz, obwohl Handgriffe dort nicht aufgezeichnet sind?
+- **Freie Zahlen:** Zusätzlich zu „hält 60 FPS“ ein Durchgang ohne Limit („Scharf & flüssig“ aus) für die Seite?
+- **Seite:** Board für die Landingpage (Vorschlag Abschnitt 7): unter Limit „hält 60 FPS“ plus langsamstes Bild, frei
+  gemessen als eigene Zahl, nur Werte mit vollständigen Bedingungen.
+- **Abhakliste im Repository?** Sie nennt alle geladenen Spiele dieses Macs mit Größe (keine Pfade, keine Laufwerks-
+  namen) und veraltet mit jedem Deinstallieren. Behalten, oder nur lokal erzeugen?
+- **Overwatch:** steht unter „läuft“ (Weg vor der Aufzeichnung bestätigt, Bild in 1 von 5 Spieletests); ob es
+  Anti-Cheat hat, ist für es nicht aufgezeichnet. Braucht die Liste eine von Hand gepflegte Hinweis-Datei?
+- **Community-Beiträge:** Die Evidenz „bleibt auf dem Mac“. Ein Export, den der Spieler selbst auslöst – ja oder nein
+  (Abschnitt 8)?
+- **Engine-Build:** gezeichnete Auflösung unter DXMT und, falls die Leistungsanzeige dort nichts liefert, eine eigene
+  Zählung für WineD3D – lohnt das einen Build?
 
 ## Smarte Startlogik (9.11., Zweig `claude/start-logik-033`)
 

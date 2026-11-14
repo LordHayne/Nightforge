@@ -79,7 +79,13 @@ class ImportGameTestTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             base = pathlib.Path(tmp)
             with self.assertRaises(SystemExit):
-                importer.take(run_folder(base, version=2), base / "docs", HOME, USER)
+                importer.take(run_folder(base, version=3), base / "docs", HOME, USER)
+
+    def test_takes_format_2_with_its_measures(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = pathlib.Path(tmp)
+            stem = importer.take(run_folder(base, version=2), base / "docs", HOME, USER)
+            self.assertEqual(json.loads(stem.with_suffix(".json").read_text())["formatVersion"], 2)
 
     def test_newest_run(self):
         with tempfile.TemporaryDirectory() as tmp:

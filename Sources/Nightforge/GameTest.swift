@@ -135,6 +135,8 @@ enum GameTest {
         var inBasket = false
         var hint: String?
         var standsFor: [String]?
+        /// What it takes on the disk, as its store says.
+        var sizeBytes: Int64?
     }
 
     /// Which games matter most to test (compat-db, scripts/test-basket.py): by `score`, with the way
@@ -438,10 +440,24 @@ enum GameTest {
         /// The lowest period.
         var low: Double
         var periods: Int
+        // Since report format 2 (GameTestMeasure):
+        /// The seconds the periods cover.
+        var seconds: Double?
+        /// The slowest single frame of all periods, in milliseconds – a loading hitch counts.
+        var slowestFrame: Double?
+        /// The slowest frame of a usual period: the median of the periods' slowest, in milliseconds.
+        var slowestTypical: Double?
+        /// Who logged them: "dxmt", "vulkan" (a layer, by period) or "metal-hud" (Apple's HUD, frame by frame).
+        var source: String?
+        /// Only from the Metal HUD's frames: the rate at the 99th percentile of the frame times (99 of 100
+        /// frames were faster), and the median GPU time of a frame in milliseconds.
+        var onePercentLow: Double?
+        var gpuTime: Double?
     }
 
     /// The frame rates the game logged (FramePacing.periods): DXMT does, every 10 s from its first
-    /// frame. D3DMetal, WineD3D, DXVK on winecx and Mac versions log none.
+    /// frame. D3DMetal, WineD3D, DXVK on winecx and Mac versions log none. `measuredFrames` adds the
+    /// slowest frames.
     static func frames(_ periods: [(fps: Double, seconds: Double)]) -> Frames? {
         let periods = periods.filter { $0.fps > 0 && $0.seconds > 0 }
         guard !periods.isEmpty else { return nil }
@@ -468,7 +484,11 @@ enum GameTest {
             lines = []
         }
         for line in log.split(separator: "\n", omittingEmptySubsequences: false) {
-            guard let range = line.range(of: marker) else {
+            // Only a way's line: LibraryModel also notes "Start of <game>: it ended at a question of its own – …",
+            // which counted as one more way (Alan Wake, 11.11.2026).
+            guard let range = line.range(of: marker), let layer = line[range.upperBound...].split(separator: " ").first,
+                  GraphicsLayer(rawValue: String(layer)) != nil
+            else {
                 if !starts.isEmpty { lines.append(line) }
                 continue
             }

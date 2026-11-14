@@ -24,7 +24,8 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 RUNS = pathlib.Path.home() / "Library/Application Support/Nightforge/GameTests"
-FORMAT_VERSION = 1
+# 2 (14.11.2026) added each game's measure; both read the same here.
+FORMAT_VERSIONS = (1, 2)
 
 
 def machine_names():
@@ -108,8 +109,8 @@ def take(run, docs, home, user):
     if not report.is_file() or not summary.is_file():
         raise SystemExit(f"✗ {run.name}: report.json or report.md missing")
     data = json.loads(report.read_text())
-    if data.get("formatVersion") != FORMAT_VERSION:
-        raise SystemExit(f"✗ {run.name}: report format {data.get('formatVersion')}, this script knows {FORMAT_VERSION}")
+    if data.get("formatVersion") not in FORMAT_VERSIONS:
+        raise SystemExit(f"✗ {run.name}: report format {data.get('formatVersion')}, this script knows {FORMAT_VERSIONS}")
     if not data.get("finished"):
         print(f"! {run.name}: the run hasn't finished (yet) – taking what it has")
     for path in (report, summary):
