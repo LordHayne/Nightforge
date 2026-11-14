@@ -978,10 +978,13 @@ struct GameTestTest {
         check(!GameTest.summary(noPicture).contains("## Messwerte"), "no picture: no measures")
         // The checklist: every installed game, what this run saw of it, what a tick would free.
         check(summary.contains("## Abhakliste") && summary.contains("Deinstalliert wird hier nie etwas."), "the checklist and what it never does")
-        check(summary.contains("| Overcooked 2 | Windows | 8,5 GB | ja | ja | fertig |"), "done: a clean start and frames\n\(summary)")
-        check(summary.contains("| Control \\| Ultimate | Windows | 48,4 GB | ja | der Weg meldet keine | fehlt: FPS |"), "a start without frames: FPS missing")
+        check(summary.contains("| Overcooked 2 | Windows | 8,5 GB | ja | 60 / 41 | Start geprüft |"), "a clean start, with the first minutes beside it\n\(summary)")
+        check(summary.contains("| Control \\| Ultimate | Windows | 48,4 GB | ja | der Weg meldet keine | Start geprüft |"), "a start without frames is checked all the same")
+        check(summary.contains("| Spiel | Fassung | Größe | Start geprüft | In den ersten Minuten | Fazit |") && summary.contains("kein Leistungswert")
+              && !summary.contains("fertig") && !summary.contains("fehlt: FPS") && !summary.contains("fehlt: Start"),
+              "the first minutes are named as that, and nothing is called missing or done")
         check(summary.contains("| Shooter | Windows | 1,5 GB | – | – | nicht gestartet: bräuchte erst Laufzeiten (würde laden) |"), "skipped for something that can be mended")
-        check(summary.contains("Fertig in diesem Lauf: 1 von 10 Spielen, zusammen 8,5 GB."), "what the ticks free")
+        check(summary.contains("Start geprüft in diesem Lauf: 2 von 10 Spielen, zusammen 56,9 GB."), "what the ticks free:\n\(summary.components(separatedBy: "## Abhakliste").last ?? "")")
         var withGuarded = report
         withGuarded.games = [.skipped(guarded, .antiCheat)]
         check(GameTest.summary(withGuarded).contains("| Guarded | Windows | 84,2 GB | – | – | von Hand zu prüfen: Anti-Cheat sperrt es auf dem Mac |"),

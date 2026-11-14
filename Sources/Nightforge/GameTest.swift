@@ -48,16 +48,18 @@ enum GameTest {
     /// comes from play. With the switch a start by Play has Apple's Metal HUD log its frames as a game test's
     /// has – invisible where the performance display is off. Nothing leaves the Mac and nothing is kept but
     /// those lines in wine.log; the list's script reads a session from there (scripts/laeuft-liste.py).
+    ///
+    /// A build made with NIGHTFORGE_RELEASE (swift build -Xswiftc -DNIGHTFORGE_RELEASE) has no such switch at
+    /// all, not even its name: the finished build tracks nothing (the user, 15.11.2026).
+    #if NIGHTFORGE_RELEASE
+    static func measuresPlay(defaults: UserDefaults = .standard) -> Bool { false }
+    #else
     static let measurePlayKey = "measurePlay"
 
-    /// A build made with NIGHTFORGE_RELEASE has no such switch at all: the finished build tracks nothing.
     static func measuresPlay(defaults: UserDefaults = .standard) -> Bool {
-        #if NIGHTFORGE_RELEASE
-        return false
-        #else
-        return defaults.bool(forKey: measurePlayKey)
-        #endif
+        defaults.bool(forKey: measurePlayKey)
     }
+    #endif
 
     /// When a measured session of play began and under what, a line for the log beside the start's limit
     /// (GameTestMeasure.limitNote): the list counts a frame rate only with its conditions on record, and

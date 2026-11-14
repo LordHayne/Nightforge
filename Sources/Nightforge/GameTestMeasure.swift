@@ -406,6 +406,8 @@ extension GameTest {
         var fps: String
 
         var done: Bool { start == "ok" && fps == "ok" }
+        /// The start is checked: all a game test can say of a game (its frame rate is the first minutes').
+        var startChecked: Bool { start == "ok" }
     }
 
     /// A free number that hardly moved: the lowest ten seconds within 5 % of the average over a minute or
@@ -471,25 +473,28 @@ extension GameTest {
     /// The skips a run can't mend by itself or by waiting: someone has to look at the game by hand.
     static let byHand: Set<Skip> = [.antiCheat, .vrOnly, .otherBottle, .versionSwitch, .battleNet]
 
-    /// "## Abhakliste": every installed game with its size and whether this run saw both – so a run over
+    /// "## Abhakliste": every installed game with its size and whether this run saw a clean start of it – so a run over
     /// all of them ends with what is done and what is missing. Nothing is ever uninstalled from here.
     static func checklist(_ report: Report) -> [String] {
         guard !report.games.isEmpty else { return [] }
         func size(_ bytes: Int64?) -> String {
             bytes.map { String(format: "%.1f GB", Double($0) / 1_000_000_000).replacingOccurrences(of: ".", with: ",") } ?? "–"
         }
+        // What a run measures are a game's first minutes – films, menus, loading: beside the start, no frame rate
+        // of the game (the user, 15.11.2026). That comes from play (scripts/laeuft-liste.py, `play_sessions`).
         var lines = ["## Abhakliste", "",
-                     "Je geladenem Spiel, ob dieser Lauf einen sauberen Start (Bild auf dem ersten Weg, nicht von selbst beendet, "
-                     + "Frames gezählt oder 180 s mit Bild) und einen FPS-Wert gesehen hat. Deinstalliert wird hier nie etwas.", "",
-                     "| Spiel | Fassung | Größe | Start | FPS | Fazit |", "|---|---|---|---|---|---|"]
+                     "Je geladenem Spiel, ob dieser Lauf einen sauberen Start gesehen hat (Bild auf dem ersten Weg, nicht von selbst beendet, "
+                     + "Frames gezählt oder 180 s mit Bild). Was er dabei gemessen hat, sind die ersten Minuten – Vorspann, Menü, Laden: "
+                     + "kein Leistungswert. Der kommt nur aus einer Messung beim Spielen. Deinstalliert wird hier nie etwas.", "",
+                     "| Spiel | Fassung | Größe | Start geprüft | In den ersten Minuten | Fazit |", "|---|---|---|---|---|---|"]
         var done: Int64 = 0, doneCount = 0
         for entry in report.games {
             var cells = [entry.game.replacingOccurrences(of: "|", with: "\\|"), entry.platform == "mac" ? "Mac" : "Windows", size(entry.sizeBytes)]
             if let check = entry.check {
-                let start = checkWords[check.start] ?? check.start, fps = checkWords[check.fps] ?? check.fps
-                cells += [start, fps, check.done ? "fertig" : "fehlt: " + [check.start == "ok" ? nil : "Start", check.fps == "ok" ? nil : "FPS"]
-                    .compactMap { $0 }.joined(separator: ", ")]
-                if check.done {
+                let start = checkWords[check.start] ?? check.start
+                let first = check.fps == "ok" ? framesText(entry) : checkWords[check.fps] ?? check.fps
+                cells += [start, first, check.startChecked ? "Start geprüft" : "Start offen"]
+                if check.startChecked {
                     done += entry.sizeBytes ?? 0
                     doneCount += 1
                 }
@@ -499,7 +504,7 @@ extension GameTest {
             }
             lines.append("| " + cells.joined(separator: " | ") + " |")
         }
-        lines += ["", "Fertig in diesem Lauf: \(doneCount) von \(report.games.count) Spielen, zusammen \(size(done)).", ""]
+        lines += ["", "Start geprüft in diesem Lauf: \(doneCount) von \(report.games.count) Spielen, zusammen \(size(done)).", ""]
         return lines
     }
 

@@ -225,8 +225,23 @@ WineD3D-Spiele. Seitdem sagt die Liste, was das Limit mit einer Zahl gemacht hat
 greift nicht, kein Limit auf diesem Weg, frei), führt D3DMetal-Zahlen als frei und markiert starre Werte
 (Left 4 Dead 2: Ø 24 war der Vorspann) – die zählen auf der Abhakliste nicht. Stand: 13 fertig, 10 offen, 1 von Hand.
 
+**Seit dem 15.11.: Ein Leistungswert ist nur, was beim Spielen gemessen wurde** (der Nutzer: Das Menü sagt nichts
+über die Leistung im Spiel; mitschreiben nur für unsere Tests, im fertigen Build kein Tracking). Gebaut: der
+versteckte Schalter `measurePlay` (ein Start über „Spielen“ schreibt dann das HUD-Protokoll mit, sonst nie), der
+Leser für eine Spielsitzung im Generator (ohne die ersten 5 Minuten und die letzte, mindestens 10 Minuten; auf dem
+Protokoll des Messlaufs dieselben Zahlen wie der Bericht), und Liste wie Abhakliste mit zwei getrennten Aussagen:
+„Start geprüft“ (mit dem Wert des Spieletests als Nebenangabe „in den ersten Minuten“) und „im Spiel gemessen“.
+Stand: 0 im Spiel gemessen, 19 Start geprüft (547,6 GB), 3 Start offen, 1 von Hand.
+
 Als Nächstes (Anfang jeweils `docs/LAEUFT-LISTE.md`):
 
+- **Play-Zeile in `LibraryModel.swift`** (Abschnitt 9, Punkt 14, Patch steht dort): Ohne sie fehlen Netzteil und Last
+  im Protokoll, und ein beim Spielen gemessener Wert zählt nicht; WineD3D-Sitzungen lassen sich nicht zuordnen.
+  Danach eine erste Sitzung von 16 Minuten und mehr live (Abschnitt 6, „Beim Spielen messen“).
+- **Release-Build ohne den Schalter** (Punkt 16): `NIGHTFORGE_RELEASE` in `build.sh` und `release.yml` setzen – der
+  Code ist vorbereitet, gesetzt ist die Flagge noch nirgends.
+- **WineD3D beim Spielen** (Punkt 15): heute `wineDebug` von Hand; empfohlen ist, dass der Schalter den fps-Kanal für
+  WineD3D-Starts selbst setzt (`Engine.swift`, `LibraryModel.swift`, derselbe Bau wie für den Spieletest).
 - **D3DMetal auf 60 halten** (Abschnitt 9, Punkt 10; der Nutzer legt Wert auf die Sperre): Apples D3DMetal 3.0 hat
   keinen Schalter für die Bildrate. Empfohlen: Takt in `-[WineMetalLayer nextDrawable]` des Mac-Treibers
   (`winemac.so` aus dem winecx-Quelltext, in den Teil `enginefix`), vorher den Quelltext der Klasse lesen; daneben
@@ -237,13 +252,8 @@ Als Nächstes (Anfang jeweils `docs/LAEUFT-LISTE.md`):
   Bericht (`noSample`). Die Profilliste (`profiles/profiles.json`) ist von Hand ergänzt und trägt einen neuen
   Stempel; **signiert wird sie beim Release** (der Nutzer). Vorgeschlagen, nicht gesetzt: Left 4 Dead 2,
   Counter-Strike 2, Team Fortress 2, Dota 2 (VAC), Diablo IV – der Nutzer entscheidet, mit Beleg.
-- **Gebaut am 15.11.** aus den Vorschlägen: `check.fps: steady` ohne „wenig FPS“, „ohne Bild gezeichnet“ statt einer
-  Bildrate zu einem Lauf ohne Bild, Test mit den zwei echten Zeilenarten des fps-Kanals. Offen daraus: `-novid` für
-  Source-Spiele über das Profil prüfen; freie Zahlen am Bildschirmtakt kennzeichnen (Mafia II Ø 119,5 bei 120 Hz).
-- **Der Spieletest setzt den fps-Kanal selbst**, nur für WineD3D-Starts (`Engine.swift`, `LibraryModel.swift`). Bis
-  dahin vor einem Lauf `wineDebug` setzen und danach löschen (Abschnitt 6).
-- **Mac-Fassungen** (5 Spiele, 64,0 GB) bleiben ohne FPS-Wert, bis der Nutzer zwischen den Wegen in Abschnitt 9,
-  Punkt 4 gewählt hat: Steam für Mac mit der Variable starten (Probe, dann ein halber Tag) oder nur den Start zählen.
+- **Offen aus dem Messlauf:** `-novid` für Source-Spiele über das Profil prüfen; der Spieletest setzt den fps-Kanal
+  selbst, nur für WineD3D-Starts.
 
 Zu entscheiden (der Nutzer):
 
@@ -255,8 +265,10 @@ Zu entscheiden (der Nutzer):
 - **Seite:** Board für die Landingpage (Vorschlag Abschnitt 7): unter Limit „hält 60 FPS“ plus langsamstes Bild, frei
   gemessen als eigene Zahl, nur Werte mit vollständigen Bedingungen.
 - **Schwellen:** „Limit greift nicht“ ab Ø über 105 % des Limits, „starr“ ab tiefsten zehn Sekunden bei 95 % des
-  Schnitts über mindestens 60 s (Abschnitt 3) – beides Vorschläge. Und: Soll ein starrer Wert auf der Abhakliste
-  wirklich nicht zählen (Left 4 Dead 2 ist dadurch wieder offen)?
+  Schnitts über mindestens 60 s (Abschnitt 3) – beides Vorschläge.
+- **Regel fürs Messen beim Spielen:** erste 5 Minuten und letzte Minute weg, mindestens 10 Minuten dazwischen – so
+  lassen? Und der Wortlaut der Abhakliste („Start geprüft“, „Start geprüft und im Spiel gemessen“, „Start offen“,
+  „nein: …“ statt „fehlt“).
 - **Abhakliste im Repository?** Sie nennt alle geladenen Spiele dieses Macs mit Größe (keine Pfade, keine Laufwerks-
   namen) und veraltet mit jedem Deinstallieren. Behalten, oder nur lokal erzeugen?
 - **Overwatch:** steht unter „läuft“ (Weg vor der Aufzeichnung bestätigt, Bild in 1 von 5 Spieletests); ob es
