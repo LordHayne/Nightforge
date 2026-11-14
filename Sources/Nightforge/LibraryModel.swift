@@ -4586,7 +4586,9 @@ final class LibraryModel: ObservableObject {
             // carry Wine's debug channels (CloserLook). The places below are marked "Step C": where a start
             // gets them, what the diagnosis says of its end, and the decision after a failure.
             var looksCloser = false
-            while true {
+            // Step E2: starts on the same way again in this Play, for the cap on them (NextStart.againLimit).
+            var sameWayAgain = 0
+            starts: while true {
                 // Another way after one that didn't take: the curtain stays up through all the next
                 // one needs first (an engine, runtimes, Steam restarted for its settings), saying so.
                 if judging?.id == game.id, !Task.isCancelled { raiseCurtain(for: game) }
@@ -4914,74 +4916,101 @@ final class LibraryModel: ObservableObject {
                     errorMessage = L10n.t("%@ is still running, or it hangs. Quit it first, then press Play again.", game.name)
                     return
                 }
+                // Step E2: what comes after this start is one decision (NextStart.after), where the loop had a
+                // branch each for the engine before, a missing runtime, a settings file fixed, no AVX, a closer
+                // look and the next way. The loop gathers what is known, asks, and does what the answer says.
                 // It ran well this way on the engine before and ends at once on the newest: the newest
-                // broke it, so it starts with the one before – the way stays.
+                // broke it, so it starts with the one before – the way stays (EngineRollback holds it).
                 if let build, case .rollBack = EngineRollback.shared.afterFailedStart(game.gameID, build: build, way: way) {
-                    launchPhase = .rollingBack
-                    continue
+                    if case .again = NextStart.after(NextStart.Failed(engineBefore: true)) {
+                        launchPhase = .rollingBack
+                        continue
+                    }
                 }
-                let needed = GameLog.missingRuntimes(since: logMark, gameFolder: game.installDirName)
-                    .filter { !LearnedFixes.winetricks(game.gameID).contains($0) }
-                if !needed.isEmpty {
-                    // Wine said what's missing: install it and try the same way again.
-                    LearnedFixes.addWinetricks(needed, for: game.gameID)
-                    continue
-                }
-                if game.bottle.isBuiltIn, Engine.applyFileEdits(profile?.fileEdits ?? [], installDir: game.installDir, game: game.gameID.key) {
-                    // The game wrote its settings file at its first start, with a setting its
-                    // profile turns off: the same way again, with the file fixed.
-                    continue
-                }
-                if game.bottle.isBuiltIn, LearnedFixes.avx(game.gameID, profile: profile),
-                   GameLog.illegalInstruction(since: logMark, installDir: game.installDir, startedAt: startedAt) {
-                    // Rosetta's AVX hint sent it down a path Rosetta can't run: the same way without it.
-                    LearnedFixes.setNoAVX(game.gameID)
-                    continue
-                }
-                // Graphics chosen by hand, or nothing known about the game: no other way to try.
-                guard automatic, !attempts.isEmpty else { break }
-                // A way that worked before and ended without a graphics error keeps its place:
-                // watched again at the next start. Nightforge stays in front.
-                if wayConfirmed && !graphicsFailed {
-                    StartEvidence.note(.failed, game: game.gameID, way: way, reason: "a proven way ended in its first seconds again",
-                                       diagnosis: diagnosis)
-                    return
-                }
+                // The game wrote its settings file at its first start, with a setting its profile turns off
+                // (Engine.applyFileEdits): fixed here, and a reason for the same way again.
+                let filesFixed = game.bottle.isBuiltIn
+                    && Engine.applyFileEdits(profile?.fileEdits ?? [], installDir: game.installDir, game: game.gameID.key)
                 // What the game itself said goes first: it can rule out ways without trying them.
                 let crashTexts = await Task.detached(priority: .utility) {
                     GameLog.crashMessages(installDir: installDir, since: startedAt)
                 }.value
-                if let said = crashTexts.first { GameLog.note("\(game.name) says: \(GameLog.redacted(String(said.prefix(200))))") }
-                StartEvidence.note(.failed, game: game.gameID, way: way, reason: crashTexts.first ?? noPicture, diagnosis: diagnosis)
+                // What acted on a failed start before step E, read as before: the game's words in its crash
+                // reports, and Wine's log for a missing runtime, an illegal instruction and the layer's failure.
+                // For a game with an anti-cheat this is all the decision ever gets.
+                let said = StartFinding(messages: crashTexts,
+                                        missingRuntimes: GameLog.missingRuntimes(since: logMark, gameFolder: game.installDirName),
+                                        illegalInstruction: game.bottle.isBuiltIn && recipe.avx
+                                            && GameLog.illegalInstruction(since: logMark, installDir: game.installDir, startedAt: startedAt),
+                                        graphicsFailed: graphicsFailed, direct3D9Failed: direct3D9Failed, layer: layer)
+                let onLadder = automatic && !attempts.isEmpty
+                let index = onLadder ? LaunchHealth.current(game.gameID, attempts).index : 0
                 // Step C: nothing explains this end – the ways still to come carry Wine's debug channels, and
                 // with no way left the last one starts once more with them, as quietly as a proven way's
-                // second start; after that the ladder ends as before. Once per game and engine build.
-                // Decided before `advance`, which sets the ladder back to its first way when none is left.
+                // second start; after that the ladder ends as before. Once per game and engine build. A way
+                // that worked before keeps its place without one.
                 let engineID = build?.engine ?? "unknown"
-                let look = CloserLook.step(unexplained: unexplained, antiCheat: analysis?.antiCheat.isEmpty == false,
-                                           carried: closerLook, takenBefore: CloserLook.taken(game.gameID, engine: engineID),
-                                           // Steam restarts for them only with no other Windows game running; this
-                                           // one may still be on the list for a moment.
-                                           canCarry: game.bottle.isBuiltIn && (!viaSteam || runningGame(.windows).map { $0.id == game.id } != false),
-                                           lastWay: LaunchHealth.current(game.gameID, attempts).index + 1 >= attempts.count)
-                if look != .none {
+                let look = !onLadder || (wayConfirmed && !graphicsFailed) ? CloserLook.Step.none
+                    : CloserLook.step(unexplained: unexplained, antiCheat: analysis?.antiCheat.isEmpty == false,
+                                      carried: closerLook, takenBefore: CloserLook.taken(game.gameID, engine: engineID),
+                                      // Steam restarts for them only with no other Windows game running; this
+                                      // one may still be on the list for a moment.
+                                      canCarry: game.bottle.isBuiltIn && (!viaSteam || runningGame(.windows).map { $0.id == game.id } != false),
+                                      lastWay: index + 1 >= attempts.count)
+                let next = NextStart.after(NextStart.Failed(
+                    ladder: onLadder ? attempts : [], index: index, proven: wayConfirmed, learned: learned, recipe: recipe,
+                    found: NextStart.asBefore(StartDiagnosis.diagnose(said)), antiCheat: analysis?.antiCheat.isEmpty == false,
+                    againSoFar: sameWayAgain, filesFixed: filesFixed, look: look))
+                /// What the ladder's own steps – a closer look, the next way, giving up – put on record first.
+                func noteFailed() {
+                    if let said = crashTexts.first { GameLog.note("\(game.name) says: \(GameLog.redacted(String(said.prefix(200))))") }
+                    StartEvidence.note(.failed, game: game.gameID, way: way, reason: crashTexts.first ?? noPicture, diagnosis: diagnosis)
+                }
+                /// The start to come carries the closer look's channels (step C).
+                func lookCloser(_ how: String) {
                     looksCloser = true
                     CloserLook.noteTaken(game.gameID, engine: engineID)
-                    GameLog.note("\(game.name): nothing explains why it ended – "
-                                 + (look == .sameWayAgain ? "it starts once more on this way with Wine's debug channels"
-                                                          : "the next start carries Wine's debug channels"))
-                    if look == .sameWayAgain { continue }
+                    GameLog.note("\(game.name): nothing explains why it ended – \(how)")
                 }
-                if LaunchHealth.advance(game.gameID, attempts, answering: StartFailure.read(crashTexts) ?? (direct3D9Failed ? .needsD3D9 : nil)) {
-                    let next = attempts[LaunchHealth.current(game.gameID, attempts).index]
-                    launchPhase = .retrying(next.label)
+                switch next {
+                case .again(let changed, let why):
+                    // The same way once more: with what Wine said is missing installed, the settings file
+                    // fixed, without Rosetta's AVX hint – all of it in this one start – or for a closer look.
+                    sameWayAgain += 1
+                    if why == [NextStart.closerLook] {
+                        noteFailed()
+                        lookCloser("it starts once more on this way with Wine's debug channels")
+                    } else {
+                        if changed != learned { LearnedFixes.keep(changed, for: game.gameID) }
+                        GameLog.note("\(game.name) starts once more on the same way: \(why.joined(separator: ", "))")
+                    }
                     continue
+                case .noOtherWay:
+                    // Graphics chosen by hand, or nothing known about the game: no other way to try.
+                    break starts
+                case .keepsItsPlace:
+                    // A way that worked before and ended without a graphics error keeps its place:
+                    // watched again at the next start. Nightforge stays in front.
+                    StartEvidence.note(.failed, game: game.gameID, way: way, reason: "a proven way ended in its first seconds again",
+                                       diagnosis: diagnosis)
+                    return
+                case .way(let other, _):
+                    // On to the way that answers what the game said, or simply the next.
+                    noteFailed()
+                    if look == .nextWay { lookCloser("the next start carries Wine's debug channels") }
+                    LaunchHealth.advance(game.gameID, attempts, to: other)
+                    launchPhase = .retrying(attempts[other].label)
+                    continue
+                case .giveUp:
+                    noteFailed()
+                    // No way is left: the list starts over next time.
+                    LaunchHealth.advance(game.gameID, attempts, to: 0)
+                    // One way only (Vulkan, DirectX 12): what the game draws with says more than a layer.
+                    let tried = attempts.count > 1 ? attempts.map(\.label) : [analysis?.summary ?? attempts.first?.label ?? ""]
+                    StartEvidence.note(.gaveUp, game: game.gameID, way: way)
+                    failedLaunch = FailedLaunch(game: game, tried: tried)
+                    return
                 }
-                // One way only (Vulkan, DirectX 12): what the game draws with says more than a layer.
-                let tried = attempts.count > 1 ? attempts.map(\.label) : [analysis?.summary ?? attempts.first?.label ?? ""]
-                StartEvidence.note(.gaveUp, game: game.gameID, way: way)
-                failedLaunch = FailedLaunch(game: game, tried: tried)
-                return
             }
 
             // Not behind it once a new start has the curtain: its page would take that start's place.

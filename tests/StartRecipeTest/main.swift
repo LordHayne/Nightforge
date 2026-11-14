@@ -357,6 +357,101 @@ struct StartRecipeTest {
         }
         check(endings.count == 3 && endings.values.allSatisfy { $0 > 100 }, "all three ends came up often (\(endings))")
 
+        // MARK: Step E2 – the one decision does what the loop's branches did
+
+        // The branches of LibraryModel.launch as they stood before step E2 (e9e0656), in their order: the engine
+        // before, a missing runtime, a settings file fixed, no AVX, no ladder, a proven way's place, a closer
+        // look, the next way that answers what the game said, giving up.
+        enum Before: Equatable { case engineBefore, runtime([String]), files, noAVX, noOtherWay, keepsItsPlace, look, way(Int), giveUp }
+        func before(ladder: [LaunchAttempt], index: Int, proven: Bool, learnedRuntimes: [String], avx: Bool, engineBefore: Bool,
+                    finding: StartFinding, filesFixed: Bool, look: CloserLook.Step) -> Before {
+            if engineBefore { return .engineBefore }
+            let needed = finding.missingRuntimes.filter { !learnedRuntimes.contains($0) }
+            if !needed.isEmpty { return .runtime(needed) }
+            if filesFixed { return .files }
+            if avx, finding.illegalInstruction { return .noAVX }
+            guard !ladder.isEmpty else { return .noOtherWay }
+            if proven && !finding.graphicsFailed { return .keepsItsPlace }
+            if look == .sameWayAgain { return .look }
+            let failure = StartFailure.read(finding.messages) ?? (finding.direct3D9Failed ? .needsD3D9 : nil)
+            let following = Array(ladder.indices.dropFirst(index + 1))
+            let next = following.first { failure?.answered(by: ladder[$0]) ?? true } ?? following.first
+            return next.map { .way($0) } ?? .giveUp
+        }
+        let words = ["-d3d12, -d3d11, -vulkan, -opengl mutually exclusive", "This game requires DirectX 12.", "Unhandled Exception: EXCEPTION_ACCESS_VIOLATION",
+                     "Fatal error!"]
+        var kinds: [String: Int] = [:]
+        for round in 0..<4000 {
+            let ladder = (0..<random(5)).map { _ in ways[random(ways.count)] }
+            let index = ladder.isEmpty ? 0 : random(ladder.count)
+            let proven = random(4) == 0, engine = random(8) == 0, fixed = random(6) == 0, profileAVX = random(5) != 0
+            var known = Learned(runtimes: random(3) == 0 ? ["vcrun2019"] : [], noAVX: random(6) == 0)
+            if random(4) == 0 { known = known.applying(.runtimes(["xact"]), rule: "missing-runtime")! }
+            let layer = ladder.indices.contains(index) ? ladder[index].graphics : GraphicsLayer.dxmt
+            let recipe = StartRecipe.of(way: LaunchAttempt(graphics: layer, arguments: []), learned: known,
+                                        profile: profileAVX ? nil : profile(#"{"avx": false}"#), d3dMetalEngine: true)
+            // What the loop reads for the decision: the game's words, Wine's log. An illegal instruction is only
+            // looked for when the start offered AVX, as before.
+            let finding = StartFinding(messages: (0..<random(3)).map { _ in words[random(words.count)] },
+                                       missingRuntimes: [[], [], ["vcrun2019"], ["vcrun2019", "d3dx9"], ["xact"]][random(5)],
+                                       illegalInstruction: recipe.avx && random(4) == 0,
+                                       graphicsFailed: layer == .dxvk && random(3) == 0,
+                                       direct3D9Failed: GameLog.direct3D9IsDXVKs(on: layer) && random(4) == 0, layer: layer)
+            let unexplained = random(2) == 0
+            let look = ladder.isEmpty || (proven && !finding.graphicsFailed) ? CloserLook.Step.none
+                : CloserLook.step(unexplained: unexplained, antiCheat: false, carried: random(3) == 0, takenBefore: random(3) == 0, canCarry: true,
+                                  lastWay: index + 1 >= ladder.count)
+            let old = before(ladder: ladder, index: index, proven: proven, learnedRuntimes: known.runtimes, avx: recipe.avx, engineBefore: engine,
+                             finding: finding, filesFixed: fixed, look: look)
+            let new = NextStart.after(NextStart.Failed(ladder: ladder, index: index, proven: proven, learned: known, recipe: recipe,
+                                                       found: NextStart.asBefore(StartDiagnosis.diagnose(finding)), antiCheat: random(5) == 0,
+                                                       againSoFar: 0, engineBefore: engine, filesFixed: fixed, look: look))
+            let same: Bool
+            switch (old, new) {
+            case (.engineBefore, .again(let learned, let why)):
+                same = why == [NextStart.engineBefore] && learned == known
+            case (.runtime(let needed), .again(let learned, let why)):
+                // All that can be changed on the same way comes in this one start: the runtime, and with it a
+                // settings file fixed or no AVX, which took a start each before.
+                same = why.contains("missing-runtime") && learned.runtimes == known.runtimes + needed
+            case (.files, .again(let learned, let why)):
+                same = why.contains(NextStart.fileEdits) && learned.runtimes == known.runtimes
+            case (.noAVX, .again(let learned, let why)):
+                same = why == ["illegal-instruction"] && learned.noAVX && learned.runtimes == known.runtimes && learned.dllsOff.isEmpty
+            case (.look, .again(let learned, let why)):
+                same = why == [NextStart.closerLook] && learned == known
+            case (.noOtherWay, .noOtherWay), (.keepsItsPlace, .keepsItsPlace), (.giveUp, .giveUp):
+                same = true
+            case (.way(let was), .way(let now, _)):
+                same = was == now
+            default:
+                same = false
+            }
+            check(same, "round \(round): the branches said \(old), the decision says \(new) (ladder \(ladder.map(\.id)) at \(index), \(finding))")
+            if case .again(let learned, _) = new { check(learned.dllsOff.isEmpty, "round \(round): no DLL is switched off in step E2") }
+            kinds[String(describing: old).prefix { $0 != "(" }.description, default: 0] += 1
+        }
+        check(kinds.count == 9 && kinds.values.allSatisfy { $0 >= 20 }, "every branch came up (\(kinds))")
+        // What the table reads beyond that changes nothing yet: the layer's own crash and a load of Direct3D 9
+        // alone don't pick a way, a dump at NVIDIA's interface switches no DLL off.
+        let beyond = [found("nvidia-interface", .dllsOff(["nvapi64", "nvngx"])), found("physx-update-loader", .dllsOff(loader)),
+                      found("graphics-crash", .nextLayer), found("loads-direct3d9", .layer(.wined3d)), found("graphics-failed", .nextLayer),
+                      found("hung", .nextWay), found("untrusted-root", .trustRoot("X"))]
+        check(NextStart.asBefore(beyond).allSatisfy { $0.remedy == nil } && NextStart.asBefore(beyond).map(\.id) == beyond.map(\.id),
+              "what didn't act before step E is still seen, and changes nothing")
+        let wined3dLast = [dxmt11, LaunchAttempt(graphics: .dxmt), LaunchAttempt(graphics: .wined3d)]
+        check(NextStart.after(NextStart.Failed(ladder: wined3dLast, index: 0, found: NextStart.asBefore(beyond))) == .way(1, why: nil),
+              "… the next way as it stands")
+        check(NextStart.after(NextStart.Failed(ladder: wined3dLast, index: 0, proven: true, found: NextStart.asBefore(beyond))) == .way(1, why: nil)
+              && NextStart.after(NextStart.Failed(ladder: wined3dLast, index: 0, proven: true, found: NextStart.asBefore(Array(beyond.dropLast(3))))) == .keepsItsPlace,
+              "the layer's own failure still moves a proven way on, nothing else does")
+        // A start that didn't offer AVX isn't started again without it.
+        let noAVXProfile = StartRecipe.of(way: d3dmetal, learned: none, profile: profile(#"{"avx": false}"#), d3dMetalEngine: true)
+        check(NextStart.after(NextStart.Failed(ladder: hogwarts, index: 0, recipe: noAVXProfile, found: [found("illegal-instruction", .noAVX)])) == .way(1, why: nil)
+              && NextStart.after(NextStart.Failed(ladder: hogwarts, index: 0, recipe: plain, found: [found("illegal-instruction", .noAVX)]))
+              == .again(Learned(noAVX: true, steps: ["illegal-instruction"]), why: ["illegal-instruction"]),
+              "an illegal instruction without the AVX hint on: nothing to take away")
+
         // MARK: Proofs hold for a recipe
 
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("start-recipe-\(UUID().uuidString)", isDirectory: true)

@@ -11,7 +11,8 @@ import Foundation
 /// the module all along. Here the first failure answers with the same way and the loader off, and the
 /// player notices a longer wait.
 ///
-/// Not wired in yet: LibraryModel's loop still decides by its branches.
+/// LibraryModel's loop goes by it since step E2: it gathers what is known about the failed start, asks
+/// here, and does what the answer says.
 enum NextStart {
     /// The start that failed and what is known about it.
     struct Failed {
@@ -23,6 +24,9 @@ enum NextStart {
         var proven = false
         /// What its recipe carried from the table already (LearnedFixes.learned).
         var learned = StartRecipe.Learned()
+        /// What the start was made of. What it had already is no change: a start that didn't offer Rosetta's
+        /// AVX – its profile's choice – isn't started again without it. nil: not known, every remedy counts.
+        var recipe: StartRecipe?
         /// What the table read from the start (StartDiagnosis.diagnose). For a game with an anti-cheat: from
         /// Wine's log alone, as before – its files aren't looked into.
         var found: [StartDiagnosis] = []
@@ -78,6 +82,7 @@ enum NextStart {
         for diagnosis in failed.found {
             guard let remedy = diagnosis.remedy else { continue }
             if failed.antiCheat, case .dllsOff = remedy { continue }
+            if remedy == .noAVX, failed.recipe?.avx == false { continue }
             if let changed = learned.applying(remedy, rule: diagnosis.id) {
                 learned = changed
                 why.append(diagnosis.id)
@@ -110,6 +115,17 @@ enum NextStart {
         default: answers = nil
         }
         return answers.flatMap { answers in following.first { answers(ladder[$0]) } } ?? following.first
+    }
+
+    /// The rules whose remedies changed a start before step E: the three things a game says that point to a
+    /// way, and what Wine's log says of a missing runtime and an illegal instruction.
+    static let actedBefore: Set<String> = ["refused-switch", "needs-d3d12", "direct3d9", "missing-runtime", "illegal-instruction"]
+
+    /// `found` with only the remedies that acted before step E (step E2: one decision, the same behaviour).
+    /// The other findings stay as what was seen – the layer's own failure still moves a proven way on
+    /// (StartDiagnosis.layerRefused) – and change nothing.
+    static func asBefore(_ found: [StartDiagnosis]) -> [StartDiagnosis] {
+        found.map { actedBefore.contains($0.id) ? $0 : StartDiagnosis(id: $0.id, because: $0.because, remedy: nil) }
     }
 
     /// What a game said, as the remedy the table gives for it (StartDiagnosis.rules).
