@@ -260,15 +260,21 @@ enum StartEvidence {
     }
 
     /// Only games whose first entry is a start on a way not yet proven: the ones logged after they already worked don't count.
+    /// A way started again with its recipe changed (NextStart.Step.again) is still that way: a game that came up
+    /// on its first way at the second start came up on its first way.
     static func summary(_ entries: [Entry]) -> Summary {
         var byGame: [String: [Entry]] = [:]
         for entry in entries { byGame[entry.game, default: []].append(entry) }
         var summary = Summary()
         for list in byGame.values where list.first?.known != true {
             var ways = 0
+            var lastWay: String?
             var outcome: Event?
             for entry in list {
-                if entry.event == .started { ways += 1 }
+                if entry.event == .started, entry.way != lastWay || entry.way == nil {
+                    ways += 1
+                    lastWay = entry.way
+                }
                 if entry.event == .worked || entry.event == .gaveUp {
                     outcome = entry.event
                     break

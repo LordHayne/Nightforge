@@ -4849,18 +4849,21 @@ final class LibraryModel: ObservableObject {
                     return
                 }
                 // What the start left behind, read through the table (StartDiagnosis): said in the log, kept for
-                // the record and the problem report – not acted on yet. Never for a game with an anti-cheat.
+                // the record and the problem report, and what the decision below goes by (step E3). Never for a
+                // game with an anti-cheat: its files aren't looked into (`found` stays nil).
                 var diagnosis: [String] = []
+                var found: [StartDiagnosis]?
                 // Step C: nothing in the diagnosis says why (StartDiagnosis.unexplained). Never for an anti-cheat game.
                 var unexplained = false
                 if !Task.isCancelled {
                     let hung = noPicture != nil, folder = game.installDirName, block = game.antiCheatBlock
-                    (diagnosis, unexplained) = await Task.detached(priority: .utility) {
-                        guard !ShaderCaches.hasAntiCheat(profile: profile, block: block, installDir: installDir) else { return ([], false) }
-                        let found = StartDiagnosis.diagnose(StartDiagnosis.finding(logText: log, installDir: installDir, gameFolder: folder,
-                                                                                   since: startedAt, layer: layer, hung: hung))
-                        return (found.map { GameLog.redacted($0.line) }, StartDiagnosis.unexplained(found))
+                    found = await Task.detached(priority: .utility) {
+                        guard !ShaderCaches.hasAntiCheat(profile: profile, block: block, installDir: installDir) else { return nil }
+                        return StartDiagnosis.diagnose(StartDiagnosis.finding(logText: log, installDir: installDir, gameFolder: folder,
+                                                                              since: startedAt, layer: layer, hung: hung))
                     }.value
+                    diagnosis = (found ?? []).map { GameLog.redacted($0.line) }
+                    unexplained = found.map(StartDiagnosis.unexplained) ?? false
                     for line in diagnosis { GameLog.note("Diagnosis for \(game.name): \(line)") }
                     StartDiagnosis.remember(diagnosis, for: game.gameID)
                 }
@@ -4937,12 +4940,15 @@ final class LibraryModel: ObservableObject {
                 }.value
                 // What acted on a failed start before step E, read as before: the game's words in its crash
                 // reports, and Wine's log for a missing runtime, an illegal instruction and the layer's failure.
-                // For a game with an anti-cheat this is all the decision ever gets.
-                let said = StartFinding(messages: crashTexts,
-                                        missingRuntimes: GameLog.missingRuntimes(since: logMark, gameFolder: game.installDirName),
-                                        illegalInstruction: game.bottle.isBuiltIn && recipe.avx
-                                            && GameLog.illegalInstruction(since: logMark, installDir: game.installDir, startedAt: startedAt),
-                                        graphicsFailed: graphicsFailed, direct3D9Failed: direct3D9Failed, layer: layer)
+                // For a game with an anti-cheat this is all the decision ever gets (NextStart.asBefore); for
+                // every other game the whole diagnosis decides, with every remedy of the table (step E3).
+                let antiCheat = found == nil || analysis?.antiCheat.isEmpty == false
+                let decides = !antiCheat ? found ?? [] : NextStart.asBefore(StartDiagnosis.diagnose(StartFinding(
+                    messages: crashTexts,
+                    missingRuntimes: GameLog.missingRuntimes(since: logMark, gameFolder: game.installDirName),
+                    illegalInstruction: game.bottle.isBuiltIn && recipe.avx
+                        && GameLog.illegalInstruction(since: logMark, installDir: game.installDir, startedAt: startedAt),
+                    graphicsFailed: graphicsFailed, direct3D9Failed: direct3D9Failed, layer: layer)))
                 let onLadder = automatic && !attempts.isEmpty
                 let index = onLadder ? LaunchHealth.current(game.gameID, attempts).index : 0
                 // Step C: nothing explains this end – the ways still to come carry Wine's debug channels, and
@@ -4959,7 +4965,7 @@ final class LibraryModel: ObservableObject {
                                       lastWay: index + 1 >= attempts.count)
                 let next = NextStart.after(NextStart.Failed(
                     ladder: onLadder ? attempts : [], index: index, proven: wayConfirmed, learned: learned, recipe: recipe,
-                    found: NextStart.asBefore(StartDiagnosis.diagnose(said)), antiCheat: analysis?.antiCheat.isEmpty == false,
+                    found: decides, antiCheat: antiCheat,
                     againSoFar: sameWayAgain, filesFixed: filesFixed, look: look))
                 /// What the ladder's own steps – a closer look, the next way, giving up – put on record first.
                 func noteFailed() {
@@ -4975,13 +4981,19 @@ final class LibraryModel: ObservableObject {
                 switch next {
                 case .again(let changed, let why):
                     // The same way once more: with what Wine said is missing installed, the settings file
-                    // fixed, without Rosetta's AVX hint – all of it in this one start – or for a closer look.
+                    // fixed, without Rosetta's AVX hint, with a DLL kept unloaded that the crash came from –
+                    // all of it in this one start – or for a closer look.
                     sameWayAgain += 1
                     if why == [NextStart.closerLook] {
                         noteFailed()
                         lookCloser("it starts once more on this way with Wine's debug channels")
                     } else {
-                        if changed != learned { LearnedFixes.keep(changed, for: game.gameID) }
+                        if changed != learned {
+                            LearnedFixes.keep(changed, for: game.gameID)
+                            // The recipe changes: this one failed, on record, so that the way's proof is told
+                            // apart by what it was started with (StartEvidence.Proof.failedWith).
+                            if onLadder { noteFailed() }
+                        }
                         GameLog.note("\(game.name) starts once more on the same way: \(why.joined(separator: ", "))")
                     }
                     continue

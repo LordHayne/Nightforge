@@ -62,8 +62,9 @@ enum StartRemedy: Equatable {
 
 /// One thing a failed start showed, and what answers it. The table (`rules`) is the one place that
 /// says which failure calls for which change; a remedy comes from it or from a reviewed profile, never
-/// from a guess. So far the diagnosis is only said (the log, the start's record, the problem report):
-/// the start still acts through the ladder and its own branches (docs/ENTWURF-STARTREZEPT.md, stage 2).
+/// from a guess. The diagnosis is said (the log, the start's record, the problem report) and, since step
+/// E3, acted on: NextStart.after reads it and changes the start's recipe or picks its way
+/// (docs/ENTWURF-STARTREZEPT.md 3.3).
 struct StartDiagnosis: Equatable {
     /// "physx-update-loader": stable, for the record.
     var id: String
@@ -195,15 +196,19 @@ struct StartDiagnosis: Equatable {
 
     /// Gathers what a start since `startedAt` left: its crash reports and dumps, and Wine's log from
     /// `logText` – with what a closer look's channels printed, when the start carried them. A message box's
-    /// text counts as the game's own words, behind its crash reports'. The caller leaves games with an
-    /// anti-cheat out: their files aren't looked into.
+    /// text counts as the game's own words, behind its crash reports'. An illegal instruction is Wine's word
+    /// or a crash report's (Unreal catches it itself), as GameLog.illegalInstruction reads it. The caller
+    /// leaves games with an anti-cheat out: their files aren't looked into.
     static func finding(logText: String, installDir: URL, gameFolder: String, since startedAt: Date, layer: GraphicsLayer,
                         hung: Bool, prefix: URL = Engine.prefix) -> StartFinding {
         let reading = CloserLook.read(logText, gameFolder: gameFolder)
+        let reported = GameLog.crashReports(installDir: installDir, since: startedAt, prefix: prefix).contains {
+            ((try? String(contentsOf: $0, encoding: .utf8)) ?? "").contains("EXCEPTION_ILLEGAL_INSTRUCTION")
+        }
         return StartFinding(messages: GameLog.crashMessages(installDir: installDir, since: startedAt, prefix: prefix) + reading.boxes,
                      dumps: GameLog.crashDumps(installDir: installDir, since: startedAt, prefix: prefix).compactMap(CrashDump.read),
                      missingRuntimes: GameLog.missingRuntimes(in: logText, gameFolder: gameFolder),
-                     illegalInstruction: GameLog.illegalInstruction(in: logText),
+                     illegalInstruction: GameLog.illegalInstruction(in: logText) || reported,
                      graphicsFailed: GameLog.graphicsFailed(in: logText, layer: layer),
                      direct3D9Failed: GameLog.direct3D9Failed(in: logText, layer: layer),
                      hung: hung, layer: layer, reading: reading)

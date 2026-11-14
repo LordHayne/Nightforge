@@ -11,8 +11,8 @@ import Foundation
 /// the module all along. Here the first failure answers with the same way and the loader off, and the
 /// player notices a longer wait.
 ///
-/// LibraryModel's loop goes by it since step E2: it gathers what is known about the failed start, asks
-/// here, and does what the answer says.
+/// LibraryModel's loop goes by it (step E2): it gathers what is known about the failed start, asks here, and
+/// does what the answer says. Since step E3 every remedy of the table acts, for a game without an anti-cheat.
 enum NextStart {
     /// The start that failed and what is known about it.
     struct Failed {
@@ -80,9 +80,14 @@ enum NextStart {
         var learned = failed.learned
         var why: [String] = []
         for diagnosis in failed.found {
-            guard let remedy = diagnosis.remedy else { continue }
+            guard var remedy = diagnosis.remedy else { continue }
             if failed.antiCheat, case .dllsOff = remedy { continue }
             if remedy == .noAVX, failed.recipe?.avx == false { continue }
+            // A DLL the failed start had off already – its profile's, or Nightforge's for every game – isn't
+            // what a start without it would change.
+            if case .dllsOff(let dlls) = remedy, let recipe = failed.recipe {
+                remedy = .dllsOff(dlls.filter { recipe.dllOverrides[StartRecipe.Learned.dllName($0)] != "" })
+            }
             if let changed = learned.applying(remedy, rule: diagnosis.id) {
                 learned = changed
                 why.append(diagnosis.id)
@@ -95,9 +100,26 @@ enum NextStart {
         // Nothing explains it and no way is left to carry the channels: this one again, with them.
         if failed.look == .sameWayAgain, mayRepeat { return .again(failed.learned, why: [closerLook]) }
         if failed.proven, !StartDiagnosis.layerRefused(failed.found) { return .keepsItsPlace }
-        let pointer = failed.found.first { $0.remedy?.picksAWay == true }
+        let pointer = pointer(in: failed.found)
         guard let next = way(answering: pointer?.remedy, after: failed.index, in: failed.ladder) else { return .giveUp }
         return .way(next, why: pointer?.id)
+    }
+
+    /// The finding that picks the way to come: one that names what the way has to be (a layer, no switches)
+    /// before one that only rules this layer out, before one that knows nothing better than the next. Among
+    /// equals the table's order. Alan Wake on D3DMetal (11.11.2026) draws with Direct3D 9: should its d3d9.dll
+    /// crash too, "another layer" would send it to DXMT, where Direct3D 9 is DXVK's just the same.
+    static func pointer(in found: [StartDiagnosis]) -> StartDiagnosis? {
+        func rank(_ remedy: StartRemedy?) -> Int? {
+            switch remedy {
+            case .dropArguments?, .layer?: return 0
+            case .nextLayer?: return 1
+            case .nextWay?: return 2
+            default: return nil
+            }
+        }
+        return found.enumerated().compactMap { place, finding in rank(finding.remedy).map { (rank: $0, place: place, finding: finding) } }
+            .min { ($0.rank, $0.place) < ($1.rank, $1.place) }?.finding
     }
 
     /// The way of `ladder` after `index` that answers `remedy`, and the next one where none does or the
@@ -121,9 +143,9 @@ enum NextStart {
     /// way, and what Wine's log says of a missing runtime and an illegal instruction.
     static let actedBefore: Set<String> = ["refused-switch", "needs-d3d12", "direct3d9", "missing-runtime", "illegal-instruction"]
 
-    /// `found` with only the remedies that acted before step E (step E2: one decision, the same behaviour).
-    /// The other findings stay as what was seen – the layer's own failure still moves a proven way on
-    /// (StartDiagnosis.layerRefused) – and change nothing.
+    /// `found` with only the remedies that acted before step E. All a game with an anti-cheat gets: its
+    /// starts change the way they always did, and no further. The other findings stay as what was seen –
+    /// the layer's own failure still moves a proven way on (StartDiagnosis.layerRefused) – and change nothing.
     static func asBefore(_ found: [StartDiagnosis]) -> [StartDiagnosis] {
         found.map { actedBefore.contains($0.id) ? $0 : StartDiagnosis(id: $0.id, because: $0.because, remedy: nil) }
     }

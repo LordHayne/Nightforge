@@ -452,6 +452,56 @@ struct StartRecipeTest {
               == .again(Learned(noAVX: true, steps: ["illegal-instruction"]), why: ["illegal-instruction"]),
               "an illegal instruction without the AVX hint on: nothing to take away")
 
+        // MARK: Step E3 – every remedy of the table acts
+
+        // A dump at NVIDIA's interface: the same way once more with nvapi64 and nvngx kept out – D3DMetal has
+        // them on as its own (Engine.layerOverrides) – and the start made of that has them off in the prefix.
+        let nvidiaFound = [found("nvidia-interface", .dllsOff(["nvapi64", "nvngx"]))]
+        let withNvidia = NextStart.after(NextStart.Failed(ladder: hogwarts, index: 2, recipe: plain, found: nvidiaFound))
+        check(withNvidia == .again(nvidiaOff, why: ["nvidia-interface"]), "a crash in NVIDIA's interface: the same way without it (\(withNvidia))")
+        check(plain.dllOverrides["nvapi64"] == "builtin" && withoutNvidia.dllOverrides["nvapi64"] == "" && withoutNvidia.dllOverrides["nvngx"] == "",
+              "… which the start's recipe then carries")
+        // The same finding once more changes nothing: the next way, or none.
+        check(NextStart.after(NextStart.Failed(ladder: hogwarts, index: 2, learned: nvidiaOff, recipe: withoutNvidia, found: nvidiaFound)) == .giveUp
+              && NextStart.after(NextStart.Failed(ladder: hogwarts, index: 0, learned: nvidiaOff, recipe: withoutNvidia, found: nvidiaFound)) == .way(1, why: nil),
+              "what the start had already isn't tried again")
+        // A DLL that is off for every game, or by the game's profile, was off at the failed start: no start for it.
+        check(plain.dllOverrides["physxupdateloader64"] == ""
+              && NextStart.after(NextStart.Failed(ladder: hogwarts, index: 0, recipe: plain, found: physx)) == .way(1, why: nil),
+              "the PhysX update loader is off for every game: nothing to switch off")
+        let loaderBack = StartRecipe.of(way: twoLadder[0], learned: none, profile: itTakesTwo, d3dMetalEngine: true)
+        check(NextStart.after(NextStart.Failed(ladder: twoLadder, index: 0, recipe: loaderBack, found: physx))
+              == .again(Learned(dllsOff: loader, steps: ["physx-update-loader"]), why: ["physx-update-loader"]),
+              "It Takes Two with the loader back: the same way with it off")
+        let halfOff = profile(#"{"dllOverrides": {"nvngx": ""}}"#)
+        check(NextStart.after(NextStart.Failed(ladder: hogwarts, index: 2, recipe: StartRecipe.of(way: dxmt11, learned: none, profile: halfOff, d3dMetalEngine: true),
+                                               found: nvidiaFound)) == .again(Learned(dllsOff: ["nvapi64"], steps: ["nvidia-interface"]), why: ["nvidia-interface"]),
+              "only the DLLs that were on")
+        // The way to come: a finding that names it goes before one that only rules this layer out.
+        let nineLadder = [d3dmetal, dxmt11, LaunchAttempt(graphics: .wined3d)]
+        let crashInD3D9 = found("graphics-crash", .nextLayer), drawsD3D9 = found("direct3d9", .layer(.wined3d))
+        check(NextStart.after(NextStart.Failed(ladder: nineLadder, found: [crashInD3D9, drawsD3D9])) == .way(2, why: "direct3d9"),
+              "Alan Wake with a crash in d3d9.dll too: Wine's own Direct3D, not DXMT on the way")
+        check(NextStart.after(NextStart.Failed(ladder: nineLadder, found: [crashInD3D9])) == .way(1, why: "graphics-crash")
+              && NextStart.after(NextStart.Failed(ladder: [dxmt11, LaunchAttempt(graphics: .dxmt), LaunchAttempt(graphics: .dxvk)], found: [crashInD3D9]))
+              == .way(2, why: "graphics-crash"), "a crash in the layer's own DLL: the next way on another layer")
+        check(NextStart.pointer(in: [found("hung", .nextWay), found("graphics-failed", .nextLayer), found("loads-direct3d9", .layer(.wined3d)),
+                                     found("refused-switch", .dropArguments)])?.id == "loads-direct3d9"
+              && NextStart.pointer(in: [found("hung", .nextWay), found("crash", nil), found("nvidia-interface", .dllsOff(["nvapi64"]))])?.id == "hung"
+              && NextStart.pointer(in: [found("crash", nil), found("untrusted-root", .trustRoot("X"))]) == nil,
+              "among findings that name the way the table's order, then another layer, then the next way")
+        // A game with an anti-cheat: only what acted before step E, whatever else Wine's log says.
+        let guarded = NextStart.asBefore(StartDiagnosis.diagnose(StartFinding(messages: ["Fatal error!"], missingRuntimes: ["vcrun2019"], graphicsFailed: true, layer: .dxvk)))
+        check(guarded.map(\.id) == ["graphics-failed", "missing-runtime"] && guarded.first?.remedy == nil,
+              "a game with an anti-cheat: its layer's failure is seen, not acted on (\(guarded.map(\.line)))")
+        let dxvkFirst = [LaunchAttempt(graphics: .dxvk, arguments: ["-dx11"]), LaunchAttempt(graphics: .dxvk), d3dmetal]
+        check(NextStart.after(NextStart.Failed(ladder: dxvkFirst, found: guarded, antiCheat: true))
+              == .again(Learned(runtimes: ["vcrun2019"], steps: ["missing-runtime"]), why: ["missing-runtime"])
+              && NextStart.after(NextStart.Failed(ladder: dxvkFirst, learned: Learned(runtimes: ["vcrun2019"]), found: guarded, antiCheat: true)) == .way(1, why: nil),
+              "… its runtime as before, then simply the next way")
+        check(NextStart.after(NextStart.Failed(ladder: hogwarts, index: 2, recipe: plain, found: nvidiaFound, antiCheat: true)) == .giveUp,
+              "… and never a DLL off")
+
         // MARK: Proofs hold for a recipe
 
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("start-recipe-\(UUID().uuidString)", isDirectory: true)
@@ -483,6 +533,10 @@ struct StartRecipeTest {
         StartEvidence.note(.started, game: .steam(33), way: "d3dmetal", known: false, kind: ue426, recipe: plain, to: record)
         StartEvidence.note(.ended, game: .steam(33), way: "d3dmetal", picture: true, seconds: 70, to: record)
         let proofs = StartEvidence.proofs(StartEvidence.load(from: record))
+        // A way started again with its recipe changed is still the game's first way.
+        let firstStarts = StartEvidence.summary(StartEvidence.load(from: record))
+        check(firstStarts == StartEvidence.Summary(firstWay: 3, laterWay: 0, noWay: 0, open: 1),
+              "It Takes Two and the game that needed a runtime came up on their first way, at its second start (\(firstStarts))")
 
         let two = proofs[twoGame.key]
         check(two?.workedWith["d3dmetal"] == withoutLoader && two?.failedWith["d3dmetal"] == [withLoader],
