@@ -34,6 +34,8 @@ enum StartEvidence {
         var seconds: Int?
         /// With a start: a profile shaped it (GameProfile.shapesStart) – what it proves is the profile's, not its sort's.
         var profiled: Bool?
+        /// With a start: it carried Wine's debug channels, after one nothing explained (CloserLook).
+        var closerLook: Bool?
     }
 
     /// Games Nightforge had never seen, by how their first start went (`worked`: it drew a picture,
@@ -49,9 +51,10 @@ enum StartEvidence {
 
     static func note(_ event: Event, game: GameID, way: String, engine: String? = nil, known: Bool? = nil,
                      reason: String? = nil, kind: GameKind? = nil, recipe: StartRecipe? = nil, diagnosis: [String]? = nil,
-                     picture: Bool? = nil, seconds: Int? = nil, profiled: Bool? = nil, to file: URL = url) {
+                     picture: Bool? = nil, seconds: Int? = nil, profiled: Bool? = nil, closerLook: Bool? = nil, to file: URL = url) {
         var entry = Entry(at: Date(), game: game.key, event: event, way: way, engine: engine, known: known)
         entry.profiled = profiled == true ? true : nil
+        entry.closerLook = closerLook == true ? true : nil
         entry.kind = kind
         entry.recipe = recipe
         entry.picture = picture
