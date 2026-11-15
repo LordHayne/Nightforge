@@ -507,6 +507,24 @@ ihr Board, die Vorlagen dafür stehen unter der Liste.
    - C, gar kein eigener Text: Der Vorhang bleibt bei „Startet …“, der Spieler merkt nur die längere Wartezeit.
    Empfehlung: A – es erklärt die Wartezeit, ohne Mechanik zu zeigen.
 
+**Gebaut nach der Wahl des Nutzers (15.11.2026, „B, wie empfohlen“ und „Ja, wie empfohlen“ für den Rest):**
+
+- *Vorhang B* (`LaunchRepair`): die sechs Zustände des Boards, dazu „Noch ein Versuch …“ ohne „Ursache gefunden“ für das
+  stille zweite Mal eines bewährten Wegs und zwei Zustände nach der Frage zur Wurzel. Abweichungen: „Spiel wird
+  eingerichtet …“ (der Satz gab es schon), am Ende „Alles versucht“ (ein Spiel mit nur einem Weg hat keinen anderen
+  versucht). Die Lücke für Update-Leiste und Schritte ist auf jedem Vorhang 34 statt 14 pt hoch.
+- *Fehlerfenster, Weg 1 „einordnen“:* Ist das Fenster, unter das der Vorhang geht, ein Meldungsfenster, das einen
+  Fehler meldet und nichts fragt (`CloserLook.errorNotice`, aus Wines `+msgbox`), heißt die Zeile „Das Spiel meldet einen
+  Fehler“, darunter „A drückt OK – Nightforge kümmert sich um den Rest.“. Die Box bleibt sichtbar, der Spieler drückt
+  OK; das Ende ist ein Fehlstart (E5), und was folgt, sagt Vorhang B. Eine Box, die fragt, bleibt die Frage des Spiels.
+- *Frage zur Wurzel:* in der Mitte des Bildschirms über dem Vorhang (`GameOverlay`, Schritt `.trustRoot`), mit Pad,
+  Tastatur und Maus; jeder Weg hinaus ist ein Nein. Nur für Wurzeln in `WindowsRoots.onRequest` – die Liste ist leer,
+  jede Wurzel dort braucht das OK des Nutzers. Ja gilt für alle Windows-Spiele (der Prefix ist geteilt). Ein Nein wird
+  **nicht** gemerkt: Das nächste „Spielen“ fragt nach dem nächsten Fehlstart wieder, ohne genaueren Blick
+  (`windowsRoots.needed.<Spiel>`). Der Knopf auf der Seite des Spiels aus dem Board ist nicht gebaut.
+- Versteckte Schalter für die Live-Prüfung, im Release-Build nicht vorhanden: `testFinding` (ein Befund zu einem echten
+  Fehlstart) und `testRootQuestion` (die Wurzeln, die heute in jedem Prefix stehen, werden erfragt).
+
 **Das Board steht seit 15.11.2026:** https://claude.ai/artifact/DFFsf6UN2SqAEubqUCWWy3 (Design-Leinwand im
 Nightforge-Designsystem, privat; die Quellen der fünf Artboards liegen in `docs/entwuerfe/fehlstart/`). Es zeigt
 drei Vorlagen für den Vorhang bei einem Fehlstart (A ruhig, B mit Lebenszeichen – empfohlen, C erzählt mit), drei
