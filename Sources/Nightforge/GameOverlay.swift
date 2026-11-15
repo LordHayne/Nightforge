@@ -1028,6 +1028,26 @@ enum GameProcesses {
         return onlyShield(windows, pids: pids)
     }
 
+    /// The game's own full screen hides its picture: the shield on the screen is its own capture's, its window of a
+    /// picture's size is there but off the screen, and nothing of it shows. Overwatch in exclusive full screen, about
+    /// every second start (15.11.2026): it switched the display to 60 Hz, Wine captured it, and the window stayed
+    /// hidden on Space 1 ("1516x891 off", then shield+2 "off"). Wine shows it again only after its own ⌘-Tab, which
+    /// gives the display back (`handleCommandTab`); Nightforge's fetching back doesn't reach it. From one list of all
+    /// windows (`.optionAll`), which says of each whether it's on the screen.
+    nonisolated static func ownCaptureHides(_ windows: [[String: Any]], pids: Set<pid_t>) -> Bool {
+        let mine = windows.filter { (($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value).map(pids.contains) ?? false }
+        let onScreen = { (window: [String: Any]) in (window[kCGWindowIsOnscreen as String] as? NSNumber)?.boolValue ?? false }
+        let shown = mine.filter(onScreen), away = mine.filter { !onScreen($0) }
+        return shown.contains { isShield(level: ($0[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0) }
+            && !showsWindow(shown, pids: pids) && showsWindow(away, pids: pids)
+    }
+
+    nonisolated static func ownCaptureHides(_ pids: Set<pid_t>) -> Bool {
+        guard !pids.isEmpty, let windows = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
+        else { return false }
+        return ownCaptureHides(windows, pids: pids)
+    }
+
     /// What the stage watch needs to know of the game's windows; `page`: Nightforge's page behind it;
     /// `level`: the level of its window over the screen shown (`screen`), when it has one.
     nonisolated static func onStage(_ pids: Set<pid_t>, page: Int?, screen: CGRect?) -> (here: Bool, anywhere: Bool, pageOver: Bool, level: Int?) {

@@ -1386,6 +1386,9 @@ final class LibraryModel: ObservableObject {
         /// Its picture on the Space shown since, and how often its window was fetched back under the curtain.
         var pictureSince: Date?
         var broughtBack = 0
+        /// Since when its own full screen hides its picture (ownCaptureHides), and whether the log has it.
+        var hiddenByFullScreen: Date?
+        var fullScreenSaid = false
         /// The picture's size on the Space shown, and since when it hasn't changed.
         var pictureSize: (size: String, since: Date)?
         /// The game's time in front the pointer was hidden for, and the app in front at the last look.
@@ -1662,6 +1665,16 @@ final class LibraryModel: ObservableObject {
             }
             if let asking, asking.number != questionSeen?.number { questionSeen = (asking.number, Date()) }
             if asking == nil { questionSeen = nil }
+            // Its own full screen hiding its picture: one more read, only while only its shield shows.
+            let ownCapture = gameFront && !here && anywhere && shieldOnly
+                ? await Task.detached(priority: .utility) { GameProcesses.ownCaptureHides(pids) }.value : false
+            hiddenByFullScreen = ownCapture ? (hiddenByFullScreen ?? Date()) : nil
+            if !fullScreenSaid, Self.fullScreenHidesPicture(hides: ownCapture, gameFront: gameFront, broughtBack: broughtBack,
+                                                            hiddenFor: hiddenByFullScreen.map { Date().timeIntervalSince($0) } ?? 0) {
+                fullScreenSaid = true
+                let capture = await Engine.offMain { GameProcesses.captureNote() }
+                GameLog.note("Curtain: \(game.name)'s own full screen hides its picture – its window off the screen under its capture (\(capture))")
+            }
             let question = asking?.number
             // A thin window is a splash more often than a question (ABZU's Unreal splash, 601×201, showed
             // "asking" for a moment on 3.11.): taken as one once it has stood a while. So is Unity's
@@ -2181,6 +2194,16 @@ final class LibraryModel: ObservableObject {
     /// How long the game has the front with its window off the screen before it's fetched back.
     nonisolated static let windowAwayPatience: TimeInterval = 4
     nonisolated static let maxBroughtBack = 2
+
+    /// The game's own full screen hides its picture for good (GameProcesses.ownCaptureHides): it has the front, it was
+    /// fetched back `maxBroughtBack` times, and it has stood so `fullScreenHidesFor`. In Overwatch's starts with a
+    /// picture the window was off for a moment only (15.11.2026); in those without, it never came back. What the
+    /// curtain says then waits for the player's pick on the board "Vollbild verdeckt das Spiel".
+    nonisolated static func fullScreenHidesPicture(hides: Bool, gameFront: Bool, broughtBack: Int, hiddenFor: TimeInterval) -> Bool {
+        hides && gameFront && broughtBack >= maxBroughtBack && hiddenFor >= fullScreenHidesFor
+    }
+
+    nonisolated static let fullScreenHidesFor: TimeInterval = 10
 
     /// A ⌘ (⌘-Tab, ⌘H) or a click within `seconds`: the player moved, what came to the front is their
     /// choice. Not any key: one playing with the keyboard presses them all the time. A click in the
