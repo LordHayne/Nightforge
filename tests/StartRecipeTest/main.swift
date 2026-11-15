@@ -635,17 +635,26 @@ struct StartRecipeTest {
 
         // MARK: An error box or a question of its own
 
-        check(LaunchHealth.ownQuestionWasAChoice(explained: false, endedAtBox: nil), "The Forest, 3.11.: Unity's window, Quit – no message box, the player's choice as before")
-        check(!LaunchHealth.ownQuestionWasAChoice(explained: false, endedAtBox: "Alan Wake could not initialize your 3D graphics card. Technical: DEVICE_CREATE_ERROR - Not available"),
+        check(LaunchHealth.ownQuestionWasAChoice(explained: false, endedAtBox: nil, knownWindow: true),
+              "The Forest, 3.11.: Unity's window, Quit – no message box, a window it's known to show: the player's choice as before")
+        check(!LaunchHealth.ownQuestionWasAChoice(explained: false, endedAtBox: nil, knownWindow: false),
+              "Metal Gear Solid V, 15.11.: a window of its own, no message box, no window of its own known – a failed start")
+        check(LaunchHealth.showsOwnWindow(GameAnalysis(engine: .unity)) && LaunchHealth.showsOwnWindow({ var a = GameAnalysis(); a.launcherSwitch = "-nolauncher"; return a }())
+              && LaunchHealth.showsOwnWindow({ var a = GameAnalysis(); a.launcher = "Ubisoft Connect"; return a }()),
+              "Unity's configuration window, its own launcher window, another store's launcher: windows it's known to show")
+        check(!LaunchHealth.showsOwnWindow(GameAnalysis(engine: .other)) && !LaunchHealth.showsOwnWindow(GameAnalysis(engine: .unreal)) && !LaunchHealth.showsOwnWindow(nil),
+              "a game with none known, or nothing known of it: none")
+        check(!LaunchHealth.ownQuestionWasAChoice(explained: false, endedAtBox: "Alan Wake could not initialize your 3D graphics card. Technical: DEVICE_CREATE_ERROR - Not available", knownWindow: false),
               "Alan Wake, 14.11.: its error box had only OK to press – not a choice")
-        check(!LaunchHealth.ownQuestionWasAChoice(explained: false, endedAtBox: "Failed to load SteamAPI"), "Metal Gear Solid V, 11.11.: the same")
-        check(LaunchHealth.ownQuestionWasAChoice(explained: false, endedAtBox: "Start in safe mode?"), "a message box that asks: the answer can be the end")
-        check(!LaunchHealth.ownQuestionWasAChoice(explained: true, endedAtBox: nil) && !LaunchHealth.ownQuestionWasAChoice(explained: true, endedAtBox: "Start in safe mode?"),
+        check(!LaunchHealth.ownQuestionWasAChoice(explained: false, endedAtBox: "Failed to load SteamAPI", knownWindow: false), "Metal Gear Solid V, 11.11.: the same")
+        check(LaunchHealth.ownQuestionWasAChoice(explained: false, endedAtBox: "Start in safe mode?", knownWindow: false), "a message box that asks: the answer can be the end")
+        check(!LaunchHealth.ownQuestionWasAChoice(explained: true, endedAtBox: nil, knownWindow: false) && !LaunchHealth.ownQuestionWasAChoice(explained: true, endedAtBox: "Start in safe mode?", knownWindow: false),
               "an end the table explains failed, whatever window stood there")
-        check(!StartDiagnosis.unexplained(direct3D9) && !LaunchHealth.ownQuestionWasAChoice(explained: !StartDiagnosis.unexplained(direct3D9), endedAtBox: nil),
+        check(!StartDiagnosis.unexplained(direct3D9) && !LaunchHealth.ownQuestionWasAChoice(explained: !StartDiagnosis.unexplained(direct3D9), endedAtBox: nil, knownWindow: false),
               "Alan Wake's Direct3D 9 on D3DMetal is explained without any channel")
-        check(StartDiagnosis.unexplained([found("said", nil)]) && LaunchHealth.ownQuestionWasAChoice(explained: false, endedAtBox: nil),
-              "without the channel nothing tells Metal Gear Solid V's box from a question: that stays as it is until every start carries it")
+        check(StartDiagnosis.unexplained([found("said", nil)]) && LaunchHealth.ownQuestionWasAChoice(explained: false, endedAtBox: nil, knownWindow: true)
+              && !LaunchHealth.ownQuestionWasAChoice(explained: false, endedAtBox: nil, knownWindow: false),
+              "no words read and nothing explained: a window the game is known to show stays the player's, any other is a failed start")
         // Alan Wake's start of 14.11. as its log was, through the whole chain: read, diagnosed, decided.
         let wake = try String(contentsOf: URL(fileURLWithPath: "tests/CloserLookTest/fixtures/msgbox-alanwake-2026-11-14.log"), encoding: .utf8)
         func wakeFinding(on layer: GraphicsLayer) -> StartFinding {
@@ -656,12 +665,12 @@ struct StartRecipeTest {
         check(wakeFound.map(\.id) == ["direct3d9"] && onD3DMetal.messages.count == 1 && onD3DMetal.messages[0].hasPrefix("Alan Wake could not initialize your 3D graphics card."),
               "its log on D3DMetal: DXVK's Direct3D 9 got no device, and the box's text is the game's word (\(wakeFound.map(\.id)))")
         check(after(wakeFound, ladder: unknown) == .way(3, why: "direct3d9")
-              && !LaunchHealth.ownQuestionWasAChoice(explained: !StartDiagnosis.unexplained(wakeFound), endedAtBox: onD3DMetal.reading.endedAtBox),
+              && !LaunchHealth.ownQuestionWasAChoice(explained: !StartDiagnosis.unexplained(wakeFound), endedAtBox: onD3DMetal.reading.endedAtBox, knownWindow: false),
               "… so the next start is on Wine's own Direct3D, and the box was no choice of the player's")
         // The same box where no rule knows the cause: the box alone says it wasn't a choice.
         let onWine = wakeFinding(on: .wined3d), wineFound = StartDiagnosis.diagnose(onWine)
         check(wineFound.map(\.id) == ["said"] && StartDiagnosis.unexplained(wineFound)
-              && !LaunchHealth.ownQuestionWasAChoice(explained: false, endedAtBox: onWine.reading.endedAtBox),
+              && !LaunchHealth.ownQuestionWasAChoice(explained: false, endedAtBox: onWine.reading.endedAtBox, knownWindow: false),
               "an error box with nothing else found: said, unexplained, and still a failed start (\(wineFound.map(\.id)))")
 
         print(failures == 0 ? "✓ StartRecipe" : "\(failures) failed")
