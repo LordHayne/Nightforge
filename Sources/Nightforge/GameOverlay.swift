@@ -1074,6 +1074,47 @@ enum GameProcesses {
         return screenCaptured(windows, me: getpid())
     }
 
+    /// Who holds a captured display's shield – a window at or above its level –, `me`'s left out: each owner
+    /// once, by its process number and the name macOS gives it, never a command line. ABZU's quiet first start
+    /// and Overwatch's hidden window (15.11.2026): whose capture a game starts into, and whose it is under.
+    nonisolated static func shieldOwners(_ windows: [[String: Any]], me: pid_t) -> [(pid: pid_t, name: String)] {
+        let shield = Int(CGShieldingWindowLevel())
+        var owners: [(pid: pid_t, name: String)] = []
+        for window in windows where (window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0 >= shield {
+            guard let pid = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value, pid != me,
+                  !owners.contains(where: { $0.pid == pid }) else { continue }
+            owners.append((pid, window[kCGWindowOwnerName as String] as? String ?? "?"))
+        }
+        return owners
+    }
+
+    /// Each active display's mode as it is: its number, size in points and refresh rate. Whether one is captured
+    /// macOS no longer says (CGDisplayIsCaptured is unavailable): a capture shows as its shield (`shieldOwners`),
+    /// and a mode another game left – Overwatch switches to 60 Hz – shows here.
+    nonisolated static func displayModes() -> [(id: CGDirectDisplayID, size: String, hertz: Int)] {
+        var count: UInt32 = 0
+        guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return [] }
+        var displays = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        guard CGGetActiveDisplayList(count, &displays, &count) == .success else { return [] }
+        return displays.prefix(Int(count)).compactMap { id in
+            guard let mode = CGDisplayCopyDisplayMode(id) else { return nil }
+            return (id, "\(mode.width)×\(mode.height)", Int(mode.refreshRate.rounded()))
+        }
+    }
+
+    /// One line's worth for the log: whose shield stands, and each display's mode.
+    nonisolated static func captureNote(owners: [(pid: pid_t, name: String)], modes: [(id: CGDirectDisplayID, size: String, hertz: Int)]) -> String {
+        let shields = owners.isEmpty ? "no shield" : "shield of " + owners.map { "\($0.name) (\($0.pid))" }.joined(separator: ", ")
+        let displays = modes.map { "display \($0.id) \($0.size)" + ($0.hertz > 0 ? " at \($0.hertz) Hz" : "") }
+        return ([shields] + displays).joined(separator: ", ")
+    }
+
+    /// … as it stands now.
+    nonisolated static func captureNote() -> String {
+        let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
+        return captureNote(owners: shieldOwners(windows, me: getpid()), modes: displayModes())
+    }
+
     /// `me`'s own windows don't count: the curtain and the overlay may lie above a shield themselves.
     nonisolated static func screenCaptured(_ windows: [[String: Any]], me: pid_t) -> Bool {
         let shield = Int(CGShieldingWindowLevel())

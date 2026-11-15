@@ -4853,6 +4853,12 @@ final class LibraryModel: ObservableObject {
                 if let past = analysis?.launcherSwitch, StartRecipe.pastLauncher(arguments, switch: past) != arguments {
                     GameLog.note("\(game.name) starts past its own launcher window (\(past))")
                 }
+                // Whether a display is taken before the game takes one, and by whom: ABZU's quiet first start and
+                // Overwatch's hidden window (15.11.2026) look like a game starting into another's capture.
+                if game.bottle.isBuiltIn {
+                    let capture = await Engine.offMain { GameProcesses.captureNote() }
+                    GameLog.note("Displays at the start of \(game.name): \(capture)")
+                }
                 raiseCurtain(for: game)
                 let started = viaSteam
                     ? await start(game, runner: runner, options: options, profile: profile, recipe: recipe, frameLimit: frameLimit)

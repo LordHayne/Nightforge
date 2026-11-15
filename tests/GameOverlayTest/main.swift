@@ -580,6 +580,23 @@ struct GameOverlayTest {
         check(GameProcesses.screenCaptured([captureWindow(7000, shieldLevel)], me: 401), "a game's shield: captured")
         check(!GameProcesses.screenCaptured([captureWindow(401, shieldLevel + 3)], me: 401), "Nightforge's own curtain over a shield is no capture")
         check(!GameProcesses.screenCaptured([captureWindow(7000, 0)], me: 401), "a normal window: no capture")
+        // Whose shield stands (15.11.2026): each owner once, by number and name, Nightforge's own windows left out.
+        func named(_ pid: Int32, _ layer: Int, _ name: String?) -> [String: Any] {
+            var window = captureWindow(pid, layer)
+            if let name { window[kCGWindowOwnerName as String] = name }
+            return window
+        }
+        let owners = GameProcesses.shieldOwners([named(7000, shieldLevel, "wine64-preloader"), named(7000, shieldLevel + 2, "wine64-preloader"),
+                                                 named(401, shieldLevel + 3, "Nightforge"), named(7100, 0, "Steam"), named(7200, shieldLevel, nil)], me: 401)
+        check(owners.map(\.pid) == [7000, 7200] && owners.map(\.name) == ["wine64-preloader", "?"],
+              "the shield's owners, once each, not Nightforge's curtain, not a normal window (\(owners))")
+        check(GameProcesses.captureNote(owners: [], modes: [(1, "1512×982", 120)]) == "no shield, display 1 1512×982 at 120 Hz", "nothing taken")
+        check(GameProcesses.captureNote(owners: [(7000, "Nightforge Game")], modes: [(1, "1512×982", 60), (2, "1920×1080", 0)])
+              == "shield of Nightforge Game (7000), display 1 1512×982 at 60 Hz, display 2 1920×1080",
+              "whose shield stands, each display's mode, no rate where macOS gives none")
+        check(GameProcesses.captureNote(owners: [(7000, "wine64-preloader"), (7200, "?")], modes: []) == "shield of wine64-preloader (7000), ? (7200)",
+              "two owners")
+        check(GameProcesses.captureNote().hasPrefix("no shield") || GameProcesses.captureNote().hasPrefix("shield of"), "as it stands now, on this Mac")
         check(step(gameFront: true, anywhere: true, frontFor: 5, broughtBack: 0, shieldOnly: true) == .bringBack,
               "only the black shield on screen: its real window is fetched")
         check(step(gameFront: true, anywhere: true, frontFor: 5, broughtBack: 2, shieldOnly: true) == .wait,

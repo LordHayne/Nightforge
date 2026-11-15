@@ -177,11 +177,15 @@ enum GameBackdrop {
     /// A game took the display or let it go: the curtain stays over it, the same window, not redrawn.
     static func keepOverShield() {
         guard let window, isRaised, !underQuestion else { return }
-        let level = curtainLevel(overShield: mayCapture || GameProcesses.screenCaptured())
+        let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
+        let level = curtainLevel(overShield: mayCapture || GameProcesses.screenCaptured(windows, me: getpid()))
         guard window.level.rawValue != level else { return }
         window.level = NSWindow.Level(rawValue: level)
         toFront(window)
-        GameLog.note("The curtain goes \(level > NSWindow.Level.screenSaver.rawValue ? "over" : "back under") a captured display's shield")
+        // Over it also before any shield stands, once a Windows game runs (`mayCapture`): said, with whose shield there is.
+        GameLog.note("The curtain goes \(level > NSWindow.Level.screenSaver.rawValue ? "over" : "back under") a captured display's shield"
+                     + " (" + (mayCapture ? "a Windows game runs; " : "")
+                     + GameProcesses.captureNote(owners: GameProcesses.shieldOwners(windows, me: getpid()), modes: GameProcesses.displayModes()) + ")")
     }
 
     /// The screens changed while the page is up (a game setting its display mode, 1920×1200 on a
