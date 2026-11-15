@@ -132,12 +132,13 @@ struct SmallLogicTest {
               "one that asks, even after a failure, or only says something: not one")
         for language in ["english", "german"] {
             UserDefaults.standard.set(language, forKey: AppLanguage.storageKey)
-            let line = LibraryModel.curtainStatus(phase: nil, shaders: false, gameRuns: true, asks: true, errorBox: true, padAnswers: ("A", "B"))
+            let line = LibraryModel.curtainStatus(phase: nil, shaders: false, gameRuns: true, asks: true, errorBox: true)
             check(line == L10n.t("The game reports an error") && line?.isEmpty == false, "the line over an error box, in \(language): \(line ?? "nil")")
-            let withPad = LibraryModel.curtainDetail(sentence: "hint", asks: true, errorBox: true, padOK: "A")
-            let withoutPad = LibraryModel.curtainDetail(sentence: "hint", asks: true, errorBox: true, padOK: nil)
-            check(withPad?.contains("A") == true && withPad?.contains("OK") == true && withoutPad?.contains("OK") == true && withPad != withoutPad,
-                  "under it what to press, with the pad's button where it answers, in \(language): \(withPad ?? "nil") / \(withoutPad ?? "nil")")
+            let withPad = LibraryModel.curtainDetail(sentence: "hint", asks: true, errorBox: true, pad: true)
+            let withoutPad = LibraryModel.curtainDetail(sentence: "hint", asks: true, errorBox: true, pad: false)
+            let buttons = LibraryModel.curtainButtons(asks: true, errorBox: true, macOSAsks: false, pad: PadSymbols())
+            check(withPad == L10n.t("Nightforge takes care of the rest.") && withoutPad?.contains("OK") == true
+                  && buttons.map(\.label) == ["OK"], "under it what to press: the pad's OK as a button, without a pad in the sentence, in \(language)")
         }
         UserDefaults.standard.set("german", forKey: AppLanguage.storageKey)
         check(LibraryModel.curtainStatus(phase: nil, shaders: false, gameRuns: true, asks: true, errorBox: true) == "Das Spiel meldet einen Fehler"
@@ -145,8 +146,8 @@ struct SmallLogicTest {
               "the board's words")
         UserDefaults.standard.set("english", forKey: AppLanguage.storageKey)
         // A question, macOS's question, or no box read: as before.
-        check(LibraryModel.curtainStatus(phase: nil, shaders: false, gameRuns: true, asks: true, padAnswers: ("A", "B"))?.contains("asking") == true
-              && LibraryModel.curtainDetail(sentence: "hint", asks: true) == nil, "the game's question: as before, no second line")
+        check(LibraryModel.curtainStatus(phase: nil, shaders: false, gameRuns: true, asks: true)?.contains("asking") == true
+              && LibraryModel.curtainDetail(sentence: "hint", asks: true, pad: true) == nil, "the game's question with a pad: no second line")
         check(LibraryModel.curtainStatus(phase: nil, shaders: false, gameRuns: true, asks: true, errorBox: true, macOSAsks: true)?.contains("macOS") == true,
               "macOS's question comes first")
         check(LibraryModel.curtainStatus(phase: nil, shaders: false, gameRuns: true, asks: false, errorBox: true) == nil,

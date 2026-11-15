@@ -957,20 +957,29 @@ struct GameOverlayTest {
         check(line(runs: true) == nil, "the game runs, no window yet: still \"Starting …\", one line for the start")
         check(line(shaders: true, runs: true) == L10n.t("Preparing shaders …"), "its first start with these graphics")
         check(LibraryModel.curtainStatus(phase: "Starting Steam …", shaders: false, gameRuns: true, asks: true)
-              == L10n.t("The game is asking something – answer it with the mouse or trackpad."), "a question on it: said, before any step")
-        check(LibraryModel.curtainStatus(phase: "Starting Steam …", shaders: true, gameRuns: true, asks: true, padAnswers: ("✕", "○"))?.hasSuffix(L10n.t("The game is asking something – %@ confirms, %@ cancels, or use the mouse.", "✕", "○")) == true,
-              "with a pad and the helper, the curtain says A and B answer")
+              == L10n.t("The game is asking something"), "a question on it: said, before any step, one line")
+        // The pad's buttons in their own line, not in the sentence (the rule of 15.11.2026).
+        let pad = PadSymbols()
+        check(LibraryModel.curtainButtons(asks: true, errorBox: false, macOSAsks: false, pad: pad).map(\.symbol) == [pad.confirm, pad.back]
+              && LibraryModel.curtainDetail(sentence: nil, asks: true, pad: true) == nil,
+              "with a pad and the helper: confirm and cancel as buttons, no sentence")
+        check(LibraryModel.curtainButtons(asks: true, errorBox: false, macOSAsks: false, pad: nil).isEmpty
+              && LibraryModel.curtainDetail(sentence: nil, asks: true, pad: false) == L10n.t("Answer with the mouse or trackpad."),
+              "without one: how to answer, in a sentence")
+        check(LibraryModel.curtainButtons(asks: true, errorBox: false, macOSAsks: true, pad: pad).isEmpty
+              && LibraryModel.curtainButtons(asks: false, errorBox: false, macOSAsks: false, pad: pad).isEmpty,
+              "macOS takes only the mouse; no question, no buttons")
         check(LibraryModel.curtainStatus(phase: "Starting Steam …", shaders: false, gameRuns: true, asks: true,
                                          macOSAsks: true)
               == L10n.t("macOS is asking for permission"),
               "macOS asks: said, before the game's question and any step")
-        func detail(_ sentence: String? = nil, asks: Bool = false, macOSAsks: Bool = false, shaders: Bool = false) -> String? {
-            LibraryModel.curtainDetail(sentence: sentence, asks: asks, macOSAsks: macOSAsks, shaders: shaders)
+        func detail(_ sentence: String? = nil, asks: Bool = false, pad: Bool = false, macOSAsks: Bool = false, shaders: Bool = false) -> String? {
+            LibraryModel.curtainDetail(sentence: sentence, asks: asks, pad: pad, macOSAsks: macOSAsks, shaders: shaders)
         }
         check(detail() == nil, "nothing to add")
         check(detail(macOSAsks: true) == L10n.t("Answer with the mouse or trackpad."), "macOS asks: how to answer")
         check(detail("Its window is open.") == "Its window is open.", "the start's sentence")
-        check(detail("Its window is open.", asks: true) == nil, "under a question it waits for: none")
+        check(detail("Its window is open.", asks: true, pad: true) == nil, "under a question it waits for, with the pad's buttons: no sentence")
         check(detail(shaders: true) == L10n.t("Only the first time.") && detail("x", shaders: true) == "x", "shaders: only once, after the start's own")
         // The rule of 15.11.2026: a sentence only where it's true once or the player has a window to answer in.
         check(LibraryModel.curtainSentence(phase: .startingSteam, repair: nil, confirming: false) == nil

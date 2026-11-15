@@ -51,6 +51,13 @@ struct PadGuideRow: Equatable {
 
 /// The tip a game's loading screen (GameBackdrop) shows for the first starts with a controller:
 /// how Nightforge's menu opens in a game.
+/// A pad button on the curtain with what it does ("Confirm", "Restart"): only where the player has to do something.
+struct CurtainButton: Equatable {
+    /// PadSymbols' name for it (PadGlyph).
+    let symbol: String
+    let label: String
+}
+
 struct LaunchTip: Equatable {
     /// The buttons to draw (PadGlyph), "+" between.
     let symbols: [String]

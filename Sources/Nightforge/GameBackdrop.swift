@@ -39,6 +39,8 @@ enum GameBackdrop {
         @Published var licence: LicenceLook?
         /// Steam's window on the curtain, in the curtain's coordinates, once it's there.
         @Published var seam: CGRect?
+        /// The pad's buttons for what the player has to do now (CurtainButton), in the tip's place: the rule of 15.11.2026.
+        @Published var buttons: [CurtainButton] = []
     }
 
     /// What the bar under Steam's licence says.
@@ -107,10 +109,11 @@ enum GameBackdrop {
 
     /// What's happening: the step at once, the why once the curtain has been up a few seconds, so
     /// a quick start stays calm and a long one doesn't look stuck.
-    static func setStatus(_ step: String?, detail: String?, progress: Double? = nil) {
+    static func setStatus(_ step: String?, detail: String?, progress: Double? = nil, buttons: [CurtainButton] = []) {
         guard state.stage == .starting else { return }
         if state.step != step { state.step = step }
         if state.progress != progress { state.progress = progress }
+        if state.buttons != buttons { state.buttons = buttons }
         let shown = Date().timeIntervalSince(raisedAt) >= detailAfter ? detail : nil
         if state.detail != shown { state.detail = shown }
     }
@@ -354,6 +357,7 @@ enum GameBackdrop {
             state.tip = tip
             state.wayOut = nil
             state.progress = nil
+            state.buttons = []
             state.steamAsks = false
             state.licence = nil
             state.seam = nil
@@ -591,7 +595,20 @@ struct BackdropView: View {
                     .frame(maxWidth: 560)
                     .opacity(state.stage == .starting && state.detail != nil ? 1 : 0)
                     .animation(.easeInOut(duration: 0.5), value: state.detail)
-                if state.stage == .starting, let tip = state.wayOut ?? state.tip {
+                if state.stage == .starting, !state.buttons.isEmpty {
+                    // What to press now, each button with its word: where the player has to do something.
+                    HStack(spacing: 22) {
+                        ForEach(Array(state.buttons.enumerated()), id: \.offset) { _, button in
+                            HStack(spacing: 8) {
+                                PadGlyph(button.symbol, size: 17)
+                                Text(button.label)
+                            }
+                        }
+                    }
+                    .font(size: 15)
+                    .foregroundStyle(Color(nsColor: BrandArt.tagline).opacity(0.85))
+                    .padding(.top, 26)
+                } else if state.stage == .starting, let tip = state.wayOut ?? state.tip {
                     // A tip for new players, quiet, in the banner's blue.
                     HStack(spacing: 12) {
                         HStack(spacing: 6) {

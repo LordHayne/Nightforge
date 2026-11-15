@@ -2019,16 +2019,25 @@ final class LibraryModel: ObservableObject {
     private func sayOnCurtain(gameRuns: Bool, shaders: Bool, asks: Bool = false, errorBox: Bool = false, macOSAsks: Bool = false) {
         let phase = launchingID == nil ? nil : launchPhase?.curtainTitle ?? launchRepair?.title
         let progress = launchingID == nil ? nil : Self.curtainProgress(phase: launchPhase)
-        let padAnswers = controllerConnected && PadAnswerRun.available
-            ? (PadPart.a.name(padSymbols.layout), PadPart.b.name(padSymbols.layout)) : nil
+        // A pad answers the game's question where the helper can press for it (PadAnswerRun).
+        let pad = controllerConnected && PadAnswerRun.available ? padSymbols : nil
         let sentence = launchingID == nil ? nil
             : Self.curtainSentence(phase: launchPhase, repair: launchRepair, confirming: launchNeedsConfirmation)
         GameBackdrop.setStatus(Self.curtainStatus(phase: phase, shaders: shaders, gameRuns: gameRuns,
-                                                  asks: asks, errorBox: errorBox, macOSAsks: macOSAsks, padAnswers: padAnswers),
+                                                  asks: asks, errorBox: errorBox, macOSAsks: macOSAsks),
                                detail: Self.curtainDetail(sentence: Self.curtainHint(progress: progress, speed: updateSpeed, launchHint: sentence),
-                                                  asks: asks, errorBox: errorBox && !macOSAsks, padOK: padAnswers?.0,
+                                                  asks: asks, errorBox: errorBox && !macOSAsks, pad: pad != nil,
                                                   macOSAsks: macOSAsks, shaders: shaders && gameRuns && phase == nil),
-                               progress: progress)
+                               progress: progress,
+                               buttons: Self.curtainButtons(asks: asks, errorBox: errorBox, macOSAsks: macOSAsks, pad: pad))
+    }
+
+    /// The pad's buttons under a question the player answers (the rule of 15.11.2026): the game's error box OK, its
+    /// question confirm and cancel – where the pad answers it (`pad`, PadAnswerRun). macOS takes only the mouse.
+    nonisolated static func curtainButtons(asks: Bool, errorBox: Bool, macOSAsks: Bool, pad: PadSymbols?) -> [CurtainButton] {
+        guard asks, !macOSAsks, let pad else { return [] }
+        if errorBox { return [CurtainButton(symbol: pad.confirm, label: L10n.t("OK"))] }
+        return [CurtainButton(symbol: pad.confirm, label: L10n.t("Confirm")), CurtainButton(symbol: pad.back, label: L10n.t("Cancel"))]
     }
 
     /// The short sentence under the curtain's line: the step's own where it's true once or the player has a window
@@ -2065,14 +2074,11 @@ final class LibraryModel: ObservableObject {
     /// for (`asks`) – under its error box (`errorBox`) what to press and that Nightforge goes on from there, with the
     /// pad's button (`padOK`) where one answers it –; else the start's sentence (`curtainSentence`), else that shaders
     /// are built only once (`shaders`). A question of macOS's the start doesn't wait for is in the look's line only.
-    nonisolated static func curtainDetail(sentence: String?, asks: Bool, errorBox: Bool = false, padOK: String? = nil,
+    nonisolated static func curtainDetail(sentence: String?, asks: Bool, errorBox: Bool = false, pad: Bool = false,
                                           macOSAsks: Bool = false, shaders: Bool = false) -> String? {
         if macOSAsks { return L10n.t("Answer with the mouse or trackpad.") }
-        if asks, errorBox {
-            return padOK.map { L10n.t("%@ presses OK – Nightforge takes care of the rest.", $0) }
-                ?? L10n.t("Press OK – Nightforge takes care of the rest.")
-        }
-        if asks { return nil }
+        if asks, errorBox { return pad ? L10n.t("Nightforge takes care of the rest.") : L10n.t("Press OK – Nightforge takes care of the rest.") }
+        if asks { return pad ? nil : L10n.t("Answer with the mouse or trackpad.") }
         return sentence ?? (shaders ? L10n.t("Only the first time.") : nil)
     }
 
@@ -2082,12 +2088,10 @@ final class LibraryModel: ObservableObject {
     /// `errorBox`: the game's question is one of Windows' message boxes reporting an error, with only OK
     /// to press (CloserLook.errorNotice).
     nonisolated static func curtainStatus(phase: String?, shaders: Bool, gameRuns: Bool,
-                                          asks: Bool = false, errorBox: Bool = false, macOSAsks: Bool = false,
-                                          padAnswers: (ok: String, cancel: String)? = nil) -> String? {
+                                          asks: Bool = false, errorBox: Bool = false, macOSAsks: Bool = false) -> String? {
         if macOSAsks { return L10n.t("macOS is asking for permission") }
         if asks, errorBox { return L10n.t("The game reports an error") }
-        if asks, let padAnswers { return L10n.t("The game is asking something – %@ confirms, %@ cancels, or use the mouse.", padAnswers.ok, padAnswers.cancel) }
-        if asks { return L10n.t("The game is asking something – answer it with the mouse or trackpad.") }
+        if asks { return L10n.t("The game is asking something") }
         if let phase { return phase }
         // Its process running is no new line: "Starting …" until the picture (the rule of 15.11.2026; the look's
         // line in the log says it runs). Its first start with new graphics takes long, and says why.
