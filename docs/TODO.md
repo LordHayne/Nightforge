@@ -141,6 +141,14 @@ Befunde aus dem Lauf:
 - [x] **Die Listen sagen dazu „hält das Limit: Ø 201“.** (Behoben 14.11., `ce7647c`, im Testzweig `4c8c392`: Feld
   `limitState`, D3DMetal-Zahlen gelten als frei, „Limit greift nicht“ über 105 % des Limits.) Gemeint ist „erreicht es“, es liest sich aber, als
   griffe die Sperre. Über dem Limit muss es „Limit greift nicht“ heißen, bevor die Landingpage die Daten nimmt.
+- [x] **Fehlerfenster, genauerer Blick und Wurzel-Frage live gelungen (15.11., 15:54–15:56, Testbuild `306c29f`,
+  MGS V mit `testRootQuestion`):** D3DMetal, Fenster „Failed to load SteamAPI“, OK → „the window it ended at was no
+  question – a window of its own that isn't one of Windows' message boxes … : a failed start“ → „nothing explains why it
+  ended – the next start carries Wine's debug channels“ (Steam einmal neu) → DXMT, Fenster, OK → Diagnose
+  „untrusted-root: steam_api64.dll's signature (Valve) leads to the root VeriSign … G5“ → die Frage auf dem Vorhang →
+  der Nutzer trug ein → Start auf DXMT → Bild. Damit sind E5 (Fenster als Fehlstart), E6 (genauerer Blick, Wurzel-Frage)
+  und Vorhang B live belegt. Auf dem Vorhang bei MGS V weiter die alte Zeile „The game is asking something …“, weil
+  das Fenster keinen lesbaren Text hat.
 - [ ] **Wurzel-Frage mit MGS V live nicht gelungen (15.11., 12:18, `testRootQuestion`):** Die Box kam, Nightforge
   las sie als Frage des Spiels („it asks something“) und beendete den Start als Wahl des Spielers, obwohl die Diagnose
   „hung → the next way“ sagte. Keine `trace:msgbox`-Zeile im Protokoll (aber `+pid,+loaddll` liefen); auch am 11.11.
