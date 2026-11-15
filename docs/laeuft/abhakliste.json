@@ -1,6 +1,6 @@
 {
  "build": {
-  "built": "2026-11-14T18:40:47Z",
+  "built": "2026-11-15T19:32:18Z",
   "engine": [
    "winecx@4.7.3",
    "d3dmetal@apple-3.0",
@@ -12,12 +12,12 @@
   ],
   "mac": "Apple M5 · macOS 27.0",
   "nightforge": "0.3.2",
-  "since": "2026-11-14T18:41:38Z",
+  "since": "2026-11-15T20:03:18Z",
   "sinceFrom": "firstRun"
  },
  "builds": [
   {
-   "built": "2026-11-14T18:40:47Z",
+   "built": "2026-11-15T19:32:18Z",
    "current": true,
    "engine": [
     "winecx@4.7.3",
@@ -29,10 +29,10 @@
     "moltenvk@1.4.2"
    ],
    "nightforge": "0.3.2",
-   "since": "2026-11-14T18:41:38Z"
+   "since": "2026-11-15T20:03:18Z"
   },
   {
-   "built": "2026-11-14T17:41:36Z",
+   "built": "2026-11-14T18:40:47Z",
    "current": false,
    "engine": [
     "winecx@4.7.3",
@@ -44,7 +44,7 @@
     "moltenvk@1.4.2"
    ],
    "nightforge": "0.3.2",
-   "since": "2026-11-14T17:43:40Z"
+   "since": "2026-11-14T18:41:38Z"
   },
   {
    "built": null,
@@ -62,13 +62,13 @@
    "since": "2026-11-09T22:45:04Z"
   }
  ],
- "dataUntil": "2026-11-14T19:46:05Z",
+ "dataUntil": "2026-11-15T20:30:01Z",
  "formatVersion": 1,
  "games": [
   {
    "build": {
-    "built": null,
-    "current": false,
+    "built": "2026-11-15T19:32:18Z",
+    "current": true,
     "engine": [
      "winecx@4.7.3",
      "d3dmetal@apple-3.0",
@@ -79,27 +79,22 @@
      "moltenvk@1.4.2"
     ],
     "nightforge": "0.3.2",
-    "since": "2026-11-09T22:45:04Z"
+    "since": "2026-11-15T20:03:18Z"
    },
    "byHand": null,
    "firstMinutes": {
-    "at": "2026-11-09T23:49:25Z",
-    "average": 28.4,
-    "frameLimit": null,
-    "limitState": null,
+    "at": "2026-11-15T20:14:39Z",
+    "average": 39.9,
+    "frameLimit": 40,
+    "limitState": "held",
     "ok": false,
     "public": false,
     "steady": false,
     "way": "dxmt",
-    "why": "limitUnknown"
+    "why": "throttled"
    },
    "key": "steam.2357570",
-   "later": {
-    "at": "2026-11-14T19:10:29Z",
-    "by": "gameTest",
-    "count": 1,
-    "why": "noPicture"
-   },
+   "later": null,
    "location": "extern",
    "name": "Overwatch®",
    "platform": "windows",
@@ -121,7 +116,7 @@
    "sizeBytes": 84222583639,
    "skipped": null,
    "start": {
-    "at": "2026-11-09T23:49:25Z",
+    "at": "2026-11-15T20:14:39Z",
     "by": "gameTest",
     "ok": true,
     "way": "dxmt",
@@ -133,7 +128,7 @@
   },
   {
    "build": {
-    "built": "2026-11-14T18:40:47Z",
+    "built": "2026-11-15T19:32:18Z",
     "current": true,
     "engine": [
      "winecx@4.7.3",
@@ -145,19 +140,19 @@
      "moltenvk@1.4.2"
     ],
     "nightforge": "0.3.2",
-    "since": "2026-11-14T18:41:38Z"
+    "since": "2026-11-15T20:03:18Z"
    },
    "byHand": null,
    "firstMinutes": {
-    "at": "2026-11-14T19:41:55Z",
-    "average": 49.8,
+    "at": "2026-11-15T20:27:05Z",
+    "average": 38.1,
     "frameLimit": 60,
     "limitState": "noneOnWay",
-    "ok": true,
+    "ok": false,
     "public": false,
     "steady": false,
     "way": "d3dmetal",
-    "why": "ok"
+    "why": "throttled"
    },
    "key": "epic.63a665088eb1480298f1e57943b225d8",
    "later": null,
@@ -182,8 +177,8 @@
    "sizeBytes": 82615812112,
    "skipped": null,
    "start": {
-    "at": "2026-11-14T19:41:56Z",
-    "by": "evidence",
+    "at": "2026-11-15T20:27:05Z",
+    "by": "gameTest",
     "ok": true,
     "way": "d3dmetal",
     "why": "ok"
@@ -194,7 +189,7 @@
   },
   {
    "build": {
-    "built": "2026-11-14T18:40:47Z",
+    "built": "2026-11-15T19:32:18Z",
     "current": true,
     "engine": [
      "winecx@4.7.3",
@@ -206,19 +201,19 @@
      "moltenvk@1.4.2"
     ],
     "nightforge": "0.3.2",
-    "since": "2026-11-14T18:41:38Z"
+    "since": "2026-11-15T20:03:18Z"
    },
    "byHand": null,
    "firstMinutes": {
-    "at": "2026-11-14T19:18:15Z",
-    "average": 101.9,
+    "at": "2026-11-15T20:17:09Z",
+    "average": 73.7,
     "frameLimit": 60,
     "limitState": "noneOnWay",
-    "ok": true,
+    "ok": false,
     "public": false,
     "steady": false,
     "way": "d3dmetal",
-    "why": "ok"
+    "why": "throttled"
    },
    "key": "epic.fa4240e57a3c46b39f169041b7811293",
    "later": null,
@@ -243,7 +238,7 @@
    "sizeBytes": 76700981001,
    "skipped": null,
    "start": {
-    "at": "2026-11-14T19:18:15Z",
+    "at": "2026-11-15T20:17:09Z",
     "by": "gameTest",
     "ok": true,
     "way": "d3dmetal",
@@ -255,7 +250,7 @@
   },
   {
    "build": {
-    "built": "2026-11-14T18:40:47Z",
+    "built": "2026-11-15T19:32:18Z",
     "current": true,
     "engine": [
      "winecx@4.7.3",
@@ -267,19 +262,19 @@
      "moltenvk@1.4.2"
     ],
     "nightforge": "0.3.2",
-    "since": "2026-11-14T18:41:38Z"
+    "since": "2026-11-15T20:03:18Z"
    },
    "byHand": null,
    "firstMinutes": {
-    "at": "2026-11-14T19:34:24Z",
-    "average": 57.2,
+    "at": "2026-11-15T20:24:31Z",
+    "average": 45.2,
     "frameLimit": 60,
-    "limitState": "held",
-    "ok": true,
+    "limitState": "notReached",
+    "ok": false,
     "public": false,
     "steady": false,
     "way": "dxmt",
-    "why": "ok"
+    "why": "throttled"
    },
    "key": "epic.Kakopo",
    "later": null,
@@ -304,7 +299,7 @@
    "sizeBytes": 50528184896,
    "skipped": null,
    "start": {
-    "at": "2026-11-14T19:34:24Z",
+    "at": "2026-11-15T20:24:31Z",
     "by": "gameTest",
     "ok": true,
     "way": "dxmt",
@@ -316,7 +311,7 @@
   },
   {
    "build": {
-    "built": "2026-11-14T18:40:47Z",
+    "built": "2026-11-15T19:32:18Z",
     "current": true,
     "engine": [
      "winecx@4.7.3",
@@ -328,19 +323,19 @@
      "moltenvk@1.4.2"
     ],
     "nightforge": "0.3.2",
-    "since": "2026-11-14T18:41:38Z"
+    "since": "2026-11-15T20:03:18Z"
    },
    "byHand": null,
    "firstMinutes": {
-    "at": "2026-11-14T19:06:42Z",
-    "average": 73.5,
+    "at": "2026-11-15T20:11:56Z",
+    "average": 112.5,
     "frameLimit": 60,
     "limitState": "noneOnWay",
-    "ok": true,
+    "ok": false,
     "public": false,
     "steady": false,
     "way": "d3dmetal",
-    "why": "ok"
+    "why": "throttled"
    },
    "key": "steam.1426210",
    "later": null,
@@ -365,7 +360,7 @@
    "sizeBytes": 48392303260,
    "skipped": null,
    "start": {
-    "at": "2026-11-14T19:06:42Z",
+    "at": "2026-11-15T20:11:56Z",
     "by": "gameTest",
     "ok": true,
     "way": "d3dmetal",
@@ -377,7 +372,7 @@
   },
   {
    "build": {
-    "built": "2026-11-14T18:40:47Z",
+    "built": "2026-11-15T19:32:18Z",
     "current": true,
     "engine": [
      "winecx@4.7.3",
@@ -389,19 +384,19 @@
      "moltenvk@1.4.2"
     ],
     "nightforge": "0.3.2",
-    "since": "2026-11-14T18:41:38Z"
+    "since": "2026-11-15T20:03:18Z"
    },
    "byHand": null,
    "firstMinutes": {
-    "at": "2026-11-14T19:30:46Z",
-    "average": 113,
+    "at": "2026-11-15T20:23:19Z",
+    "average": 86.3,
     "frameLimit": 60,
     "limitState": "noneOnWay",
-    "ok": true,
+    "ok": false,
     "public": false,
     "steady": false,
     "way": "d3dmetal",
-    "why": "ok"
+    "why": "throttled"
    },
    "key": "epic.Calluna",
    "later": null,
@@ -426,7 +421,7 @@
    "sizeBytes": 45010292103,
    "skipped": null,
    "start": {
-    "at": "2026-11-14T19:30:46Z",
+    "at": "2026-11-15T20:23:19Z",
     "by": "gameTest",
     "ok": true,
     "way": "d3dmetal",
@@ -438,7 +433,7 @@
   },
   {
    "build": {
-    "built": "2026-11-14T18:40:47Z",
+    "built": "2026-11-15T19:32:18Z",
     "current": true,
     "engine": [
      "winecx@4.7.3",
@@ -450,19 +445,80 @@
      "moltenvk@1.4.2"
     ],
     "nightforge": "0.3.2",
-    "since": "2026-11-14T18:41:38Z"
+    "since": "2026-11-15T20:03:18Z"
    },
    "byHand": null,
    "firstMinutes": {
-    "at": "2026-11-14T19:03:00Z",
-    "average": 59.9,
+    "at": "2026-11-15T20:22:06Z",
+    "average": 118.2,
+    "frameLimit": 60,
+    "limitState": "noneOnWay",
+    "ok": false,
+    "public": false,
+    "steady": false,
+    "way": "d3dmetal",
+    "why": "throttled"
+   },
+   "key": "epic.f7cc1c999ac146f39b356f53e3489514",
+   "later": null,
+   "location": "extern",
+   "name": "Rise of the Tomb Raider: 20 Year Celebration",
+   "platform": "windows",
+   "played": {
+    "at": null,
+    "average": null,
+    "build": null,
+    "frameLimit": null,
+    "limitState": null,
+    "logged": null,
+    "low": null,
+    "ok": false,
+    "onePercentLow": null,
+    "playedSeconds": null,
+    "seconds": null,
+    "way": null,
+    "why": "never"
+   },
+   "sizeBytes": 38583062825,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-15T20:22:06Z",
+    "by": "gameTest",
+    "ok": true,
+    "way": "d3dmetal",
+    "why": "ok"
+   },
+   "status": "start-geprueft",
+   "store": "epic",
+   "storeID": "f7cc1c999ac146f39b356f53e3489514"
+  },
+  {
+   "build": {
+    "built": "2026-11-15T19:32:18Z",
+    "current": true,
+    "engine": [
+     "winecx@4.7.3",
+     "d3dmetal@apple-3.0",
+     "dxvk-macos@1.10.3-20230507",
+     "enginefix@4.7.3-4",
+     "gamepad@4.7.3-15",
+     "graphics@11.18-dxmt0.80-17",
+     "moltenvk@1.4.2"
+    ],
+    "nightforge": "0.3.2",
+    "since": "2026-11-15T20:03:18Z"
+   },
+   "byHand": null,
+   "firstMinutes": {
+    "at": "2026-11-15T20:10:37Z",
+    "average": 59.6,
     "frameLimit": 60,
     "limitState": "held",
-    "ok": true,
+    "ok": false,
     "public": false,
     "steady": false,
     "way": "dxmt",
-    "why": "ok"
+    "why": "throttled"
    },
    "key": "steam.287700",
    "later": null,
@@ -487,7 +543,7 @@
    "sizeBytes": 31106322849,
    "skipped": null,
    "start": {
-    "at": "2026-11-14T19:03:00Z",
+    "at": "2026-11-15T20:10:37Z",
     "by": "gameTest",
     "ok": true,
     "way": "dxmt",
@@ -500,7 +556,7 @@
   {
    "build": {
     "built": "2026-11-14T18:40:47Z",
-    "current": true,
+    "current": false,
     "engine": [
      "winecx@4.7.3",
      "d3dmetal@apple-3.0",
@@ -560,8 +616,8 @@
   },
   {
    "build": {
-    "built": null,
-    "current": false,
+    "built": "2026-11-15T19:32:18Z",
+    "current": true,
     "engine": [
      "winecx@4.7.3",
      "d3dmetal@apple-3.0",
@@ -572,19 +628,19 @@
      "moltenvk@1.4.2"
     ],
     "nightforge": "0.3.2",
-    "since": "2026-11-09T22:45:04Z"
+    "since": "2026-11-15T20:03:18Z"
    },
    "byHand": null,
    "firstMinutes": {
-    "at": "2026-11-09T23:45:04Z",
-    "average": 57.2,
-    "frameLimit": null,
-    "limitState": null,
+    "at": "2026-11-15T20:08:53Z",
+    "average": 59.2,
+    "frameLimit": 60,
+    "limitState": "held",
     "ok": false,
     "public": false,
     "steady": false,
     "way": "dxmt -dx11",
-    "why": "limitUnknown"
+    "why": "throttled"
    },
    "key": "steam.2129530",
    "later": null,
@@ -609,7 +665,7 @@
    "sizeBytes": 17112452967,
    "skipped": null,
    "start": {
-    "at": "2026-11-09T23:45:04Z",
+    "at": "2026-11-15T20:08:53Z",
     "by": "gameTest",
     "ok": true,
     "way": "dxmt -dx11",
@@ -622,7 +678,7 @@
   {
    "build": {
     "built": "2026-11-14T18:40:47Z",
-    "current": true,
+    "current": false,
     "engine": [
      "winecx@4.7.3",
      "d3dmetal@apple-3.0",
@@ -683,7 +739,7 @@
   {
    "build": {
     "built": "2026-11-14T18:40:47Z",
-    "current": true,
+    "current": false,
     "engine": [
      "winecx@4.7.3",
      "d3dmetal@apple-3.0",
@@ -744,7 +800,7 @@
   {
    "build": {
     "built": "2026-11-14T18:40:47Z",
-    "current": true,
+    "current": false,
     "engine": [
      "winecx@4.7.3",
      "d3dmetal@apple-3.0",
@@ -770,7 +826,12 @@
     "why": "ok"
    },
    "key": "epic.Heron",
-   "later": null,
+   "later": {
+    "at": "2026-11-14T23:40:00Z",
+    "by": "gameTest",
+    "count": 1,
+    "why": "noPicture"
+   },
    "location": "extern",
    "name": "Alan Wake",
    "platform": "windows",
@@ -804,7 +865,7 @@
   },
   {
    "build": {
-    "built": "2026-11-14T18:40:47Z",
+    "built": "2026-11-15T19:32:18Z",
     "current": true,
     "engine": [
      "winecx@4.7.3",
@@ -816,19 +877,19 @@
      "moltenvk@1.4.2"
     ],
     "nightforge": "0.3.2",
-    "since": "2026-11-14T18:41:38Z"
+    "since": "2026-11-15T20:03:18Z"
    },
    "byHand": null,
    "firstMinutes": {
-    "at": "2026-11-14T19:26:59Z",
-    "average": 60,
+    "at": "2026-11-15T20:20:47Z",
+    "average": 59.9,
     "frameLimit": 60,
     "limitState": "held",
-    "ok": true,
+    "ok": false,
     "public": false,
     "steady": false,
     "way": "dxmt",
-    "why": "ok"
+    "why": "throttled"
    },
    "key": "epic.b2e00fc16632475782a7730d1bd7cb60",
    "later": null,
@@ -853,8 +914,8 @@
    "sizeBytes": 9640470926,
    "skipped": null,
    "start": {
-    "at": "2026-11-14T19:27:00Z",
-    "by": "evidence",
+    "at": "2026-11-15T20:20:47Z",
+    "by": "gameTest",
     "ok": true,
     "way": "dxmt",
     "why": "ok"
@@ -866,7 +927,7 @@
   {
    "build": {
     "built": "2026-11-14T18:40:47Z",
-    "current": true,
+    "current": false,
     "engine": [
      "winecx@4.7.3",
      "d3dmetal@apple-3.0",
@@ -927,7 +988,7 @@
   {
    "build": {
     "built": "2026-11-14T18:40:47Z",
-    "current": true,
+    "current": false,
     "engine": [
      "winecx@4.7.3",
      "d3dmetal@apple-3.0",
@@ -988,7 +1049,7 @@
   {
    "build": {
     "built": "2026-11-14T18:40:47Z",
-    "current": true,
+    "current": false,
     "engine": [
      "winecx@4.7.3",
      "d3dmetal@apple-3.0",
@@ -1048,7 +1109,7 @@
   },
   {
    "build": {
-    "built": "2026-11-14T18:40:47Z",
+    "built": "2026-11-15T19:32:18Z",
     "current": true,
     "engine": [
      "winecx@4.7.3",
@@ -1060,19 +1121,19 @@
      "moltenvk@1.4.2"
     ],
     "nightforge": "0.3.2",
-    "since": "2026-11-14T18:41:38Z"
+    "since": "2026-11-15T20:03:18Z"
    },
    "byHand": null,
    "firstMinutes": {
-    "at": "2026-11-14T18:42:14Z",
-    "average": 201.1,
+    "at": "2026-11-15T20:03:23Z",
+    "average": 232.5,
     "frameLimit": 60,
     "limitState": "noneOnWay",
-    "ok": true,
+    "ok": false,
     "public": false,
     "steady": false,
     "way": "d3dmetal",
-    "why": "ok"
+    "why": "throttled"
    },
    "key": "steam.3132990",
    "later": null,
@@ -1097,7 +1158,7 @@
    "sizeBytes": 8365222843,
    "skipped": null,
    "start": {
-    "at": "2026-11-14T18:42:14Z",
+    "at": "2026-11-15T20:03:23Z",
     "by": "gameTest",
     "ok": true,
     "way": "d3dmetal",
@@ -1109,8 +1170,8 @@
   },
   {
    "build": {
-    "built": "2026-11-14T17:41:36Z",
-    "current": false,
+    "built": "2026-11-15T19:32:18Z",
+    "current": true,
     "engine": [
      "winecx@4.7.3",
      "d3dmetal@apple-3.0",
@@ -1121,14 +1182,75 @@
      "moltenvk@1.4.2"
     ],
     "nightforge": "0.3.2",
-    "since": "2026-11-14T17:43:40Z"
+    "since": "2026-11-15T20:03:18Z"
    },
    "byHand": null,
    "firstMinutes": {
-    "at": "2026-11-14T17:48:41Z",
-    "average": 57.6,
+    "at": "2026-11-15T20:13:26Z",
+    "average": 58.1,
     "frameLimit": 60,
     "limitState": "held",
+    "ok": false,
+    "public": false,
+    "steady": false,
+    "way": "dxvk",
+    "why": "throttled"
+   },
+   "key": "steam.3907790",
+   "later": null,
+   "location": "extern",
+   "name": "OxyRail",
+   "platform": "windows",
+   "played": {
+    "at": null,
+    "average": null,
+    "build": null,
+    "frameLimit": null,
+    "limitState": null,
+    "logged": null,
+    "low": null,
+    "ok": false,
+    "onePercentLow": null,
+    "playedSeconds": null,
+    "seconds": null,
+    "way": null,
+    "why": "never"
+   },
+   "sizeBytes": 7378673630,
+   "skipped": null,
+   "start": {
+    "at": "2026-11-15T20:13:26Z",
+    "by": "gameTest",
+    "ok": true,
+    "way": "dxvk",
+    "why": "ok"
+   },
+   "status": "start-geprueft",
+   "store": "steam",
+   "storeID": "3907790"
+  },
+  {
+   "build": {
+    "built": "2026-11-15T19:32:18Z",
+    "current": true,
+    "engine": [
+     "winecx@4.7.3",
+     "d3dmetal@apple-3.0",
+     "dxvk-macos@1.10.3-20230507",
+     "enginefix@4.7.3-4",
+     "gamepad@4.7.3-15",
+     "graphics@11.18-dxmt0.80-17",
+     "moltenvk@1.4.2"
+    ],
+    "nightforge": "0.3.2",
+    "since": "2026-11-15T20:03:18Z"
+   },
+   "byHand": null,
+   "firstMinutes": {
+    "at": "2026-11-15T20:15:54Z",
+    "average": 53.6,
+    "frameLimit": 60,
+    "limitState": "notReached",
     "ok": false,
     "public": false,
     "steady": false,
@@ -1136,12 +1258,7 @@
     "why": "throttled"
    },
    "key": "epic.Curry",
-   "later": {
-    "at": "2026-11-14T19:14:05Z",
-    "by": "gameTest",
-    "count": 1,
-    "why": "severalWays"
-   },
+   "later": null,
    "location": "extern",
    "name": "ABZU",
    "platform": "windows",
@@ -1163,8 +1280,8 @@
    "sizeBytes": 4818969865,
    "skipped": null,
    "start": {
-    "at": "2026-11-14T17:48:41Z",
-    "by": "evidence",
+    "at": "2026-11-15T20:15:54Z",
+    "by": "gameTest",
     "ok": true,
     "way": "dxmt -dx11",
     "why": "ok"
@@ -1176,7 +1293,7 @@
   {
    "build": {
     "built": "2026-11-14T18:40:47Z",
-    "current": true,
+    "current": false,
     "engine": [
      "winecx@4.7.3",
      "d3dmetal@apple-3.0",
@@ -1235,114 +1352,6 @@
    "storeID": "892970"
   },
   {
-   "build": null,
-   "byHand": null,
-   "firstMinutes": {
-    "at": null,
-    "average": null,
-    "frameLimit": null,
-    "limitState": null,
-    "ok": false,
-    "public": false,
-    "steady": false,
-    "way": null,
-    "why": "never"
-   },
-   "key": "epic.f7cc1c999ac146f39b356f53e3489514",
-   "later": null,
-   "location": "extern",
-   "name": "Rise of the Tomb Raider: 20 Year Celebration",
-   "platform": "windows",
-   "played": {
-    "at": null,
-    "average": null,
-    "build": null,
-    "frameLimit": null,
-    "limitState": null,
-    "logged": null,
-    "low": null,
-    "ok": false,
-    "onePercentLow": null,
-    "playedSeconds": null,
-    "seconds": null,
-    "way": null,
-    "why": "never"
-   },
-   "sizeBytes": 38583062825,
-   "skipped": null,
-   "start": {
-    "at": null,
-    "by": null,
-    "ok": false,
-    "way": null,
-    "why": "never"
-   },
-   "status": "offen",
-   "store": "epic",
-   "storeID": "f7cc1c999ac146f39b356f53e3489514"
-  },
-  {
-   "build": {
-    "built": null,
-    "current": false,
-    "engine": [
-     "winecx@4.7.3",
-     "d3dmetal@apple-3.0",
-     "dxvk-macos@1.10.3-20230507",
-     "enginefix@4.7.3-4",
-     "gamepad@4.7.3-15",
-     "graphics@11.18-dxmt0.80-17",
-     "moltenvk@1.4.2"
-    ],
-    "nightforge": "0.3.2",
-    "since": "2026-11-09T22:45:04Z"
-   },
-   "byHand": null,
-   "firstMinutes": {
-    "at": "2026-11-09T23:47:55Z",
-    "average": null,
-    "frameLimit": null,
-    "limitState": null,
-    "ok": false,
-    "public": false,
-    "steady": false,
-    "way": "dxvk",
-    "why": "noneInLog"
-   },
-   "key": "steam.3907790",
-   "later": null,
-   "location": "extern",
-   "name": "OxyRail",
-   "platform": "windows",
-   "played": {
-    "at": null,
-    "average": null,
-    "build": null,
-    "frameLimit": null,
-    "limitState": null,
-    "logged": null,
-    "low": null,
-    "ok": false,
-    "onePercentLow": null,
-    "playedSeconds": null,
-    "seconds": null,
-    "way": null,
-    "why": "never"
-   },
-   "sizeBytes": 7359381270,
-   "skipped": "update",
-   "start": {
-    "at": "2026-11-09T23:47:56Z",
-    "by": "evidence",
-    "ok": false,
-    "way": "dxvk",
-    "why": "noOutcome"
-   },
-   "status": "offen",
-   "store": "steam",
-   "storeID": "3907790"
-  },
-  {
    "build": {
     "built": null,
     "current": false,
@@ -1390,7 +1399,7 @@
     "way": null,
     "why": "macVersion"
    },
-   "sizeBytes": 248585110,
+   "sizeBytes": 255374152,
    "skipped": "update",
    "start": {
     "at": "2026-11-10T00:03:05Z",
@@ -1458,12 +1467,12 @@
    "games": 0
   },
   "offen": {
-   "bytes": 46191029205,
-   "games": 3
+   "bytes": 255374152,
+   "games": 1
   },
   "start-geprueft": {
-   "bytes": 547559579812,
-   "games": 19
+   "bytes": 593521316267,
+   "games": 21
   },
   "von-hand": {
    "bytes": 33640621009,

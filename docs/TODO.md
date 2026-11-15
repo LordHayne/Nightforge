@@ -323,8 +323,12 @@ und überholt (kennt Schritt E, den Vorhang nach der Regel und das Laufwerk nich
 **2. Live-Runde auf dem Endstand:**
 - Schon live gesehen: Fehlstart → Abhilfe → Bild (ABZU), Fenster des Spiels als Fehlstart, genauerer Blick, Zertifikat-Frage
   (MGS V), Vorhang nach der Regel, Laufwerk Teil A (GOG), kein `sample` bei Overwatch, Overwatch randlos 3 von 3.
-- [ ] Koordinator allein: ein Start je geladenem Spiel über den Spieletest auf dem Endstand; Ruhe im Leerlauf und Steam
-  bei Bedarf am Protokoll einer Nacht.
+- [x] **Start-Runde auf dem Endstand (15.11., 21:03–21:34, Testbuild `389cb19`, Bericht `GameTests/2026-11-15-2103`):
+  21 von 21 gestarteten Spielen mit Bild,** auf jedem Weg (D3DMetal 6, DXMT 6, WineD3D 5, DXVK 1, Mac 3), keine
+  Reparatur nötig, kein zweiter Anlauf (auch ABZU nicht), Overwatch randlos nach 12 s mit 40 / 40. Nicht gestartet:
+  Hearthstone (Battle.net), Drawful 2 (Update stünde an), Dying Light (erster Start der anderen Fassung). Listen neu
+  erzeugt: 21 „Start geprüft“ (593,5 GB), 0 im Spiel gemessen.
+- [ ] Koordinator allein: Ruhe im Leerlauf und Steam bei Bedarf am Protokoll einer Nacht.
 - [ ] Mit dem Nutzer: Overwatch im Vollbild (Hinweis, ein ⌘⇥, „Neu starten“ per Pad); Laufwerk Teil B auf dem Mac mini;
   ruhiger Ladescreen (13 Punkte); Lizenz beim ersten Start (GTA V); Touchpad als Zeiger; Spieler 1 und 2 (zwei Pads);
   Tastatur für den Controller (`PadKeyboardView` ist im Zweig – prüfen, ob sie an ist); Anmelden am Sofa (GOG per QR);
