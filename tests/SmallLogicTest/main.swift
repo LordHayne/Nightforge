@@ -65,6 +65,15 @@ struct SmallLogicTest {
         UserDefaults.standard.set("english", forKey: AppLanguage.storageKey)
         check(LaunchPhase.updating(0.42).title == "Updating … 42 %", "how far an update is: \(LaunchPhase.updating(0.42).title)")
         check(LaunchPhase.retrying("DXVK").title.contains("DXVK"), "which way it tries next")
+        // The curtain's line (the rule of 15.11.2026): the same words for the same thing, nothing technical.
+        check(Set([LaunchPhase.settingUp, .settingUpDotNet, .settingUpWindowsParts("vcredist"), .settingUpWindowsParts(nil)].map(\.curtainTitle))
+              == ["Setting up …"], "every setting up is one line")
+        check(LaunchPhase.restartingSteam.curtainTitle == LaunchPhase.steamNotResponding.curtainTitle, "Steam restarted: one line")
+        check(LaunchPhase.retrying("DXVK").curtainTitle == "One more try …" && LaunchPhase.rollingBack.curtainTitle == "One more try …"
+              && LaunchPhase.heldEngine.curtainTitle == "Starting …", "no way, no engine on the curtain")
+        check(LaunchPhase.startingSteam.curtainTitle == LaunchPhase.startingSteam.title, "the rest as on the Play button")
+        check(LaunchPhase.updating(0.1).kind == LaunchPhase.updating(0.9).kind && LaunchPhase.retrying("DXVK").kind.contains("DXVK"),
+              "an update's figures make no new phase in the log; the way does go there")
         UserDefaults.standard.removeObject(forKey: AppLanguage.storageKey)
     }
 
@@ -140,8 +149,8 @@ struct SmallLogicTest {
               && LibraryModel.curtainDetail(launchHint: "hint", asks: true, macOSOpen: false) == nil, "the game's question: as before, no second line")
         check(LibraryModel.curtainStatus(phase: nil, shaders: false, gameRuns: true, asks: true, errorBox: true, macOSAsks: true)?.contains("macOS") == true,
               "macOS's question comes first")
-        check(LibraryModel.curtainStatus(phase: nil, shaders: false, gameRuns: true, asks: false, errorBox: true) == L10n.t("Waiting for the first picture …"),
-              "no question on screen: no box said")
+        check(LibraryModel.curtainStatus(phase: nil, shaders: false, gameRuns: true, asks: false, errorBox: true) == nil,
+              "no question on screen: no box said, \"Starting …\" as before")
         UserDefaults.standard.removeObject(forKey: AppLanguage.storageKey)
     }
 

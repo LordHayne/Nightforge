@@ -954,7 +954,7 @@ struct GameOverlayTest {
         check(line() == nil, "nothing known yet: \"Starting …\"")
         check(line("Starting Steam …") == "Starting Steam …", "the start's own step, from the first look on")
         check(line("Starting again with WineD3D …", runs: true) == "Starting again with WineD3D …", "a step wins over the game's")
-        check(line(runs: true) == L10n.t("Waiting for the first picture …"), "the game runs, no window yet")
+        check(line(runs: true) == nil, "the game runs, no window yet: still \"Starting …\", one line for the start")
         check(line(shaders: true, runs: true) == L10n.t("Preparing shaders for the first start …"), "its first start with these graphics")
         check(LibraryModel.curtainStatus(phase: "Starting Steam …", shaders: false, gameRuns: true, asks: true)
               == L10n.t("The game is asking something – answer it with the mouse or trackpad."), "a question on it: said, before any step")

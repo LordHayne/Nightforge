@@ -125,8 +125,14 @@ final class LibraryModel: ObservableObject {
     @Published private(set) var launchNeedsConfirmation = false
     /// That question is Steam's licence: the frame comes at once and says so (SteamLicence).
     private var launchAsksLicence = false
-    /// What the launch is busy with when it's more than waiting for Steam ("Restarting Steam …").
-    @Published private(set) var launchPhase: LaunchPhase?
+    /// What the launch is busy with when it's more than waiting for Steam ("Restarting Steam …"). Each one in the
+    /// log as it begins, with what the curtain no longer says (LaunchPhase.curtainTitle).
+    @Published private(set) var launchPhase: LaunchPhase? {
+        didSet {
+            guard let launchPhase, launchPhase.kind != oldValue?.kind else { return }
+            GameLog.note("Start phase: \(launchPhase.kind) – \"\(launchPhase.title)\": \(launchPhase.hint)")
+        }
+    }
     /// A start Nightforge mends after one that ended without a picture (LaunchRepair): said on the curtain
     /// while no phase of its own (a Steam restart, an update) has the line.
     @Published private(set) var launchRepair: LaunchRepair?
@@ -2014,7 +2020,7 @@ final class LibraryModel: ObservableObject {
     /// The curtain's lines at a look (`curtainStatus`, `curtainDetail`); once it's down they wait for the next start.
     private func sayOnCurtain(gameRuns: Bool, shaders: Bool, asks: Bool = false, errorBox: Bool = false, macOSAsks: Bool = false,
                               macOSOpen: Bool = false) {
-        let phase = launchingID == nil ? nil : launchTitle
+        let phase = launchingID == nil ? nil : launchPhase?.curtainTitle ?? launchRepair?.title
         let progress = launchingID == nil ? nil : Self.curtainProgress(phase: launchPhase)
         let padAnswers = controllerConnected && PadAnswerRun.available
             ? (PadPart.a.name(padSymbols.layout), PadPart.b.name(padSymbols.layout)) : nil
@@ -2074,9 +2080,9 @@ final class LibraryModel: ObservableObject {
         if asks, let padAnswers { return L10n.t("The game is asking something – %@ confirms, %@ cancels, or use the mouse.", padAnswers.ok, padAnswers.cancel) }
         if asks { return L10n.t("The game is asking something – answer it with the mouse or trackpad.") }
         if let phase { return phase }
-        // Its window there, the curtain up a moment longer: the line stays, it doesn't jump back to "Starting …".
-        guard gameRuns else { return nil }
-        return shaders ? L10n.t("Preparing shaders for the first start …") : L10n.t("Waiting for the first picture …")
+        // Its process running is no new line: "Starting …" until the picture (the rule of 15.11.2026; the look's
+        // line in the log says it runs). Its first start with new graphics takes long, and says why.
+        return gameRuns && shaders ? L10n.t("Preparing shaders for the first start …") : nil
     }
 
     /// How long after the game's own question went, answered by the player, its end with no picture
