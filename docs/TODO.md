@@ -188,6 +188,12 @@ Testreihen, 281 pytest. Nicht eingespielt, live nichts gesehen; Anleitung `close
   Erkennen gebaut (`a759361`, `claude/diagnose-start-033-92f729`): die Abschirmung gehört dem Spiel, sein großes
   Fenster ist nicht auf dem Schirm, nach zwei Versuchen, es zurückzuholen, und 10 s so. Quellen des Boards
   `docs/entwuerfe/vollbild/`. Mit dem Controller gibt es heute keinen Weg ins Spiel, nur einen neuen Start.
+  **Bau von B angehalten (15.11.):** Der Nutzer will den Vorhang schlicht halten. Seine Regel: eine Zeile, höchstens
+  ein kurzer Satz; mehr nur, wenn der Spieler handeln muss, dann mit Knopf; alles andere ins Protokoll. Von B ist
+  nichts im Code. Bestandsaufnahme aller Vorhang-Zustände, heute und nach der Regel:
+  https://claude.ai/artifact/SMv7bMwpPLTukHK4UwqexA, Quellen `docs/entwuerfe/vorhang-regel/`. Wartet auf die Wahl des
+  Nutzers. Ungeprüft: Ein einziges ⌘⇥ reicht vermutlich (die Vorhang-Wache gibt dem Spiel die Front selbst zurück),
+  und „Neu starten“ läuft über die Pad-Zeile wie „Hängt es?“, weil der Vorhang selbst keine Eingabe nimmt.
 - [ ] **Overwatch: Zurückholen durch Ausblenden live gescheitert (15.11., 12:43–13:21, Builds `3254e96` und
   `19d7879`, Verläufe `overwatch-3/`, `overwatch-4/`):** Erst eine Zehntelsekunde, dann bis zu zwei Sekunden
   ausgeblendet: „the game was hidden, kept the front, the screen still captured, shown again“ – macOS lässt einem

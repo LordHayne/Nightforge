@@ -1,0 +1,15 @@
+{
+  "v": 3,
+  "createdOnFiles": {"v": 1, "at": "2026-11-15T17:05:00Z"},
+  "title": "Vorhang nach der Regel",
+  "launch": {"view": "canvas"},
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {"x": 0, "y": 0, "w": 1800, "h": 4300, "title": "Alle Zustände des Vorhangs: heute und nach der Regel"}
+  },
+  "order": ["Main.dc.html"],
+  "notes": {},
+  "designSystems": [
+    {"title": "Nightforge", "namespace": "nightforge", "artifact": "https://claude.ai/artifact/Ga8ea7631PdaJKhcTmNMj2", "version": null, "copiedAt": "2026-11-15T17:05:00Z"}
+  ]
+}
