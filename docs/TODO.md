@@ -141,6 +141,12 @@ Befunde aus dem Lauf:
 - [x] **Die Listen sagen dazu „hält das Limit: Ø 201“.** (Behoben 14.11., `ce7647c`, im Testzweig `4c8c392`: Feld
   `limitState`, D3DMetal-Zahlen gelten als frei, „Limit greift nicht“ über 105 % des Limits.) Gemeint ist „erreicht es“, es liest sich aber, als
   griffe die Sperre. Über dem Limit muss es „Limit greift nicht“ heißen, bevor die Landingpage die Daten nimmt.
+- [ ] **Wurzel-Frage mit MGS V live nicht gelungen (15.11., 12:18, `testRootQuestion`):** Die Box kam, Nightforge
+  las sie als Frage des Spiels („it asks something“) und beendete den Start als Wahl des Spielers, obwohl die Diagnose
+  „hung → the next way“ sagte. Keine `trace:msgbox`-Zeile im Protokoll (aber `+pid,+loaddll` liefen); auch am 11.11.
+  stand keine. Ob `+msgbox` fehlt oder MGS Vs Box keine user32-MessageBox ist, klärt die Diagnose-Session. Alles
+  zurückgestellt; VeriSign kommt mit dem nächsten Spielstart wieder in den Prefix.
+
 **Vorhang B live gesehen (15.11., 12:09, Testbuild `c2da535`, ABZU über „Spielen“, `testFinding=nvidia-interface`,
 erster Start nach 3 s beendet):** „Diagnosis for ABZU: nvidia-interface: set by the engine test's switch …“, dann
 „ABZU starts once more on the same way: nvidia-interface“, zweiter Start mit Bild; Evidenz `started` → `failed` →
