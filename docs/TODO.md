@@ -301,6 +301,49 @@ scheitert und sich nicht schnell beheben lässt, wird ausgeschaltet oder herausg
 - **Abschluss wie 0.3.2:** Audit- und Testrunde, Profilliste signieren (Nutzer), Zusammenführen auf `main` (OK des
   Nutzers), Release-Notizen, Bot-PRs #39–#41 entscheiden.
 
+## 0.3.3: Abschlussliste (15.11., auf Wunsch des Nutzers: „schau mal das wir alles zusammenhaben für den 0.3.3 release“)
+
+**Stand:** Testzweig `claude/staging-033` liegt 397 Commits vor `origin/main` (`2276ccb`, 0.3.2 mit Landingpage) und ist
+**nirgends gepusht** – alles nur lokal auf dem MacBook. Kette zuletzt grün (121 Testreihen, 281 pytest). Version in
+`Resources/Info.plist` noch 0.3.2. `docs/release-notes/v0.3.3.md` fehlt; `docs/RELEASE-0.3.3-ENTWURF.md` ist vom 9.11.
+und überholt (kennt Schritt E, den Vorhang nach der Regel und das Laufwerk nicht, verspricht Ungeprüftes).
+`docs/AUDIT-0.3.3.md` ist vom 8.11. (`365f393`), vor Start-Rezept, Laufwerk und Vorhang.
+
+**1. Noch zu bauen (klein):**
+- [ ] Shader-Hinweis nur beim ersten Mal (`60d18a7`, im Testzweig, Kette läuft) – einspielen.
+- [ ] Laufwerk: Board → Wahl des Nutzers → Oberfläche.
+- [ ] Erlebnis-Audit E9, E10 (Board), E11: Entscheidungen des Nutzers.
+- [ ] Ehrliche Zeile für D3DMetal („none possible on D3DMetal“) in `LibraryModel.swift`/`GameLog`/Kommentar `Engine.swift`.
+
+**2. Live-Runde auf dem Endstand:**
+- Schon live gesehen: Fehlstart → Abhilfe → Bild (ABZU), Fenster des Spiels als Fehlstart, genauerer Blick, Zertifikat-Frage
+  (MGS V), Vorhang nach der Regel, Laufwerk Teil A (GOG), kein `sample` bei Overwatch, Overwatch randlos 3 von 3.
+- [ ] Koordinator allein: ein Start je geladenem Spiel über den Spieletest auf dem Endstand; Ruhe im Leerlauf und Steam
+  bei Bedarf am Protokoll einer Nacht.
+- [ ] Mit dem Nutzer: Overwatch im Vollbild (Hinweis, ein ⌘⇥, „Neu starten“ per Pad); Laufwerk Teil B auf dem Mac mini;
+  ruhiger Ladescreen (13 Punkte); Lizenz beim ersten Start (GTA V); Touchpad als Zeiger; Spieler 1 und 2 (zwei Pads);
+  Tastatur für den Controller (`PadKeyboardView` ist im Zweig – prüfen, ob sie an ist); Anmelden am Sofa (GOG per QR);
+  Battle.net-Start; Einstellungen › Startseite; Fernseher. Was scheitert, wird ausgeschaltet oder wandert auf 0.3.4.
+
+**3. Audit- und Testrunde** über alles seit dem 8.11.: Start-Rezept und Schritt E, Laufwerk-Übernahme (fasst Steams
+Listen, legendary und GOGs Liste an), Vorhang, Frage zur Wurzel, Testschalter. Eigene Session; Befunde prüft der Koordinator.
+
+**4. Texte und Version:** Release-Notizen neu gegen den Endstand (deutsch/englisch, `docs/release-notes/v0.3.3.md`,
+Landingpage-Session), Version 0.3.3 in `Info.plist`, `docs/TESTABDECKUNG.md` nachziehen (zuletzt 37 % Zeilen).
+
+**5. Nur der Nutzer:**
+- [ ] OK zum Pushen des Zweigs (Sicherung, CI auf GitHub), zum PR nach `main` und zum Merge.
+- [ ] `scripts/sign-lists.sh main`: Die Profilliste hat neue Felder (`ownAntiCheat`, `fullscreenHint`).
+- [ ] Bot-PRs: #41 (graphics `-17` → `-18`: Inhalt klären, hängt an der DXMT-LGPL-Entscheidung), #40 Profile, #39
+  unity-play. Dependabot #21–#26 bleiben liegen.
+- [ ] Overwatchs deutschen Menüwortlaut für „Randloses Fenster“ im Spiel nachsehen.
+- [ ] Release signieren, Tag `v0.3.3`.
+
+**6. Danach:** Landingpage, Zahlen-Basis, `main` zurück in den Arbeitszweig, Sessions archivieren.
+
+**Risiken:** 397 Commits ohne Sicherung außerhalb dieses Macs; die Startschleife ist umgebaut und nur an drei Spielen
+gezielt geprüft; die Laufwerk-Übernahme ist nur für GOG live gesehen; vieles vom 8./9.11. ist nie live gelaufen.
+
 - [ ] **„Shader werden vorbereitet …“ kommt zu oft (Frage des Nutzers, 15.11.).** Der Hinweis kommt, wenn die gemerkte
   Kombination (`shaders.<Spiel>` in den defaults: Engine | Grafikweg | Grafik-Bausteine, `LaunchPhase.graphicsSignature`)
   von der des Starts abweicht – gemerkt wird nur die **letzte**. Wechselt ein Spiel den Weg und kehrt zurück, kommt der
