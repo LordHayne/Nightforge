@@ -118,6 +118,29 @@ struct DriveFindsTest {
               "a Mac version is its app; no language named: en-US: \(String(describing: stardew))")
         check(DriveContents.read(drive: root.appendingPathComponent("Volumes/Empty")).isEmpty, "a drive without Nightforge's folder holds nothing")
 
+        // A manifest someone else wrote: its folder is one name in steamapps/common, never a path out of the library.
+        for name in ["Left 4 Dead 2", "MGS_TPP", "Half-Life 2", "game.v2", "..hidden", "a..b", ""] {
+            check(LibraryScanner.staysInLibrary(name), "a folder's name stays in the library: \"\(name)\"")
+        }
+        for name in ["..", ".", " .. ", "../../../Users/Shared/x", "a/b", "/Users/Shared", #"..\..\x"#, #"C:\Windows"#] {
+            check(!LibraryScanner.staysInLibrary(name), "a path is no folder's name: \"\(name)\"")
+        }
+        let odd = root.appendingPathComponent("Volumes/Odd", isDirectory: true)
+        let oddSteam = DriveLibrary.windowsSteam(on: odd).appendingPathComponent("steamapps", isDirectory: true)
+        write(manifest(550, "Left 4 Dead 2", dir: "Left 4 Dead 2"), oddSteam.appendingPathComponent("appmanifest_550.acf"))
+        write(manifest(11, "Out", dir: "../../../../../Users/Shared/out"), oddSteam.appendingPathComponent("appmanifest_11.acf"))
+        write(manifest(12, "Up", dir: ".."), oddSteam.appendingPathComponent("appmanifest_12.acf"))
+        check(DriveContents.read(drive: odd).windowsSteam.map(\.appID) == [550],
+              "a manifest whose folder leads out of the library is no game: \(DriveContents.read(drive: odd).windowsSteam.map(\.name))")
+        // … and the scan of a Steam's libraries leaves it out too: no game whose folder lies outside.
+        let macRoot = root.appendingPathComponent("MacSteam", isDirectory: true)
+        write(manifest(892970, "Valheim", dir: "Valheim"), macRoot.appendingPathComponent("steamapps/appmanifest_892970.acf"))
+        write(manifest(13, "Out", dir: "../../../outside"), macRoot.appendingPathComponent("steamapps/appmanifest_13.acf"))
+        let scanned = LibraryScanner.scanMac(root: macRoot)
+        check(scanned.map(\.appID) == [892970], "the scan knows only the game whose folder is in the library: \(scanned.map(\.name))")
+        check(scanned.allSatisfy { $0.installDir.standardizedFileURL.path.hasPrefix(macRoot.standardizedFileURL.path + "/") },
+              "and every game's folder lies in its library")
+
         // A fresh Nightforge: no Steam set up, no store connected – everything waits, nothing is taken.
         let fresh = DriveFinds.look(drive: drive, contents: contents, known: KnownInstalls())
         check(fresh.isEmpty && fresh.count == 0, "nothing is taken over before its store is there")

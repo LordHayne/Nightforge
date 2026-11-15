@@ -57,7 +57,7 @@ struct DriveContents: Equatable {
         let files = (try? FileManager.default.contentsOfDirectory(at: steamapps, includingPropertiesForKeys: nil)) ?? []
         return files.filter { $0.lastPathComponent.hasPrefix("appmanifest_") && $0.pathExtension == "acf" }.compactMap { file in
             guard let state = VDF.parse(contentsOf: file)?["appstate"], let appID = state["appid"]?.string.flatMap({ Int($0) }),
-                  let installDir = state["installdir"]?.string, !installDir.isEmpty
+                  let installDir = state["installdir"]?.string, !installDir.isEmpty, LibraryScanner.staysInLibrary(installDir)
             else { return nil }
             return SteamGame(appID: appID, name: state["name"]?.string ?? installDir, installDir: installDir,
                              size: state["sizeondisk"]?.string.flatMap { Int64($0) } ?? 0,

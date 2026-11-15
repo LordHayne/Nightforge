@@ -511,6 +511,15 @@ enum LibraryScanner {
         return files.filter { $0.lastPathComponent.hasPrefix("appmanifest_") && $0.pathExtension == "acf" }
     }
 
+    /// Whether a manifest's "installdir" names a folder in steamapps/common: one name, not a path. A library on
+    /// a drive is in Steam's list once the drive is plugged in (DriveTakeover), whoever wrote its manifests, and
+    /// "../../…" there would make a folder outside the library the game's own: where a start writes its settings
+    /// and DXVK's DLLs, and what "Move to …" takes along. Steam itself names one folder, always.
+    static func staysInLibrary(_ installDir: String) -> Bool {
+        let name = installDir.trimmingCharacters(in: .whitespaces)
+        return name != "." && name != ".." && !name.contains("/") && !name.contains("\\")
+    }
+
     /// `measureStaging`: the files a download has unpacked so far say how far it is – not with
     /// Steam for Mac, which reserves the whole game up front.
     private static func readManifest(
@@ -521,7 +530,7 @@ enum LibraryScanner {
               let appID = state["appid"]?.string.flatMap({ Int($0) }),
               !ignoredAppIDs.contains(appID),
               let name = state["name"]?.string, !name.isEmpty,
-              let installDirName = state["installdir"]?.string
+              let installDirName = state["installdir"]?.string, staysInLibrary(installDirName)
         else { return nil }
 
         // StateFlags bit 4 = fully installed; anything else is a download in progress.
