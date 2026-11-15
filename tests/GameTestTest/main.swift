@@ -21,7 +21,11 @@ struct GameTestTest {
                            platform: platform, skip: skip)
     }
 
-    static func main() {
+    static func main() async {
+        await handsOff()
+        steadyRates()
+        wineFpsAsSeen()
+        measuringRunFixture()
         settings()
         skips()
         plan()
@@ -437,7 +441,150 @@ struct GameTestTest {
               "the slowest frame's text")
     }
 
-    /// Apple's Metal HUD frame by frame, and whether a run has seen all a game needs to be done with.
+    /// No tool attaches to the process of a game with a cheat protection: with the profile's field `sample` isn't
+    /// called at all, without it as before; and the report says why a stack is missing.
+    static func handsOff() async {
+        func profile(_ json: String) -> GameProfile? { try? JSONDecoder().decode(GameProfile.self, from: Data(json.utf8)) }
+        let own = profile(#"{"name": "Overwatch", "graphics": "dxmt", "ownAntiCheat": true}"#)
+        check(own?.ownAntiCheat == true && profile(#"{"ownAntiCheat": "yes"}"#)?.ownAntiCheat == nil && profile("{}")?.ownAntiCheat == nil,
+              "the profile's field is read, and only as true or false")
+        check(GameTest.handsOff(profile: own, knownAntiCheat: false) == "ownAntiCheat" && GameTest.handsOff(profile: own, knownAntiCheat: true) == "ownAntiCheat",
+              "a cheat protection of its own: hands off")
+        check(GameTest.handsOff(profile: profile(#"{"ownAntiCheat": false}"#), knownAntiCheat: false) == nil
+              && GameTest.handsOff(profile: profile(#"{"graphics": "dxmt"}"#), knownAntiCheat: false) == nil
+              && GameTest.handsOff(profile: nil, knownAntiCheat: false) == nil, "without the field: nothing against a sample")
+        check(GameTest.handsOff(profile: nil, knownAntiCheat: true) == "antiCheat", "an anti-cheat Nightforge knows of otherwise: hands off too")
+        // The list that ships says it of Overwatch, in both files.
+        for file in ["profiles/mac.json", "profiles/profiles.json"] {
+            let list = (try? Data(contentsOf: URL(fileURLWithPath: file))).flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any]
+            let games = list?["games"] as? [String: [String: Any]]
+            check(games?["2357570"]?["ownAntiCheat"] as? Bool == true, "Overwatch's own cheat protection in \(file)")
+        }
+
+        actor Calls {
+            var count = 0
+            func take() -> String? {
+                count += 1
+                return "Sort by top of stack\n        mach_msg2_trap  (in libsystem_kernel.dylib)        4321\n"
+            }
+        }
+        let calls = Calls()
+        let kept = await GameTest.hangSample(handsOff: GameTest.handsOff(profile: own, knownAntiCheat: false)) { await calls.take() }
+        var count = await calls.count
+        check(kept.sample == nil && kept.skipped == "ownAntiCheat" && count == 0, "with the field sample isn't called: \(count) calls")
+        let taken = await GameTest.hangSample(handsOff: GameTest.handsOff(profile: profile("{}"), knownAntiCheat: false)) { await calls.take() }
+        count = await calls.count
+        check(taken.sample?.hasPrefix("Sort by top of stack") == true && taken.skipped == nil && count == 1, "without it sample is called as before: \(count) calls")
+        let unread = await GameTest.hangSample(handsOff: nil) { nil }
+        check(unread.sample == nil && unread.skipped == nil, "a sample that couldn't read the process is no skipped one")
+
+        // In the report: a sentence where the stack would stand, a field of its own in the JSON – and what a game
+        // drew without a picture is said as that, not as its frame rate (Overwatch, 14.11.2026).
+        var guarded = GameTest.Entry(candidate("steam.2357570", "Overwatch", .steam), outcome: .hang)
+        guarded.way = "dxmt"
+        guarded.frames = GameTest.Frames(average: 49, low: 35.5, periods: 12)
+        guarded.noSample = kept.skipped
+        var hung = GameTest.Entry(candidate("steam.2", "Hanging Game", .steam), outcome: .hang)
+        hung.way = "dxmt"
+        hung.stack = ["4321 mach_msg2_trap  (in libsystem_kernel.dylib)"]
+        let started = Date(timeIntervalSince1970: 1_794_681_660)
+        var report = GameTest.Report(started: started, finished: started.addingTimeInterval(600), nightforge: "0.3.2",
+                                     engine: ["winecx@4.7.3"], mac: "Apple M5 · macOS 27.0", pictureWait: 180, playSeconds: 190)
+        report.games = [guarded, hung]
+        let summary = GameTest.summary(report)
+        check(summary.contains("Wo es hängt: kein sample: Spiel mit eigenem Cheat-Schutz."), "the report says why there is no stack:\n\(summary)")
+        check(summary.components(separatedBy: "Wo es hängt (sample):").count == 2 && summary.contains("4321 mach_msg2_trap"), "the other game keeps its stack")
+        check(summary.contains("| hängt ohne Bild | – | ohne Bild gezeichnet: 49 / 36 |"), "frames counted without a picture are named as that:\n\(summary)")
+        check(GameTest.noSampleText("antiCheat") == "kein sample: Spiel mit Anti-Cheat", "the other reason in words")
+        let games = ((try? JSONSerialization.jsonObject(with: GameTest.json(report))) as? [String: Any])?["games"] as? [[String: Any]]
+        check(games?.first?["noSample"] as? String == "ownAntiCheat" && games?.last?["noSample"] == nil && games?.last?["stack"] != nil,
+              "report.json has a field of its own for it")
+    }
+
+    /// Two games' lines from the measuring run of 14.11.2026, as wine.log had them (tests/fixtures): what the run's
+    /// report said of them. The list's script reads the same file and has to say the same (tests/test_laeuft_liste.py):
+    /// a session of play is measured by the script, with this arithmetic.
+    static func measuringRunFixture() {
+        guard let log = try? String(contentsOf: URL(fileURLWithPath: "tests/fixtures/messlauf-2026-11-14.log"), encoding: .utf8) else {
+            check(false, "tests/fixtures/messlauf-2026-11-14.log not found from the repository's root")
+            return
+        }
+        var guardians = GameTest.Frames(average: 49.8, low: 29.3, periods: 19, seconds: 191, slowestFrame: 616.7, slowestTypical: 21.8, source: "metal-hud")
+        guardians.onePercentLow = 26.7
+        guardians.gpuTime = 18.7
+        let hud = GameTest.hudSample(in: log).flatMap { GameTest.measuredFrames($0) }
+        check(hud == guardians, "Guardians of the Galaxy by the HUD's lines, as the report had it: \(String(describing: hud))")
+        let rate = GameTest.wineFrames(GameTest.wineRates(in: log, programs: ["left4dead2.exe"]))
+        check(rate == GameTest.Frames(average: 23.9, low: 23.3, periods: 17, seconds: 186, source: "wine-fps"),
+              "Left 4 Dead 2 by Wine's fps channel, as the report had it: \(String(describing: rate))")
+        check(GameTest.held(of: "Marvel's Guardians of the Galaxy", in: log)?.frameLimit == 60 && GameTest.held(of: "Left 4 Dead 2", in: log)?.frameLimit == 0,
+              "each start's limit line")
+    }
+
+    /// A free number that hardly moved is a film's or a lock's pace: no frame rate that counts, and no low one.
+    static func steadyRates() {
+        func entry(_ way: String, limit: Int?, _ average: Double, _ low: Double, seconds: Double = 186, outcome: GameTest.Outcome = .picture) -> GameTest.Entry {
+            var entry = GameTest.Entry(candidate("steam.550", "Left 4 Dead 2", .steam), outcome: outcome)
+            entry.way = way
+            entry.frames = GameTest.Frames(average: average, low: low, periods: 17, seconds: seconds)
+            if let limit {
+                entry.measure = GameTest.Measure(window: "1512×982")
+                entry.measure?.frameLimit = limit
+            }
+            entry.load = GameTest.Load(average: 2, cores: 10)
+            return entry
+        }
+        // The night of 14.11.2026: Left 4 Dead 2's intro film at 24 frames a second for the whole measuring.
+        let film = entry("wined3d", limit: 0, 23.9, 23.3)
+        let checked = GameTest.check(film, playSeconds: 190, onBattery: false, lowPower: false)
+        check(GameTest.steady(film) && checked?.start == "ok" && checked?.fps == "steady" && checked?.done == false,
+              "a steady free number is no frame rate that counts: \(String(describing: checked))")
+        check(GameTest.issues(endedWhilePlaying: false, frames: film.frames, steady: true).isEmpty
+              && GameTest.issues(endedWhilePlaying: false, frames: film.frames) == ["lowFrameRate"]
+              && GameTest.issues(endedWhilePlaying: true, frames: film.frames, steady: true) == ["crashed"], "… and not a low one")
+        check(GameTest.framesText(film) == "24 / 23 (starr)" && GameTest.checkWords["steady"]?.hasPrefix("starrer Wert") == true, "said in the report")
+        // A number that moves is one; so is a short one, one under a limit that holds, one without its limit on record.
+        check(!GameTest.steady(entry("wined3d", limit: 0, 119.5, 112.4)) && !GameTest.steady(entry("wined3d", limit: 0, 23.9, 23.3, seconds: 45))
+              && !GameTest.steady(entry("dxmt", limit: 60, 59.9, 58.7)) && !GameTest.steady(entry("wined3d", limit: nil, 23.9, 23.3))
+              && !GameTest.steady(entry("wined3d", limit: 0, 23.9, 23.3, outcome: .hang)), "what isn't steady")
+        check(GameTest.check(entry("dxmt", limit: 60, 59.9, 58.7), playSeconds: 190, onBattery: false, lowPower: false)?.fps == "ok",
+              "under a limit that holds a steady rate is the point")
+        // Where the limit doesn't count the number is free: on D3DMetal, and past a limit by more than 5 %.
+        check(GameTest.steady(entry("d3dmetal", limit: 60, 201, 198)) && GameTest.steady(entry("dxmt -dx11", limit: 60, 74, 73))
+              && !GameTest.steady(entry("dxmt", limit: 60, 63, 62)), "free without a limit that holds")
+        check(GameTest.check(film, playSeconds: 190, onBattery: true, lowPower: false)?.fps == "throttled", "battery is said before steadiness")
+    }
+
+    /// Wine's fps channel as the measuring run of 14.11.2026 wrote it (Left 4 Dead 2, the game's path shortened):
+    /// two kinds of line for each stretch, with the same rate. Only Direct3D's counts – the other one, from Wine's
+    /// OpenGL side, has no swapchain and ends on a total – so nothing goes into the average twice.
+    static func wineFpsAsSeen() {
+        let night = """
+            25027.990:029c:02a0:trace:fps:wglSwapBuffers @ approx 0.00fps, total 0.00fps
+            25595.556:06e4:06f0:trace:loaddll:build_module Loaded L"C:\\\\Program Files (x86)\\\\Steam\\\\steamapps\\\\common\\\\Left 4 Dead 2\\\\left4dead2.exe" at 00400000: native
+            25603.617:06e4:0030:trace:fps:wglSwapBuffers @ approx 0.00fps, total 0.00fps
+            25603.617:06e4:0030:trace:fps:wined3d_cs_exec_present 0A8D1530 @ approx 0.00fps
+            25605.152:06e4:0030:trace:fps:wglSwapBuffers @ approx 23.45fps, total 24.10fps
+            25605.152:06e4:0030:trace:fps:wined3d_cs_exec_present 0A8D1530 @ approx 23.45fps
+            25606.687:06e4:0030:trace:fps:wglSwapBuffers @ approx 23.45fps, total 23.78fps
+            25606.687:06e4:0030:trace:fps:wined3d_cs_exec_present 0A8D1530 @ approx 23.45fps
+            25608.196:06e4:0030:trace:fps:wglSwapBuffers @ approx 23.19fps, total 23.59fps
+            25608.196:06e4:0030:trace:fps:wined3d_cs_exec_present 0A8D1530 @ approx 23.19fps
+            25609.747:06e4:0030:trace:fps:wglSwapBuffers @ approx 23.21fps, total 23.49fps
+            25609.747:06e4:0030:trace:fps:wined3d_cs_exec_present 0A8D1530 @ approx 23.21fps
+            """
+        let rates = GameTest.wineRates(in: night, programs: ["left4dead2.exe"])
+        check(rates.map(\.fps) == [23.45, 23.45, 23.19, 23.21], "one rate for each stretch, the swapchain's first line left out: \(rates)")
+        let seconds = rates.map(\.seconds).reduce(0, +)
+        check(abs(seconds - 6.13) < 0.001, "each by the time since the line before: \(seconds)")
+        let frames = GameTest.wineFrames(rates)
+        check(frames.map { abs($0.average - 23.3) < 0.05 } == true && frames?.seconds == 6.1 && frames?.source == "wine-fps",
+              "the average of the four, not of eight: \(String(describing: frames))")
+        // The OpenGL side's lines alone are no rate of the game's.
+        let openGLOnly = night.split(separator: "\n").filter { !$0.contains("wined3d_cs_exec_present") }.joined(separator: "\n")
+        check(GameTest.wineRates(in: openGLOnly, programs: ["left4dead2.exe"]).isEmpty, "wglSwapBuffers' lines don't count")
+    }
+
     /// Wine's own Direct3D through Wine's fps channel (WINEDEBUG=+fps): the lines as Wine 11.17 writes them
     /// (dlls/wined3d/cs.c "%p @ approx %.2ffps", the header of dlls/ntdll/unix/debug.c).
     static func wineFps() {
@@ -519,6 +666,7 @@ struct GameTestTest {
         check(GameTest.framesText(batman) == "nicht gemessen (WineD3D meldet keine ohne Wines fps-Kanal)", "without the channel: said why")
     }
 
+    /// Apple's Metal HUD frame by frame, and whether a run has seen all a game needs to be done with.
     static func hudAndCheck() {
         // The game's process logs a line a second; a launcher's window a few frames of its own.
         var lines = ["2026-11-07 02:51:10.950 wine[111:1] metal-HUD: 1,300.00,3000.00,100.00,5.00,16.67,5.00"]
@@ -557,6 +705,24 @@ struct GameTestTest {
         defaults.set(true, forKey: GameTest.Keys.frameLog)
         check(GameTest.logsFrames(active: true, defaults: defaults) && !GameTest.logsFrames(active: false, defaults: defaults),
               "set to true: still only in a game test")
+        // Measuring play is a hidden switch of its own: without it no start by Play logs a frame, whatever else is set.
+        let play = TestDefaults.suite("measurePlay")
+        check(!GameTest.measuresPlay(defaults: play) && !GameTest.logsFrames(active: false, defaults: play), "no switch: a start by Play logs nothing")
+        play.set(false, forKey: GameTest.measurePlayKey)
+        check(!GameTest.measuresPlay(defaults: play) && !GameTest.logsFrames(active: false, defaults: play), "set to false: nothing either")
+        play.set("yes please", forKey: GameTest.measurePlayKey)
+        play.set(true, forKey: GameTest.Keys.frameLog)
+        check(!GameTest.logsFrames(active: false, defaults: play), "the game test's own switch doesn't reach a start by Play")
+        play.set(true, forKey: GameTest.measurePlayKey)
+        check(GameTest.measuresPlay(defaults: play) && GameTest.logsFrames(active: false, defaults: play), "the switch on: a start by Play logs its frames")
+        play.set(false, forKey: GameTest.Keys.frameLog)
+        check(GameTest.logsFrames(active: true, defaults: play), "… and a game test's start does then too")
+        check(GameTest.measurePlayKey == "measurePlay", "the switch's name, as the rules give it")
+        let began = Date(timeIntervalSince1970: 1794773429)
+        check(GameTest.playNote(game: "Control", at: began, onBattery: false, lowPower: false, load: GameTest.Load(average: 2.14, cores: 10))
+              == "Play measuring of Control: 2026-11-15T20:10:29Z, on mains, load 2.1 on 10 cores", "when a measured session began, and under what")
+        check(GameTest.playNote(game: "Control", at: began, onBattery: true, lowPower: true, load: nil)
+              == "Play measuring of Control: 2026-11-15T20:10:29Z, on battery, Low Power Mode", "on battery, in Low Power Mode, without a load")
 
         // Done with a game: a clean start and a frame rate that counts.
         func check2(_ entry: GameTest.Entry, play: Double = 200, battery: Bool = false, lowPower: Bool = false) -> GameTest.Check? {
@@ -778,6 +944,14 @@ struct GameTestTest {
         check(summary.contains("| Control \\| Ultimate | d3dmetal | keins | Fenster 1512×982 Punkte | nicht gemessen (D3DMetal meldet keine) | – | nicht gemessen |"),
               "a row of a way that reports nothing")
         check(summary.contains("| Valheim | dxmt | nicht gemessen | nicht gemessen | 31 / 12 (Last hoch) | – | nicht gemessen |"), "a row without a measure")
+        // D3DMetal has nothing that holds a limit: the row says what was asked for, not that it held.
+        var underLimit = GameTest.Measure()
+        underLimit.frameLimit = 60
+        check(GameTest.limitText(underLimit, way: "d3dmetal") == "keins möglich (verlangt: 60 FPS)"
+              && GameTest.limitText(underLimit, way: "dxmt -dx11") == "60 FPS" && GameTest.limitText(nil, way: "d3dmetal") == "nicht gemessen",
+              "a limit D3DMetal was underLimit for is no limit it holds")
+        underLimit.frameLimit = 0
+        check(GameTest.limitText(underLimit, way: "d3dmetal") == "keins" && GameTest.limitText(underLimit, way: "wined3d") == "keins", "no limit underLimit for: none")
         // With the HUD's frame log: the run says so, D3DMetal had its chance, and a HUD's frames carry the slowest percent.
         check(!summary.contains("Metal-HUD hat die Frames mitgeschrieben"), "no frame log: no word of it")
         var logged = report
@@ -804,10 +978,13 @@ struct GameTestTest {
         check(!GameTest.summary(noPicture).contains("## Messwerte"), "no picture: no measures")
         // The checklist: every installed game, what this run saw of it, what a tick would free.
         check(summary.contains("## Abhakliste") && summary.contains("Deinstalliert wird hier nie etwas."), "the checklist and what it never does")
-        check(summary.contains("| Overcooked 2 | Windows | 8,5 GB | ja | ja | fertig |"), "done: a clean start and frames\n\(summary)")
-        check(summary.contains("| Control \\| Ultimate | Windows | 48,4 GB | ja | der Weg meldet keine | fehlt: FPS |"), "a start without frames: FPS missing")
+        check(summary.contains("| Overcooked 2 | Windows | 8,5 GB | ja | 60 / 41 | Start geprüft |"), "a clean start, with the first minutes beside it\n\(summary)")
+        check(summary.contains("| Control \\| Ultimate | Windows | 48,4 GB | ja | der Weg meldet keine | Start geprüft |"), "a start without frames is checked all the same")
+        check(summary.contains("| Spiel | Fassung | Größe | Start geprüft | In den ersten Minuten | Fazit |") && summary.contains("kein Leistungswert")
+              && !summary.contains("fertig") && !summary.contains("fehlt: FPS") && !summary.contains("fehlt: Start"),
+              "the first minutes are named as that, and nothing is called missing or done")
         check(summary.contains("| Shooter | Windows | 1,5 GB | – | – | nicht gestartet: bräuchte erst Laufzeiten (würde laden) |"), "skipped for something that can be mended")
-        check(summary.contains("Fertig in diesem Lauf: 1 von 10 Spielen, zusammen 8,5 GB."), "what the ticks free")
+        check(summary.contains("Start geprüft in diesem Lauf: 2 von 10 Spielen, zusammen 56,9 GB."), "what the ticks free:\n\(summary.components(separatedBy: "## Abhakliste").last ?? "")")
         var withGuarded = report
         withGuarded.games = [.skipped(guarded, .antiCheat)]
         check(GameTest.summary(withGuarded).contains("| Guarded | Windows | 84,2 GB | – | – | von Hand zu prüfen: Anti-Cheat sperrt es auf dem Mac |"),

@@ -359,6 +359,9 @@ def mac_problems(mac_games) -> list:
                 problems.append(f"{key}: registry")
         if profile.get("windowsVersion") not in (None, *WINDOWS_VERSIONS):
             problems.append(f"{key}: windowsVersion")
+        # The app reads anything but true as "not said" and would take its sample: a typo mustn't get there.
+        if "ownAntiCheat" in profile and not isinstance(profile["ownAntiCheat"], bool):
+            problems.append(f"{key}: ownAntiCheat")
     return problems
 
 

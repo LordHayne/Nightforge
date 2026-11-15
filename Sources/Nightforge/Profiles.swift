@@ -56,6 +56,10 @@ struct GameProfile: Decodable, Equatable {
     /// Anti-cheat that only stops online play on a Mac (Easy Anti-Cheat, BattlEye: Proton runs them
     /// through their Linux module): it blocks games that have nothing else.
     var antiCheatOnline: [String]?
+    /// true: the game runs on a Mac and brings a cheat protection of its own, so no tool attaches to its
+    /// process – the game test takes no `sample` of it (GameTest.handsOff). The player's account is at stake
+    /// (the user, 14.11.2026). Overwatch.
+    var ownAntiCheat: Bool?
     /// Its game id on GeForce Now, NVIDIA's cloud gaming, where such a game can be streamed instead.
     var geforceNow: String?
     /// Why the game doesn't start on a Mac yet, in plain English (the German is in Strings.swift);
@@ -156,7 +160,7 @@ struct GameProfile: Decodable, Equatable {
         case name, graphics, arguments, dllOverrides, registry, windowsVersion, winetricks, metalFX, frameLimit
         case vulkanSamplers, preferWindows, saves, antiCheat, antiCheatOnline, geforceNow, notYet, avx, fileEdits
         case iniSettings, retina, dlss, resolution, executable, environment, skipUnityDialog, msync
-        case needsRosettaLibrary
+        case needsRosettaLibrary, ownAntiCheat
     }
 
     /// {"root": "WinAppDataRoaming", "path": "7DaysToDie/Saves", "pattern": "*", "recursive": true, "mac": "MacAppSupport"}
@@ -194,6 +198,7 @@ struct GameProfile: Decodable, Equatable {
         }
         antiCheat = try? container.decodeIfPresent([String].self, forKey: .antiCheat)
         antiCheatOnline = try? container.decodeIfPresent([String].self, forKey: .antiCheatOnline)
+        ownAntiCheat = try? container.decodeIfPresent(Bool.self, forKey: .ownAntiCheat)
         geforceNow = try? container.decodeIfPresent(String.self, forKey: .geforceNow)
         // An empty reason is none.
         notYet = (try? container.decodeIfPresent(String.self, forKey: .notYet)).flatMap { $0.isEmpty ? nil : $0 }

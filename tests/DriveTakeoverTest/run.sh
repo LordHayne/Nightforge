@@ -1,0 +1,19 @@
+#!/bin/bash
+# Checks how the games on a drive are taken over without a download: Steam's list of libraries, legendary's
+# import (a stand-in legendary that answers as 0.21.1 does) and Nightforge's own record for GOG – in an empty
+# home of its own, over a drive built in a temporary directory. No real drive, no real store:
+# tests/DriveTakeoverTest/run.sh
+set -euo pipefail
+cd "$(dirname "$0")/../.."
+CLT_SDK="/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk"
+if [ -z "${SDKROOT:-}" ] && [ "$(xcode-select -p)" = "/Library/Developer/CommandLineTools" ] && [ -d "$CLT_SDK" ]; then
+  export SDKROOT="$CLT_SDK"
+fi
+DIR="$(mktemp -d)"
+trap 'rm -rf "$DIR"' EXIT  # the test program and its home go with it
+OUT="$DIR/drive-takeover-test"
+SOURCES=$(ls Sources/Nightforge/*.swift | grep -v '/App.swift$')
+# shellcheck disable=SC2086
+swiftc -parse-as-library -o "$OUT" $SOURCES tests/Shared/FakeProcesses.swift tests/DriveTakeoverTest/main.swift
+mkdir -p "$DIR/home"
+HOME="$DIR/home" CFFIXED_USER_HOME="$DIR/home" "$OUT"

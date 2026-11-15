@@ -138,7 +138,8 @@ Befunde aus dem Lauf:
   `Engine.prepareLaunchEnvironment` („Apple's readme“) stimmen dafür nicht. DXMT und DXVK halten es (MGS V 60,
   Frostpunk 60, The Forest 60). Der Nutzer mag gerade die Sperre auf 60. An die Läuft-Liste-Session gegeben
   (Wege suchen, wie sich D3DMetal begrenzen lässt; erst ein Vorschlag, kein Bau).
-- [ ] **Die Listen sagen dazu „hält das Limit: Ø 201“.** Gemeint ist „erreicht es“, es liest sich aber, als
+- [x] **Die Listen sagen dazu „hält das Limit: Ø 201“.** (Behoben 14.11., `ce7647c`, im Testzweig `4c8c392`: Feld
+  `limitState`, D3DMetal-Zahlen gelten als frei, „Limit greift nicht“ über 105 % des Limits.) Gemeint ist „erreicht es“, es liest sich aber, als
   griffe die Sperre. Über dem Limit muss es „Limit greift nicht“ heißen, bevor die Landingpage die Daten nimmt.
 - [ ] **Overwatch: der Spieletest sagt „hängt ohne Bild“, das Spiel zeichnete aber** (DXMT-Protokoll Ø 49 über
   170 s, Limit 40). Vorhang: erst „picture here“ (1512×853 L0), dann das Fenster auf der Abschirmungsebene
@@ -148,7 +149,10 @@ Befunde aus dem Lauf:
 - [ ] **Der Spieletest nahm dabei ein `sample` von Overwatch** (steam.2357570.sample.txt). Overwatch bringt einen
   eigenen Cheat-Schutz mit; für solche Spiele gilt sonst „kein sample“. Frage an den Nutzer: der Spieletest lässt
   das `sample` bei Online-Spielen mit Cheat-Schutz weg (Feld im Profil).
-- [ ] **Left 4 Dead 2: 122 von 123 Werten zwischen 22 und 26 FPS, drei Minuten lang.** Das sieht nach einem Film
+- [x] **Left 4 Dead 2: 122 von 123 Werten zwischen 22 und 26 FPS, drei Minuten lang.** (Geklärt 14.11. von der
+  Läuft-Liste-Session: Das Messfenster war der Vorspann, `valve.bik` 13 s und `l4d2_intro.bik` 174 s mit 23,98
+  Bildern je Sekunde. Die Liste markiert so einen Wert jetzt als „starr, kein Leistungswert“; er zählt nicht.
+  Offen: ein Lauf, der am Vorspann vorbeikommt.) Das sieht nach einem Film
   oder einer Begrenzung aus, nicht nach der Leistung des Spiels; der Bericht meldet „wenig FPS“. Ungeprüft. Der
   Wert taugt nicht für die Landingpage.
 - [ ] **ABZU endete beim ersten Anlauf nach Sekunden ohne Fenster, der zweite auf demselben Weg zeigte nach 11 s
@@ -158,6 +162,168 @@ Befunde aus dem Lauf:
   erste Prozess endete, ein zweiter kam. Zählt als sauberer Start. Für den Spieler sind das zweieinhalb Minuten
   Vorhang.
 - Die Werte sind die ersten drei Minuten (Vorspann, Menü, erste Sekunden), keine feste Szene: steht im Bericht.
+
+**Zuschnitt von 0.3.3 (entschieden vom Nutzer, 15.11.: „ja machen wir 0.3.3 so zugeschnitten. sonst kommen wir
+langsamer voran“):** 0.3.3 = „Der Start repariert sich selbst, sichtbar“ (Schritt E live, Vorhang nach dem Board)
+und „Laufwerk wiedererkennen“, dazu was schon fertig im Testzweig liegt und geprüft ist. Auf 0.3.4: das Limit auf
+D3DMetal (Weg A) und die älteren Punkte des 0.3.3-Plans, die noch ein Board oder einen Live-Test brauchen. Die
+genaue Liste (hinein / auf 0.3.4) legt der Koordinator dem Nutzer vor. Der Nutzer will die Laufwerks-Übernahme
+selbst auf dem Mac mini testen (frische Installation, Platte anstecken); vorher hier mit nachgebautem Laufwerk.
+
+**Ziel für den Start (der Nutzer, 15.11.):** Nightforge reagiert smart, behebt Fehlstarts selbst und vermittelt
+dem Spieler dabei, dass es aktiv an der Lösung arbeitet – „voller Problembehebung bei Fehlern automatisiert“.
+
+- [ ] Jede Abhilfe aus Schritt E braucht einen verlässlichen Weg, sie live auszulösen (Fehler gezielt einbauen),
+  damit sie nicht nur durch Tests gedeckt ist.
+- [ ] Der Vorhang zeigt die Arbeit (Board in Auftrag); Fehlerfenster des Spiels kommen nicht vor den Spieler.
+- [ ] Fehlstarts, die keine Regel kennt, sammeln und daraus Regeln machen (Diagnosetabelle wächst mit jedem Fall).
+
+**Gezielte Live-Prüfung von Schritt E, 15.11., 00:36–00:43 (Bericht `GameTests/2026-11-15-0037`, Protokoll im
+Notizordner `closer-look/live-2026-11-15-schritt-e-gezielt.log`): die neuen Wirkungen waren nicht zu sehen.**
+
+- [ ] **E3 nicht gesehen:** It Takes Two mit dem Testprofil (`physxupdateloader`, `physxupdateloader64` =
+  `native,builtin`, so auch im Rezept der Evidenz) stürzte nicht ab: Bild nach 61 s. Der Absturz vom 10.11. lässt
+  sich so nicht mehr auslösen (Vermutung: nvapi64 ist seit dem 7.11. aus). Es braucht einen anderen Auslöser.
+- [ ] **E4 nicht gesehen:** trotz anderem Rezept stand `known` an der `started`-Zeile, die Zeile „its way was proven
+  with another recipe“ kam nicht (der Zustand trug wohl noch kein Rezept: der Start davor lief nur 40 s).
+- [ ] **E5, Fehlerfenster, nicht gesehen:** Alan Wake von Hand auf D3DMetal zeigte die Box (`trace:msgbox` mit dem
+  Text steht im Protokoll), der Spieletest brach aber mit „dialog on d3dmetal“ ab, bevor der Start endete: keine
+  Diagnosezeile, keine Evidenz. Der Nutzer sah die Box. Zu prüfen ist das mit einem normalen Start über „Spielen“.
+- Zurückgestellt: Profil (git), Zustand beider Spiele aus der Sicherung, 2 Evidenzzeilen herausgenommen, sauberer
+  Build `ded1d83` wieder eingespielt (00:43, Signatur OK). Nichts ging kaputt.
+- **Idee des Nutzers (15.11.):** Der Vorhang soll zeigen, dass Nightforge aktiv an der Fehlerbehebung arbeitet.
+  Board bei der Diagnose-Session in Auftrag (Zustände des Vorhangs, Umgang mit dem Fehlerfenster, Frage zur Wurzel).
+
+**Teil 2 eingespielt und erster Probelauf, 15.11., 00:19–00:30 (Testbuild `af20360`, mit „Ja, einspielen“ des
+Nutzers; Bericht `GameTests/2026-11-15-0020`, je 40 s):** 6 von 6 mit Bild – MGS V (Steam, dxmt, Ø 59),
+It Takes Two (Steam, d3dmetal), ABZU (Epic, dxmt -dx11), Mafia II (GOG, wined3d), Valheim (Mac), Rise of the
+Tomb Raider (Epic, erster Start überhaupt: Startplan „d3dmetal, dxmt, dxvk; now d3dmetal, its files show
+DirectX 12 …“, am Launcher-Fenster vorbei mit `-nolauncher`, Bild nach 19 s).
+
+- **Gesehen, E1:** Jede `started`-Zeile der Evidenz trägt `recipe` (arguments, avx, dllOverrides, graphics,
+  runtimes); die Starts gehen wie vorher, „Game settings as the prefix has them: no regedit“.
+- **Gesehen, E5:** Jeder Start trägt die Kanäle (3842 `trace:loaddll`-Zeilen in 6 Starts, +608 KB); Steam
+  startete für MGS V einmal neu. Ein Fehlerfenster kam nicht vor.
+- **Nicht gesehen:** E2 (fehlende Laufzeit, Hogwarts ohne Profil), E3 (It Takes Two mit Testprofil), E4 (anderes
+  Rezept), E6 (Blick für den bewährten Weg), ein Start auf DXVK (The Forest ist gelöscht, OxyRail bräuchte ein
+  Update). Anleitung: Notizordner `closer-look/live-pruefung-schritt-e.md`.
+- [ ] **ABZU braucht zum dritten Mal in Folge zwei Anläufe** (14.11. 20:14, 15.11. 00:24; am 14.11. 18:43 nicht).
+  Mit den Kanälen jetzt lesbar: Der erste Anlauf endet still, ohne Fehlerzeile, nach dem Laden von
+  `explorerframe.dll` (101 Bibliotheken); der zweite lädt danach `cryptnet.dll`, `rtworkq`, `mfplat`,
+  `mfreadwrite`, `XAudio2_7`, `mmdevapi` und die Vorbis-Bibliotheken (112). Es greift der alte Zweig „ended in
+  its first seconds … started once more on it“, ohne Diagnose. Beide Anläufe liegen im Notizordner
+  (`closer-look/live-2026-11-15-abzu-anlauf-1.log`, `-2.log`). Für die Diagnose-Session.
+- Während des Laufs kam einmal Google Chrome nach vorn (der Nutzer war am Mac); der Vorhang ging hoch und
+  wieder herunter, der Test lief weiter.
+
+**Schritt E, Teil 2 ist im Testzweig (15.11., 00:14, Zusammenführung `7d12b51`):** E1 bis E5 und die Logik von E6
+in neun Commits der Diagnose-Session. Kette des Koordinators grün: 119 Testreihen, 273 pytest. **Nicht
+eingespielt, live nichts gesehen.** Nach dem Einspielen (OK des Nutzers) live: E2 mit einem Spiel mit fehlender
+Laufzeit und Hogwarts ohne Profil, E3 mit It Takes Two und einem Testprofil, dazu ein gewöhnlicher Start je Weg.
+Die zwei Oberflächen von E6 (Frage zur Wurzel, Vorhangzeile) warten auf ihr Board.
+
+**Neuinstallation und ein Laufwerk mit Spielen (Frage des Nutzers, 15.11.; aus dem Code gelesen, nicht live
+probiert):** Nightforge übernimmt die Spiele auf dem Laufwerk nicht von selbst.
+
+- [ ] **Steam (Windows):** Installiert ist, was in Steams `libraryfolders.vdf` steht (`LibraryScanner.libraryFolders`,
+  `Library.swift`). Die Liste einer frischen Installation kennt die Bibliothek auf dem Laufwerk nicht.
+  `SteamLibraries.ensure` trägt sie mit den Spielen ein, die schon dort liegen – wird aber nur beim Laden oder
+  Verschieben auf das Laufwerk gerufen (`DriveMoves.swift`). `watchDrives` lädt beim Anstecken nur neu. Folge:
+  Alle Steam-Spiele des Laufwerks stehen als „nicht installiert“ da, bis der Spieler irgendein Steam-Spiel auf
+  dieses Laufwerk lädt; dann kommen alle zurück, ohne neu zu laden (`requestDownload` lässt ein vorhandenes
+  Manifest stehen). Steam für Mac ebenso über seine eigene Liste.
+- [ ] **Epic:** Installiert ist, was in legendarys `installed.json` in Nightforges Daten steht; nach der
+  Neuinstallation leer. Nichts ruft `legendary import`. Lädt der Spieler das Spiel erneut auf das Laufwerk,
+  geht `legendary install --base-path` in den vorhandenen Ordner (ungeprüft: vermutlich lädt es alles neu).
+- [ ] **GOG:** Nightforges eigene `GOG/installed.json`; nach der Neuinstallation leer, nichts liest die Ordner.
+- In Einstellungen › Speicher steht das Laufwerk mit seinem Balken, aber ohne Spiele.
+- Vorschlag (eigene Session, Karte gestellt): ein Laufwerk mit „Nightforge Games“ beim Anstecken und beim Start
+  wiedererkennen und übernehmen, je Laden, ohne neu zu laden; Hinweis an den Spieler erst als Board.
+**Neuinstallation und ein Laufwerk mit Spielen (Frage des Nutzers, 15.11.):** gebaut auf
+`claude/sad-nightingale-196da3` (Commits ab `ff7c884`), mit Tests, **nicht live gelaufen und nicht eingespielt**.
+Anleitung für die Live-Prüfung: `docs/LIVETEST-LAUFWERK.md`. Board: `docs/entwuerfe/LaufwerkUebernahme.dc.html`.
+
+- [x] **Befund nachgelesen, zwei Korrekturen.** Steam und GOG wie notiert. Epic: legendary legt im Spielordner nichts
+  Eigenes ab – ein `.egstore` gibt es nur, wo die Spieldateien eines mitbringen (auf „Games“ bei einem von neun) –,
+  welcher Ordner welches Spiel ist, sagt erst die Liste des Kontos (Epics Ordnername je Spiel). gogdls `import`
+  trägt nichts ein, es liest nur die `goggame-<id>.info` und fragt GOG nach dem Versionsnamen.
+- [x] **Erkennen** (`DriveFinds.swift`, rein): was auf dem Laufwerk liegt, aus dessen Dateien allein, und was davon
+  Nightforge nicht kennt – zu übernehmen oder wartend, mit Grund. `tests/DriveFindsTest`.
+- [x] **Übernehmen** (`DriveTakeover.swift`, dazu je ein Abschnitt in `EpicStore.swift`, `GOGStore.swift`), ohne
+  Download, ohne etwas auf dem Laufwerk zu ändern: Steam und Steam für Mac über `SteamLibraries.ensure` bei gestopptem
+  Steam, eingereiht wie jeder Steam-Start; Epic über `legendary import` (aus der mitgelieferten 0.21.1 gelesen: braucht
+  Anmeldung und Netz, holt das Manifest, prüft Programmdatei und Dateien, endet auch nach einer Weigerung mit 0 –
+  darum entscheidet legendarys Liste); GOG als Eintrag in Nightforges `GOG/installed.json`. Nur Spiele des
+  angemeldeten Kontos; ein Epic-Download, der abbrach (legendarys `tmp/<App>.resume`), und ein GOG-Download mit
+  `.gogdl-resume` bleiben dem Download. `tests/DriveTakeoverTest` (leeres HOME, Ersatz-legendary).
+- [x] **Wann:** einmal nach dem Start, nach dem Anstecken, und sobald etwas Wartendes dran sein könnte (Spiel,
+  Download oder Umzug vorbei; Steam eingerichtet; Laden angemeldet; Liste des Ladens da). Eine Zeile in
+  `LibraryModel.swift` (`lookAtDrives()` in der Schleife, die die laufenden Spiele beobachtet).
+- **Was der Testbau auf „Games“ fände (15.11., nur gelesen):** 8 Steam-Spiele (eines halb geladen), 5 für Steam für
+  Mac, 9 Epic-Ordner, 1 GOG-Spiel – alle bekannt, also nichts zu tun und nichts wartend. Derselbe Stand ohne Nightforges
+  Listen, alle Läden angemeldet: alle 23 werden erkannt, kein Ordner bleibt übrig.
+- [ ] **Der Nutzer wählt am Board, was der Spieler sieht** (A still mit ruhigem Hinweis, B Hinweis mit „Ansehen“,
+  C einmal fragen; Empfehlung A). Bis dahin stehen die Spiele einfach als installiert da; der Hinweis hängt an
+  `DriveTakeover.onTaken`, die Zeile für Wartendes an `DriveFinds.waiting`. Texte deutsch und englisch am Board.
+- [ ] **Live prüfen** nach `docs/LIVETEST-LAUFWERK.md`: Teil A im leeren HOME mit einem Disk-Image (dort sieht die
+  Übernahme nur Disk-Images an, nie ein echtes Laufwerk); Teil B der echte Fall über „Laufwerk vergessen“ – ändert
+  Nightforges echte Listen, also die Entscheidung des Nutzers.
+- [ ] **Offen, gelesen und nicht belegt:** (1) Epic trägt nach dem Import den neuesten Stand ein, auch wenn die
+  Dateien älter sind, und merkt das Spiel zur Prüfung vor; ob Nightforges „Aktualisieren & Spielen“ damit richtig
+  umgeht, ist nicht gelaufen. (2) Ein Epic-Download, dem unter 5 % fehlen, gilt nach dem Import als installiert.
+  (3) GOG: gogdl fehlt nach der Übernahme das gespeicherte Manifest; das nächste Update lädt vermutlich alles.
+  (4) Ob die auslösende Schleife schon während der ersten Einrichtung läuft.
+- Vorschlag für später: Beim Laden auf ein Laufwerk einen Merkzettel dazulegen (Epic: App-Name und Stand, GOG: gogdls
+  Manifest). Dann wäre die Übernahme genau und ginge für Epic auch ohne Netz. Nicht gebaut – es schreibt bei jedem
+  Download auf das Laufwerk und will eine eigene Entscheidung.
+- In Einstellungen › Speicher steht das Laufwerk nach der Übernahme wieder mit seinen Spielen.
+
+**Entschieden vom Nutzer, 15.11. kurz nach Mitternacht:** „aber das menü sagt halt echt nichts aus über die
+leistung im spiel“ – die FPS-Werte des Spieletests (Vorspann, Menü) belegen den Start, nicht die Leistung. Ein
+Leistungswert ist nur einer, der beim Spielen gemessen wurde. Zum Mitschreiben beim normalen Spielen: „ja aber
+nur für unsere tests. im fertigen build soll kein tracking laufen“.
+
+- [ ] **Messen beim Spielen, nur als Testschalter** (Auftrag an die Läuft-Liste-Session, nach der sample-Regel):
+  versteckter Schalter in den Defaults, ohne ihn schreibt kein Start etwas mit (Test), nichts verlässt den Mac;
+  Leser für eine normale Spielsitzung, der Anfang bleibt weg (Regel als Vorschlag); WineD3D über Wines
+  fps-Kanal. Zeilen in `LibraryModel.swift`/`Engine.swift` kommen als Patch nach Teil 2 von Schritt E.
+- [ ] **Listen umstellen:** Werte des Spieletests unter „Start geprüft“, nicht öffentlich als FPS; Abhakliste mit
+  zwei getrennten Aussagen („Start geprüft“, „im Spiel gemessen“). Die Landingpage bekommt FPS nur aus Messungen
+  beim Spielen.
+- Der Nutzer löscht acht Spiele schon jetzt, wenn ihm „startet sauber“ genügt (Guardians, Just Cause 4, Control,
+  Dishonored, Alan Wake, Frostpunk, Batman, The Forest). Behalten für Prüfungen: Hogwarts und It Takes Two
+  (Schritt E live), MGS V (Frage zur Wurzel), Wukong Benchmark (Limit auf D3DMetal), Mafia II (Ruckeln, Ton).
+
+**Stand 14.11., 23:50:** Der zweite Commit der Läuft-Liste-Session (`15bc24a`: der Bericht des Spieletests nennt
+für D3DMetal „keins möglich (verlangt: 60 FPS)“; Regeln und drei Vorschläge in `docs/LAEUFT-LISTE.md` Abschnitt 9,
+Punkte 10 bis 12) ist geprüft (GameTestTest grün) und im Testzweig (`35e3c1b`).
+
+- **Entschieden vom Nutzer („Ja, weglassen“):** Der Spieletest nimmt bei Spielen mit eigenem Cheat-Schutz kein
+  `sample` mehr. In Arbeit bei der Läuft-Liste-Session: Feld im Profil, gesetzt für Overwatch; die einzige
+  Stelle, die `sample` aufruft, ist `GameTestRun.swift:655`.
+- **Overwatch, genauer:** Das HUD-Protokoll fehlte, weil das Fenster des Spiels nie auf dem Bildschirm war (von
+  der Session mit einem eigenen Metal-Programm belegt: nie gezeigtes Fenster, 360 Frames, 0 Zeilen). Der Vorhang
+  hatte also recht: Das Spiel zeichnete, aber ohne sichtbares Fenster. Verlangt waren 40 FPS, DXMT zählte 50.
+  Am 7.11. lief es. Offen, wer das klärt (nach Schritt E; kein sample, kein winedbg).
+- **D3DMetal auf 60 halten, drei Wege, nichts gebaut:** A Takt in `-[WineMetalLayer nextDrawable]` im
+  Mac-Treiber von Wine (Patch für `enginefix`, etwa ein Tag mit Engine-Build und Probe; empfohlen), B Bildschirm
+  für die Dauer des Spiels auf 60 Hz (hält nur Spiele mit VSync: Control ja, Wukong nicht), C DXMT statt
+  D3DMetal, wo ein Spiel dort läuft.
+  **Entschieden vom Nutzer, 14.11. („Ja, nach Schritt E“): Weg A wird gebaut, nach Schritt E.** Zuerst eine
+  Stunde den Quelltext von `WineMetalLayer` lesen (noch ungelesen), dann der Patch für `enginefix`, Engine-Build
+  und Probe mit dem Wukong-Benchmark (Ø 201 ohne Sperre). Der Engine-Build braucht das OK des Nutzers für den
+  Workflow; der Quelltext des Patches wird wie bei `enginefix` offen gelegt (LGPL).
+- Danach an die Reihe: die Protokollzeile „none possible on D3DMetal (asked 60 FPS)“ in `LibraryModel.swift`,
+  `GameLog.d3dMetalStart` und der Kommentar in `Engine.swift` (erst nach Teil 2 von Schritt E, dieselben Dateien);
+  Left 4 Dead 2 mit `-novid` über das Profil neu messen.
+
+**Stand 14.11., 23:30:** Um etwa 21:20 traf das Nutzungslimit beide Sessions, seit 23:20 arbeiten sie wieder
+(Diagnose-Start an Teil 2 von Schritt E, bisher kein Code; Läuft-Liste am Rest ihrer vier Punkte: Abschnitt 9,
+Vorschlag für ein Limit auf D3DMetal, die Anzeige bei Overwatch). Die Listen-Korrektur `ce7647c` ist geprüft
+(pytest 273) und im Testzweig (`4c8c392`), die Listen neu erzeugt: **13 fertig (402,2 GB), 10 offen, 1 von Hand.**
+Left 4 Dead 2 ist wieder offen (starrer Wert). Neu geladen und offen: Rise of the Tomb Raider (Epic, 38,6 GB),
+noch nie gestartet. Eingespielt bleibt `c453e40`; der Mac läuft seit dem Abend auf Akku (Messungen zählen so
+nicht). Offen beim Nutzer: `sample` bei Spielen mit Cheat-Schutz, Mac-Fassungen (Probe mit Valheim).
 
 **Schritt E, Teil 1 ist im Testzweig (14.11., 21:13, Zusammenführung `dd99a43`):** Kette grün, 119 Testreihen
 (neu: StartRecipeTest), 271 pytest. Nichts außerhalb der eigenen Dateien ruft `NextStart`,
@@ -202,30 +368,46 @@ Zweck (der Nutzer, 14.11.): geladene Spiele abhaken und deinstallieren können, 
 FPS-Wert vorliegen; die FPS-Werte offen auf der Landingpage. Gebaut: `docs/LAEUFT-LISTE.md` (Regeln),
 `scripts/laeuft-liste.py` → `docs/laeuft/` (`laeuft.json`, `LAEUFT.md`, `abhakliste.json`, `ABHAKLISTE.md`,
 `namen.json`), Spieletest-Bericht im Format 2 (`GameTestMeasure.swift`: Messwerte, Prüfung je Spiel, Größe, Baudatum,
-Leseseite für Apples Metal-HUD-Protokoll). Stand der echten Daten: 15 „läuft“, 6 „startet“; 23 geladene Spiele mit
-594,8 GB, davon **0 fertig**. Format 2 ist am 14.11. einmal live gelaufen (Batman, 190 s): Baudatum, Größe, Prüfung
-und Messwerte stehen im Bericht.
+Leseseite für Apples Metal-HUD-Protokoll).
 
 Nachzug am 14.11. (derselbe Zweig): Jeder Start eines Spieletests lässt Apples Metal-HUD die Frames mitschreiben
-(`Engine.setFrameLog`, unsichtbar bei ausgeschalteter Leistungsanzeige – mit einem eigenen Metal-Programm belegt),
-`started` nennt Version, Baudatum, Engine-Teile und Namen, jeder Start schreibt sein Limit und MetalFX als Zeile ins
-Protokoll, und der Generator zählt Starts nach ihrem Build. Nichts davon ist in einem Spiel gelaufen.
+(`Engine.setFrameLog`, unsichtbar bei ausgeschalteter Leistungsanzeige), `started` nennt Version, Baudatum,
+Engine-Teile und Namen, jeder Start schreibt sein Limit und MetalFX als Zeile ins Protokoll, WineD3D meldet seine
+Bildrate über Wines fps-Kanal, und der Generator zählt Starts nach ihrem Build. **Messlauf am 14.11.** (Bericht
+`2026-11-14-1941`): HUD-Werte für alle zehn Spiele mit Bild auf D3DMetal, DXMT und DXVK, fps-Kanal-Werte für alle fünf
+WineD3D-Spiele. Seitdem sagt die Liste, was das Limit mit einer Zahl gemacht hat (`limitState`: hält, erreicht nicht,
+greift nicht, kein Limit auf diesem Weg, frei), führt D3DMetal-Zahlen als frei und markiert starre Werte
+(Left 4 Dead 2: Ø 24 war der Vorspann) – die zählen auf der Abhakliste nicht. Stand: 13 fertig, 10 offen, 1 von Hand.
+
+**Seit dem 15.11.: Ein Leistungswert ist nur, was beim Spielen gemessen wurde** (der Nutzer: Das Menü sagt nichts
+über die Leistung im Spiel; mitschreiben nur für unsere Tests, im fertigen Build kein Tracking). Gebaut: der
+versteckte Schalter `measurePlay` (ein Start über „Spielen“ schreibt dann das HUD-Protokoll mit, sonst nie), der
+Leser für eine Spielsitzung im Generator (ohne die ersten 5 Minuten und die letzte, mindestens 10 Minuten; auf dem
+Protokoll des Messlaufs dieselben Zahlen wie der Bericht), und Liste wie Abhakliste mit zwei getrennten Aussagen:
+„Start geprüft“ (mit dem Wert des Spieletests als Nebenangabe „in den ersten Minuten“) und „im Spiel gemessen“.
+Stand: 0 im Spiel gemessen, 19 Start geprüft (547,6 GB), 3 Start offen, 1 von Hand.
 
 Als Nächstes (Anfang jeweils `docs/LAEUFT-LISTE.md`):
 
-- **Messlauf** nach Abschnitt 6: `gameTest.playSeconds` 190, alle geladenen Spiele auf einem Build (anderthalb bis
-  knapp drei Stunden), danach `scripts/laeuft-liste.py`. Was einmal fertig ist, bleibt es auch auf neueren Builds;
-  Start und FPS-Wert zählen zusammen nur auf demselben Build.
-- **Live zu sehen im ersten Lauf** (Abschnitt 9, Punkt 1): `metal-HUD:`-Zeilen unter Wine auf D3DMetal und auf
-  DXVK/MoltenVK (auf DXMT sind sie belegt); die Anzeige bleibt bei Deckkraft 0 im Spiel unsichtbar; Steam startet für
-  den Test einmal neu und danach zurück; die Zeile „Frame limit of …“ steht im Protokoll und im Bericht; ein Start von
-  Hand schreibt Version, Baudatum, Teile und Namen in die Evidenz.
-- **WineD3D** (5 Spiele, 58,9 GB) meldet seine Bildrate über Wines fps-Kanal: Schalter `wineDebug` mit
-  `+fps,+pid,+loaddll,+timestamp` vor dem Messlauf, danach wieder löschen (Abschnitt 6). Der Leser ist nach Wines
-  Quelle gebaut; eine echte Zeile gibt es erst aus dem Lauf – dann den Test damit ergänzen. Nächster Schritt: Der
-  Spieletest setzt den Kanal selbst, nur für WineD3D-Starts (Abschnitt 9, Punkt 5; `Engine.swift`, `LibraryModel.swift`).
-- **Mac-Fassungen** (5 Spiele, 64,0 GB) bleiben ohne FPS-Wert, bis der Nutzer zwischen den Wegen in Abschnitt 9,
-  Punkt 4 gewählt hat: Steam für Mac mit der Variable starten (Probe, dann ein halber Tag) oder nur den Start zählen.
+- **Play-Zeile in `LibraryModel.swift`** (Abschnitt 9, Punkt 14, Patch steht dort): Ohne sie fehlen Netzteil und Last
+  im Protokoll, und ein beim Spielen gemessener Wert zählt nicht; WineD3D-Sitzungen lassen sich nicht zuordnen.
+  Danach eine erste Sitzung von 16 Minuten und mehr live (Abschnitt 6, „Beim Spielen messen“).
+- **Release-Build ohne den Schalter** (Punkt 16): `NIGHTFORGE_RELEASE` in `build.sh` und `release.yml` setzen – der
+  Code ist vorbereitet, gesetzt ist die Flagge noch nirgends.
+- **WineD3D beim Spielen** (Punkt 15): heute `wineDebug` von Hand; empfohlen ist, dass der Schalter den fps-Kanal für
+  WineD3D-Starts selbst setzt (`Engine.swift`, `LibraryModel.swift`, derselbe Bau wie für den Spieletest).
+- **D3DMetal auf 60 halten** (Abschnitt 9, Punkt 10; der Nutzer legt Wert auf die Sperre): Apples D3DMetal 3.0 hat
+  keinen Schalter für die Bildrate. Empfohlen: Takt in `-[WineMetalLayer nextDrawable]` des Mac-Treibers
+  (`winemac.so` aus dem winecx-Quelltext, in den Teil `enginefix`), vorher den Quelltext der Klasse lesen; daneben
+  DXMT für Spiele, die dort belegt sind. Bis dahin: Protokollzeile in `LibraryModel.swift` und `GameLog.d3dMetalStart`
+  ehrlich machen, den Kommentar in `Engine.swift` berichtigen (Liste und Bericht sind es schon).
+- **Kein `sample` bei Spielen mit Cheat-Schutz** (Punkt 13, gebaut am 15.11. nach der Entscheidung des Nutzers):
+  Profilfeld `ownAntiCheat` (gesetzt für Overwatch), der Spieletest hängt dann nichts an den Prozess und sagt es im
+  Bericht (`noSample`). Die Profilliste (`profiles/profiles.json`) ist von Hand ergänzt und trägt einen neuen
+  Stempel; **signiert wird sie beim Release** (der Nutzer). Vorgeschlagen, nicht gesetzt: Left 4 Dead 2,
+  Counter-Strike 2, Team Fortress 2, Dota 2 (VAC), Diablo IV – der Nutzer entscheidet, mit Beleg.
+- **Offen aus dem Messlauf:** `-novid` für Source-Spiele über das Profil prüfen; der Spieletest setzt den fps-Kanal
+  selbst, nur für WineD3D-Starts.
 
 Zu entscheiden (der Nutzer):
 
@@ -236,6 +418,11 @@ Zu entscheiden (der Nutzer):
 - **Freie Zahlen:** Zusätzlich zu „hält 60 FPS“ ein Durchgang ohne Limit („Scharf & flüssig“ aus) für die Seite?
 - **Seite:** Board für die Landingpage (Vorschlag Abschnitt 7): unter Limit „hält 60 FPS“ plus langsamstes Bild, frei
   gemessen als eigene Zahl, nur Werte mit vollständigen Bedingungen.
+- **Schwellen:** „Limit greift nicht“ ab Ø über 105 % des Limits, „starr“ ab tiefsten zehn Sekunden bei 95 % des
+  Schnitts über mindestens 60 s (Abschnitt 3) – beides Vorschläge.
+- **Regel fürs Messen beim Spielen:** erste 5 Minuten und letzte Minute weg, mindestens 10 Minuten dazwischen – so
+  lassen? Und der Wortlaut der Abhakliste („Start geprüft“, „Start geprüft und im Spiel gemessen“, „Start offen“,
+  „nein: …“ statt „fehlt“).
 - **Abhakliste im Repository?** Sie nennt alle geladenen Spiele dieses Macs mit Größe (keine Pfade, keine Laufwerks-
   namen) und veraltet mit jedem Deinstallieren. Behalten, oder nur lokal erzeugen?
 - **Overwatch:** steht unter „läuft“ (Weg vor der Aufzeichnung bestätigt, Bild in 1 von 5 Spieletests); ob es

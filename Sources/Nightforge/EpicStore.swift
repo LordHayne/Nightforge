@@ -249,7 +249,7 @@ final class EpicStore: ObservableObject, StoreProvider, AccountStore {
 
     /// legendary has something to do or in line: it installs one thing at a time, and moving a game
     /// (legendary notes the new place) waits for it.
-    var isBusy: Bool { !downloads.isEmpty || !starting.isEmpty || !updates.isEmpty || updatingGame != nil || !wanted.isEmpty }
+    var isBusy: Bool { !downloads.isEmpty || !starting.isEmpty || !updates.isEmpty || updatingGame != nil || adopting || !wanted.isEmpty }
 
     private func save<T: Encodable>(_ value: T, to file: URL) {
         try? FileManager.default.createDirectory(at: Self.folder, withIntermediateDirectories: true)
@@ -534,7 +534,7 @@ final class EpicStore: ObservableObject, StoreProvider, AccountStore {
     /// Nothing of this Nightforge's – nor of an earlier one's – has legendary installing. Not known what an
     /// earlier one's does (`running` nil): not free.
     private func isFree(running: Set<String>?) -> Bool {
-        downloads.isEmpty && starting.isEmpty && updates.isEmpty && updatingGame == nil && running?.isEmpty == true
+        downloads.isEmpty && starting.isEmpty && updates.isEmpty && updatingGame == nil && !adopting && running?.isEmpty == true
     }
 
     private func startDownload(_ appName: String) async throws {
@@ -689,6 +689,91 @@ final class EpicStore: ObservableObject, StoreProvider, AccountStore {
     /// itself, legendary only forgets the game.
     nonisolated static func uninstallArguments(_ appName: String, filesGone: Bool) -> [String] {
         ["uninstall", appName, "-y", "--skip-uninstaller"] + (filesGone ? ["--keep-files"] : [])
+    }
+
+    // MARK: - Games that lie on a drive already
+
+    /// A game on a drive is being taken into legendary's list: no download slips in between (legendary
+    /// locks its list for one install, import or move at a time).
+    private var adopting = false
+
+    /// How taking over a game that lies on a drive ended.
+    enum Adoption: Equatable {
+        case taken
+        /// legendary found too little of it there (under 95 % of Epic's files): it stays not installed.
+        case incomplete
+        /// Not taken, with legendary's reason where it gave one.
+        case refused(String)
+    }
+
+    /// What taking a drive's games over goes by (DriveFinds.look); nil while Epic isn't connected.
+    func knownInstalls() -> KnownInstalls.Epic? {
+        loadFromDisk()
+        guard isConnected else { return nil }
+        let json = (try? Data(contentsOf: Legendary.configDir.appendingPathComponent("installed.json"))) ?? Data()
+        // A download that stopped keeps legendary's note of how far it got (tmp/<app>.resume): its folder is
+        // that download's to carry on, not a game to take over.
+        let notes = (try? FileManager.default.contentsOfDirectory(atPath: Legendary.configDir.appendingPathComponent("tmp").path)) ?? []
+        let stopped = notes.filter { $0.hasSuffix(".resume") }.map { String($0.dropLast(".resume".count)) }
+        return KnownInstalls.Epic(signedIn: isSignedIn, installed: EpicInstall.all(fromJSON: json).mapValues(\.path),
+                                  games: catalog.games, downloading: Set(wanted).union(stopped))
+    }
+
+    /// `legendary import`: takes what lies in `folder` into its list as `appName` without downloading the
+    /// game – it signs in, asks Epic for the app's manifest and looks for the files. The Windows version
+    /// is named (on a Mac legendary would look for a Mac one), and one app at a time: with --skip-dlcs
+    /// its answer is about this app alone, and an add-on is asked for by itself.
+    nonisolated static func importArguments(_ appName: String, folder: URL) -> [String] {
+        ["import", appName, folder.path, "--platform", "Windows", "--skip-dlcs"]
+    }
+
+    /// legendary took it although under 95 % of Epic's files are there: a download that stopped part-way.
+    nonisolated static func importFoundTooLittle(_ log: String) -> Bool {
+        log.contains("Some files are missing from the game installation")
+    }
+
+    /// The folder legendary's list has for an app, add-ons included.
+    nonisolated static func recordedFolder(of appName: String, installedJSON json: Data) -> URL? {
+        guard let items = try? JSONSerialization.jsonObject(with: json) as? [String: [String: Any]],
+              let path = items[appName]?["install_path"] as? String, path.hasPrefix("/") else { return nil }
+        return URL(fileURLWithPath: path, isDirectory: true)
+    }
+
+    /// Takes a game that lies on a drive (DriveFinds) into legendary's list, then the add-ons whose files
+    /// are there. Nothing of the game is downloaded and nothing in its folder changes. Only with Epic
+    /// signed in and legendary free – a game of another account, or one Epic's list doesn't have, legendary
+    /// refuses itself.
+    func adopt(_ find: DriveFinds.EpicFind) async -> Adoption {
+        loadFromDisk()
+        guard isSignedIn, !isBusy, catalog.games.contains(where: { $0.appName == find.appName }) else { return .refused("not now") }
+        adopting = true
+        defer {
+            adopting = false
+            Task { await startNext() }  // downloads asked for meanwhile
+        }
+        guard await Engine.offMain({ Self.runningDownloads() })?.isEmpty == true else { return .refused("legendary is busy") }
+        let outcome = await importApp(find.appName, folder: find.folder)
+        guard outcome == .taken else { return outcome }
+        // An add-on with no files there stays out; it follows with the game's next "Update & Play".
+        for addOn in find.addOns { _ = await importApp(addOn, folder: find.folder) }
+        return .taken
+    }
+
+    /// One app. What legendary's list says afterwards decides, not its exit code: legendary 0.21.1 ends
+    /// with 0 after most refusals, and stops with an error on an add-on that has no files at all.
+    private func importApp(_ appName: String, folder: URL) async -> Adoption {
+        let result = try? await Legendary.run(Self.importArguments(appName, folder: folder), timeout: 300)
+        let file = Legendary.configDir.appendingPathComponent("installed.json")
+        let recorded = await Engine.offMain { Self.recordedFolder(of: appName, installedJSON: (try? Data(contentsOf: file)) ?? Data()) }
+        guard recorded?.standardizedFileURL.path == folder.standardizedFileURL.path else {
+            return .refused(result?.error ?? L10n.t("legendary stopped (code %d)", result?.status ?? -1))
+        }
+        if Self.importFoundTooLittle(result?.log ?? "") {
+            // Forgotten again, its files left as they are: shown as installed it wouldn't start.
+            _ = try? await Legendary.run(Self.uninstallArguments(appName, filesGone: true), timeout: 120)
+            return .incomplete
+        }
+        return .taken
     }
 
     // MARK: - A drive that's gone

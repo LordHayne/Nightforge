@@ -90,6 +90,7 @@ All fields are optional. They're read by `GameProfile` in `Sources/Nightforge/Pr
 | `skipUnityDialog` | `false` | Leaves Unity's configuration window before the game to the player, for a game that asks something there that matters. Otherwise Nightforge presses "Play!" itself. |
 | `msync` | `false` | Runs the game without msync, for one that hangs or stutters with it. Wine's whole session has it or doesn't, so Steam restarts when it changes from one game to the next. A game started next to a running Windows game takes that session as it is. |
 | `antiCheat`, `antiCheatOnline` | list of text | `[]` says the game runs on a Mac after all, whatever AreWeAntiCheatYet lists. |
+| `ownAntiCheat` | `true` | The game runs on a Mac and brings a cheat protection of its own (Overwatch). No tool attaches to its process: Nightforge's game test takes no `sample` of it when it hangs, and says so in its report. Set it only for a game you have a source for. |
 | `notYet` | text in plain English | The game doesn't start on a Mac yet and Nightforge is working on it: Nightforge says so before the download and offers GeForce Now when it has the game. The reason also needs its German text in `Sources/Nightforge/Strings.swift`, the one other file such a pull request changes. |
 | `gog` | list of GOG product IDs | The same game's GOG versions get this profile too. |
 | `ignoreUpstream` | `true` | Leave out umu-protonfixes' fixes for this game; only this profile applies. |
@@ -105,7 +106,7 @@ Every pull request that touches `profiles/` runs the **Update game profiles** wo
 - `mac.json` isn't valid JSON,
 - a key isn't a Steam app ID (digits only), `epic.<namespace>` (letters, digits, `_` and `-`, up to 64) or `gog.<product ID>` (digits),
 - `graphics` is anything but `dxmt`, `dxvk`, `wined3d` or `d3dmetal`,
-- `metalFX` isn't `true` or `false`, `frameLimit` isn't a whole number, `antiCheat` or `antiCheatOnline` isn't a list, `notYet` isn't text,
+- `metalFX` isn't `true` or `false`, `frameLimit` isn't a whole number, `antiCheat` or `antiCheatOnline` isn't a list, `notYet` isn't text, `ownAntiCheat` isn't `true` or `false`,
 - `executable` is empty, starts with `/` or `\`, or contains a `..` part,
 - `arguments`, `dllOverrides` or `environment` break the rules in the table above,
 - `windowsVersion` isn't one of the nine names above,

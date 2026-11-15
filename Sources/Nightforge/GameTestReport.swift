@@ -45,6 +45,8 @@ extension GameTest {
         var errors: [String]?
         /// Where it hung (`topOfStack`).
         var stack: [String]?
+        /// Why no sample was taken of a game that hung (GameTest.handsOff): "ownAntiCheat", "antiCheat".
+        var noSample: String?
         /// In German, for people: what else came up.
         var notes: [String]?
         /// Files in the run's folder with more: the log since the start, the sample.
@@ -271,6 +273,8 @@ extension GameTest {
                 for note in entry.notes ?? [] { lines.append("- \(note)") }
                 if let stack = entry.stack, !stack.isEmpty {
                     lines += ["", "Wo es hängt (sample):", "", "```"] + stack + ["```"]
+                } else if let why = entry.noSample {
+                    lines += ["", "Wo es hängt: \(noSampleText(why))."]
                 }
                 if let errors = entry.errors, !errors.isEmpty {
                     lines += ["", "Fehler im wine.log:", "", "```"] + errors + ["```"]

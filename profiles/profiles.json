@@ -4809,6 +4809,7 @@
    "name": "Overwatch",
    "graphics": "dxmt",
    "needsRosettaLibrary": true,
+   "ownAntiCheat": true,
    "dllOverrides": {
     "nvapi64": "",
     "nvngx": ""
@@ -7550,5 +7551,5 @@
    "reports": 1
   }
  },
- "generated": "2026-11-09T21:42:07Z"
+ "generated": "2026-11-14T22:48:43Z"
 }

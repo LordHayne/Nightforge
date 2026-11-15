@@ -21,8 +21,10 @@ Nur Nightforges eigene Aufzeichnungen. Nichts aus AppleGamingWiki, PCGamingWiki,
 | Start-Evidenz (`start-evidence.jsonl`, `StartEvidence.swift`) | je Start: Spiel, Weg, winecx-Stand, Chip und macOS, Ausgang (`worked`, `failed`, `ended`, `gaveUp`); seit dem 14.11.2026 dazu Nightforge-Version mit Baudatum (`nightforge`, `built`), alle Engine-Teile (`parts`) und der Name des Spiels (`name`) | Mac-Fassungen, Messwerte; Zeilen von vor dem 14.11. nennen weder Version noch Namen |
 | Spieletest (`GameTests/<Datum>/report.json`, `GameTest*.swift`) | je Spiel: Bild ja/nein, Sekunden bis zum Bild, Wege, Messwerte im Spielfenster; je Lauf: Nightforge-Version, alle Engine-Teile, Last | bestätigt keinen Weg (siehe Stufen) |
 
-Nicht benutzt: `wine.log` (rotiert bei 8 MB, keine dauerhafte Quelle – der Spieletest liest seinen Abschnitt daraus,
-solange er frisch ist) und die bestätigten Wege in den Einstellungen der App (`LaunchHealth.confirmedWays`: ohne Datum
+`wine.log` und `wine.previous.log` liest der Generator seit dem 15.11. für eines: die Spielsitzungen, die mit dem
+Testschalter `measurePlay` mitgeschrieben wurden (Abschnitt 3, „Messen beim Spielen“). Das Protokoll rotiert bei 8 MB
+und ist keine dauerhafte Quelle; was daraus zählt, steht nach dem Lauf des Generators in `laeuft.json`. Der Spieletest
+liest seinen Abschnitt daraus, solange er frisch ist. Nicht benutzt: die bestätigten Wege in den Einstellungen der App (`LaunchHealth.confirmedWays`: ohne Datum
 und Engine-Stand; die Evidenz hält dasselbe als `known` fest).
 
 ## 2. Stufen
@@ -89,7 +91,7 @@ und mit einem eigenen kleinen Metal-Programm (unten: „Probe“).
 | DXMT | **ja**, immer: `[nightforge-dxmt]` alle 10 s, nach zwei Minuten jede Minute | **ja, belegt:** 538 Zeilen im `wine.log` vom 7.11. (Overwatch, ABZU) | nein; der Anzeigemodus, wenn das Spiel einen setzt |
 | DXVK auf KosmicKrisp (Direct3D 9), Vulkan-Spiele | **ja**, immer: `[nightforge-vulkan]`, gleiches Format | erwartet (zeichnet über einen Metal-Layer), unter Wine noch nicht gesehen | **ja:** Swapchain in Pixeln und MetalFX-Ziel |
 | DXVK auf MoltenVK (Direct3D 10/11) | nein | erwartet: Die Anzeige hängt sich laut Log an; Protokollzeilen unter Wine noch nicht gesehen | nein |
-| D3DMetal | nein | erwartet: wie oben | nein |
+| D3DMetal | nein | **ja, belegt:** Messlauf vom 14.11., fünf Spiele | nein |
 | WineD3D (OpenGL) | **mit Wines fps-Kanal** (`WINEDEBUG=+fps`, unten): die Bildrate alle 1,5 s – Ø und tiefste zehn Sekunden, kein langsamster Frame, kein 1-%-Tief | **nein:** Ein OpenGL-Fenster bekommt weder Anzeige noch Zeilen (Probe) | nein |
 | Mac-Fassung | nein | **nicht im Spieletest:** Das Spiel startet Steam für Mac, die Umgebungsvariable erreicht es nicht, und die Zeilen gingen an seine eigene Fehlerausgabe (Abschnitt 9, Punkt 4) | nein |
 | alle | Sekunden bis zum Bild; Fenstergröße und Bildschirm in Punkten (Zeile des Vorhangs); Frame-Limit, Bildwiederholrate, MetalFX an/aus und ob das Limit gedrosselt war (Zeile des Starts, nur Windows-Fassungen); Last, Akku, Stromsparmodus; Größe auf der Platte | | |
@@ -142,11 +144,21 @@ Frame-Zeit) und die GPU-Zeit je Frame (`source: metal-hud`). Stehen keine solche
 Zählung der Schicht. Der Bericht sagt mit `frameLog`, dass das Protokoll an war; ein Bild ohne Zeilen auf D3DMetal
 oder DXVK heißt dann „keine im Log“, nicht mehr „der Weg meldet keine“.
 
-- **Mit dem Protokoll messbar (erwartet):** alles, was über Metal zeichnet – DXMT, DXVK auf MoltenVK und KosmicKrisp,
-  D3DMetal. Unter Wine gesehen ist es bisher nur auf DXMT (7.11.); D3DMetal und MoltenVK zeigt der erste Messlauf.
+- **Mit dem Protokoll messbar:** alles, was über Metal zeichnet – DXMT, DXVK auf MoltenVK und KosmicKrisp,
+  D3DMetal. Unter Wine gesehen auf D3DMetal, DXMT und DXVK (unten).
 - **Unter Wine gesehen** (Probelauf 14.11., Bericht `2026-11-14-1843`): Zeilen auf DXVK (The Forest), DXMT (ABZU) und
   D3DMetal (Control), dazu die Limit-Zeile und Steams Neustart hin und zurück. Die Werte selbst zählen nicht (Akku,
   andere Arbeit lief mit).
+- **Messlauf 14.11.** (Bericht `2026-11-14-1941`, am Netz, Last niedrig, 190 s je Spiel): 2117 `metal-HUD:`-Zeilen,
+  Werte für alle zehn Spiele mit Bild auf D3DMetal, DXMT und DXVK; 1285 Zeilen aus Wines fps-Kanal, Werte für alle
+  fünf WineD3D-Spiele.
+- **Das Protokoll schweigt, solange das Fenster nicht auf dem Bildschirm ist** (Probe 14.11.: dasselbe Metal-Programm,
+  360 Frames präsentiert, Fenster nie nach vorn geholt – 0 Zeilen; mit Fenster 5 Zeilen in 6 s). So war es bei
+  Overwatch im Messlauf: Die Anzeige war geladen (`[libMTLHud]`-Zeilen im Prozess des Spiels), das Fenster kam nie
+  auf den Bildschirm, es gab keine einzige `metal-HUD:`-Zeile – DXMTs eigene Zählung lief trotzdem (Ø 49). Die zählt,
+  was das Spiel abgibt, nicht was jemand sieht: Ein Wert aus `source: dxmt` zu einem Lauf ohne Bild ist kein FPS-Wert
+  des Spiels. Der Generator nimmt ihn nicht (nur Läufe mit Bild); der Bericht des Laufs nennt ihn seit dem 15.11.
+  „ohne Bild gezeichnet: 49 / 36“.
 - **Nicht über die Anzeige messbar:** WineD3D (OpenGL: auf diesem Mac Dishonored, Left 4 Dead 2, Alan Wake, Mafia II,
   Batman – 58,9 GB) – dafür gibt es Wines fps-Kanal, nächster Abschnitt – und Mac-Fassungen (Tomb Raider, Asphalt
   Legends, Valheim, Drawful 2, Dying Light – 64,0 GB), Abschnitt 9.
@@ -202,30 +214,121 @@ Eine Zeile im Protokoll sieht damit so aus (Kopf aus `dlls/ntdll/unix/debug.c`: 
   Er gilt für **alle** Starts, bis er zurückgenommen ist (Abschnitt 6): `+loaddll` schreibt beim Start jedes
   Prozesses einige hundert Zeilen, `+fps` eine alle 1,5 s. Der Bericht nennt den Kanal mit `wineFps`; ein Bild auf
   WineD3D ohne Zeile heißt dann „keine im Log“.
-- **Nicht gesehen:** eine echte Zeile. Das Format stammt aus der Quelle; der Funktionsname in der Zeile ist dem Leser
-  gleich (er liest Kanal und Text), die erste echte Zeile kommt aus dem Messlauf.
+- **Gesehen im Messlauf vom 14.11.:** 1285 Zeilen, je Bild-Zeitraum zwei Arten mit demselben Wert:
+
+  ```
+  25605.152:06e4:0030:trace:fps:wined3d_cs_exec_present 0A8D1530 @ approx 23.45fps
+  25605.152:06e4:0030:trace:fps:wglSwapBuffers @ approx 23.45fps, total 24.10fps
+  ```
+
+  Die erste ist die aus der Quelle oben. Die zweite schreibt Wines OpenGL-Seite; sie trägt keinen Zeiger und endet
+  auf den Gesamtschnitt. Der Leser zählt nur die erste: Bei der zweiten ist der Text hinter „approx“ keine Zahl, sie
+  fällt heraus. Nachgerechnet an Left 4 Dead 2 (123 Zeilen je Art, in allen 123 Paaren derselbe Wert): Bericht und
+  Nachrechnung ergeben Ø 23,9 über 186 s – nichts geht doppelt in die Kette. Dass die zweite Art herausfällt, ist
+  seit dem 15.11. mit den echten Zeilen in `tests/GameTestTest` festgehalten (`wineFpsAsSeen`). Die erste Zeile
+  jeder Swapchain nennt 0,00 und fällt wie vorgesehen weg.
 
 Der Spieletest schreibt seit Berichtsformat 2 je Spiel (`GameTestMeasure.swift`): `frames` mit `average`, `low`,
 `periods`, `seconds`, `slowestFrame`, `slowestTypical`, `source`, `onePercentLow`, `gpuTime`; `measure` mit `window`,
 `screen`, `swapchain`, `upscaledTo`, `displayMode`, `frameLimit`, `refreshRate`, `metalFX`, `throttled` und `noFrames`
-(`wayReportsNone` oder `noneInLog`); `check` (Abschnitt 4) und `sizeBytes`; je Lauf `built` (das Datum des Programms:
+(`wayReportsNone` oder `noneInLog`); `check` (Abschnitt 4), `sizeBytes` und – bei einem Spiel, das hing und von dem
+kein `sample` genommen wurde – `noSample` (Abschnitt 9, Punkt 13); je Lauf `built` (das Datum des Programms:
 Testbuilds zwischen zwei Versionen tragen dieselbe Versionsnummer), `onBattery`, `lowPower`, `frameLog`, `wineFps`. Berichte im Format 1 liest
 der Generator weiter; ihnen fehlen diese Felder, und die Liste sagt dann „nicht gemessen“.
 
+### Messen beim Spielen (Testschalter, seit dem 15.11.)
+
+Der Nutzer am 15.11.: „das menü sagt halt echt nichts aus über die leistung im spiel“ – und zum Mitschreiben beim
+normalen Spielen: „ja aber nur für unsere tests. im fertigen build soll kein tracking laufen“. Seitdem gilt: **Ein
+Leistungswert ist nur, was beim Spielen gemessen wurde.** Was der Spieletest misst, sind die ersten Minuten eines
+Spiels; das belegt den Start.
+
+- **Was der Messlauf dazu zeigt:** Alle zehn Spiele mit HUD-Protokoll liefen ab etwa Sekunde 30 bis zum Ende der 190 s
+  gleichförmig (Guardians: 30, 30, 40, dann durchgehend 53 bis 54 je zehn Sekunden; Control: 31, 71, dann 98; Wukong
+  durchgehend 98 je Zeile). Das ist ein Menü oder ein Vorspann, kein Spiel. Left 4 Dead 2s Vorspann allein dauert 187 s.
+- **Der Schalter:** `measurePlay` in den Defaults, kein Eintrag in der Oberfläche, aus, solange ihn niemand setzt
+  (`GameTest.measuresPlay`). Ist er an, schreibt bei einem ganz normalen Start über „Spielen“ Apples Metal-HUD die
+  Frames mit wie im Spieletest – unsichtbar, wo die Leistungsanzeige aus ist. `LibraryModel.launch` fragt dafür schon
+  `GameTest.logsFrames()`; Steam startet beim ersten solchen Start einmal neu und beim ersten Start nach dem
+  Ausschalten wieder. **Nichts verlässt den Mac, und nichts wird abgelegt außer den Zeilen in `wine.log`.** Ein Test
+  hält fest: Ohne Schalter schreibt kein Start über „Spielen“ etwas mit (`tests/GameTestTest`).
+- **Der Leser** ist der Generator selbst (`play_sessions` in `scripts/laeuft-liste.py`): Er liest `wine.previous.log`
+  und `wine.log`, nur lesend. Eine Sitzung reicht von „Start of <Spiel>: <Weg> on <Engine>“ bis zum letzten Frame des
+  Spiels; Strecken eines Spieletests zählen nicht (die haben ihren Bericht). Die Frames kommen aus den
+  `metal-HUD:`-Zeilen des Prozesses mit den meisten Frames, auf WineD3D aus Wines fps-Kanal. Die Messung hat dieselbe
+  Form wie im Bericht des Spieletests (`average`, `low`, `periods`, `seconds`, `slowestFrame`, `slowestTypical`,
+  `onePercentLow`, `gpuTime`), `source` ist `play`, `logged` nennt, wer mitschrieb (`metal-hud`, `wine-fps`).
+  **Gegenprobe:** Auf dem Protokoll des Messlaufs ergibt der Leser, ohne etwas abzuschneiden, für alle 15 gemessenen
+  Spiele genau die acht Zahlen des Berichts. Zwei dieser Strecken liegen als Fixture im Repository
+  (`tests/fixtures/messlauf-2026-11-14.log`); der Swift-Test und der Test des Skripts prüfen an ihr dieselben Zahlen.
+- **Was von einer Sitzung zählt** (Vorschlag, als `PLAY_SKIP`, `PLAY_TAIL`, `PLAY_MIN` im Skript):
+
+  | Regel | Wert | Begründung |
+  |---|---|---|
+  | Anfang weg | die ersten 300 s ab dem ersten Frame | Die 190 s des Spieletests waren bei allen zehn Spielen Vorspann oder Menü; fünf Minuten decken den längsten gesehenen Film (187 s), das Menü und das Laden eines Spielstands. Aus dem Protokoll lässt sich Menü nicht von Spiel trennen: Die Regel ist eine Abmachung, und wer misst, spielt wirklich. |
+  | Ende weg | die letzten 60 s vor dem letzten Frame | Der Weg hinaus führt durchs Menü. |
+  | Mindestdauer | 600 s dazwischen, die Sitzung also ab 16 Minuten | Über zehn Minuten fallen einzelne Pausen und Ladebildschirme nicht ins Gewicht; darunter sagt die Liste „zu kurz gespielt (9 min, nötig 16 min)“. |
+
+  Sekunden ohne HUD-Zeile zählen von selbst nicht mit (das Fenster war nicht auf dem Bildschirm). An der Fixture: Die
+  Guardians-Strecke ergibt ganz gelesen Ø 49,8 mit tiefster Periode 29,3 und schlimmstem Frame 617 ms; ohne die erste
+  Minute und die letzte halbe Ø 53,0, tiefste Periode 52,5, schlimmster Frame 32 ms – der Film und der Lade-Ruckler
+  sind weg.
+- **Bedingungen wie beim Spieletest:** Das Limit steht in der Zeile des Starts („Frame limit of …“). Netzteil,
+  Stromsparmodus und Last schreibt eine eigene Zeile, mit dem Moment des Starts:
+  „Play measuring of <Spiel>: 2026-11-15T20:10:29Z, on mains, load 2.1 on 10 cores“ (`GameTest.playNote`). Über diesen
+  Moment und den Namen findet der Generator den Start in der Evidenz und damit Schlüssel, Mac und Build. **Diese
+  Zeile braucht einen Aufruf in `LibraryModel.swift`** (Abschnitt 9, Punkt 14). Ohne sie ordnet der Generator eine
+  Sitzung über ihren ersten Frame zu (bis 30 Minuten nach dem Start) und führt den Wert als „Netzteil und Last nicht
+  aufgezeichnet“ – er zählt dann nicht. Auf Akku, im Stromsparmodus, mit gedrosseltem Limit oder bei hoher Last
+  zählt er ebenfalls nicht; die Liste nennt den Grund.
+- **WineD3D** schreibt keine HUD-Zeilen. Dort braucht es Wines fps-Kanal über `wineDebug` wie im Messlauf (für das
+  Spielen reicht `+fps,+pid,+timestamp`) – und die Play-Zeile, weil die Zeilen des Kanals keine Uhrzeit tragen.
+  Vorschlag in Abschnitt 9, Punkt 15.
+- **Release-Build:** Abschnitt 9, Punkt 16.
+- **Platz im Protokoll:** Das HUD-Protokoll braucht etwa 12 Byte je Frame (gemessen am Protokoll dieses Macs): bei
+  60 FPS rund 2,6 MB je Stunde, bei 120 FPS rund 5 MB. `wine.log` wandert bei über 8 MB zur Seite, wenn ein Steam
+  startet, und eine Vorgängerdatei bleibt. Nach einem Tag mit Messungen also den Generator laufen lassen.
+
 ### Was die Zahlen bedeuten
 
-- **Messfenster:** vom ersten Frame bis zum Ende des Spielfensters (`playSeconds` nach dem ersten Bild). Das sind die
-  ersten Minuten nach dem Start: Logos, Intro, Menü, vielleicht die erste Szene. **Keine feste Szene**, kein Benchmark.
+- **Messfenster des Spieletests:** vom ersten Frame bis zum Ende des Spielfensters (`playSeconds` nach dem ersten
+  Bild). Das sind die ersten Minuten nach dem Start: Logos, Intro, Menü. **Kein Leistungswert** (seit dem 15.11.): In
+  Liste, Abhakliste und JSON steht er als Nebenangabe „in den ersten Minuten“ beim Start. Alles Folgende in diesem
+  Abschnitt gilt für ihn wie für eine Messung beim Spielen, wo nichts anderes dasteht.
 - **Einstellungen:** die das Spiel mitbringt. Niemand stellt Grafik ein.
 - **FPS Ø** ist nach Periodenlänge gewichtet. **Tiefste Periode** ist der schlechteste 10-Sekunden-Schnitt, kein
   1-%-Tief.
-- **Unter Limit oder frei – nie vermischt.** „Scharf & flüssig“ hält ein Spiel auf 120 Hz bei 60 FPS. Ein Wert unter
-  Limit (`kind: holdsLimit`) sagt „hält 60 FPS“ oder „hält sie nicht“ (`holds`: Ø mindestens 95 % des Limits, wie
-  `FramePacing`), nicht „schafft nur 59“. Eine freie Zahl (`kind: free`) gibt es nur aus einem Lauf ohne Limit
-  (`frameLimit: 0`). Ist das Limit nicht aufgezeichnet (Format 1), ist der Wert keines von beiden. Jeder Start
-  schreibt, was für ihn gilt, als Zeile ins Protokoll („Frame limit of <Spiel>: 60 FPS at 120 Hz, MetalFX on“, bei
-  Drosselung mit „throttled by battery“ oder „lowPower“); der Spieletest liest sie und rechnet nichts nach. WineD3D
-  nimmt weder Limit noch MetalFX: Dort steht „none“ und „MetalFX off“.
+- **Unter Limit oder frei – nie vermischt.** „Scharf & flüssig“ hält ein Spiel auf 120 Hz bei 60 FPS. Was das Limit
+  mit einer Zahl gemacht hat, steht als eigenes Feld `measured.limitState` (seit dem 14.11.; `kind` und `holds` gibt es
+  nicht mehr):
+
+  | `limitState` | Regel | Wortlaut |
+  |---|---|---|
+  | `held` | Ø zwischen 95 % und 105 % des Limits (95 % wie `FramePacing`) | „hält das Limit“ |
+  | `notReached` | Ø unter 95 % | „erreicht das Limit nicht“ |
+  | `notApplied` | Ø über 105 % (bei 60 also über 63): Die Sperre hat nicht gegriffen, die Zahl ist frei | „Limit greift nicht“ |
+  | `noneOnWay` | Der Weg hat nichts, was ein Limit hält (heute D3DMetal); `frameLimit` nennt, was verlangt war | „frei (kein Limit auf diesem Weg)“, Spalte Frame-Limit: „keins möglich (verlangt: 60 FPS)“ |
+  | `none` | kein Limit gesetzt (`frameLimit: 0`) | „frei“ |
+  | `null` | Limit nicht aufgezeichnet (Format 1) oder kein FPS-Wert | „(Limit nicht aufgezeichnet)“ |
+
+  Die Schwelle von 105 % ist ein Vorschlag: Im Messlauf vom 14.11. lagen die Werte, bei denen die Sperre greift, bei
+  57 bis 60 (DXMT, DXVK), die ohne Sperre bei 74 bis 201. Jeder Start schreibt, was für ihn verlangt ist, als Zeile
+  ins Protokoll („Frame limit of <Spiel>: 60 FPS at 120 Hz, MetalFX on“, bei Drosselung mit „throttled by battery“
+  oder „lowPower“); der Spieletest liest sie und rechnet nichts nach. WineD3D nimmt weder Limit noch MetalFX: Dort
+  steht „none“ und „MetalFX off“.
+- **D3DMetal kennt kein Frame-Limit** (belegt 14.11.): In Apples D3DMetal 3.0 aus winecx 4.7.3 stehen 26
+  `D3DM_`-Schalter, keiner für die Bildrate (`strings` auf die Bibliothek; `D3DM_MAX_FPS` kommt nicht vor), und im
+  Messlauf liefen die fünf D3DMetal-Spiele bei verlangten 60 mit Ø 50 bis 201. Die Zeile „Frame limit of …: 60 FPS“
+  nennt dort also nur, was verlangt war. Der Generator führt D3DMetal-Zahlen deshalb als freie (`LIMITLESS` im
+  Skript), bis ein Engine-Teil die Sperre bringt (Abschnitt 9, Punkt 10).
+- **Starrer Wert** (`measured.steady`): eine freie Zahl, deren tiefste zehn Sekunden bei mindestens 95 % des Schnitts
+  liegen, über mindestens 60 s. Dann gibt ein Film oder eine Sperre des Spiels den Takt vor, nicht der Mac. Die Liste
+  sagt „starr, kein Leistungswert“, der Wert ist nicht öffentlich (`notPublic: steady`) und zählt auf der Abhakliste
+  nicht als FPS-Wert. Anlass: Left 4 Dead 2 am 14.11. mit Ø 24 über 186 s – das Messfenster war der Vorspann
+  (`valve.bik` 13 s mit 23,3 Bildern je Sekunde, `l4d2_intro.bik` 174 s mit 23,98, aus den Köpfen der Filmdateien
+  gelesen). Unter einem Limit, das hält, ist ein starrer Wert der Zweck und wird nicht markiert. Der Spieletest
+  rechnet seit dem 15.11. nach derselben Regel (`GameTest.steady`): `check.fps` ist dann `steady`, die Zahl trägt im
+  Bericht „(starr)“, und „wenig FPS“ entfällt für sie.
 - **Was das Limit senkt:** „Akku sparen“ (30 FPS) und der Stromsparmodus stehen als `throttled`; solche Werte sind
   nicht öffentlich. Ein von `FramePacing` gelerntes niedrigeres Limit (40 statt 60) ist Nightforges eigene Wahl und
   steht als Limit da. Das V-Sync des Spiels selbst ist nicht aufgezeichnet: Auch eine freie Zahl kann daran hängen.
@@ -240,25 +343,25 @@ der Generator weiter; ihnen fehlen diese Felder, und die Liste sagt dann „nich
 
 ### Was öffentlich standhält
 
-Ein FPS-Wert ist `public`, wenn seine Bedingungen vollständig im Datensatz stehen: Mac und macOS, Nightforge-Version
-(seit Format 2 mit Baudatum) und Engine-Teile, Grafikweg, Größe, Datum, Messdauer, Limit und MetalFX – und wenn er am
-Netz, außerhalb des Stromsparmodus, ohne gedrosseltes Limit und bei niedriger Last gemessen ist. Sonst nennt
-`notPublic` die Gründe, und die Tabelle sagt „FPS nicht für die öffentliche Liste: …“. Am 14.11. ist **kein** Wert
-öffentlich: Alle stammen aus Berichten im Format 1, ohne Limit, Größe und Messdauer; der erste Lauf im Format 2
-(14.11., nur Batman auf WineD3D) hat keinen FPS-Wert.
+`public` ist nur ein Wert, der beim Spielen gemessen wurde (`played`), und nur, wenn seine Bedingungen vollständig im
+Datensatz stehen: Build (Version, Baudatum, Engine-Teile aus dem Start der Evidenz), Grafikweg, Datum, Messdauer,
+Limit – und wenn er am Netz, außerhalb des Stromsparmodus, ohne gedrosseltes Limit und bei niedriger Last gemessen
+ist. Sonst nennt `notPublic` die Gründe, und die Tabelle sagt „zählt nicht: …“.
 
-## 4. Die Abhakliste: fertig, darf weg
+Ein Wert des Spieletests (`measured`) ist nie `public`: `notPublic` beginnt bei ihm immer mit `firstMinutes`. Fehlt ihm
+darüber hinaus etwas (Limit, Größe, Messdauer, Akku, Last, starrer Wert), steht das im Hinweis als „Bedingungen der
+ersten Minuten unvollständig: …“. Stand 15.11.: Kein Wert ist öffentlich – beim Spielen ist noch nichts gemessen.
+
+## 4. Die Abhakliste: Start geprüft, im Spiel gemessen
 
 `docs/laeuft/ABHAKLISTE.md` und `abhakliste.json`: jedes geladene Spiel (Steam für Windows und für Mac, Epic, GOG) mit
-seiner Größe auf der Platte und der Antwort, ob es fertig ist. **Deinstalliert wird nie vom Generator und nie vom
-Spieletest: Das macht der Nutzer selbst.**
+seiner Größe auf der Platte und **zwei getrennten Aussagen**. **Deinstalliert wird nie vom Generator und nie vom
+Spieletest: Das macht der Nutzer selbst** – manche Spiele schon mit geprüftem Start, andere erst nach einer Messung.
+Die Liste wertet das nicht.
 
-**Fertig** ist ein Spiel, sobald beides einmal **auf demselben Build** aufgezeichnet war – und es bleibt fertig, auch
-wenn seither ein neuerer Build läuft. Der Zweck ist das Deinstallieren: Ein Spiel, das weg ist, kann auf einem
-späteren Build nicht neu gemessen werden. Der Build, auf dem beides vorlag (Version, Baudatum, Engine-Teile), steht am
-Eintrag.
-
-**(a) Ein 100%iger Start.** Ein Start ist sauber, wenn alles gilt:
+**Start geprüft:** Ein sauberer Start war einmal aufgezeichnet – und das bleibt, auch wenn seither ein neuerer Build
+läuft. Ein Spiel, das weg ist, kann auf einem späteren Build nicht neu gestartet werden. Der Build des sauberen
+Starts (Version, Baudatum, Engine-Teile) steht am Eintrag. Ein Start ist sauber, wenn alles gilt:
 
 1. Bild auf dem ersten und einzigen Weg – kein `failed`, kein zweiter Weg, auch kein stiller zweiter Anlauf.
 2. Nicht von selbst beendet.
@@ -269,39 +372,53 @@ Eintrag.
    „klärt nichts“, auch für die eine Lizenzfrage, die der Nutzer dann von Hand beantwortet). Bei Starts von Hand sind
    Handgriffe nicht aufgezeichnet; die Liste nennt deshalb die Quelle („Spieletest“ oder „Evidenz“).
 
+Das gilt für Mac-Fassungen genauso: Auch dort zählt der Start, gemessen wird nicht.
+
 **Ein sauberer Start bleibt einer.** Geht ein späterer Start schief (Fehlstart, mehrere Wege, kein Bild, von selbst
 beendet) – auf demselben oder einem neueren Build –, steht das als Hinweis am Eintrag („danach ein Start ging schief,
 zuletzt …“) und nimmt nichts zurück. Einer, der nichts klärt (unter 180 s beobachtet, Ausgang nicht aufgezeichnet,
 brauchte den Spieler), ist kein Hinweis. Gibt es auf einem Build keinen sauberen Start, sagt die Liste, was sein
 jüngster Start war.
 
-**(b) Ein FPS-Wert mit seinen Bedingungen:** aus einem Spieletest auf demselben Build wie der saubere Start, gemessen,
-mit aufgezeichnetem Limit (Format 2), am Netz, ungedrosselt, bei niedriger Last.
+**In den ersten Minuten:** Was der Spieletest auf dem Build des sauberen Starts gemessen hat, steht als Nebenangabe
+in der Zelle des Starts („ja (Spieletest 14.11.2026, dxmt); in den ersten Minuten Ø 60“, bei einem starren Wert mit
+„(starr)“). Das ist Vorspann oder Menü und kein Leistungswert; im JSON heißt das Feld `firstMinutes`.
+
+**Im Spiel gemessen:** eine Sitzung beim Spielen mit einem FPS-Wert, der zählt (Abschnitt 3, „Messen beim Spielen“):
+ohne die ersten fünf Minuten und die letzte, mindestens zehn Minuten lang, am Netzteil, bei niedriger Last, mit
+aufgezeichnetem Limit und Build. Es zählt die jüngste Sitzung, die zählt; eine spätere auf Akku nimmt sie nicht weg.
+Der Wert trägt seinen eigenen Build (den des Starts dieser Sitzung).
 
 **Auf welchem Build etwas lief:** Ein Spieletest-Lauf trägt den Build seines Berichts, ein Start der Evidenz den, den
 er nennt (seit dem 14.11.). Ältere Zeilen der Evidenz gehören zu dem Build, der zuletzt vor ihnen genannt wurde, wenn
 ihr winecx-Stand dazu passt – oder zum aktuellen ab `--since`. **Aktueller Build** ist der, auf dem zuletzt etwas
 aufgezeichnet wurde; die Abhakliste nennt ihn oben und markiert Einträge, die auf ihm stehen.
 
-**Welchen Build ein Eintrag zeigt:** bei einem fertigen Spiel den jüngsten, auf dem beides vorlag. Bei einem offenen
-den, auf dem es am weitesten kam (ein sauberer Start oder ein zählender FPS-Wert), sonst den jüngsten mit einer
-Aufzeichnung. Ein sauberer Start auf einem Build und ein FPS-Wert auf einem anderen ergeben kein „fertig“; ein
-Spieletest-Lauf mit FPS-Wert bringt in aller Regel beides zugleich.
+**Welchen Build ein Eintrag zeigt:** den jüngsten mit einem sauberen Start; ohne einen den jüngsten mit einer
+Aufzeichnung (vor einem, der das Spiel nur sah, einer, dessen Spieletest etwas gemessen hat).
 
-| Status | Bedeutet |
-|---|---|
-| **fertig – darf weg** | (a) und (b) lagen einmal auf demselben Build vor. Bleibt, auch auf neueren Builds. |
-| **offen** | Die Liste sagt, was fehlt: „Start fehlt: brauchte mehrere Wege“, „FPS fehlt: D3DMetal meldet keine“ … Ließ der jüngste Spieletest das Spiel aus (Update, Laufzeiten, Anmeldung), steht das dabei. |
-| **von Hand zu prüfen** | Kein Spieletest wird es je starten: Anti-Cheat, nur VR, CrossOver-Flasche, Battle.net – und der erste Start der anderen Fassung (`versionSwitch`), bis der Nutzer ihn einmal von Hand gemacht hat. Anti-Cheat-Spiele werden nicht geprüft; über sie entscheidet der Nutzer ohne Messung. |
+**Wortlaut** (Vorschlag, so gebaut). Keine Zelle sagt „fehlt“, kein Status sagt „fertig“:
 
-Stand 14.11. abends: 23 geladene Spiele, 594,8 GB; **0 fertig**. Am 14.11. liefen zwei Testbuilds (gebaut 14:40 und
-17:41 UTC); die Einträge stehen mit dem Build, auf dem sie entstanden sind, die meisten mit dem vom 9.11. Kein Spiel hat einen FPS-Wert, der
-zählt: Die Werte von DXMT und der Vulkan-Schicht stammen aus Berichten ohne aufgezeichnetes Limit, die übrigen Wege
-meldeten nichts. Ein Messlauf mit dem HUD-Protokoll (Abschnitt 6) ist der Weg dahin.
+| `status` | Spalte „Status“ | Bedeutet |
+|---|---|---|
+| `gemessen` | **Start geprüft und im Spiel gemessen** | Beides ist aufgezeichnet. |
+| `start-geprueft` | **Start geprüft** | Ein sauberer Start ist aufgezeichnet, im Spiel ist nichts gemessen, das zählt. Für den Nutzer kann das zum Deinstallieren reichen; die Liste nennt es nicht „gemessen“ und nicht „offen“. |
+| `offen` | Start offen | Kein sauberer Start. Die Zelle sagt, was der jüngste war: „nein: brauchte mehrere Wege“ … Ließ der jüngste Spieletest das Spiel aus (Update, Laufzeiten, Anmeldung), steht das dabei. |
+| `von-hand` | von Hand zu prüfen: … | Kein Spieletest wird es je starten: Anti-Cheat, nur VR, CrossOver-Flasche, Battle.net – und der erste Start der anderen Fassung (`versionSwitch`), bis der Nutzer ihn einmal von Hand gemacht hat. Anti-Cheat-Spiele werden nicht geprüft; über sie entscheidet der Nutzer ohne Messung. |
 
-Der Spieletest schreibt dieselbe Prüfung selbst: `check` je Spiel (`GameTest.check`) und in `report.md` den Abschnitt
-„Abhakliste“ mit Größe, Start, FPS und Fazit für **jedes** geladene Spiel. Ein Lauf über alle Spiele endet also mit der
-Antwort, was jetzt vorliegt.
+| Spalte | ja | nein |
+|---|---|---|
+| Start geprüft | „ja (Spieletest 14.11.2026, dxmt); in den ersten Minuten Ø 60“ | „nein: kein Bild (Spieletest 14.11.2026, dxmt)“ |
+| Im Spiel gemessen | „ja: hält 60 FPS, Ø 58, 1-%-Tief 41, über 14 min, 16.11.2026, dxmt“ | „nein: noch keine Sitzung mit Messung“, „nein: zu kurz gespielt (9 min, nötig 16 min) (…)“, „nein: auf Akku gespielt (…)“, „nein: Mac-Fassung: dort misst Nightforge nicht“ |
+
+Summenzeile: „Start geprüft und im Spiel gemessen: n Spiele, x GB. Start geprüft, im Spiel nicht gemessen: … Start
+offen: … Von Hand zu prüfen: …“.
+
+Stand 15.11.: 23 geladene Spiele; **0 im Spiel gemessen, 19 Start geprüft (547,6 GB), 3 Start offen, 1 von Hand.**
+
+Der Spieletest schreibt dieselbe Prüfung des Starts selbst: `check` je Spiel (`GameTest.check`) und in `report.md` den
+Abschnitt „Abhakliste“ mit Größe, „Start geprüft“, „In den ersten Minuten“ und Fazit („Start geprüft“ oder „Start
+offen“) für **jedes** geladene Spiel.
 
 ## 5. Der Generator
 
@@ -309,10 +426,18 @@ Antwort, was jetzt vorliegt.
 python3 scripts/laeuft-liste.py
 ```
 
-Ohne Argumente liest er die Evidenz, alle Spieletest-Berichte und den Bestand der Läden dieses Macs (nur lesend) und
-schreibt `laeuft.json`, `LAEUFT.md`, `abhakliste.json` und `ABHAKLISTE.md` nach `docs/laeuft/`. Mit `--evidence DATEI`
-(mehrfach möglich), `--names DATEI`, `--out ORDNER`, `--since ZEITPUNKT` und Berichten oder Ordnern als Argumenten geht
-es auch anders. `--no-stock` liest keinen Bestand und schreibt keine Abhakliste (für Daten anderer Macs).
+Ohne Argumente liest er die Evidenz, alle Spieletest-Berichte, die beiden Protokolle (`Logs/wine.previous.log`,
+`Logs/wine.log`) und den Bestand der Läden dieses Macs (nur lesend) und schreibt `laeuft.json`, `LAEUFT.md`,
+`abhakliste.json` und `ABHAKLISTE.md` nach `docs/laeuft/`. Mit `--evidence DATEI` und `--log DATEI` (beide mehrfach
+möglich), `--names DATEI`, `--out ORDNER`, `--since ZEITPUNKT` und Berichten oder Ordnern als Argumenten geht es auch
+anders. `--no-stock` liest keinen Bestand und schreibt keine Abhakliste (für Daten anderer Macs), `--no-log` liest
+kein Protokoll.
+
+- **Spielsitzungen:** aus den Protokollen, nach Abschnitt 3 („Messen beim Spielen“). Aus dem Protokoll gehen nur
+  Zahlen und der Name des Spiels weiter, wie ihn die Startzeile nennt. Eine Sitzung gehört zu dem Spiel, dessen Start
+  in der Evidenz denselben Namen trägt und zum Moment passt (Play-Zeile: höchstens 120 s auseinander; ohne sie: erster
+  Frame bis 30 Minuten nach dem Start). Was sich nicht zuordnen lässt, bleibt weg. Die Uhrzeit einer HUD-Zeile ist
+  die Ortszeit des Macs; der Generator rechnet sie mit der Zeitzone des Rechners um, auf dem er läuft.
 
 - **Bestand:** Steam aus `libraryfolders.vdf` und den `appmanifest`-Dateien (Windows-Steam im Prefix samt Bibliotheken
   auf anderen Laufwerken, Steam für Mac), Epic aus legendarys `installed.json` (Add-ons zählen zur Größe ihres Spiels),
@@ -327,8 +452,10 @@ es auch anders. `--no-stock` liest keinen Bestand und schreibt keine Abhakliste 
   des Ladens, solange das Spiel geladen ist (`nameFrom: stock`); sonst steht der Schlüssel da, und der Generator
   meldet ihn. `namen.json` braucht nur noch, was vor dem 14.11. gestartet, nie im Spieletest gespielt und inzwischen
   deinstalliert wurde.
-- **Messung je Eintrag:** von den Läufen mit Bild auf dem gelisteten Weg der jüngste, dessen FPS-Wert öffentlich
-  standhält; sonst der jüngste mit einem FPS-Wert; sonst der jüngste mit Bild. Gibt es auf dem Weg keinen, dasselbe
+- **Im Spiel gemessen je Eintrag** (`played`): die jüngste Sitzung, die zählt, zuerst auf dem gelisteten Weg; sonst
+  die jüngste mit einem FPS-Wert (mit dem Grund, warum sie nicht zählt); sonst die jüngste.
+- **Erste Minuten je Eintrag** (`measured`): von den Läufen mit Bild auf dem gelisteten Weg der jüngste, dessen
+  Bedingungen vollständig sind; sonst der jüngste mit einem FPS-Wert; sonst der jüngste mit Bild. Gibt es auf dem Weg keinen, dasselbe
   über alle Wege, mit dem Hinweis „Messung auf …“. Ein Wert trägt den Build, auf dem er gemessen ist, und bleibt, wenn
   ein neuerer Build läuft oder ein neuerer Lauf keinen Wert bringt.
 - **Datenschutz:** In die Liste gehen nur feste Felder – keine Notizen, Fehlerzeilen oder Gründe aus den Berichten.
@@ -338,9 +465,14 @@ es auch anders. `--no-stock` liest keinen Bestand und schreibt keine Abhakliste 
   `storeID`, `name`, `platform`, `mac`, `level` (`laeuft`, `startet`, `anti-cheat`, `kein-bild`), `way`, `antiCheat`
   (wahr, falsch oder `null` für „nicht aufgezeichnet“), `confirmed` (mit `nightforge`, `built` und `parts` des Starts,
   wo die Zeile sie nennt), `withdrawn`, `seen`, `noPictureSince`, `evidence`, `gameTest`, `gameEngine`, `measured`,
-  `onCurrentBuild`, `notes`; dazu oben `currentBuilds` je Mac. `abhakliste.json`: `build` (der aktuelle), `builds`
-  (die Builds, auf denen Einträge stehen) und je Spiel `status`, `missing`, `start`, `fps`, `build` (mit `current`),
-  `later` (Starts, die nach dem sauberen schiefgingen). Tests: `tests/test_laeuft_liste.py`.
+  `played` (seit dem 15.11.: `at`, `way`, `fps` mit `source: play` und `logged`, `why`, `playedSeconds`, `skipped`,
+  `cutEnd`, `limitState`, `frameLimit`, `refreshRate`, `metalFX`, `throttled`, `onBattery`, `lowPower`, `loadLow`,
+  `nightforge`, `built`, `engine`, `public`, `notPublic`), `onCurrentBuild`, `notes`; dazu oben `currentBuilds` je Mac
+  und in `sources` die Zahl der gelesenen `playSessions`. `abhakliste.json`: `build` (der aktuelle), `builds` (die
+  Builds, auf denen Einträge stehen) und je Spiel `status` (`gemessen`, `start-geprueft`, `offen`, `von-hand`),
+  `start`, `firstMinutes` (was der Spieletest dabei maß), `played` (`ok`, `why`, Zahlen und `build` der Sitzung),
+  `build` (mit `current`), `later` (Starts, die nach dem sauberen schiefgingen). `missing` und `fps` gibt es seit dem
+  15.11. nicht mehr. Tests: `tests/test_laeuft_liste.py`.
 
 ## 6. Ein Messlauf über alle geladenen Spiele
 
@@ -404,6 +536,7 @@ Damit Zahlen von heute und von in vier Wochen nebeneinander stehen können und d
    standhält.
 6. **Freie Zahlen** (ohne Limit) brauchen einen eigenen Durchgang: „Scharf & flüssig“ in den Einstellungen aus, dann
    hält Nightforge kein Limit, und der Bericht zeigt `frameLimit: 0`. Nicht live geprüft; MetalFX steht als `metalFX` dabei.
+   Auf D3DMetal und WineD3D sind die Zahlen schon heute frei: Dort hält nichts ein Limit (Abschnitt 3).
 7. **Danach:** Der Bericht liegt in `~/Library/Application Support/Nightforge/GameTests/<Datum>/report.md` und endet
    mit seiner eigenen Abhakliste. Die Liste über alle Läufe und Starts entsteht mit
 
@@ -417,6 +550,44 @@ Damit Zahlen von heute und von in vier Wochen nebeneinander stehen können und d
 
 Nicht automatisch möglich ist dieselbe Szene. Wer die braucht, misst von Hand und trägt es **nicht** in diese Liste ein.
 
+### Beim Spielen messen (Testbuild)
+
+Der Messlauf oben prüft den Start. Ein Leistungswert entsteht so:
+
+1. Vor dem Start von Nightforge, am Netzteil, ohne Stromsparmodus:
+
+   ```bash
+   defaults write io.github.lordhayne.nightforge measurePlay -bool true
+   ```
+
+   Für Spiele auf WineD3D zusätzlich (einmal je Programmlauf gelesen, gilt für alle Starts):
+
+   ```bash
+   defaults write io.github.lordhayne.nightforge wineDebug -string "+fps,+pid,+timestamp"
+   ```
+
+2. Nightforge starten, das Spiel über „Spielen“ starten und **mindestens 16 Minuten wirklich spielen**. Die ersten
+   fünf Minuten ab dem ersten Bild und die letzte zählen nicht. Die Leistungsanzeige darf aus bleiben. Steam startet
+   beim ersten Start einmal neu.
+3. Spiel beenden. Danach, spätestens am Ende des Tages:
+
+   ```bash
+   python3 scripts/laeuft-liste.py
+   ```
+
+4. Zurücknehmen (Nightforge beendet; beim nächsten Start eines Spiels startet Steam noch einmal neu):
+
+   ```bash
+   defaults delete io.github.lordhayne.nightforge measurePlay
+   ```
+
+   ```bash
+   defaults delete io.github.lordhayne.nightforge wineDebug
+   ```
+
+Bis die Play-Zeile aus `LibraryModel.swift` kommt (Abschnitt 9, Punkt 14), steht ein solcher Wert als „Netzteil und
+Last nicht aufgezeichnet“ in der Liste und zählt nicht; WineD3D-Sitzungen lassen sich bis dahin gar nicht zuordnen.
+
 ## 7. Vorschlag: Landingpage
 
 Kein Eingriff in `site/` von hier aus; Gestaltung über ein Board und die Wahl des Nutzers. Der Nutzer will die
@@ -424,22 +595,26 @@ FPS-Werte offen zeigen, als Übersicht für alle.
 
 - **Datei:** `docs/laeuft/laeuft.json`, beim Bau der Seite eingelesen. Nur `level` `laeuft` und `startet`. Die
   Abhakliste gehört nicht auf die Seite: Sie ist das Arbeitsblatt dieses Macs.
+- **Die Zahl der Seite ist `played`** (seit dem 15.11.): der beim Spielen gemessene Wert. `measured` – die ersten
+  Minuten des Spieletests – gehört nicht als FPS auf die Seite; es kann beim Start stehen („startet in 12 s“).
 - **Zwei Arten von Zahl, sichtbar getrennt:**
-  - *Unter Limit* (`measured.kind: holdsLimit`): „hält 60 FPS“ oder „hält 60 FPS nicht (Ø 47)“, daneben „langsamstes
+  - *Unter Limit* (`played.limitState`: `held` oder `notReached`): „hält 60 FPS“ oder „erreicht 60 FPS nicht (Ø 47)“, daneben „langsamstes
     Bild üblich 24 ms“ (`fps.slowestTypical`) und, wo vorhanden, „1-%-Tief 56“ und „GPU 10 ms je Bild“. Keine große
     FPS-Zahl: Sie wäre immer 60.
-  - *Frei gemessen* (`kind: free`): „Ø 87 FPS, 1-%-Tief 61“, mit dem Wort „ohne Limit“.
+  - *Frei gemessen* (`limitState`: `none`, `noneOnWay`, `notApplied`): „Ø 87 FPS, 1-%-Tief 61“, mit dem Wort „ohne
+    Limit“ – bei `notApplied` mit „Limit greift nicht“. Nie „hält das Limit“ aus dem Schnitt allein ableiten.
+  - *Starr* (`measured.steady`) betrifft nur die ersten Minuten und damit die Seite nicht mehr.
 - **Werte verschwinden nicht mit einem neuen Build:** Jede Zahl steht mit dem Build, auf dem sie gemessen ist. Was der
   jüngste Build von dem Spiel gesehen hat (`onCurrentBuild`: Bild, kein Bild, noch nichts), kann als eigene, kleine
   Angabe daneben stehen („zuletzt geprüft auf …“).
-- **Nur `measured.public: true`.** Alles andere zeigt die Stufe ohne Zahl. Akku, Stromsparmodus, gedrosseltes Limit,
+- **Nur `played.public: true`.** Alles andere zeigt die Stufe ohne Zahl. Akku, Stromsparmodus, gedrosseltes Limit,
   hohe Last oder eine fehlende Bedingung schließen einen Wert aus; `notPublic` sagt, warum.
 - **Bedingungen an jeder Zahl** (als zweite Zeile oder aufklappbar): Mac und macOS (`mac`), Nightforge-Version und
   Baudatum, Engine-Teile, Grafikweg, Größe (`swapchain` in Pixeln, sonst Anzeigemodus, sonst „Fenster … Punkte“),
   MetalFX, Datum, Messdauer (`fps.seconds`).
 - **Weitere Spalten:** Spiel, Laden, Stufe als Marke, „bestätigt am … beim 1. Start“, Bild nach.
-- **Immer dabei:** der Satz „Die ersten Minuten nach dem Start, mit den Einstellungen des Spiels, kein Benchmark“ und
-  ein Link auf dieses Dokument. Hinweise (`notes`) als Fußnote, nie versteckt.
+- **Immer dabei:** der Satz „Beim Spielen gemessen, ohne die ersten fünf Minuten, mit den Einstellungen des Spiels,
+  keine feste Szene“ und ein Link auf dieses Dokument. Hinweise (`notes`) als Fußnote, nie versteckt.
 
 ## 8. Vorschlag: Beiträge aus der Community
 
@@ -463,15 +638,16 @@ Nutzers, kein Nebeneffekt dieser Liste.
 
 Die Punkte 1 bis 3 sind seit dem 14.11. gebaut; offen ist, was nur ein Lauf zeigt:
 
-1. **Protokoll der Leistungsanzeige** – gebaut (Abschnitt 3). Live zu sehen, je einmal: Kommen die Zeilen unter Wine
-   auf D3DMetal und auf DXVK/MoltenVK an (auf DXMT sind sie belegt)? Bleibt die Anzeige bei Deckkraft 0 auch im Spiel
-   unsichtbar (im eigenen Fenster der Probe ist sie es)? Startet Steam für den Test neu und danach zurück? Kostet das
-   Protokoll Frames (auf DXMT: Zählung der Schicht gegen HUD im selben Lauf vergleichen)?
+1. **Protokoll der Leistungsanzeige** – gebaut und im Messlauf vom 14.11. auf D3DMetal, DXMT und DXVK gesehen
+   (Abschnitt 3). Offen: Kostet das Protokoll Frames (auf DXMT: Zählung der Schicht gegen HUD im selben Lauf
+   vergleichen)?
 2. **Evidenz mit Version, Baudatum, Engine-Teilen und Namen** – gebaut. Zeilen von vor dem 14.11. zählen weiter nach
    Datum.
 3. **Frame-Limit im Log** – gebaut. Der eine Format-2-Lauf vom 14.11. stammt noch von davor und nennt für Batman auf
    WineD3D „60 FPS, MetalFX an“, obwohl WineD3D beides nicht nimmt: nachgerechnet, nicht gelesen.
-4. **Mac-Fassungen** (Dying Light, Tomb Raider, Asphalt Legends, Valheim, Drawful 2): Heute zählt dort nur der Start.
+4. **Mac-Fassungen** (Dying Light, Tomb Raider, Asphalt Legends, Valheim, Drawful 2): Dort zählt nur der Start – seit
+   dem 15.11. ist das die Regel der Abhakliste für alle („Start geprüft“), Weg C unten ist damit gebaut. Eine Messung
+   beim Spielen gibt es für sie nicht („nein: Mac-Fassung: dort misst Nightforge nicht“); Weg A bliebe der Weg dahin.
    Was die Probe zeigt: Das Protokoll läuft auch mit `MetalForceHudEnabled` (dem Schalter, den `MacGameHUD` schon
    setzt), wenn das Spiel `MTL_HUD_LOG_ENABLED=1` in seiner Umgebung hat; die Zeilen gehen an die Fehlerausgabe des
    Spiels, nicht ins einheitliche Log; einen `defaults`-Schalter fürs Protokoll gibt es nicht (Apples Seiten nennen
@@ -493,6 +669,8 @@ Die Punkte 1 bis 3 sind seit dem 14.11. gebaut; offen ist, was nur ein Lauf zeig
    in Steams Signatur) und mit `+pid,+loaddll,+timestamp` dazu. Das kostet je Wechsel zwischen einem WineD3D-Spiel und
    einem anderen einen Neustart von Steam; in einem Lauf also am besten die WineD3D-Spiele hintereinander. Dateien:
    `Engine.swift`, `LibraryModel.swift`. Langsamster Frame und 1-%-Tief bräuchten weiter einen Engine-Build.
+   Der Test mit den zwei echten Zeilenarten aus dem Messlauf ist seit dem 15.11. da (`wineFpsAsSeen`). Ein Spiel,
+   das nur über OpenGL zeichnet (ohne Wines Direct3D), schriebe allein `wglSwapBuffers`-Zeilen und bliebe ohne Wert.
 6. **Gezeichnete Auflösung unter DXMT und D3DMetal** (`engine/patches/dxmt-0.80-frame-log.patch`): eine Zeile zur
    Backbuffer-Größe. Braucht einen Engine-Build. (Die Anzeige selbst zeigt die Größe, ihr Protokoll nennt sie nicht.)
 7. **Der Spieletest bestätigt bei 60 s keinen Weg** (steht schon in `docs/TODO.md`); am 10.11. blieb ABZU nach vier
@@ -500,3 +678,98 @@ Die Punkte 1 bis 3 sind seit dem 14.11. gebaut; offen ist, was nur ein Lauf zeig
 8. **Von Hand geformte Starts erkennen:** `started` könnte sagen, ob ein versteckter Engine-Schalter gesetzt war.
 9. **Die Notiz „Start of <Spiel>: it ended at a question of its own …“** (`LibraryModel.swift`) sieht aus wie eine
    Wege-Zeile. `GameTest.starts` liest sie seit dem 14.11. nicht mehr als Weg; ein anderer Wortlaut wäre sauberer.
+10. **D3DMetal auf 60 halten – Vorschlag, nichts gebaut.** Befund (Abschnitt 3): Apples D3DMetal 3.0 hat keinen
+    Schalter für die Bildrate; `D3DM_MAX_FPS` aus `Engine.prepareLaunchEnvironment` und `directLaunchEnvironment`
+    wirkt nicht, der Kommentar dort („Apple's readme“) stimmt nicht. Wege, die weder Spieldateien ändern noch
+    Hardware vortäuschen:
+
+    | Weg | Beleg | Hält | Aufwand | Offen |
+    |---|---|---|---|---|
+    | **A. Takt im Mac-Treiber von Wine.** `-[WineMetalLayer nextDrawable]` gibt das nächste Bild erst frei, wenn seit dem vorigen 1/Limit vergangen ist; das Limit kommt als eigene Umgebungsvariable, wie heute `D3DM_MAX_FPS` (auch über Steams Start-Umgebung). | `winemac.so` aus winecx 4.7.3 hat die Klasse `WineMetalLayer` (Unterklasse von `CAMetalLayer`) mit eigener Methode `nextDrawable` (`otool -ov`); Apples `libd3dshared.dylib` ruft `nextDrawable` und holt die Ebene über `macdrv_functions` aus dem Treiber; D3DMetal selbst kennt nur `presentDrawable:` und `setDisplaySyncEnabled:`. Jedes Bild geht also einmal durch eine Methode in einem Teil, den Nightforge aus dem winecx-Quelltext bauen kann (LGPL; `scripts/build-enginefix.sh` baut daraus schon `ntdll.so` und `winecoreaudio.so`). | jedes D3DMetal-Spiel, gleich was es selbst einstellt | ein Patch (`engine/patches/winecx-winemac-…`), `winemac.so` in den Teil `enginefix`, ein Engine-Build, Probe mit Wukong (Ø 201) und Control (Ø 113): etwa ein Tag | Was `nextDrawable` dort heute tut, ist nicht gelesen (der Quelltext lag dieser Sitzung nicht vor). Warten in `nextDrawable` taktet gröber als Metals `presentDrawable:afterMinimumDuration:`; ob die Frame-Zeiten gleichmäßig bleiben, zeigt erst das HUD-Protokoll. `winemac.so` trägt auch Fenster und Eingabe: Ein eigener Bau davon gehört durch den ganzen Starttest. |
+    | **B. Bildschirm für die Dauer des Spiels auf 60 Hz**, das Spiel gleicht selbst ab. | D3DMetal schaltet `setDisplaySyncEnabled:`; Control lief im Messlauf im Takt des Bildschirms (übliche langsamste Frames 8,3 ms = 120 Hz, GPU-Zeit 2,3 ms). Den Modus setzt Wine schon auf Wunsch eines Spiels (Zeile „Setting display mode: 1512x982@60“ bei Overwatch). | nur Spiele, die mit VSync zeichnen; der Wukong-Benchmark (Ø 201 bei 120 Hz) nicht | halber Tag und Live-Proben; kein Engine-Build | ProMotion ist währenddessen für alles aus (auch für Nightforges Overlay); ob ein Spiel abgleicht, liegt an seinen eigenen Einstellungen. |
+    | **C. DXMT statt D3DMetal**, wo ein Spiel auf beidem läuft. | Auf DXMT hält die Sperre: MGS V Ø 60, Frostpunk Ø 60, ABZU Ø 59. | Direct3D-11-Spiele | je Spiel ein Profil und ein Lauf | Direct3D 12 bleibt auf D3DMetal (Wukong, Hogwarts); DXMT muss das Spiel sauber starten. |
+
+    Nicht in Frage: die Sperre in den Einstellungen des Spiels (seine Dateien), ProMotion in den Systemeinstellungen
+    oder der Stromsparmodus (Einstellungen von macOS), vorgetäuschte Hardware.
+    **Empfehlung:** A, vorher eine Stunde den Quelltext von `WineMetalLayer` lesen; C sofort für Spiele, die auf DXMT
+    schon belegt sind. **Bis dahin ehrlich** – gebaut: die Liste (`limitState: noneOnWay`, „keins möglich (verlangt:
+    60 FPS)“) und der Bericht des Spieletests (`GameTest.limitText`). Offen in fremden Dateien: die Protokollzeile
+    in `LibraryModel.swift` – für `.d3dmetal` „Frame limit of <Spiel>: none possible on D3DMetal (asked 60 FPS) at
+    120 Hz, MetalFX on“; `GameTest.held` liest das schon heute als Limit 0 –, `GameLog.d3dMetalStart` (nennt
+    `D3DM_MAX_FPS`) und der Kommentar in `Engine.swift`.
+11. **Starre Werte** – gebaut am 15.11.: Generator (Abschnitt 3) und Spieletest (`check.fps: steady`, kein „wenig
+    FPS“). Offene Vorschläge: (a) Für Source-Spiele die Startoption `-novid` über das Profil (überspringt die Filme;
+    keine Spieldatei, nicht Steams `localconfig`, wenn Nightforge sie beim Start mitgibt – zu prüfen); gemessen würde
+    dann das Menü. (b) Eine freie Zahl am Takt des Bildschirms kennzeichnen („am Bildschirmtakt, 120 Hz“): Mafia II
+    lief mit Ø 119,5 bei 120 Hz, tiefste zehn Sekunden 112 – nach der 95-%-Regel knapp nicht starr, aber sehr
+    wahrscheinlich VSync. Allgemein gilt weiter: Gemessen sind die ersten drei Minuten ohne Eingabe.
+12. **Bericht: FPS zu einem Lauf ohne Bild** – gebaut am 15.11.: „ohne Bild gezeichnet: 49 / 36“ statt einer
+    Bildrate. Anlass war Overwatch im Bericht vom 14.11. („hängt ohne Bild“, FPS 49 / 36): Der Wert stammte aus DXMTs
+    eigener Zählung (`[nightforge-dxmt] Overwatch: 49.9 FPS over 10 s`, zwölf Perioden, 170 s), nicht aus dem HUD –
+    das Fenster kam nie auf den Bildschirm, und dann schreibt Apples Anzeige nichts (Abschnitt 3). Für die Fehlersuche
+    ist genau das der Hinweis: Das Spiel läuft, nur sein Fenster fehlt. Nebenbefund: Verlangt waren 40 FPS („Frame
+    limit of Overwatch®: 40 FPS“), gezählt sind 50 bei einem Modus mit 60 Hz.
+13. **Kein Werkzeug am Prozess eines Spiels mit Cheat-Schutz** – gebaut am 15.11. (Entscheidung des Nutzers vom
+    14.11.: „Ja, weglassen“). Anlass: Der Messlauf nahm von Overwatch ein `sample`, als es ohne Bild hing; der
+    Spieletest ist die einzige Stelle im Programm, die `/usr/bin/sample` aufruft. Seitdem:
+    - Profilfeld `ownAntiCheat: true` (`profiles/mac.json`, beschrieben in `docs/CONTRIBUTING.md`): Das Spiel läuft
+      und bringt einen eigenen Cheat-Schutz mit. Gesetzt für Overwatch (Steam 2357570). Battle.net-Titel haben keinen
+      eigenen Eintrag in der Profilliste und werden vom Spieletest nie gestartet; eine Kopie aus einem anderen Laden
+      nimmt das Profil ihres Steam-Zwillings.
+    - Der Spieletest nimmt dann kein `sample` (`GameTest.handsOff`, `GameTest.hangSample`). Dasselbe gilt für
+      Spiele, von deren Anti-Cheat Nightforge schon weiß (`ShaderCaches.hasAntiCheat`: Listen im Profil, das Wort
+      der Läden, Easy Anti-Cheat oder BattlEye im Spielordner) – ein Zusatz dieser Sitzung über den Auftrag hinaus,
+      eine Zeile in `GameTest.handsOff`.
+    - Im Bericht steht statt des Stapels „Wo es hängt: kein sample: Spiel mit eigenem Cheat-Schutz.“ (oder „… mit
+      Anti-Cheat“), in `report.json` das Feld `noSample` (`ownAntiCheat` oder `antiCheat`). Alles andere am Lauf
+      bleibt gleich: Protokoll, Fehlerzeilen, letzter Blick des Vorhangs.
+    - **Vorgeschlagen, nicht gesetzt** (kein Beleg aus eigener Prüfung; die Profilliste kennt für sie keinen
+      Anti-Cheat): Left 4 Dead 2 (550), Counter-Strike 2 (730), Team Fortress 2 (440), Dota 2 (570) – Valves VAC;
+      Diablo IV (2344520) – Blizzard wie Overwatch.
+14. **Play-Zeile und Kommentar in fremden Dateien** (Patches für nach Teil 2 von Schritt E; hier nicht angefasst).
+    `LibraryModel.swift`, im Start direkt nach der Limit-Zeile:
+
+    ```swift
+                    GameLog.note(GameTest.limitNote(game: game.name, GameTest.Held(
+                        frameLimit: layer == .wined3d ? 0 : frameLimit, refreshRate: refreshRate,
+                        metalFX: layer.upscales && options.effectiveUpscaling(profile: profile), throttled: throttled)))
+    +               // Measuring play (the hidden switch measurePlay): when the session began and under what.
+    +               if GameTest.measuresPlay(), !GameTest.active {
+    +                   GameLog.note(GameTest.playNote(game: game.name, onBattery: power.onBattery,
+    +                                                  lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled, load: GameTest.Load.now))
+    +               }
+    ```
+
+    `Engine.swift`, der Kommentar an `frameLog` („… starts (GameTest.logsFrames), never a start by Play“) stimmt nicht
+    mehr: „… and a start by Play only with the hidden switch measurePlay“. Am Code ändert sich dort nichts. Dieselbe
+    Stelle in `LibraryModel.swift` ist die für „none possible on D3DMetal“ aus Punkt 10.
+15. **WineD3D beim Spielen – Vorschlag:** heute von Hand wie im Messlauf (`wineDebug`, Abschnitt 6). Empfohlen danach:
+    Der Schalter setzt den Kanal selbst, aber nur für Starts auf WineD3D, mit `+pid,+timestamp` dazu – derselbe Bau wie
+    für den Spieletest (Punkt 5): `WINEDEBUG` der Sitzung wie bei `Engine.setCloserLook`, in Steams Signatur. Das
+    kostet einen Neustart von Steam je Wechsel zwischen einem WineD3D-Spiel und einem anderen. Gegen „immer mitsetzen“
+    spricht, dass der Kanal für die ganze Wine-Sitzung gilt und jede Swapchain alle 1,5 s eine Zeile schreibt, auch
+    Steams Fenster. Dateien: `Engine.swift`, `LibraryModel.swift`.
+16. **Release-Build – Empfehlung: Er kennt den Schalter gar nicht.** Heute lässt sich ein Testbuild nicht sicher von
+    einem Release unterscheiden: Beide baut `build.sh` mit `swift build -c release`; das Release-Workflow setzt nur
+    Version und `CFBundleVersion`. Ein Release-Build von heute würde `measurePlay` also beachten, wie er `wineDebug`
+    und `gameTest` beachtet – aus, solange niemand ihn mit `defaults write` setzt, aber vorhanden. Sicher wird es nur
+    beim Bauen: `GameTest.measuresPlay` steht in `#if NIGHTFORGE_RELEASE` und ist mit der Flagge immer „nein“; der
+    Name des Schalters kommt dann im Programm nicht vor. Mit der Flagge übersetzt der Code (am 15.11. mit
+    `swiftc -typecheck -D NIGHTFORGE_RELEASE` geprüft); **gesetzt wird sie noch nirgends.** Patch:
+
+    ```bash
+    # build.sh
+    swift build -c release --arch arm64 ${NIGHTFORGE_RELEASE:+-Xswiftc -DNIGHTFORGE_RELEASE}
+    BIN_DIR="$(swift build -c release --arch arm64 ${NIGHTFORGE_RELEASE:+-Xswiftc -DNIGHTFORGE_RELEASE} --show-bin-path)"
+    ```
+
+    ```yaml
+    # .github/workflows/release.yml, Schritt „Build“
+        run: NIGHTFORGE_RELEASE=1 ./build.sh
+    # danach, als Beleg im Workflow:
+        run: '! strings build/Nightforge.app/Contents/MacOS/Nightforge | grep -q measurePlay'
+    ```
+
+    Woran ein Release dann sicher zu erkennen ist: Im Programm steht `measurePlay` nicht (an einem so gebauten
+    Programm noch nicht nachgesehen; der Schritt im Workflow täte es bei jedem Release). Die Zeile „Play measuring
+    of …“ und der Leser im Skript bleiben ohne Wirkung, weil nichts mitschreibt.
