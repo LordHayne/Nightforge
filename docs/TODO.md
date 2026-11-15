@@ -301,6 +301,15 @@ scheitert und sich nicht schnell beheben lässt, wird ausgeschaltet oder herausg
 - **Abschluss wie 0.3.2:** Audit- und Testrunde, Profilliste signieren (Nutzer), Zusammenführen auf `main` (OK des
   Nutzers), Release-Notizen, Bot-PRs #39–#41 entscheiden.
 
+- [ ] **„Shader werden vorbereitet …“ kommt zu oft (Frage des Nutzers, 15.11.).** Der Hinweis kommt, wenn die gemerkte
+  Kombination (`shaders.<Spiel>` in den defaults: Engine | Grafikweg | Grafik-Bausteine, `LaunchPhase.graphicsSignature`)
+  von der des Starts abweicht – gemerkt wird nur die **letzte**. Wechselt ein Spiel den Weg und kehrt zurück, kommt der
+  Hinweis jedes Mal, obwohl die Shader dieses Wegs schon einmal gebaut wurden. Heute bei MGS V (D3DMetal ↔ DXMT in den
+  Tests, dreimal) und ABZU. Es wurden keine Shader gelöscht, die Komponentenliste ist seit dem 5.11. dieselbe.
+  Vorschlag: je Spiel alle gesehenen Kombinationen merken; der Hinweis kommt dann nur beim wirklich ersten Start einer
+  Kombination. Die Testskripte stellten `shaders.*` nicht mit zurück: für ABZU (dxmt) und Alan Wake (wined3d) von
+  Hand nachgeholt, 16:49.
+
 **Vorhang nach der Regel, eingespielt und erster Live-Fall (15.11., Testbuild `9bda7de`, 16:36; ABZU 16:40 mit
 `gameTest.testFinding`):** „Curtain: "Noch ein Versuch …" – the game closed right away, Nightforge looks into it“,
 Diagnose vom Schalter, „Curtain: "Noch ein Versuch …" – the cause found, the same way once more“, zweiter Start mit
