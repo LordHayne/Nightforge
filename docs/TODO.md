@@ -181,7 +181,10 @@ Testreihen, 281 pytest. Nicht eingespielt, live nichts gesehen; Anleitung `close
   keine Datei (eigener Cheat-Schutz). Wege: (a) ein Hinweis auf dem Vorhang, wenn genau dieser Fall eintritt
   (Fenster ausgeblendet unter übernommenem Bildschirm): „Stell im Spiel Randloses Fenster ein“; (b) Nightforge stellt
   den Bildschirm vor dem Start auf den Modus, den das Spiel will (60 Hz). **Entschieden vom Nutzer (15.11.):
-  „Hinweis auf dem Vorhang“.** Erkennen und Board bei der Diagnose-Session, Bau nach der Wahl des Nutzers.
+  „Hinweis auf dem Vorhang“.** Board „Vollbild verdeckt das Spiel“ (https://claude.ai/artifact/AKjxeNvdNbzo3HYjEStb7F):
+  **der Nutzer wählte B** („B, wie empfohlen“, 15.11.): zwei Schritte (⌘⇥ zu Nightforge und zurück; Randloses Fenster),
+  leise Zeile für nur Controller mit „Neu starten“, Profilfeld `fullscreenHint`. C (Nightforge schickt ⌘-Tab selbst,
+  braucht Bedienungshilfen) später. Bau bei der Diagnose-Session.
 - [ ] **Overwatch: Zurückholen durch Ausblenden live gescheitert (15.11., 12:43–13:21, Builds `3254e96` und
   `19d7879`, Verläufe `overwatch-3/`, `overwatch-4/`):** Erst eine Zehntelsekunde, dann bis zu zwei Sekunden
   ausgeblendet: „the game was hidden, kept the front, the screen still captured, shown again“ – macOS lässt einem
