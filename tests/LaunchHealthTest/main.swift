@@ -864,6 +864,23 @@ struct LaunchHealthTest {
         check(LaunchPhase.isFirstStart(.steam(570), signature: otherLayer, defaults: shaderDefaults), "so does another layer")
         let otherEngine = LaunchPhase.graphicsSignature(runner: "/wine/4.8/bin/wine", layer: .dxmt, components: before)
         check(LaunchPhase.isFirstStart(.steam(570), signature: otherEngine, defaults: shaderDefaults), "and a new engine")
+        // Every signature seen, not only the last (MGS V between D3DMetal and DXMT, 15.11.2026): a way back is no first start.
+        LaunchPhase.recordStart(.steam(570), signature: otherLayer, defaults: shaderDefaults)
+        check(!LaunchPhase.isFirstStart(.steam(570), signature: signature, defaults: shaderDefaults)
+              && !LaunchPhase.isFirstStart(.steam(570), signature: otherLayer, defaults: shaderDefaults), "back to the way before: no shaders line")
+        LaunchPhase.recordStart(.steam(570), signature: signature, defaults: shaderDefaults)
+        check(LaunchPhase.seenSignatures(.steam(570), defaults: shaderDefaults) == [otherLayer, signature], "once each, the newest last")
+        // The entry from before the update holds the last one alone, as a string: taken over, no line at the next start.
+        shaderDefaults.set("old-signature", forKey: "shaders.\(GameID.steam(571).key)")
+        check(!LaunchPhase.isFirstStart(.steam(571), signature: "old-signature", defaults: shaderDefaults), "the single entry from before counts")
+        LaunchPhase.recordStart(.steam(571), signature: "new-signature", defaults: shaderDefaults)
+        check(LaunchPhase.seenSignatures(.steam(571), defaults: shaderDefaults) == ["old-signature", "new-signature"], "and is kept with the new one")
+        // A bound: the oldest go once there are more.
+        for index in 0..<(LaunchPhase.signaturesKept + 2) { LaunchPhase.recordStart(.steam(572), signature: "s\(index)", defaults: shaderDefaults) }
+        let lastSeen = LaunchPhase.seenSignatures(.steam(572), defaults: shaderDefaults)
+        check(lastSeen.count == LaunchPhase.signaturesKept && lastSeen.last == "s\(LaunchPhase.signaturesKept + 1)"
+              && LaunchPhase.isFirstStart(.steam(572), signature: "s0", defaults: shaderDefaults)
+              && !LaunchPhase.isFirstStart(.steam(572), signature: "s2", defaults: shaderDefaults), "the last \(LaunchPhase.signaturesKept) are kept")
         check(Set([LaunchPhase.startingSteam, .signingIn, .settingUp, .settingUpDotNet, .restartingSteam, .retrying("DXVK"),
                    .startingSteamForMac, .signInInSteamWindow].map(\.hint)).count == 8, "every phase explains itself differently")
 

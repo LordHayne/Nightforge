@@ -155,11 +155,25 @@ enum LaunchPhase: Equatable {
         return ([runner ?? "", layer.rawValue] + builds).joined(separator: "|")
     }
 
+    /// How many signatures a game keeps: the ways it changes between and back, and the engine and graphics updates.
+    static let signaturesKept = 12
+
+    /// Every signature the game has started with, the newest last. An entry from before 15.11.2026 holds only the
+    /// last one, as a string: it's taken over, so the update brings no "Preparing shaders …" at each game's next start.
+    static func seenSignatures(_ game: GameID, defaults: UserDefaults = .standard) -> [String] {
+        let value = defaults.object(forKey: shaderKey(game))
+        if let list = value as? [String] { return list }
+        return (value as? String).map { [$0] } ?? []
+    }
+
+    /// Shaders are built at a start with a signature the game never had. Kept was only the last one: MGS V, changing
+    /// between D3DMetal and DXMT on 15.11.2026, said "Preparing shaders …" at almost every start.
     static func isFirstStart(_ game: GameID, signature: String, defaults: UserDefaults = .standard) -> Bool {
-        defaults.string(forKey: shaderKey(game)) != signature
+        !seenSignatures(game, defaults: defaults).contains(signature)
     }
 
     static func recordStart(_ game: GameID, signature: String, defaults: UserDefaults = .standard) {
-        defaults.set(signature, forKey: shaderKey(game))
+        let seen = seenSignatures(game, defaults: defaults).filter { $0 != signature } + [signature]
+        defaults.set(Array(seen.suffix(signaturesKept)), forKey: shaderKey(game))
     }
 }
