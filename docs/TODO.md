@@ -304,7 +304,10 @@ scheitert und sich nicht schnell beheben lässt, wird ausgeschaltet oder herausg
 ## 0.3.3: Abschlussliste (15.11., auf Wunsch des Nutzers: „schau mal das wir alles zusammenhaben für den 0.3.3 release“)
 
 **Stand:** Testzweig `claude/staging-033` liegt 397 Commits vor `origin/main` (`2276ccb`, 0.3.2 mit Landingpage) und ist
-**nirgends gepusht** – alles nur lokal auf dem MacBook. Kette zuletzt grün (121 Testreihen, 281 pytest). Version in
+seit dem 15.11., 17:20 **als Sicherung gepusht** (`origin/claude/staging-033` = `78ac7d0`, mit OK des Nutzers „Ja, pushen“;
+kein PR). Vor dem Push geprüft: keine echten Anmeldedaten oder Token im Zweig, nur Testwerte; die echte Steam-ID des
+Nutzers steht in fünf Testdateien, die schon auf `origin/main` liegen (nichts Neues durch den Push – ob sie dort
+bleiben soll, entscheidet der Nutzer). Kette zuletzt grün (121 Testreihen, 281 pytest). Version in
 `Resources/Info.plist` noch 0.3.2. `docs/release-notes/v0.3.3.md` fehlt; `docs/RELEASE-0.3.3-ENTWURF.md` ist vom 9.11.
 und überholt (kennt Schritt E, den Vorhang nach der Regel und das Laufwerk nicht, verspricht Ungeprüftes).
 `docs/AUDIT-0.3.3.md` ist vom 8.11. (`365f393`), vor Start-Rezept, Laufwerk und Vorhang.
