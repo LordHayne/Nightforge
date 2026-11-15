@@ -172,7 +172,8 @@ Testreihen, 281 pytest. Nicht eingespielt, live nichts gesehen; Anleitung `close
   der Übernahme des Bildschirms. **Offen:** Ein neuer Spieler weiß das nicht, und Nightforge ändert bei Overwatch
   keine Datei (eigener Cheat-Schutz). Wege: (a) ein Hinweis auf dem Vorhang, wenn genau dieser Fall eintritt
   (Fenster ausgeblendet unter übernommenem Bildschirm): „Stell im Spiel Randloses Fenster ein“; (b) Nightforge stellt
-  den Bildschirm vor dem Start auf den Modus, den das Spiel will (60 Hz). Entscheidung des Nutzers.
+  den Bildschirm vor dem Start auf den Modus, den das Spiel will (60 Hz). **Entschieden vom Nutzer (15.11.):
+  „Hinweis auf dem Vorhang“.** Erkennen und Board bei der Diagnose-Session, Bau nach der Wahl des Nutzers.
 - [ ] **Overwatch: Zurückholen durch Ausblenden live gescheitert (15.11., 12:43–13:21, Builds `3254e96` und
   `19d7879`, Verläufe `overwatch-3/`, `overwatch-4/`):** Erst eine Zehntelsekunde, dann bis zu zwei Sekunden
   ausgeblendet: „the game was hidden, kept the front, the screen still captured, shown again“ – macOS lässt einem
