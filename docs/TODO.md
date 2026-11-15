@@ -141,6 +141,15 @@ Befunde aus dem Lauf:
 - [x] **Die Listen sagen dazu „hält das Limit: Ø 201“.** (Behoben 14.11., `ce7647c`, im Testzweig `4c8c392`: Feld
   `limitState`, D3DMetal-Zahlen gelten als frei, „Limit greift nicht“ über 105 % des Limits.) Gemeint ist „erreicht es“, es liest sich aber, als
   griffe die Sperre. Über dem Limit muss es „Limit greift nicht“ heißen, bevor die Landingpage die Daten nimmt.
+- [ ] **Overwatch live mit Fensterblick (15.11., 11:44–11:55, Testbuild `99405ee`, dreimal über den Spieletest,
+  `scratchpad/fensterblick` alle 200 ms, Verläufe im Notizordner `overwatch/`):** Lauf 1 Bild nach 66 s, Läufe 2 und
+  3 „hängt ohne Bild“ (DXMT zählte 48 FPS). **Kein `sample` genommen** – die Regel `ownAntiCheat` greift live.
+  Der Unterschied liegt Sekunden vor dem Umschalten auf 60 Hz: Das Spielfenster wechselt beim Start mehrmals die
+  Größe. Im guten Lauf bleibt es dabei auf dem Schirm (1516×924, 1516×853, 1516×821 „on“), dann L27, dann über der
+  Abschirmung (shield+2 „on“). **In beiden schlechten Läufen geht es bei der Größe 1516×891 vom Schirm („off“)** und
+  bleibt dort, auch auf shield+2; macOS zeigt nur die Abschirmung. „Off“ heißt ausgeblendet oder auf einem anderen
+  Space. Nächster Schritt: Position und Space des Fensters mitschreiben (CGS, nur lesen), um das zu unterscheiden.
+  Der Vorhang lag in allen drei Läufen gleich (shield+3), er ist nicht der Unterschied.
 - [ ] **Overwatch ohne sichtbares Fenster, aus den Protokollen untersucht (15.11., Koordinator; nichts gestartet,
   kein sample):** Das tritt bei **3 von 6 Starts** seit dem 8.11. auf (8.11. 14:53, 10.11. 00:02, 14.11. 20:10;
   gut: 8.11. zweimal, 10.11. 00:49). Overwatch stellt beim Start den Bildschirm von 120 auf **60 Hz** um
