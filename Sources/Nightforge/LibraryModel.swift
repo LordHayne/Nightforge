@@ -4904,7 +4904,8 @@ final class LibraryModel: ObservableObject {
                         guard !ShaderCaches.hasAntiCheat(profile: profile, block: block, installDir: installDir) else { return (nil, nil) }
                         let finding = StartDiagnosis.finding(logText: log, installDir: installDir, gameFolder: folder,
                                                              since: startedAt, layer: layer, hung: hung)
-                        return (StartDiagnosis.diagnose(finding), finding.reading.endedAtBox)
+                        // The test switch's finding comes on top here, past the anti-cheat's guard (StartDiagnosis.testFinding).
+                        return (StartDiagnosis.withTestFinding(StartDiagnosis.diagnose(finding)), finding.reading.endedAtBox)
                     }.value
                     diagnosis = (found ?? []).map { GameLog.redacted($0.line) }
                     unexplained = found.map(StartDiagnosis.unexplained) ?? false
