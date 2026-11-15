@@ -68,38 +68,32 @@ struct SmallLogicTest {
         UserDefaults.standard.removeObject(forKey: AppLanguage.storageKey)
     }
 
-    /// What the curtain says while Nightforge mends a start (LaunchRepair, board B of 15.11.2026).
+    /// What the curtain says while Nightforge mends a start (LaunchRepair): one line, after the rule of 15.11.2026.
     static func repairs() {
         let all: [LaunchRepair] = [.looking, .again, .onceMore, .otherWay, .settingUp, .closerLook, .gaveUp, .rootAdded, .rootDeclined]
+        let ends: [LaunchRepair] = [.settingUp, .gaveUp, .rootDeclined]
         for language in ["english", "german"] {
             UserDefaults.standard.set(language, forKey: AppLanguage.storageKey)
             for repair in all {
-                check(!repair.title.isEmpty && !repair.detail.isEmpty && repair.steps.count == 3, "\(repair) in \(language): a line, a sentence, three steps")
-                check(repair.steps.allSatisfy { !$0.label.isEmpty } && Set(repair.steps.map(\.label)).count == 3, "\(repair) in \(language): three different steps")
-                // Done first, then the one at work, then what's still to come: never a step marked done after one not done.
-                let marks = repair.steps.map(\.mark)
-                let order: [LaunchRepair.Step.Mark: Int] = [.done: 0, .now: 1, .next: 2]
-                check(marks == marks.sorted { order[$0]! < order[$1]! } && marks.first == .done, "\(repair): \(marks) in order, starting from the start")
-                check(marks.filter { $0 == .now }.count == (repair == .gaveUp || repair == .rootDeclined ? 0 : 1), "\(repair): one step at work, none at the end")
+                check(!repair.title.isEmpty && (repair.detail != nil) == ends.contains(repair) && !(repair.detail?.isEmpty ?? false),
+                      "\(repair) in \(language): a line, a sentence only once or at the end")
+                check(!repair.logLine.isEmpty, "\(repair): what left the screen is in the log")
             }
         }
         UserDefaults.standard.set("german", forKey: AppLanguage.storageKey)
-        // The board's words (B, the player's pick).
-        check(LaunchRepair.again.title == "Noch ein Versuch …" && LaunchRepair.looking.title == "Einen Moment …"
-              && LaunchRepair.otherWay.title == "Noch ein Versuch, auf anderem Weg …" && LaunchRepair.gaveUp.title == "Das hat nicht geklappt.",
-              "the lines as the board has them")
-        check(LaunchRepair.again.steps.map(\.label) == ["Gestartet", "Ursache gefunden", "Startet noch einmal"]
-              && LaunchRepair.looking.steps.map(\.label) == ["Gestartet", "Sieht nach", "Neuer Versuch"],
-              "the steps as the board has them")
-        check(LaunchRepair.gaveUp.detail == "Nightforge hat alles versucht, was es kennt. Gleich bist du zurück in der Bibliothek.", "the honest end")
-        check(LaunchRepair.rootAdded.detail == "Das Zertifikat ist eingetragen. Das Spiel startet noch einmal."
-              && LaunchRepair.rootDeclined.title == "Das Spiel startet so nicht.", "after the root question, as the board has it")
+        // The board's words ("Vorhang nach der Regel", the player's pick).
+        check(Set([LaunchRepair.looking, .again, .onceMore, .otherWay, .closerLook, .rootAdded].map(\.title)) == ["Noch ein Versuch …"],
+              "whatever Nightforge mends: one more try")
+        check(LaunchRepair.settingUp.title == "Wird eingerichtet …" && LaunchRepair.settingUp.detail == "Nur beim ersten Mal.", "setting up, once")
+        check(LaunchRepair.gaveUp.title == "Das hat nicht geklappt." && LaunchRepair.gaveUp.detail == "Gleich bist du zurück in der Bibliothek.", "the honest end")
+        check(LaunchRepair.rootDeclined.title == "Das Spiel startet so nicht." && LaunchRepair.rootDeclined.detail == "Ohne das Zertifikat läuft es nicht.",
+              "after the root question")
         // Nothing technical on the curtain: no way, no DLL, no layer.
         let technical = ["DXVK", "DXMT", "D3DMetal", "Wine", "DLL", "nvapi", "PhysX", "AVX", "Direct3D"]
         for language in ["english", "german"] {
             UserDefaults.standard.set(language, forKey: AppLanguage.storageKey)
             for repair in all {
-                let words = ([repair.title, repair.detail] + repair.steps.map(\.label)).joined(separator: " ")
+                let words = [repair.title, repair.detail ?? ""].joined(separator: " ")
                 check(!technical.contains { words.contains($0) }, "\(repair) in \(language) says nothing technical: \(words)")
             }
         }

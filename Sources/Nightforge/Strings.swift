@@ -813,6 +813,11 @@ enum L10n {
         "Steam got stuck while starting – a fresh start fixes that.": "Steam ist beim Starten hängen geblieben – ein Neustart behebt das.",
         "It closed right away – Nightforge starts it the next way and remembers what works.":
             "Es hat sich sofort beendet – Nightforge startet es auf dem nächsten Weg und merkt sich, was funktioniert.",
+        // The curtain after the rule (board "Vorhang nach der Regel", 15.11.2026)
+        "Setting up …": "Wird eingerichtet …",
+        "Only the first time.": "Nur beim ersten Mal.",
+        "You'll be back in the library in a moment.": "Gleich bist du zurück in der Bibliothek.",
+        "It doesn't run without the certificate.": "Ohne das Zertifikat läuft es nicht.",
         // A start Nightforge mends (LaunchRepair, board "Vorhang bei Fehlstart" B, 15.11.2026)
         "One moment …": "Einen Moment …",
         "One more try …": "Noch ein Versuch …",

@@ -2016,8 +2016,6 @@ final class LibraryModel: ObservableObject {
                               macOSOpen: Bool = false) {
         let phase = launchingID == nil ? nil : launchTitle
         let progress = launchingID == nil ? nil : Self.curtainProgress(phase: launchPhase)
-        // The steps of a start Nightforge mends, while its line is the one shown.
-        let trail = launchingID == nil || launchPhase != nil || asks || macOSAsks ? nil : launchRepair?.steps
         let padAnswers = controllerConnected && PadAnswerRun.available
             ? (PadPart.a.name(padSymbols.layout), PadPart.b.name(padSymbols.layout)) : nil
         GameBackdrop.setStatus(Self.curtainStatus(phase: phase, shaders: shaders, gameRuns: gameRuns,
@@ -2025,7 +2023,7 @@ final class LibraryModel: ObservableObject {
                                detail: Self.curtainDetail(launchHint: Self.curtainHint(progress: progress, speed: updateSpeed, launchHint: launchHint ?? curtainNote),
                                                   asks: asks || macOSAsks, errorBox: errorBox && !macOSAsks, padOK: padAnswers?.0,
                                                   macOSOpen: macOSOpen),
-                               progress: progress, trail: trail)
+                               progress: progress)
     }
 
     /// Asks the player whether the root `root` goes into the prefix (GameOverlay.askRoot), and waits for the
@@ -2041,11 +2039,12 @@ final class LibraryModel: ObservableObject {
     }
 
     /// What Nightforge mends, on the curtain at once: the start loop says it between two starts, when no
-    /// curtain look runs to say it.
+    /// curtain look runs to say it. What it found and does goes to the log (LaunchRepair.logLine).
     private func sayRepair(_ repair: LaunchRepair?) {
         launchRepair = repair
         guard let repair else { return }
-        GameBackdrop.setStatus(repair.title, detail: repair.detail, trail: repair.steps)
+        GameLog.note("Curtain: \"\(repair.title)\" – \(repair.logLine)")
+        GameBackdrop.setStatus(repair.title, detail: repair.detail)
     }
 
     /// The curtain's second line: none under a question it waits for (`asks`) – under the game's error box
@@ -5212,7 +5211,7 @@ final class LibraryModel: ObservableObject {
         let known = macSources.runtimes(for: game)
         let missing = Engine.missingWinetricks((profile?.winetricks ?? []) + learned.filter { $0 != GameLog.wineMono } + known)
             .filter(Engine.isSafeWinetricksVerb)
-        // A runtime set up for a start Nightforge mends keeps that line and its steps (LaunchRepair.settingUp).
+        // A runtime set up for a start Nightforge mends keeps that line (LaunchRepair.settingUp).
         let says = showStatus && launchRepair != .settingUp
         // The game test fetches nothing: what a game lacks goes into its report instead (GameTestRun).
         if !missing.isEmpty, !GameTest.active {
