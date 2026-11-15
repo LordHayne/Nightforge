@@ -285,6 +285,14 @@ scheitert und sich nicht schnell beheben lässt, wird ausgeschaltet oder herausg
 - **Abschluss wie 0.3.2:** Audit- und Testrunde, Profilliste signieren (Nutzer), Zusammenführen auf `main` (OK des
   Nutzers), Release-Notizen, Bot-PRs #39–#41 entscheiden.
 
+**Vorhang nach der Regel (entschieden vom Nutzer, 15.11.: „Ja, so umbauen“; Board
+https://claude.ai/artifact/SMv7bMwpPLTukHK4UwqexA, Quellen `docs/entwuerfe/vorhang-regel/` im Zweig der Diagnose-Session):**
+Regel: eine Zeile, was passiert, höchstens ein kurzer Satz; mehr nur, wenn der Spieler etwas tun muss, mit einem Knopf;
+alles andere ins Protokoll. 23 Zustände: Vorhang B ohne Schritte (7 → 3 Zeilen), Start- und Einrichtzeilen
+zusammengelegt, erklärende Sätze ins Protokoll, Knöpfe statt Satz bei „Das Spiel fragt etwas“, Vollbild-Hinweis als
+Zeile + Satz + „Neu starten“, L3+R3-Tipp nur beim ersten Start. Der Vollbild-Hinweis nach Vorlage B (zwei Schritte)
+ist damit ersetzt. Bau bei der Diagnose-Session; live zu prüfen: ein ⌘⇥ reicht, „Neu starten“ über die Pad-Zeile.
+
 **Zuschnitt von 0.3.3 (entschieden vom Nutzer, 15.11.: „ja machen wir 0.3.3 so zugeschnitten. sonst kommen wir
 langsamer voran“):** 0.3.3 = „Der Start repariert sich selbst, sichtbar“ (Schritt E live, Vorhang nach dem Board)
 und „Laufwerk wiedererkennen“, dazu was schon fertig im Testzweig liegt und geprüft ist. Auf 0.3.4: das Limit auf
