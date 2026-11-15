@@ -141,6 +141,14 @@ Befunde aus dem Lauf:
 - [x] **Die Listen sagen dazu „hält das Limit: Ø 201“.** (Behoben 14.11., `ce7647c`, im Testzweig `4c8c392`: Feld
   `limitState`, D3DMetal-Zahlen gelten als frei, „Limit greift nicht“ über 105 % des Limits.) Gemeint ist „erreicht es“, es liest sich aber, als
   griffe die Sperre. Über dem Limit muss es „Limit greift nicht“ heißen, bevor die Landingpage die Daten nimmt.
+- [x] **Fehlerfenster, genauerer Blick und Wurzel-Frage live gelungen (15.11., 15:54–15:56, Testbuild `306c29f`,
+  MGS V mit `testRootQuestion`):** D3DMetal, Fenster „Failed to load SteamAPI“, OK → „the window it ended at was no
+  question – a window of its own that isn't one of Windows' message boxes … : a failed start“ → „nothing explains why it
+  ended – the next start carries Wine's debug channels“ (Steam einmal neu) → DXMT, Fenster, OK → Diagnose
+  „untrusted-root: steam_api64.dll's signature (Valve) leads to the root VeriSign … G5“ → die Frage auf dem Vorhang →
+  der Nutzer trug ein → Start auf DXMT → Bild. Damit sind E5 (Fenster als Fehlstart), E6 (genauerer Blick, Wurzel-Frage)
+  und Vorhang B live belegt. Auf dem Vorhang bei MGS V weiter die alte Zeile „The game is asking something …“, weil
+  das Fenster keinen lesbaren Text hat.
 - [ ] **Wurzel-Frage mit MGS V live nicht gelungen (15.11., 12:18, `testRootQuestion`):** Die Box kam, Nightforge
   las sie als Frage des Spiels („it asks something“) und beendete den Start als Wahl des Spielers, obwohl die Diagnose
   „hung → the next way“ sagte. Keine `trace:msgbox`-Zeile im Protokoll (aber `+pid,+loaddll` liefen); auch am 11.11.
@@ -173,12 +181,13 @@ Testreihen, 281 pytest. Nicht eingespielt, live nichts gesehen; Anleitung `close
   keine Datei (eigener Cheat-Schutz). Wege: (a) ein Hinweis auf dem Vorhang, wenn genau dieser Fall eintritt
   (Fenster ausgeblendet unter übernommenem Bildschirm): „Stell im Spiel Randloses Fenster ein“; (b) Nightforge stellt
   den Bildschirm vor dem Start auf den Modus, den das Spiel will (60 Hz). **Entschieden vom Nutzer (15.11.):
-  „Hinweis auf dem Vorhang“.** Erkennen und Board bei der Diagnose-Session, Bau nach der Wahl des Nutzers.
-  Erkennen gebaut (`a759361`, `claude/diagnose-start-033-92f729`, nur Protokollzeile „own full screen hides its
-  picture“): die Abschirmung gehört dem Spiel, sein großes Fenster ist nicht auf dem Schirm, nach zwei Versuchen,
-  es zurückzuholen, und 10 s so. Board „Vollbild verdeckt das Spiel“ (A nur der Satz, B zwei Schritte = Empfehlung,
-  C Nightforge holt das Bild = später): https://claude.ai/artifact/AKjxeNvdNbzo3HYjEStb7F, Quellen
-  `docs/entwuerfe/vollbild/`. Wartet auf die Wahl des Nutzers. Mit dem Controller gibt es heute keinen Weg ins Spiel.
+  „Hinweis auf dem Vorhang“.** Board „Vollbild verdeckt das Spiel“ (https://claude.ai/artifact/AKjxeNvdNbzo3HYjEStb7F):
+  **der Nutzer wählte B** („B, wie empfohlen“, 15.11.): zwei Schritte (⌘⇥ zu Nightforge und zurück; Randloses Fenster),
+  leise Zeile für nur Controller mit „Neu starten“, Profilfeld `fullscreenHint`. C (Nightforge schickt ⌘-Tab selbst,
+  braucht Bedienungshilfen) später. Bau bei der Diagnose-Session.
+  Erkennen gebaut (`a759361`, `claude/diagnose-start-033-92f729`): die Abschirmung gehört dem Spiel, sein großes
+  Fenster ist nicht auf dem Schirm, nach zwei Versuchen, es zurückzuholen, und 10 s so. Quellen des Boards
+  `docs/entwuerfe/vollbild/`. Mit dem Controller gibt es heute keinen Weg ins Spiel, nur einen neuen Start.
 - [ ] **Overwatch: Zurückholen durch Ausblenden live gescheitert (15.11., 12:43–13:21, Builds `3254e96` und
   `19d7879`, Verläufe `overwatch-3/`, `overwatch-4/`):** Erst eine Zehntelsekunde, dann bis zu zwei Sekunden
   ausgeblendet: „the game was hidden, kept the front, the screen still captured, shown again“ – macOS lässt einem
