@@ -1230,6 +1230,9 @@ final class LibraryModel: ObservableObject {
     /// they came before it and don't hold it (`macOSAsksNow`).
     private var macOSQuestionsBefore: Set<Int>?
 
+    /// A game whose own full screen hides its picture under the curtain, and where its setting is (fullScreenWords).
+    private var fullScreenHint: (game: Game, setting: String?)?
+
     /// The start on the curtain the player may leave, and why (CurtainEscape).
     private var curtainEscape: (game: Game, reason: CurtainEscape.Reason)?
     private var stuckAskedAt: Date?
@@ -1391,6 +1394,7 @@ final class LibraryModel: ObservableObject {
         /// Its picture on the Space shown since, and how often its window was fetched back under the curtain.
         var pictureSince: Date?
         var broughtBack = 0
+        defer { fullScreenHint = nil }
         /// Since when its own full screen hides its picture (ownCaptureHides), and whether the log has it.
         var hiddenByFullScreen: Date?
         var fullScreenSaid = false
@@ -1677,7 +1681,10 @@ final class LibraryModel: ObservableObject {
                                                             hiddenFor: hiddenByFullScreen.map { Date().timeIntervalSince($0) } ?? 0) {
                 fullScreenSaid = true
                 let capture = await Engine.offMain { GameProcesses.captureNote() }
-                GameLog.note("Curtain: \(game.name)'s own full screen hides its picture – its window off the screen under its capture (\(capture))")
+                let setting = await ProfileStore.shared.profile(for: game.gameID)?.fullscreenHint(german: AppLanguage.current.resolved == .german)
+                fullScreenHint = (game, setting)
+                GameLog.note("Curtain: \(game.name)'s own full screen hides its picture – its window off the screen under its capture (\(capture));"
+                             + " said on the curtain, ⌘-Tab or the pad's Restart")
             }
             let question = asking?.number
             // A thin window is a splash more often than a question (ABZU's Unreal splash, 601×201, showed
@@ -1749,7 +1756,7 @@ final class LibraryModel: ObservableObject {
                 curtainUp()
             }
             sayOnCurtain(gameRuns: !pids.isEmpty, shaders: buildsShaders, asks: asks, errorBox: reportsError,
-                         macOSAsks: macOSAsks)
+                         macOSAsks: macOSAsks, fullScreen: fullScreenHint.map { $0.setting ?? "" })
             pictureSince = here ? (pictureSince ?? Date()) : nil
             switch Self.curtainStep(lowered: loweredAt != nil, gameFront: gameFront, nightforgeFront: front == getpid(),
                                     macOSAsks: macOSAsks || front.map(askers.contains) ?? false,
@@ -1779,6 +1786,7 @@ final class LibraryModel: ObservableObject {
                 }
                 askAt = Date().addingTimeInterval(Self.curtainPatience)  // no "Not starting?" over its question
             case .lower:
+                fullScreenHint = nil
                 if GameOverlay.asksAboutStart { GameOverlay.close() }
                 GameBackdrop.lower()
                 input.parkPointerForGame()
@@ -2016,7 +2024,15 @@ final class LibraryModel: ObservableObject {
     nonisolated static func hidesBattleNetWindow(messageUp: Bool) -> Bool { !messageUp }
 
     /// The curtain's lines at a look (`curtainStatus`, `curtainDetail`); once it's down they wait for the next start.
-    private func sayOnCurtain(gameRuns: Bool, shaders: Bool, asks: Bool = false, errorBox: Bool = false, macOSAsks: Bool = false) {
+    private func sayOnCurtain(gameRuns: Bool, shaders: Bool, asks: Bool = false, errorBox: Bool = false, macOSAsks: Bool = false,
+                              fullScreen: String? = nil) {
+        // The game's own full screen hides its picture: what the player can do, and the pad's Restart. A question of
+        // its own or of macOS's comes first.
+        if let fullScreen, !asks, !macOSAsks {
+            let words = Self.fullScreenWords(setting: fullScreen.isEmpty ? nil : fullScreen)
+            let restart = controllerConnected ? [CurtainButton(symbol: padSymbols.confirm, label: L10n.t("Restart"))] : []
+            return GameBackdrop.setStatus(words.line, detail: words.sentence, buttons: restart)
+        }
         let phase = launchingID == nil ? nil : launchPhase?.curtainTitle ?? launchRepair?.title
         let progress = launchingID == nil ? nil : Self.curtainProgress(phase: launchPhase)
         // A pad answers the game's question where the helper can press for it (PadAnswerRun).
@@ -2030,6 +2046,36 @@ final class LibraryModel: ObservableObject {
                                                   macOSAsks: macOSAsks, shaders: shaders && gameRuns && phase == nil),
                                progress: progress,
                                buttons: Self.curtainButtons(asks: asks, errorBox: errorBox, macOSAsks: macOSAsks, pad: pad))
+    }
+
+    /// What the curtain says when the game's own full screen hides its picture (fullScreenHidesPicture), with the
+    /// place of the setting from its profile (`setting`, GameProfile.fullscreenHint). The board "Vorhang nach der
+    /// Regel": one line, one sentence, Restart on the pad. One ⌘-Tab should do: Wine gives the display back at its own
+    /// ⌘-Tab, and the curtain's watch hands the game the front again (live check pending, 15.11.2026).
+    nonisolated static func fullScreenWords(setting: String?) -> (line: String, sentence: String) {
+        let sentence = setting.map { L10n.t("⌘⇥ brings it to the front. So it doesn't happen again: %@ in the game.", $0) }
+            ?? L10n.t("⌘⇥ brings it to the front. So it doesn't happen again: “Borderless window” in the game.")
+        return (L10n.t("Full screen is hiding the game"), sentence)
+    }
+
+    /// The pad's Restart on a curtain whose game's full screen hides its picture (InputRouter, A): the game ends and
+    /// starts again, as the overlay's Restart Game does. About every second start of Overwatch's came with its picture
+    /// (15.11.2026). Nothing while the overlay is up: A is its own then.
+    func restartsHiddenGame() -> Bool {
+        guard let game = fullScreenHint?.game, GameBackdrop.isRaised, !GameOverlay.isOpen else { return false }
+        fullScreenHint = nil
+        GameLog.note("Curtain: the player restarts \(game.name) with the pad – its full screen hid its picture")
+        let marker = game.platform == .mac ? nil : game.windowsFolderMarker
+        let folder = game.platform == .mac ? game.installDir.path : nil
+        LaunchHealth.playerQuit(game.gameID)
+        restartAfterEnd = game
+        Task {
+            await Task.detached(priority: .userInitiated) {
+                GameProcesses.end(GameProcesses.targets(windows: marker, mac: folder, in: GameProcesses.table()))
+            }.value
+            await startAgainWhenEnded(game)
+        }
+        return true
     }
 
     /// The pad's buttons under a question the player answers (the rule of 15.11.2026): the game's error box OK, its

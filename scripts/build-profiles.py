@@ -362,6 +362,11 @@ def mac_problems(mac_games) -> list:
         # The app reads anything but true as "not said" and would take its sample: a typo mustn't get there.
         if "ownAntiCheat" in profile and not isinstance(profile["ownAntiCheat"], bool):
             problems.append(f"{key}: ownAntiCheat")
+        # Said on the curtain as it stands: words by language, the English one always there, one line each.
+        hint = profile.get("fullscreenHint")
+        if hint is not None and (not isinstance(hint, dict) or not isinstance(hint.get("en"), str)
+                                 or any(not isinstance(v, str) or not v.strip() or "\n" in v or len(v) > 80 for v in hint.values())):
+            problems.append(f"{key}: fullscreenHint")
     return problems
 
 

@@ -541,6 +541,8 @@ final class InputRouter {
                     self?.model?.signInPrimary()
                     return
                 }
+                // The curtain's Restart under a game whose full screen hides it: the pad's line says A (the rule of 15.11.2026).
+                if self?.model?.restartsHiddenGame() == true { return }
                 guard self?.reach != Reach.none, self?.curtainCovers != true else { return }
                 self?.feel(.confirm, on: pad?.controller)
                 // The overlay has A to itself, not the big screenshot under it.

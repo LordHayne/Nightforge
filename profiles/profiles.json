@@ -4810,6 +4810,10 @@
    "graphics": "dxmt",
    "needsRosettaLibrary": true,
    "ownAntiCheat": true,
+   "fullscreenHint": {
+    "de": "Optionen › Video › Randloses Fenster",
+    "en": "Options › Video › Borderless Windowed"
+   },
    "dllOverrides": {
     "nvapi64": "",
     "nvngx": ""
@@ -7551,5 +7555,5 @@
    "reports": 1
   }
  },
- "generated": "2026-11-14T22:48:43Z"
+ "generated": "2026-11-15T17:40:00Z"
 }

@@ -227,9 +227,14 @@ class FileRuleTests(unittest.TestCase):
             "3": {"fileEdits": [{"path": "x.ini", "find": "a", "replace": "aa"}]}, "4": {"arguments": ["--config=/etc/x"]},
             "5": {"registry": [{"key": "HKCU\\Software\\Microsoft\\x"}]}, "6": {"windowsVersion": "win95"},
             "7": {"ownAntiCheat": "yes"}, "8": {"ownAntiCheat": 1}, "9": {"ownAntiCheat": True}, "10": {"ownAntiCheat": False},
+            "11": {"fullscreenHint": "Borderless"}, "12": {"fullscreenHint": {"de": "Randlos"}}, "13": {"fullscreenHint": {"en": "a\nb"}},
+            "14": {"fullscreenHint": {"en": "Options › Video › Borderless Windowed", "de": "Optionen › Video › Randloses Fenster"}},
         })
         self.assertEqual(problems, ["1: winetricks 'win98' (say windowsVersion)", "2: saves", "3: fileEdits", "4: arguments",
-                                    "5: registry", "6: windowsVersion", "7: ownAntiCheat", "8: ownAntiCheat"])
+                                    "5: registry", "6: windowsVersion", "7: ownAntiCheat", "8: ownAntiCheat",
+                                    "11: fullscreenHint", "12: fullscreenHint", "13: fullscreenHint"])
+        # Overwatch's full screen hid its picture (15.11.2026): where to set a borderless window, and only for it.
+        self.assertEqual([key for key, profile in shipped.items() if profile.get("fullscreenHint")], ["2357570"])
         # Overwatch brings a cheat protection of its own: the list that ships says so, and nothing else does without a source.
         self.assertEqual([key for key, profile in shipped.items() if profile.get("ownAntiCheat")], ["2357570"])
 

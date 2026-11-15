@@ -626,6 +626,11 @@ struct GameOverlayTest {
         check(!hides(back: 1, for: 30), "not fetched back twice yet: Nightforge tries first")
         check(!hides(front: false), "the game not in front: not this case")
         check(!hides(false, for: 60), "not hidden: never")
+        // What the curtain says then (board "Vorhang nach der Regel", the player's pick of 15.11.2026): a line, a sentence.
+        let known = LibraryModel.fullScreenWords(setting: "Options › Video › Borderless Windowed")
+        let general = LibraryModel.fullScreenWords(setting: nil)
+        check(known.line == general.line && known.sentence.contains("Options › Video › Borderless Windowed") && known.sentence.contains("⌘⇥")
+              && general.sentence.contains("⌘⇥") && general.sentence != known.sentence, "where its profile knows the place, it's said; else in general")
         check(step(gameFront: true, anywhere: true, frontFor: 5, broughtBack: 0, shieldOnly: true) == .bringBack,
               "only the black shield on screen: its real window is fetched")
         check(step(gameFront: true, anywhere: true, frontFor: 5, broughtBack: 2, shieldOnly: true) == .wait,
