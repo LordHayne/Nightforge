@@ -164,6 +164,16 @@ Testreihen, 281 pytest. Nicht eingespielt, live nichts gesehen; Anleitung `close
   steht in einem optimierten Build nicht als Text) und `testRootQuestion` gehören mit hinein; `testFinding` dafür
   auf einen Namen über 15 Byte umstellen.
 
+- [ ] **Overwatch: Zurückholen durch Ausblenden live gescheitert (15.11., 12:43–13:21, Builds `3254e96` und
+  `19d7879`, Verläufe `overwatch-3/`, `overwatch-4/`):** Erst eine Zehntelsekunde, dann bis zu zwei Sekunden
+  ausgeblendet: „the game was hidden, kept the front, the screen still captured, shown again“ – macOS lässt einem
+  Spiel, das den Bildschirm übernommen hat, die Front, auch ausgeblendet; Wine gibt den Bildschirm nicht frei, das
+  Fenster kommt nicht. Beide Umbauten sind wieder heraus. Das Umschalten des Nutzers wirkte, weil Wines eigenes ⌘-Tab
+  (`handleCommandTab`) zuerst den Bildschirm freigibt; ein ⌘-Tab an das Spiel zu senden bräuchte „Bedienungshilfen“.
+  **Was bleibt:** (a) In Overwatch selbst „Randloses Fenster“ oder 120 Hz einstellen (macht der Spieler; dann kein
+  Moduswechsel, keine Übernahme) – zu prüfen; (b) Nightforge stellt den Bildschirm vor dem Start auf 60 Hz, dann ist
+  der Modus schon da und Wine übernimmt nichts (`setMode`: „Already there!“), deckt sich mit Weg B fürs D3DMetal-Limit;
+  Entscheidung des Nutzers. Zwei Läufe gingen verloren, weil der Bildschirm gesperrt war („the screen is locked“).
 - [ ] **Overwatch, zweite Runde mit Position und Space (15.11., 12:23–12:34, Testbuild `c2da535`, Verläufe im
   Notizordner `overwatch-2/`):** Lauf 1 und 2 ohne Bild, Lauf 3 mit Bild. **Das Spielfenster bleibt auf Space 1, ist
   aber ausgeblendet** (1516×891 „off sp1“, dann shield+2 „off sp1“) – es wandert nicht auf einen anderen Space. Im
