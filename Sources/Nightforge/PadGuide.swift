@@ -63,8 +63,9 @@ struct LaunchTip: Equatable {
     let symbols: [String]
     let text: String
 
-    /// How many starts show it.
-    static let starts = 3
+    /// How many starts show it: the first only. The curtain says what happens, and this is the one way to find the
+    /// menu in a game – once is enough (the rule of 15.11.2026, board "Vorhang nach der Regel").
+    static let starts = 1
 
     /// "L3 + R3" or "LS + RS": the overlay's buttons by name.
     static func chord(_ layout: PadLayout) -> String {
