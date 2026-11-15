@@ -330,7 +330,22 @@ und überholt (kennt Schritt E, den Vorhang nach der Regel und das Laufwerk nich
   Tastatur für den Controller (`PadKeyboardView` ist im Zweig – prüfen, ob sie an ist); Anmelden am Sofa (GOG per QR);
   Battle.net-Start; Einstellungen › Startseite; Fernseher. Was scheitert, wird ausgeschaltet oder wandert auf 0.3.4.
 
-**3. Audit- und Testrunde** über alles seit dem 8.11.: Start-Rezept und Schritt E, Laufwerk-Übernahme (fasst Steams
+**3. Audit-Runde gelaufen (15.11., Session „Audit 0.3.3: Abschlussrunde“, Bericht `docs/AUDIT-0.3.3-ABSCHLUSS.md`):**
+nichts blockiert, sobald B1 eingespielt ist. Behoben und im Testzweig (vom Koordinator nachgelesen): B1 ein Manifest aus
+lauter Klammern auf einem angesteckten Laufwerk beendete Nightforge bei jedem Start (`6e0784a`), B2 `installdir` konnte
+aus der Bibliothek herausführen (`ca716ab`), B3 jede Datei einer Bibliothek wurde ganz gelesen (`8c19745`), B4 mit `+pid`
+füllte ein Fehler die Liste des Problemberichts (`963f526`), B5 Test hält die Testschalter aus dem Release (`c2d4950`).
+- [ ] S1 `ownAntiCheat` zählt in der Startschleife nicht als Anti-Cheat – wird nach der stehenden Regel des Nutzers
+  behoben (Audit-Session). S2 „Noch ein Versuch …“ ohne Versuch – wird behoben. W1 Gelerntes lässt sich nicht
+  zurücknehmen – beim vorhandenen Zurücksetzen mit erledigen, wenn klein.
+- [ ] Entscheidungen des Nutzers: W3 (ein kleines eigenes Startfenster, das der Spieler schließt, gilt seit dem 15.11.
+  als Fehlstart und kommt bis zu zweimal wieder; Empfehlung: das zweite solche Ende als Wahl des Spielers nehmen),
+  W4/W5 (übernommene Spiele vom Laufwerk prüft kein Laden; Steam zählt vor dem Besitz – für 0.3.4), W7
+  (`start-evidence.jsonl` ist immer an, bleibt auf dem Mac, wird nie gekürzt – in die Release-Notizen, Kürzen für
+  0.3.4), W8 (A für „Neu starten“ kommt im unsichtbaren Spiel an – live an Overwatch ansehen), W9 („Hinzufügen und
+  starten“ ist vorgewählt, zählt erst, wenn eine Wurzel in der Liste steht).
+
+**3a. Frühere Fassung dieses Punktes:** Audit- und Testrunde über alles seit dem 8.11.: Start-Rezept und Schritt E, Laufwerk-Übernahme (fasst Steams
 Listen, legendary und GOGs Liste an), Vorhang, Frage zur Wurzel, Testschalter. Eigene Session; Befunde prüft der Koordinator.
 
 **4. Texte und Version:** Release-Notizen neu gegen den Endstand (deutsch/englisch, `docs/release-notes/v0.3.3.md`,
