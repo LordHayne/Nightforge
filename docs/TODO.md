@@ -141,6 +141,12 @@ Befunde aus dem Lauf:
 - [x] **Die Listen sagen dazu „hält das Limit: Ø 201“.** (Behoben 14.11., `ce7647c`, im Testzweig `4c8c392`: Feld
   `limitState`, D3DMetal-Zahlen gelten als frei, „Limit greift nicht“ über 105 % des Limits.) Gemeint ist „erreicht es“, es liest sich aber, als
   griffe die Sperre. Über dem Limit muss es „Limit greift nicht“ heißen, bevor die Landingpage die Daten nimmt.
+**Vorhang B, Fehlerfenster, Wurzel-Frage im Testzweig (15.11., Zusammenführung `5c428ac`):** Kette grün, 121
+Testreihen, 281 pytest. Nicht eingespielt, live nichts gesehen; Anleitung `closer-look/live-pruefung-schritt-e.md`.
+- [ ] Die Release-Prüfung im Release-Ablauf sucht nur `gameTest.measurePlay`. Die Schalter `testFinding` (11 Byte,
+  steht in einem optimierten Build nicht als Text) und `testRootQuestion` gehören mit hinein; `testFinding` dafür
+  auf einen Namen über 15 Byte umstellen.
+
 - [ ] **Overwatch live mit Fensterblick (15.11., 11:44–11:55, Testbuild `99405ee`, dreimal über den Spieletest,
   `scratchpad/fensterblick` alle 200 ms, Verläufe im Notizordner `overwatch/`):** Lauf 1 Bild nach 66 s, Läufe 2 und
   3 „hängt ohne Bild“ (DXMT zählte 48 FPS). **Kein `sample` genommen** – die Regel `ownAntiCheat` greift live.
