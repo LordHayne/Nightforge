@@ -165,6 +165,14 @@ Testreihen, 281 pytest. Nicht eingespielt, live nichts gesehen; Anleitung `close
   auf einen Namen über 15 Byte umstellen. (Erledigt 15.11. auf `claude/diagnose-start-033-92f729`: der Schalter heißt
   `gameTest.testFinding`, der Schritt „No test switches in a release“ prüft alle drei Schlüssel.)
 
+- [ ] **Overwatch mit „Randloses Fenster“ im Spiel (vom Nutzer eingestellt, 15.11., 15:36–15:45, Testbuild `306c29f`,
+  `overwatch-5/`): 3 von 3 mit Bild** (68, 82, 98 s), kein „Setting display mode“, keine Abschirmung („Displays at
+  the start of Overwatch®: no shield, display 1 1512×982 at 120 Hz“), Limit 40 gehalten (40 / 39). Vorher mit
+  exklusivem Vollbild etwa jeder zweite Start ohne Bild. Damit ist die Ursache bestätigt: der Wechsel auf 60 Hz mit
+  der Übernahme des Bildschirms. **Offen:** Ein neuer Spieler weiß das nicht, und Nightforge ändert bei Overwatch
+  keine Datei (eigener Cheat-Schutz). Wege: (a) ein Hinweis auf dem Vorhang, wenn genau dieser Fall eintritt
+  (Fenster ausgeblendet unter übernommenem Bildschirm): „Stell im Spiel Randloses Fenster ein“; (b) Nightforge stellt
+  den Bildschirm vor dem Start auf den Modus, den das Spiel will (60 Hz). Entscheidung des Nutzers.
 - [ ] **Overwatch: Zurückholen durch Ausblenden live gescheitert (15.11., 12:43–13:21, Builds `3254e96` und
   `19d7879`, Verläufe `overwatch-3/`, `overwatch-4/`):** Erst eine Zehntelsekunde, dann bis zu zwei Sekunden
   ausgeblendet: „the game was hidden, kept the front, the screen still captured, shown again“ – macOS lässt einem
