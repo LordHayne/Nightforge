@@ -493,12 +493,25 @@ enum LaunchHealth {
     /// `explained`: the table saw the start fail (StartDiagnosis.sawFailure) – then it failed, whatever the
     /// player pressed. `endedAtBox`: the text of the message box the game ended at
     /// (CloserLook.Reading.endedAtBox), which every start's channels print since step E5; a notice leaves
-    /// nothing to choose (CloserLook.box). Unity's window before the game and a launcher's are no message
-    /// boxes: without one the end stays the player's, as before. The start flow asks this since step E5
-    /// (LibraryModel.launch, docs/ENTWURF-STARTREZEPT.md 3.3).
-    static func ownQuestionWasAChoice(explained: Bool, endedAtBox: String?) -> Bool {
+    /// nothing to choose (CloserLook.box). Without one the window wasn't one of Windows' message boxes, and its
+    /// words and buttons can't be read from outside: `knownWindow` says the game shows a window of its own
+    /// before it plays (`showsOwnWindow`: Unity's configuration window, its own launcher window, another
+    /// store's launcher) – an end there stays the player's, as with The Forest's Quit on 3.11. Any other window
+    /// before a picture is taken for the game's word that it won't go on: Metal Gear Solid V's "Failed to load
+    /// SteamAPI" on 15.11.2026 was a window of its own, no message box (no msgbox line with every start carrying
+    /// the channel), and went down as the player's choice where the start had failed. The start flow asks this
+    /// since step E5 (LibraryModel.launch, docs/ENTWURF-STARTREZEPT.md 3.3).
+    static func ownQuestionWasAChoice(explained: Bool, endedAtBox: String?, knownWindow: Bool) -> Bool {
         if explained { return false }
-        return endedAtBox.map { CloserLook.box($0) == .question } ?? true
+        if let endedAtBox { return CloserLook.box(endedAtBox) == .question }
+        return knownWindow
+    }
+
+    /// Whether a game shows a window of its own before it plays, one the player may close on purpose: Unity's
+    /// configuration window, its own launcher window (GameAnalysis.launcherSwitch), another store's launcher.
+    static func showsOwnWindow(_ analysis: GameAnalysis?) -> Bool {
+        guard let analysis else { return false }
+        return analysis.engine == .unity || analysis.launcherSwitch != nil || analysis.launcher != nil
     }
 
     /// The curtain sank for the game: its window in picture size had the front. Kept like Quit

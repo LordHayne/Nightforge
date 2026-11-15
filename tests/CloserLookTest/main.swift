@@ -236,9 +236,9 @@ struct CloserLookTest {
         check(!StartDiagnosis.sawFailure([]) && !StartDiagnosis.sawFailure([found("loads-direct3d9"), found("signature"), found("untrusted-root")])
               && !StartDiagnosis.sawFailure([found("crash"), found("said"), found("debug-said"), found("hung")]),
               "what a start loaded or checked, and the fallbacks, aren't one")
-        check(LaunchHealth.ownQuestionWasAChoice(explained: StartDiagnosis.sawFailure([found("loads-direct3d9")]), endedAtBox: nil),
+        check(LaunchHealth.ownQuestionWasAChoice(explained: StartDiagnosis.sawFailure([found("loads-direct3d9")]), endedAtBox: nil, knownWindow: true),
               "a Direct3D 9 game quit at its own launcher window: still the player's choice")
-        check(!LaunchHealth.ownQuestionWasAChoice(explained: false, endedAtBox: usualReading.endedAtBox),
+        check(!LaunchHealth.ownQuestionWasAChoice(explained: false, endedAtBox: usualReading.endedAtBox, knownWindow: false),
               "Alan Wake's error box under the curtain, OK pressed: a failed start")
 
         // MARK: When a start carries the channels

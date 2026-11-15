@@ -4971,12 +4971,13 @@ final class LibraryModel: ObservableObject {
                     let stands = Self.ownQuestionEndStands(end: end, startedAt: startedAt, lastRunning: firstSecondsRunning[game.id],
                                                            graphicsFailed: graphicsFailed || cannotDraw || direct3D9Failed, crashed: crashedAtAll)
                     let failureSeen = StartDiagnosis.sawFailure(found ?? [])
-                    let choice = LaunchHealth.ownQuestionWasAChoice(explained: failureSeen, endedAtBox: endedAtBox)
+                    let knownWindow = LaunchHealth.showsOwnWindow(analysis)
+                    let choice = LaunchHealth.ownQuestionWasAChoice(explained: failureSeen, endedAtBox: endedAtBox, knownWindow: knownWindow)
                     if stands, !choice {
-                        GameLog.note("Start of \(game.name): the window it ended at was no question – "
-                                     + (failureSeen ? "the diagnosis says why it ended"
-                                                    : "a message box that only says \"\(GameLog.redacted(String((endedAtBox ?? "").prefix(120))))\"")
-                                     + ": a failed start")
+                        let why = failureSeen ? "the diagnosis says why it ended"
+                            : endedAtBox.map { "a message box that only says \"\(GameLog.redacted(String($0.prefix(120))))\"" }
+                            ?? "a window of its own that isn't one of Windows' message boxes, before any picture, in a game with no window of its own known"
+                        GameLog.note("Start of \(game.name): the window it ended at was no question – \(why): a failed start")
                     }
                     if stands, choice {
                         GameLog.note("Start of \(game.name): it ended at a question of its own – the player's choice, no other way")
