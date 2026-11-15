@@ -24,6 +24,11 @@ enum LaunchRepair: Equatable {
     case rootAdded
     /// … no: the start ends here, said for `endStands`.
     case rootDeclined
+    /// A way that had worked ended without a picture again and has had its tries: it keeps its place
+    /// (NextStart.Step.keepsItsPlace), and the start ends here, said for `endStands`.
+    case keptPlace
+    /// Graphics chosen by hand, or nothing known about the game: no other way to try (NextStart.Step.noOtherWay).
+    case noOtherWay
 
     /// How long the honest end stands on the curtain before the library comes.
     static let endStands: TimeInterval = 3
@@ -33,15 +38,24 @@ enum LaunchRepair: Equatable {
         switch self {
         case .looking, .again, .onceMore, .otherWay, .closerLook, .rootAdded: return L10n.t("One more try …")
         case .settingUp: return L10n.t("Setting up …")
-        case .gaveUp: return L10n.t("That didn't work.")
+        case .gaveUp, .keptPlace, .noOtherWay: return L10n.t("That didn't work.")
         case .rootDeclined: return L10n.t("The game doesn't start this way.")
+        }
+    }
+
+    /// No start follows it: the line says the end. Every other one promises a try, and one comes
+    /// (the coordinator's rule of 15.11.2026: "Sagt der Vorhang „Noch ein Versuch …“, muss einer kommen").
+    var endsStart: Bool {
+        switch self {
+        case .gaveUp, .rootDeclined, .keptPlace, .noOtherWay: return true
+        case .looking, .again, .onceMore, .otherWay, .settingUp, .closerLook, .rootAdded: return false
         }
     }
 
     var detail: String? {
         switch self {
         case .settingUp: return L10n.t("Only the first time.")
-        case .gaveUp: return L10n.t("You'll be back in the library in a moment.")
+        case .gaveUp, .keptPlace, .noOtherWay: return L10n.t("You'll be back in the library in a moment.")
         case .rootDeclined: return L10n.t("It doesn't run without the certificate.")
         case .looking, .again, .onceMore, .otherWay, .closerLook, .rootAdded: return nil
         }
@@ -59,12 +73,15 @@ enum LaunchRepair: Equatable {
         case .gaveUp: return "every way tried, back to the library"
         case .rootAdded: return "the certificate is added, the game starts once more"
         case .rootDeclined: return "the certificate isn't added, the start ends; asked again next time"
+        case .keptPlace: return "a way that had worked ended without a picture again, it keeps its place; no further try, back to the library"
+        case .noOtherWay: return "no other way to try (graphics chosen by hand, or nothing known about the game), back to the library"
         }
     }
 
     /// What the curtain says for the decision after a failed start. nil: it says nothing of its own – the
-    /// engine before has its own line (LaunchPhase.rollingBack), a proven way keeping its place and a way
-    /// chosen by hand end the start as before.
+    /// engine before has its own line (LaunchPhase.rollingBack). A proven way keeping its place and a way
+    /// chosen by hand ended the start without a word up to 15.11.2026, right after "One more try …"
+    /// (`looking`): they say the end now, as every way tried does.
     static func after(_ step: NextStart.Step) -> LaunchRepair? {
         switch step {
         case .again(_, let why):
@@ -73,7 +90,8 @@ enum LaunchRepair: Equatable {
             return why.contains("missing-runtime") ? .settingUp : .again
         case .way: return .otherWay
         case .giveUp: return .gaveUp
-        case .keepsItsPlace, .noOtherWay: return nil
+        case .keepsItsPlace: return .keptPlace
+        case .noOtherWay: return .noOtherWay
         }
     }
 }

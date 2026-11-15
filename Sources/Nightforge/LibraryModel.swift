@@ -5209,7 +5209,8 @@ final class LibraryModel: ObservableObject {
                         return
                     }
                 }
-                // What the curtain says for it (LaunchRepair.after): nothing of its own where the start ends.
+                // What the curtain says for it (LaunchRepair.after): the try that comes, or – a proven way keeping its
+                // place, no other way to try – that none does. Every way tried says so below, after its record.
                 if let repair = LaunchRepair.after(next), repair != .gaveUp { sayRepair(repair) }
                 switch next {
                 case .again(let changed, let why):
@@ -5232,13 +5233,19 @@ final class LibraryModel: ObservableObject {
                     }
                     continue
                 case .noOtherWay:
-                    // Graphics chosen by hand, or nothing known about the game: no other way to try.
-                    break starts
+                    // Graphics chosen by hand, or nothing known about the game: no other way to try. The curtain said
+                    // "One more try …" while Nightforge looked (`looking`), so it says that none comes, a moment before
+                    // the page (LaunchRepair.noOtherWay). The game is gone: nothing to step back behind, as the loop's
+                    // end did up to 15.11.2026 – with "Quit launcher" that quit Nightforge after a start that failed.
+                    try? await Task.sleep(for: .seconds(LaunchRepair.endStands))
+                    return
                 case .keepsItsPlace:
                     // A way that worked before and ended without a graphics error keeps its place:
-                    // watched again at the next start. Nightforge stays in front.
+                    // watched again at the next start. Nightforge stays in front, after the curtain said so
+                    // (LaunchRepair.keptPlace).
                     StartEvidence.note(.failed, game: game.gameID, way: way, reason: "a proven way ended in its first seconds again",
                                        diagnosis: diagnosis)
+                    try? await Task.sleep(for: .seconds(LaunchRepair.endStands))
                     return
                 case .way(let other, _):
                     // On to the way that answers what the game said, or simply the next.
