@@ -91,6 +91,11 @@ private enum VDFToken {
 private struct VDFParser {
     private let s: [Unicode.Scalar]
     private var i = 0
+    /// How many objects the one being read lies in. Steam's files go a dozen deep at most (localconfig.vdf);
+    /// each level is a call of its own here, and a file of nothing but braces – a manifest on a drive someone
+    /// else prepared – would run the stack out and end Nightforge at every start with that drive plugged in.
+    private var depth = 0
+    static let deepest = 64
 
     init(_ scalars: [Unicode.Scalar]) { s = scalars }
 
@@ -109,7 +114,11 @@ private struct VDFParser {
                 case .str(let value):
                     nodes.append(VDFNode(key: key, value: .string(value)))
                 case .open:
-                    guard let nested = parseNodes() else { return nil }
+                    guard depth < Self.deepest else { return nil }
+                    depth += 1
+                    let nested = parseNodes()
+                    depth -= 1
+                    guard let nested else { return nil }
                     nodes.append(VDFNode(key: key, value: .object(nested)))
                 case .close:
                     return nil
@@ -134,7 +143,11 @@ private struct VDFParser {
                 case .str(let value):
                     dict[key.lowercased()] = .string(value)
                 case .open:
-                    guard let nested = parseObjectBody() else { return nil }
+                    guard depth < Self.deepest else { return nil }
+                    depth += 1
+                    let nested = parseObjectBody()
+                    depth -= 1
+                    guard let nested else { return nil }
                     dict[key.lowercased()] = nested
                 case .close:
                     return .object(dict)
