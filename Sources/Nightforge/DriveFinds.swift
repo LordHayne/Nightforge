@@ -54,8 +54,10 @@ struct DriveContents: Equatable {
     /// The games a Steam library folder holds, by its manifests.
     static func steamGames(in library: URL) -> [SteamGame] {
         let steamapps = library.appendingPathComponent("steamapps", isDirectory: true)
-        let files = (try? FileManager.default.contentsOfDirectory(at: steamapps, includingPropertiesForKeys: nil)) ?? []
-        return files.filter { $0.lastPathComponent.hasPrefix("appmanifest_") && $0.pathExtension == "acf" }.compactMap { file in
+        let files = (try? FileManager.default.contentsOfDirectory(at: steamapps, includingPropertiesForKeys: LibraryScanner.listFileKeys)) ?? []
+        return files.filter {
+            $0.lastPathComponent.hasPrefix("appmanifest_") && $0.pathExtension == "acf" && LibraryScanner.isListFile($0)
+        }.compactMap { file in
             guard let state = VDF.parse(contentsOf: file)?["appstate"], let appID = state["appid"]?.string.flatMap({ Int($0) }),
                   let installDir = state["installdir"]?.string, !installDir.isEmpty, LibraryScanner.staysInLibrary(installDir)
             else { return nil }
@@ -76,7 +78,7 @@ struct DriveContents: Equatable {
             let entries = (try? fm.contentsOfDirectory(atPath: folder.path)) ?? []
             guard entries.contains(where: { !$0.hasPrefix(".") && !ownFiles.contains($0) }) else { return nil }
             let notes = (try? fm.contentsOfDirectory(at: folder.appendingPathComponent(".egstore"), includingPropertiesForKeys: nil)) ?? []
-            let names = notes.filter { $0.pathExtension == "mancpn" }.compactMap { note -> String? in
+            let names = notes.filter { $0.pathExtension == "mancpn" && LibraryScanner.isListFile($0) }.compactMap { note -> String? in
                 guard let data = try? Data(contentsOf: note), let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
                 else { return nil }
                 return (object["AppName"] as? String).flatMap { GameID.isPlain($0) ? $0 : nil }
@@ -96,7 +98,7 @@ struct DriveContents: Equatable {
             for (place, mac) in [(folder, false), (resources, true)] {
                 let files = (try? fm.contentsOfDirectory(at: place, includingPropertiesForKeys: nil)) ?? []
                 for file in files.sorted(by: { $0.lastPathComponent < $1.lastPathComponent })
-                where file.lastPathComponent.hasPrefix("goggame-") && file.pathExtension == "info" {
+                where file.lastPathComponent.hasPrefix("goggame-") && file.pathExtension == "info" && LibraryScanner.isListFile(file) {
                     guard let data = try? Data(contentsOf: file), let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                           let id = text(object["gameId"]), GOGRelease.isProductID(id),
                           file.lastPathComponent == "goggame-\(id).info"

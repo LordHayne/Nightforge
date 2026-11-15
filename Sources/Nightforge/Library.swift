@@ -507,8 +507,21 @@ enum LibraryScanner {
     // MARK: - Manifests
 
     private static func manifests(in steamapps: URL) -> [URL] {
-        let files = (try? FileManager.default.contentsOfDirectory(at: steamapps, includingPropertiesForKeys: nil)) ?? []
-        return files.filter { $0.lastPathComponent.hasPrefix("appmanifest_") && $0.pathExtension == "acf" }
+        let files = (try? FileManager.default.contentsOfDirectory(at: steamapps, includingPropertiesForKeys: listFileKeys)) ?? []
+        return files.filter { $0.lastPathComponent.hasPrefix("appmanifest_") && $0.pathExtension == "acf" && isListFile($0) }
+    }
+
+    /// The most a store's own small file in a library has: Steam's manifests, GOG's info files and an Epic
+    /// launcher's notes come to a few KB.
+    static let listFileLimit = 1 << 20
+    static let listFileKeys: [URLResourceKey] = [.isRegularFileKey, .fileSizeKey]
+
+    /// Whether `file` is such a file as it lies there: a file of its own – not a link, which leads wherever its
+    /// writer liked, nor a pipe or a device, which are read without end – and no larger than `limit`. Read whole
+    /// into memory otherwise, at every look at a drive and every scan (a library on a drive someone else prepared).
+    static func isListFile(_ file: URL, limit: Int = listFileLimit) -> Bool {
+        guard let values = try? file.resourceValues(forKeys: Set(listFileKeys)) else { return false }
+        return values.isRegularFile == true && (values.fileSize ?? 0) <= limit
     }
 
     /// Whether a manifest's "installdir" names a folder in steamapps/common: one name, not a path. A library on

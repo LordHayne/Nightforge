@@ -141,6 +141,35 @@ struct DriveFindsTest {
         check(scanned.allSatisfy { $0.installDir.standardizedFileURL.path.hasPrefix(macRoot.standardizedFileURL.path + "/") },
               "and every game's folder lies in its library")
 
+        // Only a store's own small files are read: no link (it leads wherever its writer liked), no pipe (read
+        // without end), nothing of megabytes (read whole into memory at every look).
+        let elsewhere = root.appendingPathComponent("elsewhere", isDirectory: true)
+        write(manifest(21, "Linked", dir: "Linked"), elsewhere.appendingPathComponent("manifest.acf"))
+        write(gogInfo("1888888888", name: "Linked"), elsewhere.appendingPathComponent("game.info"))
+        write(#"{ "AppName": "Linked" }"#, elsewhere.appendingPathComponent("note.mancpn"))
+        try? fm.createSymbolicLink(at: oddSteam.appendingPathComponent("appmanifest_21.acf"), withDestinationURL: elsewhere.appendingPathComponent("manifest.acf"))
+        mkfifo(oddSteam.appendingPathComponent("appmanifest_22.acf").path, 0o644)
+        write(manifest(23, "Huge", dir: "Huge") + String(repeating: "\n// padding", count: 120_000), oddSteam.appendingPathComponent("appmanifest_23.acf"))
+        check(LibraryScanner.isListFile(oddSteam.appendingPathComponent("appmanifest_550.acf")), "a manifest as Steam writes it is read")
+        check(!LibraryScanner.isListFile(oddSteam.appendingPathComponent("appmanifest_21.acf")), "a link isn't")
+        check(!LibraryScanner.isListFile(oddSteam.appendingPathComponent("appmanifest_22.acf")), "nor a pipe")
+        check(!LibraryScanner.isListFile(oddSteam.appendingPathComponent("appmanifest_23.acf")), "nor a file of more than a megabyte")
+        check(!LibraryScanner.isListFile(oddSteam.appendingPathComponent("appmanifest_99.acf")), "nor one that isn't there")
+        let oddGOG = DriveLibrary.gog(on: odd), oddEpic = DriveLibrary.epic(on: odd)
+        write("x", oddGOG.appendingPathComponent("Linked/game.exe"))
+        try? fm.createSymbolicLink(at: oddGOG.appendingPathComponent("Linked/goggame-1888888888.info"), withDestinationURL: elsewhere.appendingPathComponent("game.info"))
+        write("x", oddEpic.appendingPathComponent("Linked/game.exe"))
+        write("x", oddEpic.appendingPathComponent("Linked/.egstore/keep"))
+        try? fm.createSymbolicLink(at: oddEpic.appendingPathComponent("Linked/.egstore/1.mancpn"), withDestinationURL: elsewhere.appendingPathComponent("note.mancpn"))
+        let oddContents = DriveContents.read(drive: odd)
+        check(oddContents.windowsSteam.map(\.appID) == [550], "the drive's games are those in files of its own: \(oddContents.windowsSteam.map(\.name))")
+        check(oddContents.gog.isEmpty, "a GOG info file that is a link names no game: \(oddContents.gog.map(\.title))")
+        check(oddContents.epic.map(\.name) == ["Linked"] && oddContents.epic.first?.appNames == [], "nor does an Epic note that is one: \(oddContents.epic)")
+        // The scan of a Steam's own libraries reads the same way.
+        try? fm.createSymbolicLink(at: macRoot.appendingPathComponent("steamapps/appmanifest_21.acf"), withDestinationURL: elsewhere.appendingPathComponent("manifest.acf"))
+        mkfifo(macRoot.appendingPathComponent("steamapps/appmanifest_22.acf").path, 0o644)
+        check(LibraryScanner.scanMac(root: macRoot).map(\.appID) == [892970], "the scan reads no link and no pipe either")
+
         // A fresh Nightforge: no Steam set up, no store connected – everything waits, nothing is taken.
         let fresh = DriveFinds.look(drive: drive, contents: contents, known: KnownInstalls())
         check(fresh.isEmpty && fresh.count == 0, "nothing is taken over before its store is there")
