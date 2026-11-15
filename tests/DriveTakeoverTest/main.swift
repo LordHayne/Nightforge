@@ -46,6 +46,7 @@ struct DriveTakeoverTest {
         let drive = root.appendingPathComponent("Volumes/Games", isDirectory: true)
 
         checkRules()
+        checkTexts()
         checkSteam(root, drive)
         await checkGOG(drive)
         await checkEpic(drive)
@@ -87,6 +88,42 @@ struct DriveTakeoverTest {
               + "1 folder(s) are no GOG game of this account", "the log says what waits and for what: \(DriveTakeover.summary(waiting))")
         // A test's home never looks at a real drive: only at a disk image built for it.
         check(!DriveTakeover.drives(testHome: true).contains { !ExternalDrive.isDiskImage($0.url) }, "in a test's home only disk images count as drives")
+    }
+
+    // MARK: - What the player reads (the user's pick 15.11.: A, one line)
+
+    static func checkTexts() {
+        defer { UserDefaults.standard.removeObject(forKey: AppLanguage.storageKey) }
+        UserDefaults.standard.set("english", forKey: AppLanguage.storageKey)
+        typealias Taken = DriveTakeover.TakenGame
+        let many = (0..<14).map { Taken(name: "Game \($0)", provider: .steam, platform: .windows) }
+        check(DriveTakeoverText.note(many, drive: "Games") == "14 games on “Games” are back", "the note: how many, and on which drive")
+        check(DriveTakeoverText.note([Taken(name: "Mafia II", provider: .gog, platform: .windows)], drive: "Games") == "Mafia II on “Games” is back",
+              "one game: its name")
+
+        func waiting(_ provider: Provider, _ platform: Platform, _ reason: DriveFinds.Wait, _ count: Int) -> [DriveFinds.Waiting] {
+            (1...count).map { DriveFinds.Waiting(provider: provider, platform: platform, name: "\(provider.rawValue) \($0)", reason: reason) }
+        }
+        let all = waiting(.steam, .windows, .steamNotSetUp, 8) + waiting(.steam, .mac, .steamNotSetUp, 5) + waiting(.gog, .windows, .notOwned, 2)
+            + waiting(.epic, .windows, .notConnected, 9) + waiting(.gog, .mac, .notConnected, 1) + waiting(.epic, .windows, .notOwned, 3)
+        let lines = DriveTakeoverText.lines(all, drive: "Games", path: "/Volumes/Games")
+        check(lines.map(\.need) == [.signIn(.epic), .signIn(.gog), .macSteam],
+              "a line only where the player can act – a sign-in, Steam for Mac – never for Windows Steam (the first start) or a folder of another account: \(lines.map(\.need))")
+        check(lines.map(\.text) == ["9 Epic games on “Games” are waiting for sign-in", "One GOG game on “Games” is waiting for sign-in",
+                                    "5 Mac games on “Games” are waiting for Steam for Mac"], "one line each: \(lines.map(\.text))")
+        check(lines.map(\.button) == ["Sign In", "Sign In", "Set Up"], "each with its button")
+        check(lines.map(\.count) == [9, 1, 5] && lines.last?.firstName == "steam 1", "how many, and the first game for the setup to name")
+        check(Set(lines.map(\.id)).count == 3 && lines.allSatisfy { $0.drivePath == "/Volumes/Games" }, "told apart, by drive")
+        check(DriveTakeoverText.lines(waiting(.steam, .windows, .steamNotSetUp, 3), drive: "Games", path: "/Volumes/Games").isEmpty,
+              "Steam's Windows games alone: nothing to show, the first start sets Steam up")
+
+        UserDefaults.standard.set("german", forKey: AppLanguage.storageKey)
+        check(DriveTakeoverText.note(many, drive: "Games") == "14 Spiele auf „Games“ sind wieder da", "German: the note")
+        check(DriveTakeoverText.lines(all, drive: "Games", path: "/Volumes/Games").map(\.text)
+              == ["9 Epic-Spiele auf „Games“ warten auf die Anmeldung", "Ein GOG-Spiel auf „Games“ wartet auf die Anmeldung",
+                  "5 Mac-Spiele auf „Games“ warten auf Steam für Mac"], "German: the lines")
+        check(DriveTakeoverText.lines(all, drive: "Games", path: "/Volumes/Games").map(\.button) == ["Anmelden", "Anmelden", "Einrichten"],
+              "German: the buttons")
     }
 
     // MARK: - Steam

@@ -313,9 +313,9 @@ und überholt (kennt Schritt E, den Vorhang nach der Regel und das Laufwerk nich
 `docs/AUDIT-0.3.3.md` ist vom 8.11. (`365f393`), vor Start-Rezept, Laufwerk und Vorhang.
 
 **1. Noch zu bauen (klein):**
-- [ ] Laufwerk: Board https://claude.ai/artifact/TyJ67wguhLXYyxdNBtNccJ, **der Nutzer wählte A („A, eine Zeile“, 15.11.)**:
-  ein Hinweis je Laufwerk, dazu die Zeile mit Knopf für Läden, die auf Anmeldung oder Steam für Mac warten. Bau bei der
-  Laufwerk-Session.
+- [x] Laufwerk: Board https://claude.ai/artifact/TyJ67wguhLXYyxdNBtNccJ, **der Nutzer wählte A („A, eine Zeile“, 15.11.)**:
+  ein Hinweis je Laufwerk, dazu die Zeile mit Knopf für Läden, die auf Anmeldung oder Steam für Mac warten. Gebaut auf
+  `claude/sad-nightingale-196da3`, Tests grün, nicht live gesehen (Live-Anleitung Teil B, B9–B11).
 - [x] Shader-Hinweis nur beim ersten Mal: Kette auf `bb80f7f` grün (121 Reihen, 281 pytest), noch nicht eingespielt.
 - [ ] Erlebnis-Audit E9, E10 (Board), E11: Entscheidungen des Nutzers.
 - [ ] Ehrliche Zeile für D3DMetal („none possible on D3DMetal“) in `LibraryModel.swift`/`GameLog`/Kommentar `Engine.swift`.
@@ -455,7 +455,8 @@ probiert):** Nightforge übernimmt die Spiele auf dem Laufwerk nicht von selbst.
   wiedererkennen und übernehmen, je Laden, ohne neu zu laden; Hinweis an den Spieler erst als Board.
 **Neuinstallation und ein Laufwerk mit Spielen (Frage des Nutzers, 15.11.):** gebaut auf
 `claude/sad-nightingale-196da3` (Commits ab `ff7c884`), mit Tests, **nicht live gelaufen und nicht eingespielt**.
-Anleitung für die Live-Prüfung: `docs/LIVETEST-LAUFWERK.md`. Board: `docs/entwuerfe/LaufwerkUebernahme.dc.html`.
+Anleitung für die Live-Prüfung: `docs/LIVETEST-LAUFWERK.md`. Board: https://claude.ai/artifact/TyJ67wguhLXYyxdNBtNccJ
+(Quelle `docs/entwuerfe/LaufwerkUebernahme.dc.html`).
 
 - [x] **Befund nachgelesen, zwei Korrekturen.** Steam und GOG wie notiert. Epic: legendary legt im Spielordner nichts
   Eigenes ab – ein `.egstore` gibt es nur, wo die Spieldateien eines mitbringen (auf „Games“ bei einem von neun) –,
@@ -476,9 +477,12 @@ Anleitung für die Live-Prüfung: `docs/LIVETEST-LAUFWERK.md`. Board: `docs/entw
 - **Was der Testbau auf „Games“ fände (15.11., nur gelesen):** 8 Steam-Spiele (eines halb geladen), 5 für Steam für
   Mac, 9 Epic-Ordner, 1 GOG-Spiel – alle bekannt, also nichts zu tun und nichts wartend. Derselbe Stand ohne Nightforges
   Listen, alle Läden angemeldet: alle 23 werden erkannt, kein Ordner bleibt übrig.
-- [ ] **Der Nutzer wählt am Board, was der Spieler sieht** (A still mit ruhigem Hinweis, B Hinweis mit „Ansehen“,
-  C einmal fragen; Empfehlung A). Bis dahin stehen die Spiele einfach als installiert da; der Hinweis hängt an
-  `DriveTakeover.onTaken`, die Zeile für Wartendes an `DriveFinds.waiting`. Texte deutsch und englisch am Board.
+- [x] **Der Nutzer wählte A („A, eine Zeile“, 15.11.), gebaut:** nach einer Übernahme einmal je Laufwerk die Zeile
+  „14 Spiele auf „Games“ sind wieder da“ (Toast, nicht über dem ersten Start); in Einstellungen › Speicher beim
+  Laufwerk und unter Läden je Laden eine Zeile mit „Anmelden“ (Epic, GOG) oder „Einrichten“ (Steam für Mac, ohne
+  Spiel: der Dialog nennt das erste Mac-Spiel des Laufwerks), mit Pad-Fokus. Der Dialog „Laufwerk vergessen“ sagt nicht
+  mehr „gilt als neues Laufwerk“, sondern dass die Spiele ohne Download wiederkommen. Nicht live: ob das Blatt von
+  Steam für Mac nach dem Schließen der Einstellungen (400 ms) sicher erscheint.
 - [ ] **Live prüfen** nach `docs/LIVETEST-LAUFWERK.md`: Teil A im leeren HOME mit einem Disk-Image (dort sieht die
   Übernahme nur Disk-Images an, nie ein echtes Laufwerk); Teil B der echte Fall über „Laufwerk vergessen“ – ändert
   Nightforges echte Listen, also die Entscheidung des Nutzers.

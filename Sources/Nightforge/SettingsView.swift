@@ -86,6 +86,7 @@ struct SettingsView: View {
 
 private struct StoresSettings: View {
     @EnvironmentObject private var model: LibraryModel
+    @ObservedObject private var takeover = DriveTakeover.shared
     @AppStorage(Prefs.Keys.bottlesRoot) private var bottlesRoot = ""
     @AppStorage(Prefs.Keys.runnerPath) private var runnerPath = ""
     /// Folded away unless something is filled in: most players never need it.
@@ -105,6 +106,10 @@ private struct StoresSettings: View {
                             .font(size: 10)
                             .foregroundStyle(.secondary)
                     }
+                }
+                // Games on a drive that wait for this store's sign-in or for Steam for Mac.
+                ForEach(takeover.lines(onDrives: Set(ExternalDrive.connected().map(\.url.path)))) { line in
+                    DriveWaitRow(line: line, place: "stores")
                 }
             } footer: {
                 Text(L10n.t("Games from every connected store show up together. Nightforge downloads and starts Epic and GOG games itself – no Epic launcher, no GOG Galaxy. You sign in in the store's own window; Nightforge never sees your login."))
@@ -615,6 +620,7 @@ private struct ControllerSettings: View {
 
 private struct StorageSettings: View {
     @EnvironmentObject private var model: LibraryModel
+    @ObservedObject private var takeover = DriveTakeover.shared
     /// Nightforge's own folder without the games in it (engine, Windows environment, Steam, caches);
     /// nil while it's being measured.
     @State private var ownSize: Int64?
@@ -722,7 +728,9 @@ private struct StorageSettings: View {
                     if let note = drive.check.note(drive.name) {
                         Text(note).font(size: 10).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     }
-                    if games.isEmpty {
+                    // Games there that wait for a sign-in or Steam for Mac: one line each, with its button.
+                    ForEach(takeover.lines(onDrives: [drive.url.path])) { line in DriveWaitRow(line: line, place: "storage") }
+                    if games.isEmpty && takeover.lines(onDrives: [drive.url.path]).isEmpty {
                         Text(L10n.t("No games on %@ yet.", drive.name)).foregroundStyle(.secondary)
                     }
                 } header: {
@@ -830,7 +838,7 @@ private struct StorageSettings: View {
             }
         }
         .sheet(item: DialogMessage.item($forgetting)) { drive in
-            GlassQuestion(L10n.t("Forget %@?", drive.text), message: L10n.t("Its games count as not installed afterwards and can be downloaded again, onto your Mac or another drive. They stay in your store libraries, nothing is deleted on your Mac, and saves in the Windows environment stay. Plugged in again later, %@ counts as a new drive.", drive.text), id: "forgetDrive") {
+            GlassQuestion(L10n.t("Forget %@?", drive.text), message: L10n.t("Its games count as not installed afterwards and can be downloaded again, onto your Mac or another drive. They stay in your store libraries, nothing is deleted on your Mac, and saves in the Windows environment stay. Plugged in again later, %@ brings its games back without a download.", drive.text), id: "forgetDrive") {
                 // Return keeps the drive in the list; forgetting takes a deliberate click or a pad move first.
                 Button(L10n.t("Cancel")) { forgetting = nil }
                     .buttonStyle(GlassTextButtonStyle())
