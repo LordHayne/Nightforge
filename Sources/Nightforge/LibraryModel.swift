@@ -4721,6 +4721,12 @@ final class LibraryModel: ObservableObject {
                 // Step E4: a way is proven for what it was started with (LaunchHealth.holds). Made of something
                 // else now – its profile changed, a start taught something, another engine's DLLs – it counts
                 // as not proven for this start: watched to its picture again, and confirmed anew with this recipe.
+                // A way proven before recipes were kept takes the one the start record has for it, else this one's.
+                if wayConfirmed {
+                    let key = game.gameID.key
+                    let recorded = await Engine.offMain { StartEvidence.knownProofs()[key]?.workedWith[way] }
+                    LaunchHealth.adoptRecipe(game.gameID, attempts, recorded: recorded, starting: recipe)
+                }
                 if wayConfirmed, !LaunchHealth.holds(game.gameID, attempts, for: recipe) {
                     GameLog.note("\(game.name): its way was proven with another recipe – this start is watched to its picture again")
                     LaunchHealth.unconfirm(game.gameID, attempts)

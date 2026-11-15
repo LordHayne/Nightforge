@@ -353,6 +353,20 @@ enum LaunchHealth {
         return with.startsLike(recipe)
     }
 
+    /// A confirmed way with no recipe on record takes one, so that `holds` means something from its next
+    /// start on, not only after a start that confirms it again: what the start record says it worked with
+    /// (`recorded`, StartEvidence.Proof.workedWith), else the recipe of the start about to happen
+    /// (`starting`). It Takes Two on 15.11.2026: proven before recipes were kept here, started with a profile
+    /// that changed its DLLs, and taken for proven – a start of 40 s with a picture confirms nothing on
+    /// D3DMetal, which logs no frames, so no recipe ever came. A way not confirmed, or one with a recipe
+    /// already, stays as it is.
+    static func adoptRecipe(_ game: GameID, _ attempts: [LaunchAttempt], recorded: StartRecipe?, starting: StartRecipe) {
+        var state = load(game, attempts)
+        guard state.trusted, state.recipe == nil else { return }
+        state.recipe = recorded ?? starting
+        save(game, state)
+    }
+
     /// How many starts of the confirmed way in a row ended early without a picture or an error.
     static func shortEnds(_ game: GameID, _ attempts: [LaunchAttempt]) -> Int { load(game, attempts).shortEnds ?? 0 }
 
