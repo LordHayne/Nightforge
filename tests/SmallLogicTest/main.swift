@@ -134,19 +134,19 @@ struct SmallLogicTest {
             UserDefaults.standard.set(language, forKey: AppLanguage.storageKey)
             let line = LibraryModel.curtainStatus(phase: nil, shaders: false, gameRuns: true, asks: true, errorBox: true, padAnswers: ("A", "B"))
             check(line == L10n.t("The game reports an error") && line?.isEmpty == false, "the line over an error box, in \(language): \(line ?? "nil")")
-            let withPad = LibraryModel.curtainDetail(launchHint: "hint", asks: true, errorBox: true, padOK: "A", macOSOpen: false)
-            let withoutPad = LibraryModel.curtainDetail(launchHint: "hint", asks: true, errorBox: true, padOK: nil, macOSOpen: false)
+            let withPad = LibraryModel.curtainDetail(sentence: "hint", asks: true, errorBox: true, padOK: "A")
+            let withoutPad = LibraryModel.curtainDetail(sentence: "hint", asks: true, errorBox: true, padOK: nil)
             check(withPad?.contains("A") == true && withPad?.contains("OK") == true && withoutPad?.contains("OK") == true && withPad != withoutPad,
                   "under it what to press, with the pad's button where it answers, in \(language): \(withPad ?? "nil") / \(withoutPad ?? "nil")")
         }
         UserDefaults.standard.set("german", forKey: AppLanguage.storageKey)
         check(LibraryModel.curtainStatus(phase: nil, shaders: false, gameRuns: true, asks: true, errorBox: true) == "Das Spiel meldet einen Fehler"
-              && LibraryModel.curtainDetail(launchHint: nil, asks: true, errorBox: true, macOSOpen: false) == "Drück OK – Nightforge kümmert sich um den Rest.",
+              && LibraryModel.curtainDetail(sentence: nil, asks: true, errorBox: true) == "Drück OK – Nightforge kümmert sich um den Rest.",
               "the board's words")
         UserDefaults.standard.set("english", forKey: AppLanguage.storageKey)
         // A question, macOS's question, or no box read: as before.
         check(LibraryModel.curtainStatus(phase: nil, shaders: false, gameRuns: true, asks: true, padAnswers: ("A", "B"))?.contains("asking") == true
-              && LibraryModel.curtainDetail(launchHint: "hint", asks: true, macOSOpen: false) == nil, "the game's question: as before, no second line")
+              && LibraryModel.curtainDetail(sentence: "hint", asks: true) == nil, "the game's question: as before, no second line")
         check(LibraryModel.curtainStatus(phase: nil, shaders: false, gameRuns: true, asks: true, errorBox: true, macOSAsks: true)?.contains("macOS") == true,
               "macOS's question comes first")
         check(LibraryModel.curtainStatus(phase: nil, shaders: false, gameRuns: true, asks: false, errorBox: true) == nil,

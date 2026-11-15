@@ -955,22 +955,36 @@ struct GameOverlayTest {
         check(line("Starting Steam …") == "Starting Steam …", "the start's own step, from the first look on")
         check(line("Starting again with WineD3D …", runs: true) == "Starting again with WineD3D …", "a step wins over the game's")
         check(line(runs: true) == nil, "the game runs, no window yet: still \"Starting …\", one line for the start")
-        check(line(shaders: true, runs: true) == L10n.t("Preparing shaders for the first start …"), "its first start with these graphics")
+        check(line(shaders: true, runs: true) == L10n.t("Preparing shaders …"), "its first start with these graphics")
         check(LibraryModel.curtainStatus(phase: "Starting Steam …", shaders: false, gameRuns: true, asks: true)
               == L10n.t("The game is asking something – answer it with the mouse or trackpad."), "a question on it: said, before any step")
         check(LibraryModel.curtainStatus(phase: "Starting Steam …", shaders: true, gameRuns: true, asks: true, padAnswers: ("✕", "○"))?.hasSuffix(L10n.t("The game is asking something – %@ confirms, %@ cancels, or use the mouse.", "✕", "○")) == true,
               "with a pad and the helper, the curtain says A and B answer")
         check(LibraryModel.curtainStatus(phase: "Starting Steam …", shaders: false, gameRuns: true, asks: true,
                                          macOSAsks: true)
-              == L10n.t("macOS is asking for permission – answer it with the mouse or trackpad."),
+              == L10n.t("macOS is asking for permission"),
               "macOS asks: said, before the game's question and any step")
-        func detail(_ hint: String? = nil, asks: Bool = false, macOSOpen: Bool = false) -> String? {
-            LibraryModel.curtainDetail(launchHint: hint, asks: asks, macOSOpen: macOSOpen)
+        func detail(_ sentence: String? = nil, asks: Bool = false, macOSAsks: Bool = false, shaders: Bool = false) -> String? {
+            LibraryModel.curtainDetail(sentence: sentence, asks: asks, macOSAsks: macOSAsks, shaders: shaders)
         }
         check(detail() == nil, "nothing to add")
-        check(detail(macOSOpen: true) == L10n.t("macOS still has a question open."), "a question from before the start: a word on it")
-        check(detail("Steam updates the game first", macOSOpen: true) == "Steam updates the game first", "the start's hint goes first")
-        check(detail("Steam updates the game first", asks: true, macOSOpen: true) == nil, "under a question it waits for: none")
+        check(detail(macOSAsks: true) == L10n.t("Answer with the mouse or trackpad."), "macOS asks: how to answer")
+        check(detail("Its window is open.") == "Its window is open.", "the start's sentence")
+        check(detail("Its window is open.", asks: true) == nil, "under a question it waits for: none")
+        check(detail(shaders: true) == L10n.t("Only the first time.") && detail("x", shaders: true) == "x", "shaders: only once, after the start's own")
+        // The rule of 15.11.2026: a sentence only where it's true once or the player has a window to answer in.
+        check(LibraryModel.curtainSentence(phase: .startingSteam, repair: nil, confirming: false) == nil
+              && LibraryModel.curtainSentence(phase: .signingIn, repair: nil, confirming: false) == nil
+              && LibraryModel.curtainSentence(phase: .updating(0.4), repair: nil, confirming: false) == nil, "no why on the curtain")
+        check(LibraryModel.curtainSentence(phase: .settingUpWindowsParts("vcredist"), repair: nil, confirming: false) == L10n.t("Only the first time.")
+              && LibraryModel.curtainSentence(phase: .signInInSteamWindow, repair: nil, confirming: false) == L10n.t("Its window is open."),
+              "once, or a window to answer in")
+        check(LibraryModel.curtainSentence(phase: nil, repair: .gaveUp, confirming: false) == LaunchRepair.gaveUp.detail
+              && LibraryModel.curtainSentence(phase: .startingSteam, repair: nil, confirming: true) == LaunchPhase.confirmHint,
+              "the honest end; Steam's question before the start")
+        check(LibraryModel.curtainHint(progress: 0.4, speed: "18 MB/s", launchHint: LaunchPhase.updating(0.4).curtainSentence) == "18 MB/s"
+              && LibraryModel.curtainHint(progress: 0.4, speed: nil, launchHint: LaunchPhase.updating(0.4).curtainSentence) == nil,
+              "an update: its bar and its speed, no sentence")
     }
 
     /// The loading screen's N: drawn at the screen's scale, its seam left out for the layer on top.

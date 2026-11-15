@@ -1305,12 +1305,11 @@ final class LibraryModel: ObservableObject {
         if updateSpeed != speed { updateSpeed = speed }
     }
 
-    /// What used to be only a toast, which would go by unseen under the curtain: on its second line too.
-    private var curtainNote: String?
-
+    /// A word on a start that goes on anyway (no update this time): a toast in Nightforge and the log, not the
+    /// curtain – the player has nothing to do (the rule of 15.11.2026).
     private func noteDuringStart(_ text: String) {
         Toasts.shared.show(text)
-        if GameBackdrop.isRaised { curtainNote = text }
+        GameLog.note("During the start: \(text)")
     }
 
     /// A word to the player in a start that goes on ("It starts anyway"): it waits on Nightforge's page,
@@ -1361,8 +1360,8 @@ final class LibraryModel: ObservableObject {
                 SteamLicenceFiles.stillOpen(entries: SteamCatalog.licences(appID: appID, steamRoot: root), steamRoot: root)
             }.value
             guard open else { return }
-            GameLog.note("Steam's licence for \(game.name) is still open: said on the curtain")
-            GameBackdrop.announceLicence(for: game.name)
+            // In the log only: the curtain says what happens, and the licence's frame says it when it comes (the rule of 15.11.2026).
+            GameLog.note("Steam's licence for \(game.name) is still open: Steam shows it at this start")
         }
     }
 
@@ -1614,7 +1613,6 @@ final class LibraryModel: ObservableObject {
             // Under all of them, the backmost lowest; again at each look: nothing gets between.
             if loweredAt == nil, let lowest = macOSQuestions.last { GameBackdrop.makeWay(under: lowest) }
             let macOSAsks = turn == .makeWay
-            let macOSOpen = !macOSQuestions.isEmpty && !macOSAsks
             noProcessSince = pids.isEmpty && loweredAt == nil ? (noProcessSince ?? Date()) : nil
             if case .updating(let fraction)? = launchPhase {
                 if updateProgress == nil || updateProgress?.fraction != fraction { updateProgress = (fraction, Date()) }
@@ -1633,7 +1631,7 @@ final class LibraryModel: ObservableObject {
             if stuckReason == nil, GameOverlay.asksWayOut { GameOverlay.close() }
             if CurtainEscape.asks(stuck), !GameOverlay.isOpen { askAboutStuckStart() }
             if pids.isEmpty {
-                sayOnCurtain(gameRuns: false, shaders: buildsShaders, macOSAsks: macOSAsks, macOSOpen: macOSOpen)
+                sayOnCurtain(gameRuns: false, shaders: buildsShaders, macOSAsks: macOSAsks)
             }
             // Started and gone again, nothing starting any more: the start flow says what happened.
             if pids.isEmpty, seenOnce || launchingID == nil, !playing.contains(game.id) {
@@ -1751,7 +1749,7 @@ final class LibraryModel: ObservableObject {
                 curtainUp()
             }
             sayOnCurtain(gameRuns: !pids.isEmpty, shaders: buildsShaders, asks: asks, errorBox: reportsError,
-                         macOSAsks: macOSAsks, macOSOpen: macOSOpen)
+                         macOSAsks: macOSAsks)
             pictureSince = here ? (pictureSince ?? Date()) : nil
             switch Self.curtainStep(lowered: loweredAt != nil, gameFront: gameFront, nightforgeFront: front == getpid(),
                                     macOSAsks: macOSAsks || front.map(askers.contains) ?? false,
@@ -2018,18 +2016,28 @@ final class LibraryModel: ObservableObject {
     nonisolated static func hidesBattleNetWindow(messageUp: Bool) -> Bool { !messageUp }
 
     /// The curtain's lines at a look (`curtainStatus`, `curtainDetail`); once it's down they wait for the next start.
-    private func sayOnCurtain(gameRuns: Bool, shaders: Bool, asks: Bool = false, errorBox: Bool = false, macOSAsks: Bool = false,
-                              macOSOpen: Bool = false) {
+    private func sayOnCurtain(gameRuns: Bool, shaders: Bool, asks: Bool = false, errorBox: Bool = false, macOSAsks: Bool = false) {
         let phase = launchingID == nil ? nil : launchPhase?.curtainTitle ?? launchRepair?.title
         let progress = launchingID == nil ? nil : Self.curtainProgress(phase: launchPhase)
         let padAnswers = controllerConnected && PadAnswerRun.available
             ? (PadPart.a.name(padSymbols.layout), PadPart.b.name(padSymbols.layout)) : nil
+        let sentence = launchingID == nil ? nil
+            : Self.curtainSentence(phase: launchPhase, repair: launchRepair, confirming: launchNeedsConfirmation)
         GameBackdrop.setStatus(Self.curtainStatus(phase: phase, shaders: shaders, gameRuns: gameRuns,
                                                   asks: asks, errorBox: errorBox, macOSAsks: macOSAsks, padAnswers: padAnswers),
-                               detail: Self.curtainDetail(launchHint: Self.curtainHint(progress: progress, speed: updateSpeed, launchHint: launchHint ?? curtainNote),
-                                                  asks: asks || macOSAsks, errorBox: errorBox && !macOSAsks, padOK: padAnswers?.0,
-                                                  macOSOpen: macOSOpen),
+                               detail: Self.curtainDetail(sentence: Self.curtainHint(progress: progress, speed: updateSpeed, launchHint: sentence),
+                                                  asks: asks, errorBox: errorBox && !macOSAsks, padOK: padAnswers?.0,
+                                                  macOSAsks: macOSAsks, shaders: shaders && gameRuns && phase == nil),
                                progress: progress)
+    }
+
+    /// The short sentence under the curtain's line: the step's own where it's true once or the player has a window
+    /// to answer in, Steam's question before the start, the end of a start Nightforge mends. The rule of 15.11.2026:
+    /// everything else the Play button's line says goes to the log as the phase begins.
+    nonisolated static func curtainSentence(phase: LaunchPhase?, repair: LaunchRepair?, confirming: Bool) -> String? {
+        if confirming { return LaunchPhase.confirmHint }
+        if let phase { return phase.curtainSentence }
+        return repair?.detail
     }
 
     /// Asks the player whether the root `root` goes into the prefix (GameOverlay.askRoot), and waits for the
@@ -2053,18 +2061,19 @@ final class LibraryModel: ObservableObject {
         GameBackdrop.setStatus(repair.title, detail: repair.detail)
     }
 
-    /// The curtain's second line: none under a question it waits for (`asks`) – under the game's error box
-    /// (`errorBox`) what to press and that Nightforge goes on from there, with the pad's button (`padOK`) where
-    /// one answers it –, else the start's hint, else a word on a question of macOS's the start doesn't wait for
-    /// (`macOSOpen`).
-    nonisolated static func curtainDetail(launchHint: String?, asks: Bool, errorBox: Bool = false, padOK: String? = nil,
-                                          macOSOpen: Bool) -> String? {
+    /// The curtain's second line: how to answer macOS (`macOSAsks`); none under a question of the game's it waits
+    /// for (`asks`) – under its error box (`errorBox`) what to press and that Nightforge goes on from there, with the
+    /// pad's button (`padOK`) where one answers it –; else the start's sentence (`curtainSentence`), else that shaders
+    /// are built only once (`shaders`). A question of macOS's the start doesn't wait for is in the look's line only.
+    nonisolated static func curtainDetail(sentence: String?, asks: Bool, errorBox: Bool = false, padOK: String? = nil,
+                                          macOSAsks: Bool = false, shaders: Bool = false) -> String? {
+        if macOSAsks { return L10n.t("Answer with the mouse or trackpad.") }
         if asks, errorBox {
             return padOK.map { L10n.t("%@ presses OK – Nightforge takes care of the rest.", $0) }
                 ?? L10n.t("Press OK – Nightforge takes care of the rest.")
         }
         if asks { return nil }
-        return launchHint ?? (macOSOpen ? L10n.t("macOS still has a question open.") : nil)
+        return sentence ?? (shaders ? L10n.t("Only the first time.") : nil)
     }
 
     /// The step the curtain names: a question on it – macOS's (`macOSAsks`) or the game's (`asks`) –
@@ -2075,14 +2084,14 @@ final class LibraryModel: ObservableObject {
     nonisolated static func curtainStatus(phase: String?, shaders: Bool, gameRuns: Bool,
                                           asks: Bool = false, errorBox: Bool = false, macOSAsks: Bool = false,
                                           padAnswers: (ok: String, cancel: String)? = nil) -> String? {
-        if macOSAsks { return L10n.t("macOS is asking for permission – answer it with the mouse or trackpad.") }
+        if macOSAsks { return L10n.t("macOS is asking for permission") }
         if asks, errorBox { return L10n.t("The game reports an error") }
         if asks, let padAnswers { return L10n.t("The game is asking something – %@ confirms, %@ cancels, or use the mouse.", padAnswers.ok, padAnswers.cancel) }
         if asks { return L10n.t("The game is asking something – answer it with the mouse or trackpad.") }
         if let phase { return phase }
         // Its process running is no new line: "Starting …" until the picture (the rule of 15.11.2026; the look's
         // line in the log says it runs). Its first start with new graphics takes long, and says why.
-        return gameRuns && shaders ? L10n.t("Preparing shaders for the first start …") : nil
+        return gameRuns && shaders ? L10n.t("Preparing shaders …") : nil
     }
 
     /// How long after the game's own question went, answered by the player, its end with no picture
@@ -4503,7 +4512,6 @@ final class LibraryModel: ObservableObject {
         launchingID = game.id
         lookNow()
         callOffWakeUpdate()
-        curtainNote = nil
         startsAgain = false
         GameDisplay.enterGame()
         launchNeedsConfirmation = false

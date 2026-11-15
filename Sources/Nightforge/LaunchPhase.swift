@@ -107,7 +107,20 @@ enum LaunchPhase: Equatable {
         case .retrying, .rollingBack: return L10n.t("One more try …")
         // The engine before, at a start of its own: no try of Nightforge's to tell of.
         case .heldEngine: return L10n.t("Starting …")
+        case .savingToCloud: return L10n.t("Saving your game …")
+        case .licenceAnswered: return L10n.t("The game is starting …")
         default: return title
+        }
+    }
+
+    /// The short sentence under the curtain's line: only where it's true once, or where the player has a window to
+    /// answer in (the rule of 15.11.2026). What else `hint` says is in the log as the phase begins.
+    var curtainSentence: String? {
+        switch self {
+        case .settingUp, .settingUpDotNet, .settingUpWindowsParts: return L10n.t("Only the first time.")
+        case .signInInSteamWindow, .signInAgain, .signInInBattleNetWindow: return L10n.t("Its window is open.")
+        case .battleNetAsks: return hint
+        default: return nil
         }
     }
 

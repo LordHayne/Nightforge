@@ -39,8 +39,6 @@ enum GameBackdrop {
         @Published var licence: LicenceLook?
         /// Steam's window on the curtain, in the curtain's coordinates, once it's there.
         @Published var seam: CGRect?
-        /// Steam will show the licence at this start, as far as can be told beforehand.
-        @Published var licenceAnnounced = false
     }
 
     /// What the bar under Steam's licence says.
@@ -121,7 +119,6 @@ enum GameBackdrop {
         if state.steamAsks != asks { state.steamAsks = asks }
         if state.licence != licence { state.licence = licence }
         if state.seam != nil { state.seam = nil }
-        if state.licenceAnnounced { state.licenceAnnounced = false }  // said, or answered
     }
 
     /// Steam's window under the licence's frame (screen coordinates, y down); nil while it isn't there.
@@ -136,11 +133,6 @@ enum GameBackdrop {
     static var licenceStillToSay: Bool { SteamLicence.framesLate(steamAsks: state.steamAsks, framed: state.licence != nil) }
 
     static func sayLicence(_ look: LicenceLook) { state.licence = look }
-
-    static func announceLicence(for game: String) {
-        guard isRaised, state.game == game, !state.steamAsks else { return }
-        state.licenceAnnounced = true
-    }
 
     static func setWayOut(_ tip: LaunchTip?) {
         if state.wayOut != tip { state.wayOut = tip }
@@ -365,7 +357,6 @@ enum GameBackdrop {
             state.steamAsks = false
             state.licence = nil
             state.seam = nil
-            state.licenceAnnounced = false
         }
         if stage.raised, stage != state.stage || !isRaised { upSince = Date() }
         state.stage = stage
@@ -600,13 +591,7 @@ struct BackdropView: View {
                     .frame(maxWidth: 560)
                     .opacity(state.stage == .starting && state.detail != nil ? 1 : 0)
                     .animation(.easeInOut(duration: 0.5), value: state.detail)
-                // Steam's licence, said beforehand in the place of the tip.
-                if state.stage == .starting, state.wayOut == nil, state.licenceAnnounced {
-                    Text(L10n.t("Steam will show the licence once. After that, never again."))
-                        .font(size: 15)
-                        .foregroundStyle(Color(nsColor: BrandArt.tagline).opacity(0.85))
-                        .padding(.top, 26)
-                } else if state.stage == .starting, let tip = state.wayOut ?? state.tip {
+                if state.stage == .starting, let tip = state.wayOut ?? state.tip {
                     // A tip for new players, quiet, in the banner's blue.
                     HStack(spacing: 12) {
                         HStack(spacing: 6) {
