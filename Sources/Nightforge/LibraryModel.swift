@@ -2238,7 +2238,8 @@ final class LibraryModel: ObservableObject {
                 _ = try? await NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration)
                 for _ in 0..<30 where !NSApp.isActive { try? await Task.sleep(for: .milliseconds(50)) }
                 guard NSApp.isActive else {
-                    return await hideAndShow(app)
+                    GameLog.note("Fetching the game back: Nightforge didn't get the front to hand it over")
+                    return app.isActive
                 }
             }
         }
@@ -2249,27 +2250,6 @@ final class LibraryModel: ObservableObject {
         for _ in 0..<20 where !app.isActive { try? await Task.sleep(for: .milliseconds(50)) }
         // Its coming forward brings the pointer back (Switch to Game, 1.11.), and that stays: taking
         // a game's keys to hide it costs its full screen (watchCurtain).
-        return app.isActive
-    }
-
-    /// A game whose window went while it has the screen captured, and Nightforge can't get the front to
-    /// hand it over: what the player's switch did. Overwatch, 15.11.2026: at the change to 60 Hz its window
-    /// was hidden on the Space shown and came back the moment the player switched to the game; a Windows
-    /// game's app shows its windows again when it becomes active, and Wine's own ⌘-Tab hides the app to
-    /// give the front away (`handleCommandTab`, dlls/winemac.drv/cocoa_app.m). So the game is hidden for a
-    /// moment – macOS gives the front to the app before it – and shown and made active again.
-    private func hideAndShow(_ app: NSRunningApplication) async -> Bool {
-        app.hide()
-        for _ in 0..<20 where !app.isHidden { try? await Task.sleep(for: .milliseconds(50)) }
-        let hidden = app.isHidden
-        app.unhide()
-        for _ in 0..<20 where app.isHidden { try? await Task.sleep(for: .milliseconds(50)) }
-        InputRouter.hidePointerForGame()
-        if NSApp.isActive { NSApp.yieldActivation(to: app) }
-        app.activate(from: .current, options: [.activateAllWindows])
-        for _ in 0..<20 where !app.isActive { try? await Task.sleep(for: .milliseconds(50)) }
-        GameLog.note("Fetching the game back: Nightforge didn't get the front, so the game was "
-                     + (hidden ? "hidden and shown again" : "asked to hide (it didn't)") + (app.isActive ? ", it's active" : ", not active"))
         return app.isActive
     }
 
