@@ -522,8 +522,15 @@ ihr Board, die Vorlagen dafür stehen unter der Liste.
   jede Wurzel dort braucht das OK des Nutzers. Ja gilt für alle Windows-Spiele (der Prefix ist geteilt). Ein Nein wird
   **nicht** gemerkt: Das nächste „Spielen“ fragt nach dem nächsten Fehlstart wieder, ohne genaueren Blick
   (`windowsRoots.needed.<Spiel>`). Der Knopf auf der Seite des Spiels aus dem Board ist nicht gebaut.
-- Versteckte Schalter für die Live-Prüfung, im Release-Build nicht vorhanden: `testFinding` (ein Befund zu einem echten
-  Fehlstart) und `testRootQuestion` (die Wurzeln, die heute in jedem Prefix stehen, werden erfragt).
+- Versteckte Schalter für die Live-Prüfung, im Release-Build nicht vorhanden: `gameTest.testFinding` (ein Befund zu
+  einem echten Fehlstart; bis 15.11. hieß er `testFinding`) und `testRootQuestion` (die Wurzeln, die heute in jedem
+  Prefix stehen, werden erfragt). Beide Schlüssel sind länger als 15 Byte: Kürzere legt Swift in einem optimierten Build
+  in die Befehle, dort findet `strings` sie nicht. Der Release-Ablauf bricht ab, wenn einer der drei Schlüssel
+  (`gameTest.measurePlay`, `gameTest.testFinding`, `testRootQuestion`) im Programm steht.
+  **Richtigstellung zu `d2f73e3`:** Dessen Commit-Nachricht sagt „its name isn't in that binary“. Das stimmt nur für den
+  Schlüssel und die Texte des Schalters. Die Funktionen `testFinding(defaults:)` und `testsQuestion(defaults:)` gibt es
+  auch im Release-Build (sie antworten nil und false), ihre Namen stehen dort als Symbole, wie `measuresPlay`. Der damalige
+  Beleg war ein Debug-Build; der Beleg seit 15.11. ist der Release-Build mit `strings -a`.
 
 **Das Board steht seit 15.11.2026:** https://claude.ai/artifact/DFFsf6UN2SqAEubqUCWWy3 (Design-Leinwand im
 Nightforge-Designsystem, privat; die Quellen der fünf Artboards liegen in `docs/entwuerfe/fehlstart/`). Es zeigt

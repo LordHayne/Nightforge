@@ -236,19 +236,21 @@ struct StartDiagnosis: Equatable {
     /// curtain saying so – can be seen on a real game (step E3). It Takes Two stopped crashing over PhysX's
     /// update loader by 15.11.2026, and no real start on this Mac had a dump a rule knows. For Nightforge's
     /// own tests: no entry in the interface, off unless someone sets it
-    /// (`defaults write io.github.lordhayne.nightforge testFinding -string nvidia-interface`; the other value
+    /// (`defaults write io.github.lordhayne.nightforge gameTest.testFinding -string nvidia-interface`; the other value
     /// is physx-update-loader). It never makes a start fail, never acts on a game with an anti-cheat (whose
     /// files and DLLs are left alone), and changes nothing a start had already. Read at every failed start,
-    /// so `defaults delete io.github.lordhayne.nightforge testFinding` ends it without a restart.
+    /// so `defaults delete io.github.lordhayne.nightforge gameTest.testFinding` ends it without a restart.
     ///
-    /// A build made with NIGHTFORGE_RELEASE has no such switch at all, not even its name (as GameTest.measuresPlay).
+    /// A build made with NIGHTFORGE_RELEASE has no such switch: neither its key nor its words, as with
+    /// GameTest.measuresPlay; the function stays, answering nil. The key is longer than 15 bytes, so that an
+    /// optimized build keeps it as text and the release workflow can look for it (.github/workflows/release.yml).
     #if NIGHTFORGE_RELEASE
     static func testFinding(defaults: UserDefaults = .standard) -> StartDiagnosis? { nil }
     #else
-    static let testFindingKey = "testFinding"
+    static let testFindingKey = "gameTest.testFinding"
 
     static func testFinding(defaults: UserDefaults = .standard) -> StartDiagnosis? {
-        let because = "set by the engine test's switch testFinding, not read from the game"
+        let because = "set by the engine test's switch gameTest.testFinding, not read from the game"
         switch defaults.string(forKey: testFindingKey) {
         case "nvidia-interface"?:
             return StartDiagnosis(id: "nvidia-interface", because: because, remedy: .dllsOff(["nvapi64", "nvngx"]))

@@ -95,7 +95,8 @@ enum WindowsRoots {
     /// -bool true`): the roots in every prefix are asked about instead, and while the player hasn't said yes their key
     /// is taken out of the prefix – Metal Gear Solid V then fails as on 11.11.2026, and the question can be seen. No
     /// entry in the interface; `defaults delete … testRootQuestion` and `… windowsRoots.trusted` end it. A build made
-    /// with NIGHTFORGE_RELEASE has no such switch at all (as GameTest.measuresPlay).
+    /// with NIGHTFORGE_RELEASE has no such switch (as GameTest.measuresPlay): neither its key – 16 bytes, text in an
+    /// optimized build, which the release workflow looks for – nor anything that reads it.
     #if NIGHTFORGE_RELEASE
     static func testsQuestion(defaults: UserDefaults = .standard) -> Bool { false }
     #else

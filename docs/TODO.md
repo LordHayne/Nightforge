@@ -160,9 +160,10 @@ zurückgestellt, die vier Testzeilen der Evidenz liegen im Notizordner.
 
 **Vorhang B, Fehlerfenster, Wurzel-Frage im Testzweig (15.11., Zusammenführung `5c428ac`):** Kette grün, 121
 Testreihen, 281 pytest. Nicht eingespielt, live nichts gesehen; Anleitung `closer-look/live-pruefung-schritt-e.md`.
-- [ ] Die Release-Prüfung im Release-Ablauf sucht nur `gameTest.measurePlay`. Die Schalter `testFinding` (11 Byte,
+- [x] Die Release-Prüfung im Release-Ablauf sucht nur `gameTest.measurePlay`. Die Schalter `testFinding` (11 Byte,
   steht in einem optimierten Build nicht als Text) und `testRootQuestion` gehören mit hinein; `testFinding` dafür
-  auf einen Namen über 15 Byte umstellen.
+  auf einen Namen über 15 Byte umstellen. (Erledigt 15.11. auf `claude/diagnose-start-033-92f729`: der Schalter heißt
+  `gameTest.testFinding`, der Schritt „No test switches in a release“ prüft alle drei Schlüssel.)
 
 - [ ] **Overwatch: Zurückholen durch Ausblenden live gescheitert (15.11., 12:43–13:21, Builds `3254e96` und
   `19d7879`, Verläufe `overwatch-3/`, `overwatch-4/`):** Erst eine Zehntelsekunde, dann bis zu zwei Sekunden
