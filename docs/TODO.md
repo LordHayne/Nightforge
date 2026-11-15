@@ -304,8 +304,12 @@ scheitert und sich nicht schnell beheben lässt, wird ausgeschaltet oder herausg
 **Vorhang nach der Regel, eingespielt und erster Live-Fall (15.11., Testbuild `9bda7de`, 16:36; ABZU 16:40 mit
 `gameTest.testFinding`):** „Curtain: "Noch ein Versuch …" – the game closed right away, Nightforge looks into it“,
 Diagnose vom Schalter, „Curtain: "Noch ein Versuch …" – the cause found, the same way once more“, zweiter Start mit
-Bild; „Start phase: signingInEpic – …“ steht nur noch im Protokoll. Offen live: Overwatch im Vollbild (Hinweis, ein
-⌘⇥, „Neu starten“ per Pad), MGS V (Frage mit A/B, Zertifikat). Der Stempel der Profilliste lag in der Zukunft
+Bild; „Start phase: signingInEpic – …“ steht nur noch im Protokoll. **MGS V 16:45–16:47 mit `testRootQuestion`:** die
+ganze Kette mit dem neuen Vorhang – Fenster → „Curtain: "Noch ein Versuch …" – the game closed right away“ → „on to
+another way“ → genauerer Blick → DXMT, Fenster → `untrusted-root` → Frage → „the player added the root“ → „Curtain:
+"Noch ein Versuch …" – the certificate is added, the game starts once more“ → Bild. (Bei der Frage war die Claude-App
+vorn: „Overlay up (trustRoot) …: Claude in front“; sie ließ sich trotzdem beantworten.) Offen live: Overwatch im
+Vollbild (Hinweis, ein ⌘⇥, „Neu starten“ per Pad). Der Stempel der Profilliste lag in der Zukunft
 (17:40Z um 15:30Z) und ließ drei Signatur-Tests scheitern; korrigiert in `9bda7de`.
 
 **Vorhang nach der Regel (entschieden vom Nutzer, 15.11.: „Ja, so umbauen“; Board
