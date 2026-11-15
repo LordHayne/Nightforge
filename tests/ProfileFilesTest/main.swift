@@ -36,6 +36,10 @@ struct ProfileFilesTest {
             let lastWithout = Data(#"{"generated": "2026-11-09T21:42:07Z"}"#.utf8)
             check(SignedLists.isOlder(lastWithout, than: list), "the list with ownAntiCheat is newer than the last one without it")
             check(text.contains("\"ownAntiCheat\": true"), "Overwatch's own cheat protection is in the list that ships")
+            // And for fullscreenHint (15.11.2026).
+            let lastWithoutHint = Data(#"{"generated": "2026-11-14T22:48:43Z"}"#.utf8)
+            check(SignedLists.isOlder(lastWithoutHint, than: list), "the list with fullscreenHint is newer than the last one without it")
+            check(text.contains("\"fullscreenHint\""), "where Overwatch's borderless window is set is in the list that ships")
         } else {
             check(false, "profiles/profiles.json not found from the repository's root")
         }
@@ -50,6 +54,12 @@ struct ProfileFilesTest {
         check(decoded?.retina == true, "retina is read")
         check(profile(#"{"ownAntiCheat": true}"#)?.ownAntiCheat == true && profile(#"{"ownAntiCheat": true}"#)?.shapesStart == false
               && decoded?.ownAntiCheat == nil, "a cheat protection of its own is read, and changes nothing about the start")
+        let hinted = profile(#"{"fullscreenHint": {"de": "Optionen › Video › Randloses Fenster", "en": "Options › Video › Borderless Windowed"}}"#)
+        check(hinted?.fullscreenHint(german: true) == "Optionen › Video › Randloses Fenster"
+              && hinted?.fullscreenHint(german: false) == "Options › Video › Borderless Windowed" && hinted?.shapesStart == false,
+              "where to set a borderless window, in the player's language, and nothing about the start")
+        check(profile(#"{"fullscreenHint": {"en": "Video › Borderless"}}"#)?.fullscreenHint(german: true) == "Video › Borderless"
+              && decoded?.fullscreenHint(german: true) == nil, "no German words: the English ones; none: none")
         let saved = profile(#"{"resolution": {"root": "WinAppDataLocal", "path": "2K Games/Mafia II/Saves/videoconfig.cfg", "fields": {"width": 2, "height": 3, "fullscreen": 4}}}"#)?.resolution
         check(saved?.root == "WinAppDataLocal" && saved?.fields?.width == 2 && saved?.fields?.fullscreen == 4 && saved?.keys == nil,
               "a resolution in a line of values is read")

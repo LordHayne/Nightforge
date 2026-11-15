@@ -51,13 +51,21 @@ struct PadGuideRow: Equatable {
 
 /// The tip a game's loading screen (GameBackdrop) shows for the first starts with a controller:
 /// how Nightforge's menu opens in a game.
+/// A pad button on the curtain with what it does ("Confirm", "Restart"): only where the player has to do something.
+struct CurtainButton: Equatable {
+    /// PadSymbols' name for it (PadGlyph).
+    let symbol: String
+    let label: String
+}
+
 struct LaunchTip: Equatable {
     /// The buttons to draw (PadGlyph), "+" between.
     let symbols: [String]
     let text: String
 
-    /// How many starts show it.
-    static let starts = 3
+    /// How many starts show it: the first only. The curtain says what happens, and this is the one way to find the
+    /// menu in a game – once is enough (the rule of 15.11.2026, board "Vorhang nach der Regel").
+    static let starts = 1
 
     /// "L3 + R3" or "LS + RS": the overlay's buttons by name.
     static func chord(_ layout: PadLayout) -> String {

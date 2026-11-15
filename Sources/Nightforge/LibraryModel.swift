@@ -125,8 +125,14 @@ final class LibraryModel: ObservableObject {
     @Published private(set) var launchNeedsConfirmation = false
     /// That question is Steam's licence: the frame comes at once and says so (SteamLicence).
     private var launchAsksLicence = false
-    /// What the launch is busy with when it's more than waiting for Steam ("Restarting Steam …").
-    @Published private(set) var launchPhase: LaunchPhase?
+    /// What the launch is busy with when it's more than waiting for Steam ("Restarting Steam …"). Each one in the
+    /// log as it begins, with what the curtain no longer says (LaunchPhase.curtainTitle).
+    @Published private(set) var launchPhase: LaunchPhase? {
+        didSet {
+            guard let launchPhase, launchPhase.kind != oldValue?.kind else { return }
+            GameLog.note("Start phase: \(launchPhase.kind) – \"\(launchPhase.title)\": \(launchPhase.hint)")
+        }
+    }
     /// A start Nightforge mends after one that ended without a picture (LaunchRepair): said on the curtain
     /// while no phase of its own (a Steam restart, an update) has the line.
     @Published private(set) var launchRepair: LaunchRepair?
@@ -1224,6 +1230,9 @@ final class LibraryModel: ObservableObject {
     /// they came before it and don't hold it (`macOSAsksNow`).
     private var macOSQuestionsBefore: Set<Int>?
 
+    /// A game whose own full screen hides its picture under the curtain, and where its setting is (fullScreenWords).
+    private var fullScreenHint: (game: Game, setting: String?)?
+
     /// The start on the curtain the player may leave, and why (CurtainEscape).
     private var curtainEscape: (game: Game, reason: CurtainEscape.Reason)?
     private var stuckAskedAt: Date?
@@ -1299,12 +1308,11 @@ final class LibraryModel: ObservableObject {
         if updateSpeed != speed { updateSpeed = speed }
     }
 
-    /// What used to be only a toast, which would go by unseen under the curtain: on its second line too.
-    private var curtainNote: String?
-
+    /// A word on a start that goes on anyway (no update this time): a toast in Nightforge and the log, not the
+    /// curtain – the player has nothing to do (the rule of 15.11.2026).
     private func noteDuringStart(_ text: String) {
         Toasts.shared.show(text)
-        if GameBackdrop.isRaised { curtainNote = text }
+        GameLog.note("During the start: \(text)")
     }
 
     /// A word to the player in a start that goes on ("It starts anyway"): it waits on Nightforge's page,
@@ -1355,8 +1363,8 @@ final class LibraryModel: ObservableObject {
                 SteamLicenceFiles.stillOpen(entries: SteamCatalog.licences(appID: appID, steamRoot: root), steamRoot: root)
             }.value
             guard open else { return }
-            GameLog.note("Steam's licence for \(game.name) is still open: said on the curtain")
-            GameBackdrop.announceLicence(for: game.name)
+            // In the log only: the curtain says what happens, and the licence's frame says it when it comes (the rule of 15.11.2026).
+            GameLog.note("Steam's licence for \(game.name) is still open: Steam shows it at this start")
         }
     }
 
@@ -1386,6 +1394,10 @@ final class LibraryModel: ObservableObject {
         /// Its picture on the Space shown since, and how often its window was fetched back under the curtain.
         var pictureSince: Date?
         var broughtBack = 0
+        defer { fullScreenHint = nil }
+        /// Since when its own full screen hides its picture (ownCaptureHides), and whether the log has it.
+        var hiddenByFullScreen: Date?
+        var fullScreenSaid = false
         /// The picture's size on the Space shown, and since when it hasn't changed.
         var pictureSize: (size: String, since: Date)?
         /// The game's time in front the pointer was hidden for, and the app in front at the last look.
@@ -1605,7 +1617,6 @@ final class LibraryModel: ObservableObject {
             // Under all of them, the backmost lowest; again at each look: nothing gets between.
             if loweredAt == nil, let lowest = macOSQuestions.last { GameBackdrop.makeWay(under: lowest) }
             let macOSAsks = turn == .makeWay
-            let macOSOpen = !macOSQuestions.isEmpty && !macOSAsks
             noProcessSince = pids.isEmpty && loweredAt == nil ? (noProcessSince ?? Date()) : nil
             if case .updating(let fraction)? = launchPhase {
                 if updateProgress == nil || updateProgress?.fraction != fraction { updateProgress = (fraction, Date()) }
@@ -1624,7 +1635,7 @@ final class LibraryModel: ObservableObject {
             if stuckReason == nil, GameOverlay.asksWayOut { GameOverlay.close() }
             if CurtainEscape.asks(stuck), !GameOverlay.isOpen { askAboutStuckStart() }
             if pids.isEmpty {
-                sayOnCurtain(gameRuns: false, shaders: buildsShaders, macOSAsks: macOSAsks, macOSOpen: macOSOpen)
+                sayOnCurtain(gameRuns: false, shaders: buildsShaders, macOSAsks: macOSAsks)
             }
             // Started and gone again, nothing starting any more: the start flow says what happened.
             if pids.isEmpty, seenOnce || launchingID == nil, !playing.contains(game.id) {
@@ -1662,6 +1673,19 @@ final class LibraryModel: ObservableObject {
             }
             if let asking, asking.number != questionSeen?.number { questionSeen = (asking.number, Date()) }
             if asking == nil { questionSeen = nil }
+            // Its own full screen hiding its picture: one more read, only while only its shield shows.
+            let ownCapture = gameFront && !here && anywhere && shieldOnly
+                ? await Task.detached(priority: .utility) { GameProcesses.ownCaptureHides(pids) }.value : false
+            hiddenByFullScreen = ownCapture ? (hiddenByFullScreen ?? Date()) : nil
+            if !fullScreenSaid, Self.fullScreenHidesPicture(hides: ownCapture, gameFront: gameFront, broughtBack: broughtBack,
+                                                            hiddenFor: hiddenByFullScreen.map { Date().timeIntervalSince($0) } ?? 0) {
+                fullScreenSaid = true
+                let capture = await Engine.offMain { GameProcesses.captureNote() }
+                let setting = await ProfileStore.shared.profile(for: game.gameID)?.fullscreenHint(german: AppLanguage.current.resolved == .german)
+                fullScreenHint = (game, setting)
+                GameLog.note("Curtain: \(game.name)'s own full screen hides its picture – its window off the screen under its capture (\(capture));"
+                             + " said on the curtain, ⌘-Tab or the pad's Restart")
+            }
             let question = asking?.number
             // A thin window is a splash more often than a question (ABZU's Unreal splash, 601×201, showed
             // "asking" for a moment on 3.11.): taken as one once it has stood a while. So is Unity's
@@ -1732,7 +1756,7 @@ final class LibraryModel: ObservableObject {
                 curtainUp()
             }
             sayOnCurtain(gameRuns: !pids.isEmpty, shaders: buildsShaders, asks: asks, errorBox: reportsError,
-                         macOSAsks: macOSAsks, macOSOpen: macOSOpen)
+                         macOSAsks: macOSAsks, fullScreen: fullScreenHint.map { $0.setting ?? "" })
             pictureSince = here ? (pictureSince ?? Date()) : nil
             switch Self.curtainStep(lowered: loweredAt != nil, gameFront: gameFront, nightforgeFront: front == getpid(),
                                     macOSAsks: macOSAsks || front.map(askers.contains) ?? false,
@@ -1762,6 +1786,7 @@ final class LibraryModel: ObservableObject {
                 }
                 askAt = Date().addingTimeInterval(Self.curtainPatience)  // no "Not starting?" over its question
             case .lower:
+                fullScreenHint = nil
                 if GameOverlay.asksAboutStart { GameOverlay.close() }
                 GameBackdrop.lower()
                 input.parkPointerForGame()
@@ -2000,19 +2025,74 @@ final class LibraryModel: ObservableObject {
 
     /// The curtain's lines at a look (`curtainStatus`, `curtainDetail`); once it's down they wait for the next start.
     private func sayOnCurtain(gameRuns: Bool, shaders: Bool, asks: Bool = false, errorBox: Bool = false, macOSAsks: Bool = false,
-                              macOSOpen: Bool = false) {
-        let phase = launchingID == nil ? nil : launchTitle
+                              fullScreen: String? = nil) {
+        // The game's own full screen hides its picture: what the player can do, and the pad's Restart. A question of
+        // its own or of macOS's comes first.
+        if let fullScreen, !asks, !macOSAsks {
+            let words = Self.fullScreenWords(setting: fullScreen.isEmpty ? nil : fullScreen)
+            let restart = controllerConnected ? [CurtainButton(symbol: padSymbols.confirm, label: L10n.t("Restart"))] : []
+            return GameBackdrop.setStatus(words.line, detail: words.sentence, buttons: restart)
+        }
+        let phase = launchingID == nil ? nil : launchPhase?.curtainTitle ?? launchRepair?.title
         let progress = launchingID == nil ? nil : Self.curtainProgress(phase: launchPhase)
-        // The steps of a start Nightforge mends, while its line is the one shown.
-        let trail = launchingID == nil || launchPhase != nil || asks || macOSAsks ? nil : launchRepair?.steps
-        let padAnswers = controllerConnected && PadAnswerRun.available
-            ? (PadPart.a.name(padSymbols.layout), PadPart.b.name(padSymbols.layout)) : nil
+        // A pad answers the game's question where the helper can press for it (PadAnswerRun).
+        let pad = controllerConnected && PadAnswerRun.available ? padSymbols : nil
+        let sentence = launchingID == nil ? nil
+            : Self.curtainSentence(phase: launchPhase, repair: launchRepair, confirming: launchNeedsConfirmation)
         GameBackdrop.setStatus(Self.curtainStatus(phase: phase, shaders: shaders, gameRuns: gameRuns,
-                                                  asks: asks, errorBox: errorBox, macOSAsks: macOSAsks, padAnswers: padAnswers),
-                               detail: Self.curtainDetail(launchHint: Self.curtainHint(progress: progress, speed: updateSpeed, launchHint: launchHint ?? curtainNote),
-                                                  asks: asks || macOSAsks, errorBox: errorBox && !macOSAsks, padOK: padAnswers?.0,
-                                                  macOSOpen: macOSOpen),
-                               progress: progress, trail: trail)
+                                                  asks: asks, errorBox: errorBox, macOSAsks: macOSAsks),
+                               detail: Self.curtainDetail(sentence: Self.curtainHint(progress: progress, speed: updateSpeed, launchHint: sentence),
+                                                  asks: asks, errorBox: errorBox && !macOSAsks, pad: pad != nil,
+                                                  macOSAsks: macOSAsks, shaders: shaders && gameRuns && phase == nil),
+                               progress: progress,
+                               buttons: Self.curtainButtons(asks: asks, errorBox: errorBox, macOSAsks: macOSAsks, pad: pad))
+    }
+
+    /// What the curtain says when the game's own full screen hides its picture (fullScreenHidesPicture), with the
+    /// place of the setting from its profile (`setting`, GameProfile.fullscreenHint). The board "Vorhang nach der
+    /// Regel": one line, one sentence, Restart on the pad. One ⌘-Tab should do: Wine gives the display back at its own
+    /// ⌘-Tab, and the curtain's watch hands the game the front again (live check pending, 15.11.2026).
+    nonisolated static func fullScreenWords(setting: String?) -> (line: String, sentence: String) {
+        let sentence = setting.map { L10n.t("⌘⇥ brings it to the front. So it doesn't happen again: %@ in the game.", $0) }
+            ?? L10n.t("⌘⇥ brings it to the front. So it doesn't happen again: “Borderless window” in the game.")
+        return (L10n.t("Full screen is hiding the game"), sentence)
+    }
+
+    /// The pad's Restart on a curtain whose game's full screen hides its picture (InputRouter, A): the game ends and
+    /// starts again, as the overlay's Restart Game does. About every second start of Overwatch's came with its picture
+    /// (15.11.2026). Nothing while the overlay is up: A is its own then.
+    func restartsHiddenGame() -> Bool {
+        guard let game = fullScreenHint?.game, GameBackdrop.isRaised, !GameOverlay.isOpen else { return false }
+        fullScreenHint = nil
+        GameLog.note("Curtain: the player restarts \(game.name) with the pad – its full screen hid its picture")
+        let marker = game.platform == .mac ? nil : game.windowsFolderMarker
+        let folder = game.platform == .mac ? game.installDir.path : nil
+        LaunchHealth.playerQuit(game.gameID)
+        restartAfterEnd = game
+        Task {
+            await Task.detached(priority: .userInitiated) {
+                GameProcesses.end(GameProcesses.targets(windows: marker, mac: folder, in: GameProcesses.table()))
+            }.value
+            await startAgainWhenEnded(game)
+        }
+        return true
+    }
+
+    /// The pad's buttons under a question the player answers (the rule of 15.11.2026): the game's error box OK, its
+    /// question confirm and cancel – where the pad answers it (`pad`, PadAnswerRun). macOS takes only the mouse.
+    nonisolated static func curtainButtons(asks: Bool, errorBox: Bool, macOSAsks: Bool, pad: PadSymbols?) -> [CurtainButton] {
+        guard asks, !macOSAsks, let pad else { return [] }
+        if errorBox { return [CurtainButton(symbol: pad.confirm, label: L10n.t("OK"))] }
+        return [CurtainButton(symbol: pad.confirm, label: L10n.t("Confirm")), CurtainButton(symbol: pad.back, label: L10n.t("Cancel"))]
+    }
+
+    /// The short sentence under the curtain's line: the step's own where it's true once or the player has a window
+    /// to answer in, Steam's question before the start, the end of a start Nightforge mends. The rule of 15.11.2026:
+    /// everything else the Play button's line says goes to the log as the phase begins.
+    nonisolated static func curtainSentence(phase: LaunchPhase?, repair: LaunchRepair?, confirming: Bool) -> String? {
+        if confirming { return LaunchPhase.confirmHint }
+        if let phase { return phase.curtainSentence }
+        return repair?.detail
     }
 
     /// Asks the player whether the root `root` goes into the prefix (GameOverlay.askRoot), and waits for the
@@ -2028,25 +2108,24 @@ final class LibraryModel: ObservableObject {
     }
 
     /// What Nightforge mends, on the curtain at once: the start loop says it between two starts, when no
-    /// curtain look runs to say it.
+    /// curtain look runs to say it. What it found and does goes to the log (LaunchRepair.logLine).
     private func sayRepair(_ repair: LaunchRepair?) {
         launchRepair = repair
         guard let repair else { return }
-        GameBackdrop.setStatus(repair.title, detail: repair.detail, trail: repair.steps)
+        GameLog.note("Curtain: \"\(repair.title)\" – \(repair.logLine)")
+        GameBackdrop.setStatus(repair.title, detail: repair.detail)
     }
 
-    /// The curtain's second line: none under a question it waits for (`asks`) – under the game's error box
-    /// (`errorBox`) what to press and that Nightforge goes on from there, with the pad's button (`padOK`) where
-    /// one answers it –, else the start's hint, else a word on a question of macOS's the start doesn't wait for
-    /// (`macOSOpen`).
-    nonisolated static func curtainDetail(launchHint: String?, asks: Bool, errorBox: Bool = false, padOK: String? = nil,
-                                          macOSOpen: Bool) -> String? {
-        if asks, errorBox {
-            return padOK.map { L10n.t("%@ presses OK – Nightforge takes care of the rest.", $0) }
-                ?? L10n.t("Press OK – Nightforge takes care of the rest.")
-        }
-        if asks { return nil }
-        return launchHint ?? (macOSOpen ? L10n.t("macOS still has a question open.") : nil)
+    /// The curtain's second line: how to answer macOS (`macOSAsks`); none under a question of the game's it waits
+    /// for (`asks`) – under its error box (`errorBox`) what to press and that Nightforge goes on from there, with the
+    /// pad's button (`padOK`) where one answers it –; else the start's sentence (`curtainSentence`), else that shaders
+    /// are built only once (`shaders`). A question of macOS's the start doesn't wait for is in the look's line only.
+    nonisolated static func curtainDetail(sentence: String?, asks: Bool, errorBox: Bool = false, pad: Bool = false,
+                                          macOSAsks: Bool = false, shaders: Bool = false) -> String? {
+        if macOSAsks { return L10n.t("Answer with the mouse or trackpad.") }
+        if asks, errorBox { return pad ? L10n.t("Nightforge takes care of the rest.") : L10n.t("Press OK – Nightforge takes care of the rest.") }
+        if asks { return pad ? nil : L10n.t("Answer with the mouse or trackpad.") }
+        return sentence ?? (shaders ? L10n.t("Only the first time.") : nil)
     }
 
     /// The step the curtain names: a question on it – macOS's (`macOSAsks`) or the game's (`asks`) –
@@ -2055,16 +2134,14 @@ final class LibraryModel: ObservableObject {
     /// `errorBox`: the game's question is one of Windows' message boxes reporting an error, with only OK
     /// to press (CloserLook.errorNotice).
     nonisolated static func curtainStatus(phase: String?, shaders: Bool, gameRuns: Bool,
-                                          asks: Bool = false, errorBox: Bool = false, macOSAsks: Bool = false,
-                                          padAnswers: (ok: String, cancel: String)? = nil) -> String? {
-        if macOSAsks { return L10n.t("macOS is asking for permission – answer it with the mouse or trackpad.") }
+                                          asks: Bool = false, errorBox: Bool = false, macOSAsks: Bool = false) -> String? {
+        if macOSAsks { return L10n.t("macOS is asking for permission") }
         if asks, errorBox { return L10n.t("The game reports an error") }
-        if asks, let padAnswers { return L10n.t("The game is asking something – %@ confirms, %@ cancels, or use the mouse.", padAnswers.ok, padAnswers.cancel) }
-        if asks { return L10n.t("The game is asking something – answer it with the mouse or trackpad.") }
+        if asks { return L10n.t("The game is asking something") }
         if let phase { return phase }
-        // Its window there, the curtain up a moment longer: the line stays, it doesn't jump back to "Starting …".
-        guard gameRuns else { return nil }
-        return shaders ? L10n.t("Preparing shaders for the first start …") : L10n.t("Waiting for the first picture …")
+        // Its process running is no new line: "Starting …" until the picture (the rule of 15.11.2026; the look's
+        // line in the log says it runs). Its first start with new graphics takes long, and says why.
+        return gameRuns && shaders ? L10n.t("Preparing shaders …") : nil
     }
 
     /// How long after the game's own question went, answered by the player, its end with no picture
@@ -2181,6 +2258,16 @@ final class LibraryModel: ObservableObject {
     /// How long the game has the front with its window off the screen before it's fetched back.
     nonisolated static let windowAwayPatience: TimeInterval = 4
     nonisolated static let maxBroughtBack = 2
+
+    /// The game's own full screen hides its picture for good (GameProcesses.ownCaptureHides): it has the front, it was
+    /// fetched back `maxBroughtBack` times, and it has stood so `fullScreenHidesFor`. In Overwatch's starts with a
+    /// picture the window was off for a moment only (15.11.2026); in those without, it never came back. What the
+    /// curtain says then waits for the player's pick on the board "Vollbild verdeckt das Spiel".
+    nonisolated static func fullScreenHidesPicture(hides: Bool, gameFront: Bool, broughtBack: Int, hiddenFor: TimeInterval) -> Bool {
+        hides && gameFront && broughtBack >= maxBroughtBack && hiddenFor >= fullScreenHidesFor
+    }
+
+    nonisolated static let fullScreenHidesFor: TimeInterval = 10
 
     /// A ⌘ (⌘-Tab, ⌘H) or a click within `seconds`: the player moved, what came to the front is their
     /// choice. Not any key: one playing with the keyboard presses them all the time. A click in the
@@ -4475,7 +4562,6 @@ final class LibraryModel: ObservableObject {
         launchingID = game.id
         lookNow()
         callOffWakeUpdate()
-        curtainNote = nil
         startsAgain = false
         GameDisplay.enterGame()
         launchNeedsConfirmation = false
@@ -5189,7 +5275,7 @@ final class LibraryModel: ObservableObject {
         let known = macSources.runtimes(for: game)
         let missing = Engine.missingWinetricks((profile?.winetricks ?? []) + learned.filter { $0 != GameLog.wineMono } + known)
             .filter(Engine.isSafeWinetricksVerb)
-        // A runtime set up for a start Nightforge mends keeps that line and its steps (LaunchRepair.settingUp).
+        // A runtime set up for a start Nightforge mends keeps that line (LaunchRepair.settingUp).
         let says = showStatus && launchRepair != .settingUp
         // The game test fetches nothing: what a game lacks goes into its report instead (GameTestRun).
         if !missing.isEmpty, !GameTest.active {

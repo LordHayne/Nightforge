@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Vorhang nach der Regel</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.board{width:1800px;box-sizing:border-box;padding:48px 48px 56px;display:flex;flex-direction:column;gap:22px;background:#0f141c;color:#f3f1ec;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-serif}
+h1{margin:0;font-size:34px;font-weight:800;font-stretch:expanded}
+.intro{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
+.box{border-radius:10px;padding:18px 22px;background:#161c26;display:flex;flex-direction:column;gap:8px}
+.box h2{margin:0;font-size:12px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#9aa3af}
+.box p{margin:0;font-size:14px;line-height:21px;color:#d6d9de}
+.box p b{color:#f3f1ec}
+.pick{align-self:flex-start;padding:4px 11px;border-radius:999px;font-size:12px;font-weight:700;background:#ffb347;color:#0f141c}
+.head{display:grid;grid-template-columns:280px minmax(0,1fr) 150px minmax(0,1fr);gap:18px;padding:0 4px;font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#9aa3af}
+.section{margin-top:14px;font-size:20px;font-weight:700;font-stretch:expanded;color:#8ca8db}
+.row{display:grid;grid-template-columns:280px minmax(0,1fr) 150px minmax(0,1fr);gap:18px;align-items:stretch}
+.who{display:flex;flex-direction:column;gap:6px;padding-top:6px}
+.name{font-size:15px;font-weight:700}
+.when{font-size:12.5px;line-height:18px;color:#9aa3af}
+.card{border-radius:10px;padding:14px 18px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;background:linear-gradient(180deg,#171a24,#0a0d12)}
+.card.new{box-shadow:inset 0 0 0 1px rgba(140,168,219,.35)}
+.line{font-size:15px;font-weight:500;line-height:21px;color:#c9ced6;white-space:pre-line}
+.sent{font-size:12.5px;line-height:18px;color:rgba(154,163,175,.85);max-width:560px;white-space:pre-line}
+.extra{font-size:12px;line-height:17px;color:#8ca8db;max-width:560px;white-space:pre-line}
+.en{font-size:11.5px;line-height:16px;color:#7f8894;max-width:600px;font-style:italic}
+.log{align-self:stretch;margin-top:4px;padding-top:6px;border-top:1px solid rgba(154,163,175,.18);font-size:11.5px;line-height:16px;color:#9aa3af;text-align:left}
+.sent:empty,.extra:empty,.en:empty,.log:empty,.line:empty,.btns:empty{display:none}
+.btns{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:5px 12px 5px 6px;border-radius:999px;background:rgba(243,241,236,.07);font-size:12.5px;color:#f3f1ec}
+.glyph{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 4px;box-sizing:border-box;border-radius:11px;border:1px solid rgba(243,241,236,.35);font-size:11px;font-weight:700}
+.verdict{display:flex;align-items:center;justify-content:center}
+.tag{padding:5px 11px;border-radius:999px;font-size:12px;font-weight:700;text-align:center}
+.keep{background:#2f4a3a;color:#bfe6cc}
+.cut{background:#4a3a22;color:#ffd59a}
+.merge{background:#25344d;color:#bfdeff}
+.log-only{background:#2a2f38;color:#c9ced6}
+.act{background:#ffb347;color:#0f141c}
+.unproven{color:#ffd59a}
+</style>
+</helmet>
+<div class="board">
+  <h1>Der Vorhang: heute und nach der Regel</h1>
+  <div class="intro">
+    <div class="box">
+      <h2>Die Regel (der Nutzer, 15.11.)</h2>
+      <p><b>1.</b> Eine Zeile sagt, was gerade passiert („Startet …“, „Noch ein Versuch …“, „Wird eingerichtet …“). Darunter höchstens ein kurzer Satz.</p>
+      <p><b>2.</b> Mehr Text nur, wenn der Spieler etwas tun muss (Lizenz, Zertifikat, ins Spiel umschalten). Dann klar und mit einem Knopf, sonst nichts.</p>
+      <p><b>3.</b> Alles andere kommt ins Protokoll, nicht auf den Schirm: Wege, Ursachen, Diagnosen, Schritte.</p>
+      <p>Quelle der Texte ist der Code auf <b>claude/diagnose-start-033-92f729</b> (LaunchPhase, LaunchRepair, curtainStatus und curtainDetail, GameBackdrop, CurtainEscape, OverlayView, PadGuide). Der Satz unter der Zeile kommt heute erst nach 3 s. Das bleibt so.</p>
+    </div>
+    <div class="box">
+      <span class="pick">Empfehlung</span>
+      <p><b>Die Regel so umsetzen.</b> Was sie verlangt, ist fast nur Weglassen: Sätze, die erklären, gehen ins Protokoll. Ähnliche Zeilen werden eine.</p>
+      <p><b>Vorhang B:</b> Die Zeilen bleiben. Die drei Schritte und die Sätze darunter fallen weg, denn sie stehen 2 bis 3 s und sind schon im Protokoll (der Nutzer: „man sieht die neue Anzeige nur kurz“). Aus sieben Zeilen werden drei: „Noch ein Versuch …“, „Wird eingerichtet …“ und das ehrliche Ende. Dazu kommen die Engine- und Weg-Zeilen, die heute Engine und Weg beim Namen nennen.</p>
+      <p><b>Vollbild verdeckt das Spiel:</b> eine Zeile, ein kurzer Satz, ein Knopf in der Pad-Zeile. Er sitzt dort, wo „Hängt es?“ heute schon steht.</p>
+      <p><b>Code:</b> Texte in Strings.swift, und die Schrittleiste nicht mehr gezeigt (LaunchRepair.steps). Kein neues Fenster und kein neuer Effekt.</p>
+    </div>
+  </div>
+  <div class="head"><span>Zustand und Auslöser</span><span>Heute (de, darunter en)</span><span></span><span>Nach der Regel</span></div>
+  <sc-for list="{{sections}}" as="s" hint-placeholder-count="4">
+    <div class="section">{{s.title}}</div>
+    <sc-for list="{{s.rows}}" as="r" hint-placeholder-count="5">
+      <div class="row">
+        <div class="who"><div class="name">{{r.n}}</div><div class="when">{{r.w}}</div></div>
+        <div class="card">
+          <div class="line">{{r.td}}</div>
+          <div class="sent">{{r.ts}}</div>
+          <div class="extra">{{r.tx}}</div>
+          <div class="en">{{r.te}}</div>
+        </div>
+        <div class="verdict"><span class="{{r.vc}}">{{r.v}}</span></div>
+        <div class="card new">
+          <div class="line">{{r.nd}}</div>
+          <div class="sent">{{r.ns}}</div>
+          <div class="btns"><sc-for list="{{r.nb}}" as="b" hint-placeholder-count="0"><span class="btn"><span class="glyph">{{b.g}}</span>{{b.t}}</span></sc-for></div>
+          <div class="en">{{r.ne}}</div>
+          <div class="log">{{r.lg}}</div>
+        </div>
+      </div>
+    </sc-for>
+  </sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1800,"height":4300}}'>
+class Component extends DCLogic {
+renderVals() {
+const K = "tag keep", C = "tag cut", M = "tag merge", L = "tag log-only", A = "tag act";
+const sections = [
+{ title: "1 · Was gerade passiert", rows: [
+{ n: "Start", w: "Jeder Start, bis das erste Bild kommt. Sobald ein Prozess des Spiels läuft, wechselt die Zeile.",
+  td: "Wird gestartet …\nWarte auf das erste Bild …", ts: "", tx: "", te: "Starting … / Waiting for the first picture …",
+  v: "Zusammenlegen", vc: M, nd: "Wird gestartet …", ns: "", nb: [], ne: "Starting …", lg: "Ins Protokoll: dass ein Prozess läuft (steht schon dort)." },
+{ n: "Store startet", w: "Steam, Steam für Mac oder Battle.net läuft noch nicht.",
+  td: "Steam startet …", ts: "Steam läuft unsichtbar im Hintergrund – es muss nur einmal starten.", tx: "ebenso „Steam for Mac“ und „Battle.net startet …“ mit je einem Satz",
+  te: "Starting Steam … · Steam runs invisibly in the background – it only has to start once.",
+  v: "Kürzen", vc: C, nd: "Steam startet …", ns: "", nb: [], ne: "Starting Steam …", lg: "Ins Protokoll: der erklärende Satz." },
+{ n: "Anmelden und Spielstand", w: "Steam meldet sich neu an, Steam Cloud, Epic-Anmeldung, Epic-Spielstand.",
+  td: "Anmeldung bei Steam …\nSpielstand geht in die Steam Cloud …\nBei Epic Games anmelden …\nSpielstand wird geholt …", ts: "je ein Satz, warum (z. B. „Steam meldet sich neu an, damit deine Cloud-Spielstände mitkommen.“)", tx: "",
+  te: "Signing in to Steam … / Saving to Steam Cloud … / Signing in to Epic Games … / Getting your save …",
+  v: "Kürzen", vc: C, nd: "Anmeldung bei Steam …\nSpielstand wird gesichert …\nSpielstand wird geholt …", ns: "", nb: [], ne: "Signing in to Steam … / Saving your save … / Getting your save …", lg: "Ins Protokoll: das Warum. Steam- und Epic-Anmeldung teilen sich eine Zeile mit dem Store-Namen." },
+{ n: "Einrichten", w: "Windows-Bausteine, .NET oder GOG-Teile vor dem ersten Start. Ein fehlender Baustein nach einem Fehlstart (Vorhang B).",
+  td: "Spiel wird eingerichtet …\n.NET wird für das Spiel eingerichtet …\nRichtet das Spiel ein …", ts: "Installiert, was das Spiel von Windows braucht. Nur beim ersten Mal. · Windows-Baustein: %@ – das Spiel braucht ihn. Nur beim ersten Mal.", tx: "Vorhang B: + Gestartet – Ein Baustein fehlte – Wird geholt",
+  te: "Setting up the game … / Setting up .NET for the game … · Installing what the game needs from Windows. Only the first time.",
+  v: "Zusammenlegen", vc: M, nd: "Wird eingerichtet …", ns: "Nur beim ersten Mal.", nb: [], ne: "Setting up … · Only the first time.", lg: "Ins Protokoll: welcher Baustein (.NET, vcrun, GOG-Teil)." },
+{ n: "Update", w: "Steam, Epic oder GOG aktualisiert das Spiel vor dem Start.",
+  td: "Aktualisiert … 42 %", ts: "Steam aktualisiert das Spiel zuerst – es startet von selbst, sobald das Update fertig ist. (oder das Tempo)", tx: "+ dünner Balken in der Naht-Farbe",
+  te: "Updating … 42 % · Steam updates the game first – it starts by itself when the update is done.",
+  v: "Kürzen", vc: C, nd: "Aktualisiert … 42 %", ns: "38 MB/s", nb: [], ne: "Updating … 42 % · 38 MB/s", lg: "Der Balken bleibt, er ist das Lebenszeichen. Der Satz geht weg, das Tempo bleibt als kurzer Satz." },
+{ n: "Steam hängt", w: "Steam bleibt beim Start hängen oder nimmt keine Anfragen mehr an.",
+  td: "Steam wird neu gestartet …\nSteam reagiert nicht – wird neu gestartet …", ts: "Steam ist beim Starten hängen geblieben – ein Neustart behebt das.", tx: "",
+  te: "Restarting Steam … / Steam isn't responding – restarting it …",
+  v: "Zusammenlegen", vc: M, nd: "Steam wird neu gestartet …", ns: "", nb: [], ne: "Restarting Steam …", lg: "Ins Protokoll: warum (hängt, antwortet nicht)." },
+{ n: "Shader", w: "Erster Start mit neuer Grafik, die Shader werden gebaut.",
+  td: "Shader werden beim ersten Start vorbereitet …", ts: "", tx: "",
+  te: "Preparing shaders for the first start …",
+  v: "Behalten", vc: K, nd: "Shader werden vorbereitet …", ns: "Nur beim ersten Mal.", nb: [], ne: "Preparing shaders … · Only the first time.", lg: "Bleibt: erklärt eine lange Wartezeit, die sonst nach Hängen aussieht." }
+]},
+{ title: "2 · Ein Fehlstart, den Nightforge behebt", rows: [
+{ n: "Vorhang B", w: "Spiel endet ohne Bild. Danach Tabelle, Diagnose, genauer Blick, anderer Weg, eingetragenes Zertifikat (LaunchRepair, 7 Zeilen, 9 Fälle).",
+  td: "Einen Moment …\nNoch ein Versuch …\nNoch ein Versuch, auf anderem Weg …", ts: "je ein Satz: „Das Spiel ist gleich wieder zugegangen.“, „Nightforge hat die Ursache gefunden und startet das Spiel noch einmal.“, „Nightforge merkt sich, was läuft.“, „Nightforge sieht genauer hin …“", tx: "+ 3 Schritte, der aktuelle atmet: Gestartet – Ursache gefunden – Startet noch einmal",
+  te: "One moment … / One more try … / One more try, another way … · + Started – Cause found – Starting again",
+  v: "Kürzen", vc: C, nd: "Noch ein Versuch …", ns: "", nb: [], ne: "One more try …", lg: "Ins Protokoll: Ursache, Weg, genauer Blick, Schritte (stehen dort schon). „Einen Moment …“ entfällt: Die Zeile wechselt gleich auf „Noch ein Versuch …“. Grund: Die Schritte stehen 2 bis 3 s, das reicht nicht zum Lesen." },
+{ n: "Engine und Weg", w: "Die neueste Engine stürzte ab, oder ein Start auf dem nächsten Weg der alten Leiter.",
+  td: "Versucht die vorige Engine …\nStartet mit der vorigen Engine …\nNeuer Start mit DXMT …", ts: "Die neueste Engine hat dieses Spiel abstürzen lassen, also startet Nightforge es mit der vorigen – du musst nichts tun. Nach dem nächsten Update probiert es die neue wieder.", tx: "zwei Zeilen Satz, nennt Engine und Weg beim Namen",
+  te: "Trying the previous engine … / Starting again with DXMT … · The newest engine crashed this game, so Nightforge starts it with the previous one …",
+  v: "Zusammenlegen", vc: M, nd: "Noch ein Versuch …", ns: "", nb: [], ne: "One more try …", lg: "Ins Protokoll: welche Engine, welcher Weg." },
+{ n: "Ehrliches Ende", w: "Alle Wege versucht. Steht 3 s, dann die Bibliothek.",
+  td: "Das hat nicht geklappt.", ts: "Nightforge hat alles versucht, was es kennt. Gleich bist du zurück in der Bibliothek.", tx: "+ Gestartet – Nachgesehen – Alles versucht",
+  te: "That didn't work. · Nightforge tried everything it knows. You'll be back in the library in a moment.",
+  v: "Kürzen", vc: C, nd: "Das hat nicht geklappt.", ns: "Gleich bist du zurück in der Bibliothek.", nb: [], ne: "That didn't work. · You'll be back in the library in a moment.", lg: "Ins Protokoll: was versucht wurde." },
+{ n: "Zertifikat abgelehnt", w: "Der Spieler hat „Nicht eintragen“ gewählt. Steht 3 s.",
+  td: "Das Spiel startet so nicht.", ts: "Ohne das Zertifikat läuft es nicht. Nightforge fragt beim nächsten Mal wieder.", tx: "+ Gestartet – Nachgesehen – Nicht eingetragen",
+  te: "The game doesn't start this way. · It doesn't run without the certificate. Nightforge asks again next time.",
+  v: "Kürzen", vc: C, nd: "Das Spiel startet so nicht.", ns: "Ohne das Zertifikat läuft es nicht.", nb: [], ne: "The game doesn't start this way. · It doesn't run without the certificate.", lg: "Ins Protokoll: dass beim nächsten Start wieder gefragt wird." }
+]},
+{ title: "3 · Der Spieler muss etwas tun (Regel 2: klar, mit Knopf)", rows: [
+{ n: "Vollbild verdeckt das Spiel (neu)", w: "a759361: Die Abschirmung gehört dem Spiel, sein Fenster ist nicht auf dem Schirm, nach zwei Versuchen, es zurückzuholen, und 10 s so (Overwatch im exklusiven Vollbild).",
+  td: "(heute nichts auf dem Schirm)", ts: "Nur eine Zeile im Protokoll. Nach 60 s kommt „Startet nicht?“.", tx: "",
+  te: "(nothing on screen today)",
+  v: "Neu", vc: A, nd: "Das Vollbild verdeckt das Spiel", ns: "⌘⇥ holt es nach vorn. Damit es nicht wieder passiert: im Spiel „Randloses Fenster“.", nb: [{ g: "✕", t: "Neu starten" }],
+  ne: "Full screen is hiding the game · ⌘⇥ brings it to the front. So it doesn't happen again: “Borderless window” in the game. · ✕ Restart",
+  lg: "Ungeprüft: Ein einziges ⌘⇥ reicht vermutlich. Ist Nightforge vorn, gibt die Vorhang-Wache dem Spiel die Front nach etwa 1 s selbst zurück, ein zweites ⌘⇥ schaltete wieder weg. Ungeprüft: Der Knopf läuft über die Pad-Zeile wie „Hängt es?“, denn der Vorhang nimmt selbst keine Eingabe. Die Stelle im Menü kommt aus dem Profil (fullscreenHint), sonst allgemein." },
+{ n: "Spiel fragt etwas", w: "Ein Fenster des Spiels, kleiner als ein Bild, steht eine Weile (Startfenster, EULA, Treiberwarnung).",
+  td: "Das Spiel fragt etwas – ✕ bestätigt, ○ bricht ab, oder nimm die Maus.", ts: "", tx: "ohne Pad: „… – antworte mit Maus oder Trackpad.“",
+  te: "The game is asking something – ✕ confirms, ○ cancels, or use the mouse.",
+  v: "Umbauen", vc: A, nd: "Das Spiel fragt etwas", ns: "", nb: [{ g: "✕", t: "Bestätigen" }, { g: "○", t: "Abbrechen" }], ne: "The game is asking something · ✕ Confirm  ○ Cancel (without a pad: answer with the mouse or trackpad)", lg: "Die Knöpfe in die Pad-Zeile statt in den Satz, dann ist die Zeile wieder eine Zeile." },
+{ n: "Fehlerfenster des Spiels", w: "Eine Windows-Meldung, die einen Fehler meldet, nur mit OK (CloserLook.errorNotice).",
+  td: "Das Spiel meldet einen Fehler", ts: "✕ drückt OK – Nightforge kümmert sich um den Rest.", tx: "",
+  te: "The game reports an error · ✕ presses OK – Nightforge takes care of the rest.",
+  v: "Behalten", vc: K, nd: "Das Spiel meldet einen Fehler", ns: "Nightforge kümmert sich um den Rest.", nb: [{ g: "✕", t: "OK" }], ne: "The game reports an error · Nightforge takes care of the rest. · ✕ OK", lg: "Passt schon zur Regel. Der Knopf rückt nur in die Pad-Zeile." },
+{ n: "macOS fragt", w: "Eine Erlaubnisfrage von macOS steht (Mikrofon, Ordner, Netz).",
+  td: "macOS fragt um Erlaubnis – antworte mit Maus oder Trackpad.", ts: "macOS hat noch eine Frage offen. (wenn der Start nicht darauf wartet)", tx: "",
+  te: "macOS is asking for permission – answer it with the mouse or trackpad. · macOS still has a question open.",
+  v: "Kürzen", vc: C, nd: "macOS fragt um Erlaubnis", ns: "Antworte mit Maus oder Trackpad.", nb: [], ne: "macOS is asking for permission · Answer with the mouse or trackpad.", lg: "Ins Protokoll: „noch eine Frage offen“, wenn der Start nicht wartet. Ein Pad-Knopf geht hier nicht, macOS nimmt nur Maus und Trackpad." },
+{ n: "Im Fenster anmelden", w: "Steam oder Battle.net will eine Anmeldung, sein Fenster ist offen.",
+  td: "Melde dich im Steam-Fenster an\nBattle.net wartet auf dich", ts: "Steam möchte, dass du dich anmeldest – sein Fenster ist offen. · Sein Fenster ist offen: Antworte dort, oder drücke dort auf Spielen.", tx: "„alle paar Monate“-Fassung für die neue Anmeldung",
+  te: "Sign in in the Steam window / Battle.net is waiting for you · Steam needs you to sign in – its window is open.",
+  v: "Kürzen", vc: C, nd: "Melde dich im Steam-Fenster an", ns: "Sein Fenster ist offen.", nb: [], ne: "Sign in in the Steam window · Its window is open.", lg: "Ins Protokoll: „alle paar Monate“, Battle.net-Einzelheiten." },
+{ n: "Steams Lizenz und Steams Fragen", w: "Steams Fenster steht auf dem Vorhang. Die Lizenz kommt nur beim ersten Start.",
+  td: "OVERWATCH · EINMAL DIE LIZENZ", ts: "Steam fragt das nur beim ersten Start.", tx: "+ Leiste: Touchpad bewegt den Zeiger · Drücken klickt · Zwei Finger scrollen · ○ Abbrechen\nvorher: „Steam zeigt gleich einmal die Lizenz. Danach nie wieder.“\nnachher: „Danke. Das Spiel startet …“ + „Steam fragt nicht wieder.“",
+  te: "THE LICENCE, JUST ONCE · Steam only asks this at the first start. · before: Steam will show the licence once … · after: Thanks. The game is starting … · Steam won't ask again.",
+  v: "Kürzen", vc: C, nd: "EINMAL DIE LIZENZ", ns: "Steam fragt das nur beim ersten Start.", nb: [{ g: "R2", t: "Klicken" }, { g: "○", t: "Abbrechen" }], ne: "THE LICENCE, JUST ONCE · Steam only asks this at the first start. · R2 Click  ○ Cancel", lg: "Rahmen und Leiste bleiben, der Spieler muss handeln. Der Vorab-Satz entfällt. Nachher nur „Das Spiel startet …“, ohne „Steam fragt nicht wieder.“" },
+{ n: "Zertifikat fehlt", w: "Eine Datei des Spiels ist mit einer Wurzel signiert, die macOS nicht mehr hat (MGS V, VeriSign G5). Das Overlay über dem Vorhang.",
+  td: "Metal Gear Solid V braucht ein älteres Zertifikat", ts: "Beim Start prüft das Spiel eine seiner Dateien. Sie ist mit einem Zertifikat signiert, das macOS nicht mehr mitbringt, Windows aber schon. Nightforge kann es für seine Windows-Spiele eintragen – nur dort, nicht auf deinem Mac.", tx: "+ Eintragen und starten · Nicht eintragen",
+  te: "… needs an older certificate · At its start the game checks one of its files. It is signed with a certificate macOS no longer carries …",
+  v: "Kürzen", vc: C, nd: "Metal Gear Solid V braucht ein älteres Zertifikat", ns: "Nightforge trägt es nur für seine Windows-Spiele ein, nicht auf deinem Mac.", nb: [{ g: "✕", t: "Eintragen und starten" }, { g: "○", t: "Nicht eintragen" }], ne: "… needs an older certificate · Nightforge adds it only for its Windows games, not to your Mac.", lg: "Ins Protokoll: welche Datei, welche Wurzel, warum macOS sie nicht mehr hat." },
+{ n: "Hängt es?", w: "30 s ohne Prozess des Spiels (Store still, Update). Nach 90 s fragt das Overlay von selbst.",
+  td: "○ Hängt es? Zurück zu Nightforge", ts: "Overlay: „Steam antwortet gerade nicht“ · „Overwatch ist noch nicht gestartet. Du kannst weiter warten oder zu Nightforge zurückgehen. Dabei geht nichts kaputt.“", tx: "+ Weiter warten · Zu Nightforge",
+  te: "○ Stuck? Back to Nightforge · Overlay: Steam isn't answering · … hasn't started yet. You can keep waiting or go back to Nightforge. Going back breaks nothing.",
+  v: "Kürzen", vc: C, nd: "Hängt es?", ns: "Overlay: „Steam antwortet gerade nicht“ · „Zurückgehen macht nichts kaputt.“", nb: [{ g: "○", t: "Zurück zu Nightforge" }], ne: "Stuck? · ○ Back to Nightforge · Overlay: Going back breaks nothing.", lg: "Die Pad-Zeile bleibt, sie ist schon Zeile und Knopf. Im Overlay ein Satz statt drei." },
+{ n: "Startet nicht?", w: "60 s läuft ein Prozess ohne Bild. Das Overlay über dem Vorhang.",
+  td: "Overwatch startet nicht?", ts: "Es läuft, zeigt aber noch kein Bild. Manche Spiele brauchen beim ersten Mal lange.", tx: "+ Weiter warten · Zu Nightforge · Spiel beenden",
+  te: "… isn't starting? · It runs, but hasn't shown a picture yet. Some games take long the first time.",
+  v: "Kürzen", vc: C, nd: "Overwatch startet nicht?", ns: "Manche Spiele brauchen beim ersten Mal lange.", nb: [{ g: "✕", t: "Weiter warten" }, { g: "", t: "Zu Nightforge" }, { g: "", t: "Spiel beenden" }], ne: "… isn't starting? · Some games take long the first time.", lg: "„Es läuft, zeigt aber noch kein Bild“ sagt schon die Überschrift." }
+]},
+{ title: "4 · Rund ums Spiel", rows: [
+{ n: "Tipp für neue Spieler", w: "Die ersten 3 Starts, mit Controller.",
+  td: "Tipp: L3 + R3 halten öffnet im Spiel das Menü", ts: "", tx: "in der blauen Zeile unten",
+  te: "Tip: hold L3 + R3 to open the menu in a game",
+  v: "Kürzen", vc: C, nd: "Tipp: L3 + R3 halten öffnet im Spiel das Menü", ns: "nur beim ersten Start", nb: [], ne: "Only at the first start.", lg: "Ermessensfrage: kein „was passiert“, aber der einzige Weg, das Menü im Spiel zu finden. Einmal statt dreimal." },
+{ n: "Hinweise beim Start", w: "Epic oder GOG nicht erreichbar, oder ein anderer Download läuft: das Spiel startet ohne Update.",
+  td: "Wird gestartet … (Zeile bleibt)", ts: "Epic Games ist nicht erreichbar – Overwatch startet ohne das Update. · Ein anderer Epic-Download läuft – … startet jetzt und aktualisiert sich beim nächsten Mal.", tx: "steht zusätzlich als Meldung in Nightforge",
+  te: "Epic Games can't be reached – … starts without its update.",
+  v: "Ins Protokoll", vc: L, nd: "Wird gestartet …", ns: "", nb: [], ne: "Starting …", lg: "Ins Protokoll. Die Meldung in Nightforge bleibt, der Spieler muss nichts tun." },
+{ n: "Hinter dem Spiel und zurück", w: "Spiel läuft im Fenster (die Seite dahinter). Spiel endet.",
+  td: "Nightforge wartet hier, bis du fertig bist.\nZurück zu Nightforge …", ts: "", tx: "",
+  te: "Nightforge waits here until you're done. / Back to Nightforge …",
+  v: "Behalten", vc: K, nd: "Nightforge wartet hier, bis du fertig bist.\nZurück zu Nightforge …", ns: "", nb: [], ne: "unchanged", lg: "Passt schon." }
+]}
+];
+return { sections };
+}
+}
+</script>
+</body>
+</html>

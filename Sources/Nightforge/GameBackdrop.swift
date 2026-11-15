@@ -33,16 +33,14 @@ enum GameBackdrop {
         @Published var wayOut: LaunchTip?
         /// How far an update is, 0 to 1 (the thin bar under the step); nil without one.
         @Published var progress: Double?
-        /// The steps of a start Nightforge mends (LaunchRepair), in the bar's place; nil without one.
-        @Published var trail: [LaunchRepair.Step]?
         /// Steam's window stands on the curtain: the mark gives way, a bar at the bottom says what to do.
         @Published var steamAsks = false
         /// That question is its licence: said so at the top, with a seam round its window (`seam`) and the way to answer.
         @Published var licence: LicenceLook?
         /// Steam's window on the curtain, in the curtain's coordinates, once it's there.
         @Published var seam: CGRect?
-        /// Steam will show the licence at this start, as far as can be told beforehand.
-        @Published var licenceAnnounced = false
+        /// The pad's buttons for what the player has to do now (CurtainButton), in the tip's place: the rule of 15.11.2026.
+        @Published var buttons: [CurtainButton] = []
     }
 
     /// What the bar under Steam's licence says.
@@ -110,13 +108,12 @@ enum GameBackdrop {
     }
 
     /// What's happening: the step at once, the why once the curtain has been up a few seconds, so
-    /// a quick start stays calm and a long one doesn't look stuck. `trail`: the steps of a start
-    /// Nightforge mends, at once as well.
-    static func setStatus(_ step: String?, detail: String?, progress: Double? = nil, trail: [LaunchRepair.Step]? = nil) {
+    /// a quick start stays calm and a long one doesn't look stuck.
+    static func setStatus(_ step: String?, detail: String?, progress: Double? = nil, buttons: [CurtainButton] = []) {
         guard state.stage == .starting else { return }
         if state.step != step { state.step = step }
         if state.progress != progress { state.progress = progress }
-        if state.trail != trail { state.trail = trail }
+        if state.buttons != buttons { state.buttons = buttons }
         let shown = Date().timeIntervalSince(raisedAt) >= detailAfter ? detail : nil
         if state.detail != shown { state.detail = shown }
     }
@@ -125,7 +122,6 @@ enum GameBackdrop {
         if state.steamAsks != asks { state.steamAsks = asks }
         if state.licence != licence { state.licence = licence }
         if state.seam != nil { state.seam = nil }
-        if state.licenceAnnounced { state.licenceAnnounced = false }  // said, or answered
     }
 
     /// Steam's window under the licence's frame (screen coordinates, y down); nil while it isn't there.
@@ -140,11 +136,6 @@ enum GameBackdrop {
     static var licenceStillToSay: Bool { SteamLicence.framesLate(steamAsks: state.steamAsks, framed: state.licence != nil) }
 
     static func sayLicence(_ look: LicenceLook) { state.licence = look }
-
-    static func announceLicence(for game: String) {
-        guard isRaised, state.game == game, !state.steamAsks else { return }
-        state.licenceAnnounced = true
-    }
 
     static func setWayOut(_ tip: LaunchTip?) {
         if state.wayOut != tip { state.wayOut = tip }
@@ -366,11 +357,10 @@ enum GameBackdrop {
             state.tip = tip
             state.wayOut = nil
             state.progress = nil
-            state.trail = nil
+            state.buttons = []
             state.steamAsks = false
             state.licence = nil
             state.seam = nil
-            state.licenceAnnounced = false
         }
         if stage.raised, stage != state.stage || !isRaised { upSince = Date() }
         state.stage = stage
@@ -594,13 +584,9 @@ struct BackdropView: View {
                 .foregroundStyle(Theme.muted)
                 .animation(.easeInOut(duration: 0.4), value: status)
                 .padding(.top, 34)
-                // In the gap above the second line, which is there anyway: an update's bar, or the steps of a
-                // start Nightforge mends – nothing moves when either comes.
-                ZStack {
-                    UpdateBar(fraction: state.stage == .starting ? state.progress : nil)
-                    RepairTrail(steps: state.stage == .starting ? state.trail : nil)
-                }
-                .frame(height: RepairTrail.height)
+                // In the gap above the second line, which is there anyway: an update's bar – nothing moves when it comes.
+                UpdateBar(fraction: state.stage == .starting ? state.progress : nil)
+                    .frame(height: 34)
                 // Its own fade only, nothing else on the page moves with it.
                 Text(state.stage == .starting ? state.detail ?? " " : " ")
                     .font(size: 14)
@@ -609,12 +595,19 @@ struct BackdropView: View {
                     .frame(maxWidth: 560)
                     .opacity(state.stage == .starting && state.detail != nil ? 1 : 0)
                     .animation(.easeInOut(duration: 0.5), value: state.detail)
-                // Steam's licence, said beforehand in the place of the tip.
-                if state.stage == .starting, state.wayOut == nil, state.licenceAnnounced {
-                    Text(L10n.t("Steam will show the licence once. After that, never again."))
-                        .font(size: 15)
-                        .foregroundStyle(Color(nsColor: BrandArt.tagline).opacity(0.85))
-                        .padding(.top, 26)
+                if state.stage == .starting, !state.buttons.isEmpty {
+                    // What to press now, each button with its word: where the player has to do something.
+                    HStack(spacing: 22) {
+                        ForEach(Array(state.buttons.enumerated()), id: \.offset) { _, button in
+                            HStack(spacing: 8) {
+                                PadGlyph(button.symbol, size: 17)
+                                Text(button.label)
+                            }
+                        }
+                    }
+                    .font(size: 15)
+                    .foregroundStyle(Color(nsColor: BrandArt.tagline).opacity(0.85))
+                    .padding(.top, 26)
                 } else if state.stage == .starting, let tip = state.wayOut ?? state.tip {
                     // A tip for new players, quiet, in the banner's blue.
                     HStack(spacing: 12) {
@@ -641,52 +634,6 @@ struct BackdropView: View {
         case .behind: return L10n.t("Nightforge waits here until you're done.")
         case .returning: return L10n.t("Back to Nightforge …")
         }
-    }
-}
-
-/// The steps of a start Nightforge mends (LaunchRepair): what happened, quiet, and the one it's at, in the
-/// seam's light. Three small marks and words – the one at work breathes slowly (with "Reduce motion" it
-/// stands still), nothing else moves.
-private struct RepairTrail: View {
-    let steps: [LaunchRepair.Step]?
-    static let height: CGFloat = 34
-
-    var body: some View {
-        HStack(spacing: 10) {
-            ForEach(Array((steps ?? []).enumerated()), id: \.offset) { index, step in
-                if index > 0 { Capsule().fill(Theme.muted.opacity(0.3)).frame(width: 26, height: 2) }
-                HStack(spacing: 7) {
-                    switch step.mark {
-                    case .done: Circle().fill(Theme.muted).frame(width: 9, height: 9)
-                    case .now: NowMark()
-                    case .next: Circle().strokeBorder(Theme.muted.opacity(0.6), lineWidth: 1.5).frame(width: 9, height: 9)
-                    }
-                    Text(step.label)
-                }
-                .foregroundStyle(step.mark == .now ? Theme.ink : Theme.muted.opacity(step.mark == .done ? 1 : 0.8))
-            }
-        }
-        .font(size: 14, weight: .medium)
-        .lineLimit(1)
-        .opacity(steps == nil ? 0 : 1)
-        .animation(.easeInOut(duration: 0.4), value: steps)
-    }
-}
-
-/// The step at work: the seam's bright core with its blue glow, breathing.
-private struct NowMark: View {
-    @Environment(\.reduceMotion) private var reduceMotion
-    @State private var dim = false
-
-    var body: some View {
-        Circle().fill(Color(red: 0.75, green: 0.87, blue: 1))
-            .frame(width: 9, height: 9)
-            .shadow(color: Color(nsColor: BrandArt.seamBlue), radius: 4)
-            .opacity(dim ? 0.45 : 1)
-            .onAppear {
-                guard !reduceMotion else { return }
-                withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) { dim = true }
-            }
     }
 }
 

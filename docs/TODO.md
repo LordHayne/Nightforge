@@ -185,6 +185,22 @@ Testreihen, 281 pytest. Nicht eingespielt, live nichts gesehen; Anleitung `close
   **der Nutzer wählte B** („B, wie empfohlen“, 15.11.): zwei Schritte (⌘⇥ zu Nightforge und zurück; Randloses Fenster),
   leise Zeile für nur Controller mit „Neu starten“, Profilfeld `fullscreenHint`. C (Nightforge schickt ⌘-Tab selbst,
   braucht Bedienungshilfen) später. Bau bei der Diagnose-Session.
+  Erkennen gebaut (`a759361`, `claude/diagnose-start-033-92f729`): die Abschirmung gehört dem Spiel, sein großes
+  Fenster ist nicht auf dem Schirm, nach zwei Versuchen, es zurückzuholen, und 10 s so. Quellen des Boards
+  `docs/entwuerfe/vollbild/`. Mit dem Controller gibt es heute keinen Weg ins Spiel, nur einen neuen Start.
+  **Bau von B angehalten (15.11.):** Der Nutzer will den Vorhang schlicht halten. Seine Regel: eine Zeile, höchstens
+  ein kurzer Satz; mehr nur, wenn der Spieler handeln muss, dann mit Knopf; alles andere ins Protokoll. Von B ist
+  nichts im Code. Bestandsaufnahme aller Vorhang-Zustände, heute und nach der Regel:
+  https://claude.ai/artifact/SMv7bMwpPLTukHK4UwqexA, Quellen `docs/entwuerfe/vorhang-regel/`. **Der Nutzer: „Ja, so
+  umbauen“ (15.11.).** Gebaut auf `claude/diagnose-start-033-92f729`, `2ef082a` … `eea064a`: Vorhang B eine Zeile;
+  Zusammenlegen; Kürzungen; Knöpfe statt Satz bei „Das Spiel fragt etwas“; Vollbild-Hinweis mit Pad-Knopf „Neu
+  starten“ und Profilfeld `fullscreenHint` (Overwatch); L3+R3-Tipp nur beim ersten Start. Live-Anleitung
+  `closer-look/live-pruefung-regel.md`. Live nichts gesehen.
+- [ ] **Vorhang nach der Regel live prüfen:** (a) Ein einziges ⌘⇥ reicht beim Vollbild-Hinweis (die Vorhang-Wache gibt dem
+  Spiel die Front selbst zurück) – ungeprüft; (b) „Neu starten“ mit A über die Pad-Zeile, A kommt dabei auch im Spiel
+  an – ungeprüft; (c) **Overwatchs deutschen Menüwortlaut im Spiel nachsehen**: „Optionen › Video › Randloses Fenster“
+  ist ein Arbeitswort (`profiles/mac.json`, `fullscreenHint.de`). Die Profilliste trägt das Feld mit neuem Stempel und
+  wird beim Release signiert.
 - [ ] **Overwatch: Zurückholen durch Ausblenden live gescheitert (15.11., 12:43–13:21, Builds `3254e96` und
   `19d7879`, Verläufe `overwatch-3/`, `overwatch-4/`):** Erst eine Zehntelsekunde, dann bis zu zwei Sekunden
   ausgeblendet: „the game was hidden, kept the front, the screen still captured, shown again“ – macOS lässt einem

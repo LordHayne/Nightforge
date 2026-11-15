@@ -1,9 +1,10 @@
 import Foundation
 
-/// What the curtain says while Nightforge mends a start that ended without a picture: a line, three
-/// steps under it with the one it's at, and a sentence. The player sees that Nightforge works on it and
-/// doesn't hang, without a word about ways or DLLs. Board "Vorhang bei Fehlstart", template B, the
-/// player's pick of 15.11.2026 (docs/entwuerfe/fehlstart, docs/ENTWURF-STARTREZEPT.md 3.3).
+/// What the curtain says while Nightforge mends a start that ended without a picture: one line, a short
+/// sentence only where it's true once or where the start ends. The player's rule of 15.11.2026 (board
+/// "Vorhang nach der Regel", docs/entwuerfe/vorhang-regel): template B's three steps stood two or three
+/// seconds, too short to read ("man sieht die neue Anzeige nur kurz"), so what Nightforge found and does
+/// goes to the log (`logLine`), not on the screen.
 enum LaunchRepair: Equatable {
     /// The game is gone; Nightforge reads what it left.
     case looking
@@ -24,63 +25,40 @@ enum LaunchRepair: Equatable {
     /// … no: the start ends here, said for `endStands`.
     case rootDeclined
 
-    struct Step: Equatable {
-        enum Mark: Equatable { case done, now, next }
-        var label: String
-        var mark: Mark
-    }
-
     /// How long the honest end stands on the curtain before the library comes.
     static let endStands: TimeInterval = 3
 
+    /// Whatever Nightforge mends, one more try is what the player sees.
     var title: String {
         switch self {
-        case .looking: return L10n.t("One moment …")
-        case .again, .onceMore, .closerLook, .rootAdded: return L10n.t("One more try …")
-        case .otherWay: return L10n.t("One more try, another way …")
-        case .settingUp: return L10n.t("Setting up the game …")
+        case .looking, .again, .onceMore, .otherWay, .closerLook, .rootAdded: return L10n.t("One more try …")
+        case .settingUp: return L10n.t("Setting up …")
         case .gaveUp: return L10n.t("That didn't work.")
         case .rootDeclined: return L10n.t("The game doesn't start this way.")
         }
     }
 
-    var detail: String {
+    var detail: String? {
         switch self {
-        case .looking: return L10n.t("The game closed right away.")
-        case .again: return L10n.t("Nightforge found the cause and starts the game once more.")
-        case .onceMore: return L10n.t("The game closed right away. Nightforge starts it once more.")
-        case .otherWay: return L10n.t("Nightforge remembers what runs.")
-        case .settingUp: return L10n.t("A piece of Windows, only this once.")
-        case .closerLook: return L10n.t("Nightforge takes a closer look and starts the game once more.")
-        case .gaveUp: return L10n.t("Nightforge tried everything it knows. You'll be back in the library in a moment.")
-        case .rootAdded: return L10n.t("The certificate is added. The game starts once more.")
-        case .rootDeclined: return L10n.t("It doesn't run without the certificate. Nightforge asks again next time.")
+        case .settingUp: return L10n.t("Only the first time.")
+        case .gaveUp: return L10n.t("You'll be back in the library in a moment.")
+        case .rootDeclined: return L10n.t("It doesn't run without the certificate.")
+        case .looking, .again, .onceMore, .otherWay, .closerLook, .rootAdded: return nil
         }
     }
 
-    /// Started, what was found, what happens now. Only what has happened is marked done.
-    var steps: [Step] {
-        let started = Step(label: L10n.t("Started"), mark: .done)
-        let lookedAt = Step(label: L10n.t("Looked into it"), mark: .done)
+    /// What left the screen, for the log: what Nightforge found and does now.
+    var logLine: String {
         switch self {
-        case .looking:
-            return [started, Step(label: L10n.t("Looking into it"), mark: .now), Step(label: L10n.t("New try"), mark: .next)]
-        case .again:
-            return [started, Step(label: L10n.t("Cause found"), mark: .done), Step(label: L10n.t("Starting again"), mark: .now)]
-        case .onceMore:
-            return [started, lookedAt, Step(label: L10n.t("Starting again"), mark: .now)]
-        case .otherWay:
-            return [started, lookedAt, Step(label: L10n.t("Another way"), mark: .now)]
-        case .settingUp:
-            return [started, Step(label: L10n.t("A piece was missing"), mark: .done), Step(label: L10n.t("Getting it"), mark: .now)]
-        case .closerLook:
-            return [started, lookedAt, Step(label: L10n.t("Taking a closer look"), mark: .now)]
-        case .gaveUp:
-            return [started, lookedAt, Step(label: L10n.t("Tried everything"), mark: .done)]
-        case .rootAdded:
-            return [started, Step(label: L10n.t("Certificate added"), mark: .done), Step(label: L10n.t("Starting again"), mark: .now)]
-        case .rootDeclined:
-            return [started, lookedAt, Step(label: L10n.t("Not added"), mark: .done)]
+        case .looking: return "the game closed right away, Nightforge looks into it"
+        case .again: return "the cause found, the same way once more"
+        case .onceMore: return "no cause known, a proven way once more"
+        case .otherWay: return "on to another way, Nightforge remembers what runs"
+        case .settingUp: return "a piece of Windows was missing, it's set up, then the same way once more"
+        case .closerLook: return "nothing explains the end, a closer look with the next start"
+        case .gaveUp: return "every way tried, back to the library"
+        case .rootAdded: return "the certificate is added, the game starts once more"
+        case .rootDeclined: return "the certificate isn't added, the start ends; asked again next time"
         }
     }
 

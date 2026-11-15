@@ -100,11 +100,11 @@ enum CurtainEscape {
     static func text(_ reason: Reason, game: String) -> String {
         switch reason {
         case .storeQuiet, .ownUpdate, .ownSaves, .steamAsks:
-            return L10n.t("%@ hasn't started yet. You can keep waiting or go back to Nightforge. Going back breaks nothing.", game)
+            return L10n.t("Going back breaks nothing.")
         case .updating:
-            return L10n.t("That can take a while. You can go back to Nightforge: Steam keeps updating and starts the game by itself afterwards.")
+            return L10n.t("Steam keeps updating and starts the game afterwards.")
         case .updateStuck:
-            return L10n.t("Steam hasn't got any further for a while. You can go back to Nightforge: the update carries on once Steam can, and your saves stay as they are.")
+            return L10n.t("The update carries on once Steam can, your saves stay as they are.")
         }
     }
 }

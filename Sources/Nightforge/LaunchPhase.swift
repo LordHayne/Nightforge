@@ -97,6 +97,39 @@ enum LaunchPhase: Equatable {
         }
     }
 
+    /// The curtain's line for it: what happens, the same words for the same thing – the rule of 15.11.2026
+    /// (board "Vorhang nach der Regel"). Which part, engine or way goes to the log (`kind`); the Play button
+    /// keeps `title`.
+    var curtainTitle: String {
+        switch self {
+        case .settingUp, .settingUpDotNet, .settingUpWindowsParts: return L10n.t("Setting up …")
+        case .restartingSteam, .steamNotResponding: return L10n.t("Restarting Steam …")
+        case .retrying, .rollingBack: return L10n.t("One more try …")
+        // The engine before, at a start of its own: no try of Nightforge's to tell of.
+        case .heldEngine: return L10n.t("Starting …")
+        case .savingToCloud: return L10n.t("Saving your game …")
+        case .licenceAnswered: return L10n.t("The game is starting …")
+        default: return title
+        }
+    }
+
+    /// The short sentence under the curtain's line: only where it's true once, or where the player has a window to
+    /// answer in (the rule of 15.11.2026). What else `hint` says is in the log as the phase begins.
+    var curtainSentence: String? {
+        switch self {
+        case .settingUp, .settingUpDotNet, .settingUpWindowsParts: return L10n.t("Only the first time.")
+        case .signInInSteamWindow, .signInAgain, .signInInBattleNetWindow: return L10n.t("Its window is open.")
+        case .battleNetAsks: return hint
+        default: return nil
+        }
+    }
+
+    /// For the log, once a phase begins: an update's figures don't make a new one.
+    var kind: String {
+        if case .updating = self { return "updating" }
+        return "\(self)"
+    }
+
     /// While Steam starts the game itself, the first time with new graphics: shaders are built then.
     static var shaderHint: String { L10n.t("First start with this graphics version: shaders are prepared, so it can take a minute. Next time it's quicker.") }
     /// `updating` for an Epic or GOG game: legendary or gogdl fetches the update, not Steam.

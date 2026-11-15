@@ -98,6 +98,17 @@ struct GameProfile: Decodable, Equatable {
     /// whatever it draws with. That names Apple's libd3dshared.dylib, which comes with D3DMetal, so
     /// without D3DMetal set up its start asks first (D3DMetalSupply.needed). Overwatch, 7.11.
     var needsRosettaLibrary: Bool?
+    /// Where in the game its full screen is set to a borderless window, by language ({"de": …, "en": …}): said on the
+    /// curtain when its own full screen hides its picture (LibraryModel.fullScreenWords). Overwatch, 15.11.2026 – about
+    /// every second start in exclusive full screen. It changes nothing about the game or its files.
+    var fullscreenHint: [String: String]?
+
+    /// The hint in the player's language, else the English one.
+    func fullscreenHint(german: Bool) -> String? {
+        guard let fullscreenHint else { return nil }
+        return (german ? fullscreenHint["de"] : nil) ?? fullscreenHint["en"]
+    }
+
     /// false: the game runs without msync. Wine's whole session has it or doesn't, so Steam starts
     /// afresh when it changes from one game to the next. Everything else keeps it (Engine.msyncWanted).
     var msync: Bool?
@@ -160,7 +171,7 @@ struct GameProfile: Decodable, Equatable {
         case name, graphics, arguments, dllOverrides, registry, windowsVersion, winetricks, metalFX, frameLimit
         case vulkanSamplers, preferWindows, saves, antiCheat, antiCheatOnline, geforceNow, notYet, avx, fileEdits
         case iniSettings, retina, dlss, resolution, executable, environment, skipUnityDialog, msync
-        case needsRosettaLibrary, ownAntiCheat
+        case needsRosettaLibrary, ownAntiCheat, fullscreenHint
     }
 
     /// {"root": "WinAppDataRoaming", "path": "7DaysToDie/Saves", "pattern": "*", "recursive": true, "mac": "MacAppSupport"}
@@ -199,6 +210,7 @@ struct GameProfile: Decodable, Equatable {
         antiCheat = try? container.decodeIfPresent([String].self, forKey: .antiCheat)
         antiCheatOnline = try? container.decodeIfPresent([String].self, forKey: .antiCheatOnline)
         ownAntiCheat = try? container.decodeIfPresent(Bool.self, forKey: .ownAntiCheat)
+        fullscreenHint = try? container.decodeIfPresent([String: String].self, forKey: .fullscreenHint)
         geforceNow = try? container.decodeIfPresent(String.self, forKey: .geforceNow)
         // An empty reason is none.
         notYet = (try? container.decodeIfPresent(String.self, forKey: .notYet)).flatMap { $0.isEmpty ? nil : $0 }

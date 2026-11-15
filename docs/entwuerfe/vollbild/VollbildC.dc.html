@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Vollbild verdeckt das Spiel, Vorlage C</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.board{width:1480px;height:1260px;box-sizing:border-box;padding:40px 40px 24px;display:flex;flex-direction:column;gap:22px;background:#0f141c;color:#f3f1ec;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-serif}
+.top{display:grid;grid-template-columns:880px minmax(0,1fr);gap:32px;align-items:start}
+.frame{position:relative;width:880px;height:495px;overflow:hidden;border-radius:10px;box-shadow:0 12px 22px rgba(0,0,0,.55)}
+.cur{position:absolute;left:0;top:0;width:1512px;height:850px;transform:scale(.582);transform-origin:top left;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(180deg,#171a24,#06080b);text-align:center}
+.mark{height:300px;margin-bottom:6px}
+.word{font-size:50px;font-weight:300;font-stretch:expanded;letter-spacing:15px;padding-left:15px;color:#e6e6e6}
+.game{margin-top:18px;font-size:22px;font-stretch:expanded;letter-spacing:8px;padding-left:8px;color:#8ca8db}
+.status{margin-top:34px;font-size:18px;font-weight:500;color:#9aa3af}
+.trail{display:flex;align-items:center;gap:10px;margin-top:16px;font-size:13px;font-weight:500}
+.step{display:flex;align-items:center;gap:7px;color:rgba(154,163,175,.8)}
+.dot{width:9px;height:9px;border-radius:50%;box-sizing:border-box;border:1.5px solid rgba(154,163,175,.6)}
+.done{color:#9aa3af}
+.done .dot{background:#9aa3af;border-color:#9aa3af}
+.now{color:#f3f1ec}
+.now .dot{background:#bfdeff;border-color:#bfdeff;box-shadow:0 0 8px #2e7aff}
+.bar{width:26px;height:2px;border-radius:1px;background:rgba(154,163,175,.3)}
+.detail{margin-top:14px;max-width:580px;font-size:14px;line-height:19px;color:rgba(154,163,175,.78)}
+.col{display:flex;flex-direction:column;gap:12px}
+h1{margin:0;font-size:30px;font-weight:800;font-stretch:expanded}
+.lead{margin:0;font-size:15px;line-height:22px;color:#9aa3af}
+.plus,.minus{margin:0;font-size:14px;line-height:21px}
+.minus{color:#9aa3af}
+.label{font-size:11px;font-weight:700;letter-spacing:.8px;color:#9aa3af;text-transform:uppercase}
+.later{align-self:flex-start;padding:5px 12px;border-radius:999px;font-size:12px;font-weight:700;border:1px solid #8ca8db;color:#bfdeff}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 24px}
+.state{display:flex;flex-direction:column;gap:7px}
+.card{height:200px;box-sizing:border-box;padding:0 36px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:linear-gradient(180deg,#171a24,#0a0d12)}
+.card .status{margin-top:0}
+.cap{display:flex;gap:12px;align-items:baseline;font-size:12px;line-height:17px;color:#9aa3af}
+.cap b{flex:none;width:150px;font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:#f3f1ec}
+</style>
+</helmet>
+<div class="board">
+  <div class="top">
+    <div class="frame">
+      <div class="cur">
+        <img class="mark" src="/_blob/950ba4476bc78baa796521d45caec739" alt="">
+        <div class="word">NIGHTFORGE</div>
+        <div class="game">OVERWATCH®</div>
+        <div class="status">Holt das Bild …</div>
+        <div class="trail">
+          <span class="step done"><span class="dot"></span>Erkannt</span>
+          <span class="bar"></span>
+          <span class="step now"><span class="dot"></span>Gibt den Bildschirm frei</span>
+          <span class="bar"></span>
+          <span class="step"><span class="dot"></span>Zurück ins Spiel</span>
+        </div>
+        <div class="detail">Das Vollbild hat das Spiel verdeckt. Nightforge holt es nach vorn.</div>
+      </div>
+    </div>
+    <div class="col">
+      <span class="later">Später, nach einem Live-Test</span>
+      <div class="label">Vorlage C</div>
+      <h1>Nightforge holt das Bild</h1>
+      <p class="lead">Nightforge macht selbst, was ⌘-Tab und zurück tut. Es schickt dem Spiel das ⌘-Tab, Wine gibt den Bildschirm frei, und Nightforge gibt dem Spiel die Front zurück. Auf dem Vorhang stehen dabei drei Schritte wie bei Vorhang B. Ohne Erlaubnis oder wenn es nicht klappt, kommt Vorlage B.</p>
+      <p class="plus">Dafür: Einschalten und spielen. Kein Tastenkürzel, und es geht auch mit dem Controller vom Sofa aus.</p>
+      <p class="minus">Dagegen: Das ist mehr als ein Hinweis, also eine neue Entscheidung. Es braucht die Erlaubnis für Klicks in anderen Apps (Einstellungen › Controller), und die haben die wenigsten. Dass Wine auf ein geschicktes ⌘-Tab so antwortet wie auf ein getipptes, ist nur aus dem Quelltext gelesen. Den Satz für die Einstellung im Spiel braucht man trotzdem.</p>
+      <p class="minus">Kosten: ein Live-Test mit der Erlaubnis am MacBook, dann ein Schritt mehr in der Vorhang-Wache und drei Wörter für die Schritte.</p>
+    </div>
+  </div>
+  <div class="label">Die vier Fälle, Text in Originalgröße. Unter jeder Karte die englische Fassung.</div>
+  <div class="grid">
+    <sc-for list="{{states}}" as="s" hint-placeholder-count="4">
+      <div class="state">
+        <div class="card">
+          <div class="status">{{s.de}}</div>
+          <sc-if value="{{s.trail}}" hint-placeholder-val="{{ true }}">
+            <div class="trail">
+              <span class="step {{s.c1}}"><span class="dot"></span>Erkannt</span>
+              <span class="bar"></span>
+              <span class="step {{s.c2}}"><span class="dot"></span>Gibt den Bildschirm frei</span>
+              <span class="bar"></span>
+              <span class="step {{s.c3}}"><span class="dot"></span>Zurück ins Spiel</span>
+            </div>
+          </sc-if>
+          <div class="detail">{{s.deDetail}}</div>
+        </div>
+        <div class="cap"><b>{{s.name}}</b><span>{{s.en}}</span></div>
+      </div>
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1480,"height":1260}}'>
+class Component extends DCLogic {
+renderVals() {
+return { states: [
+{ name: "Holt das Bild", de: "Holt das Bild …", trail: true, c1: "done", c2: "now", c3: "", deDetail: "Das Vollbild hat das Spiel verdeckt. Nightforge holt es nach vorn.", en: "Bringing the picture back … · Detected – Freeing the display – Back to the game · Full screen hid the game. Nightforge brings it to the front." },
+{ name: "Zurück im Spiel", de: "Holt das Bild …", trail: true, c1: "done", c2: "done", c3: "now", deDetail: "Gleich geht es weiter. Damit es nicht wieder passiert: Optionen › Video › „Randloses Fenster“.", en: "Bringing the picture back … · Back to the game · Just a moment. So it doesn’t happen again: Options › Video › “Borderless Windowed”." },
+{ name: "Ohne Erlaubnis", de: "Das Spiel läuft – sein Bild kommt im Vollbild nicht durch.", trail: false, deDetail: "Wie Vorlage B: ⌘-Tab zu Nightforge, dann ⌘-Tab zurück, und im Spiel „Randloses Fenster“.", en: "Without the permission, Nightforge says what B says and doesn’t ask for the permission on the curtain: only a mouse can turn it on, in Settings › Controller." },
+{ name: "Hat nicht geklappt", de: "Das Spiel läuft – sein Bild kommt im Vollbild nicht durch.", trail: false, deDetail: "Nightforge hat es versucht. Drück ⌘-Tab, dann noch einmal ⌘-Tab, oder starte neu.", en: "The game is running – its picture doesn’t come through in full screen. · Nightforge tried. Press ⌘-Tab, then ⌘-Tab again, or restart." }
+] };
+}
+}
+</script>
+</body>
+</html>

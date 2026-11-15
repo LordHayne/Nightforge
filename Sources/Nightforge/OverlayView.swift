@@ -165,7 +165,7 @@ struct OverlayView: View {
     @ViewBuilder private var notStarting: some View {
         Text(L10n.t("%@ isn't starting?", state.game))
             .font(size: 22, weight: .semibold)
-        Text(L10n.t("It runs, but hasn't shown a picture yet. Some games take long the first time."))
+        Text(L10n.t("Some games take long the first time."))
             .font(size: 14)
             .foregroundStyle(Theme.muted)
         VStack(spacing: 12) {
@@ -196,7 +196,7 @@ struct OverlayView: View {
         Text(L10n.t("%@ needs an older certificate", state.game))
             .font(size: 22, weight: .semibold)
             .fixedSize(horizontal: false, vertical: true)
-        Text(L10n.t("At its start the game checks one of its files. It is signed with a certificate macOS no longer carries, but Windows does. Nightforge can add it for its Windows games – only there, not to your Mac."))
+        Text(L10n.t("Nightforge adds it only for its Windows games, not to your Mac."))
             .font(size: 14)
             .foregroundStyle(Theme.muted)
             .fixedSize(horizontal: false, vertical: true)

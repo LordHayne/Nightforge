@@ -597,6 +597,40 @@ struct GameOverlayTest {
         check(GameProcesses.captureNote(owners: [(7000, "wine64-preloader"), (7200, "?")], modes: []) == "shield of wine64-preloader (7000), ? (7200)",
               "two owners")
         check(GameProcesses.captureNote().hasPrefix("no shield") || GameProcesses.captureNote().hasPrefix("shield of"), "as it stands now, on this Mac")
+        // Its own full screen hides its picture (Overwatch, 15.11.2026, overwatch-2 run 2): the list of all windows.
+        func listed(_ pid: Int32, _ layer: Int, _ width: Int, _ height: Int, on: Bool) -> [String: Any] {
+            var window = captureWindow(pid, layer)
+            window[kCGWindowBounds as String] = ["X": 0, "Y": 0, "Width": width, "Height": height]
+            window[kCGWindowIsOnscreen as String] = NSNumber(value: on)
+            return window
+        }
+        let helpers = (0..<3).map { _ in listed(7000, 0, 500, 500, on: false) }  // Wine's hidden 500×500 ones
+        let curtain = listed(401, shieldLevel + 3, 1512, 982, on: true)
+        let hidden = helpers + [listed(7000, shieldLevel + 2, 1512, 982, on: false), listed(7000, shieldLevel, 1512, 982, on: true),
+                                listed(7000, shieldLevel + 1, 1512, 982, on: false), curtain]
+        check(GameProcesses.ownCaptureHides(hidden, pids: [7000]), "its shield on the screen, its big window off: hidden by its own full screen")
+        let shown = helpers + [listed(7000, shieldLevel + 2, 1512, 982, on: true), listed(7000, shieldLevel, 1512, 982, on: true), curtain]
+        check(!GameProcesses.ownCaptureHides(shown, pids: [7000]), "its window over its shield: the picture shows (the good runs)")
+        let borderless = helpers + [listed(7000, 0, 1512, 982, on: false), curtain]
+        check(!GameProcesses.ownCaptureHides(borderless, pids: [7000]), "no shield of its own (borderless window): not this case")
+        let anothers = helpers + [listed(7000, 0, 1512, 982, on: false), listed(7300, shieldLevel, 1512, 982, on: true), curtain]
+        check(!GameProcesses.ownCaptureHides(anothers, pids: [7000]), "another game's shield: not its own full screen")
+        let helpersOnly = helpers + [listed(7000, shieldLevel, 1512, 982, on: true), curtain]
+        check(!GameProcesses.ownCaptureHides(helpersOnly, pids: [7000]), "only Wine's small hidden windows: no picture that is hidden")
+        check(!GameProcesses.ownCaptureHides(hidden, pids: []), "no game processes: nothing")
+        func hides(_ hides: Bool = true, front: Bool = true, back: Int = 2, for seconds: TimeInterval = 10) -> Bool {
+            LibraryModel.fullScreenHidesPicture(hides: hides, gameFront: front, broughtBack: back, hiddenFor: seconds)
+        }
+        check(hides(), "hidden 10 s with the game in front, after two fetches: said")
+        check(!hides(for: 3), "off for a moment, as in the runs with a picture: not yet")
+        check(!hides(back: 1, for: 30), "not fetched back twice yet: Nightforge tries first")
+        check(!hides(front: false), "the game not in front: not this case")
+        check(!hides(false, for: 60), "not hidden: never")
+        // What the curtain says then (board "Vorhang nach der Regel", the player's pick of 15.11.2026): a line, a sentence.
+        let known = LibraryModel.fullScreenWords(setting: "Options › Video › Borderless Windowed")
+        let general = LibraryModel.fullScreenWords(setting: nil)
+        check(known.line == general.line && known.sentence.contains("Options › Video › Borderless Windowed") && known.sentence.contains("⌘⇥")
+              && general.sentence.contains("⌘⇥") && general.sentence != known.sentence, "where its profile knows the place, it's said; else in general")
         check(step(gameFront: true, anywhere: true, frontFor: 5, broughtBack: 0, shieldOnly: true) == .bringBack,
               "only the black shield on screen: its real window is fetched")
         check(step(gameFront: true, anywhere: true, frontFor: 5, broughtBack: 2, shieldOnly: true) == .wait,
@@ -925,23 +959,46 @@ struct GameOverlayTest {
         check(line() == nil, "nothing known yet: \"Starting …\"")
         check(line("Starting Steam …") == "Starting Steam …", "the start's own step, from the first look on")
         check(line("Starting again with WineD3D …", runs: true) == "Starting again with WineD3D …", "a step wins over the game's")
-        check(line(runs: true) == L10n.t("Waiting for the first picture …"), "the game runs, no window yet")
-        check(line(shaders: true, runs: true) == L10n.t("Preparing shaders for the first start …"), "its first start with these graphics")
+        check(line(runs: true) == nil, "the game runs, no window yet: still \"Starting …\", one line for the start")
+        check(line(shaders: true, runs: true) == L10n.t("Preparing shaders …"), "its first start with these graphics")
         check(LibraryModel.curtainStatus(phase: "Starting Steam …", shaders: false, gameRuns: true, asks: true)
-              == L10n.t("The game is asking something – answer it with the mouse or trackpad."), "a question on it: said, before any step")
-        check(LibraryModel.curtainStatus(phase: "Starting Steam …", shaders: true, gameRuns: true, asks: true, padAnswers: ("✕", "○"))?.hasSuffix(L10n.t("The game is asking something – %@ confirms, %@ cancels, or use the mouse.", "✕", "○")) == true,
-              "with a pad and the helper, the curtain says A and B answer")
+              == L10n.t("The game is asking something"), "a question on it: said, before any step, one line")
+        // The pad's buttons in their own line, not in the sentence (the rule of 15.11.2026).
+        let pad = PadSymbols()
+        check(LibraryModel.curtainButtons(asks: true, errorBox: false, macOSAsks: false, pad: pad).map(\.symbol) == [pad.confirm, pad.back]
+              && LibraryModel.curtainDetail(sentence: nil, asks: true, pad: true) == nil,
+              "with a pad and the helper: confirm and cancel as buttons, no sentence")
+        check(LibraryModel.curtainButtons(asks: true, errorBox: false, macOSAsks: false, pad: nil).isEmpty
+              && LibraryModel.curtainDetail(sentence: nil, asks: true, pad: false) == L10n.t("Answer with the mouse or trackpad."),
+              "without one: how to answer, in a sentence")
+        check(LibraryModel.curtainButtons(asks: true, errorBox: false, macOSAsks: true, pad: pad).isEmpty
+              && LibraryModel.curtainButtons(asks: false, errorBox: false, macOSAsks: false, pad: pad).isEmpty,
+              "macOS takes only the mouse; no question, no buttons")
         check(LibraryModel.curtainStatus(phase: "Starting Steam …", shaders: false, gameRuns: true, asks: true,
                                          macOSAsks: true)
-              == L10n.t("macOS is asking for permission – answer it with the mouse or trackpad."),
+              == L10n.t("macOS is asking for permission"),
               "macOS asks: said, before the game's question and any step")
-        func detail(_ hint: String? = nil, asks: Bool = false, macOSOpen: Bool = false) -> String? {
-            LibraryModel.curtainDetail(launchHint: hint, asks: asks, macOSOpen: macOSOpen)
+        func detail(_ sentence: String? = nil, asks: Bool = false, pad: Bool = false, macOSAsks: Bool = false, shaders: Bool = false) -> String? {
+            LibraryModel.curtainDetail(sentence: sentence, asks: asks, pad: pad, macOSAsks: macOSAsks, shaders: shaders)
         }
         check(detail() == nil, "nothing to add")
-        check(detail(macOSOpen: true) == L10n.t("macOS still has a question open."), "a question from before the start: a word on it")
-        check(detail("Steam updates the game first", macOSOpen: true) == "Steam updates the game first", "the start's hint goes first")
-        check(detail("Steam updates the game first", asks: true, macOSOpen: true) == nil, "under a question it waits for: none")
+        check(detail(macOSAsks: true) == L10n.t("Answer with the mouse or trackpad."), "macOS asks: how to answer")
+        check(detail("Its window is open.") == "Its window is open.", "the start's sentence")
+        check(detail("Its window is open.", asks: true, pad: true) == nil, "under a question it waits for, with the pad's buttons: no sentence")
+        check(detail(shaders: true) == L10n.t("Only the first time.") && detail("x", shaders: true) == "x", "shaders: only once, after the start's own")
+        // The rule of 15.11.2026: a sentence only where it's true once or the player has a window to answer in.
+        check(LibraryModel.curtainSentence(phase: .startingSteam, repair: nil, confirming: false) == nil
+              && LibraryModel.curtainSentence(phase: .signingIn, repair: nil, confirming: false) == nil
+              && LibraryModel.curtainSentence(phase: .updating(0.4), repair: nil, confirming: false) == nil, "no why on the curtain")
+        check(LibraryModel.curtainSentence(phase: .settingUpWindowsParts("vcredist"), repair: nil, confirming: false) == L10n.t("Only the first time.")
+              && LibraryModel.curtainSentence(phase: .signInInSteamWindow, repair: nil, confirming: false) == L10n.t("Its window is open."),
+              "once, or a window to answer in")
+        check(LibraryModel.curtainSentence(phase: nil, repair: .gaveUp, confirming: false) == LaunchRepair.gaveUp.detail
+              && LibraryModel.curtainSentence(phase: .startingSteam, repair: nil, confirming: true) == LaunchPhase.confirmHint,
+              "the honest end; Steam's question before the start")
+        check(LibraryModel.curtainHint(progress: 0.4, speed: "18 MB/s", launchHint: LaunchPhase.updating(0.4).curtainSentence) == "18 MB/s"
+              && LibraryModel.curtainHint(progress: 0.4, speed: nil, launchHint: LaunchPhase.updating(0.4).curtainSentence) == nil,
+              "an update: its bar and its speed, no sentence")
     }
 
     /// The loading screen's N: drawn at the screen's scale, its seam left out for the layer on top.
