@@ -134,10 +134,19 @@ enum L10n {
         "Read-only": "nur lesbar",
         "Games on %@": "Spiele auf %@",
         "Forget Drive …": "Laufwerk vergessen …",
+        "%@ on “%@” is back": "%@ auf „%@“ ist wieder da",
+        "%ld games on “%@” are back": "%ld Spiele auf „%@“ sind wieder da",
+        "One Epic game on “%@” is waiting for sign-in": "Ein Epic-Spiel auf „%@“ wartet auf die Anmeldung",
+        "%ld Epic games on “%@” are waiting for sign-in": "%ld Epic-Spiele auf „%@“ warten auf die Anmeldung",
+        "One GOG game on “%@” is waiting for sign-in": "Ein GOG-Spiel auf „%@“ wartet auf die Anmeldung",
+        "%ld GOG games on “%@” are waiting for sign-in": "%ld GOG-Spiele auf „%@“ warten auf die Anmeldung",
+        "One Mac game on “%@” is waiting for Steam for Mac": "Ein Mac-Spiel auf „%@“ wartet auf Steam für Mac",
+        "%ld Mac games on “%@” are waiting for Steam for Mac": "%ld Mac-Spiele auf „%@“ warten auf Steam für Mac",
+        "Set Up": "Einrichten",
         "Forget Drive": "Laufwerk vergessen",
         "Forget %@?": "%@ vergessen?",
-        "Its games count as not installed afterwards and can be downloaded again, onto your Mac or another drive. They stay in your store libraries, nothing is deleted on your Mac, and saves in the Windows environment stay. Plugged in again later, %@ counts as a new drive.":
-            "Seine Spiele gelten danach als nicht installiert und lassen sich neu laden, auf deinen Mac oder ein anderes Laufwerk. Sie bleiben in deinen Store-Bibliotheken, auf deinem Mac wird nichts gelöscht, und Spielstände in der Windows-Umgebung bleiben. Steckst du %@ später wieder an, gilt es als neues Laufwerk.",
+        "Its games count as not installed afterwards and can be downloaded again, onto your Mac or another drive. They stay in your store libraries, nothing is deleted on your Mac, and saves in the Windows environment stay. Plugged in again later, %@ brings its games back without a download.":
+            "Seine Spiele gelten danach als nicht installiert und lassen sich neu laden, auf deinen Mac oder ein anderes Laufwerk. Sie bleiben in deinen Store-Bibliotheken, auf deinem Mac wird nichts gelöscht, und Spielstände in der Windows-Umgebung bleiben. Steckst du %@ später wieder an, sind seine Spiele ohne Download wieder da.",
         "%@ is forgotten – its games can be downloaded again": "%@ ist vergessen – seine Spiele lassen sich neu laden",
         "%@ couldn't be forgotten: %@": "%1$@ konnte nicht vergessen werden: %2$@",
         "Nothing can be forgotten while a game runs or a download or move is under way – wait a moment.":

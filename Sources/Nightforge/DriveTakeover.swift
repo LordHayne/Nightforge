@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 
 /// When a drive's games are looked at (again) – pure, for the tests.
 enum DriveTakeoverRules {
@@ -31,6 +32,88 @@ enum DriveTakeoverRules {
     static let retryAfter: TimeInterval = 120
 }
 
+/// One thing on a drive that waits for the player, with what they can do about it.
+struct DriveWaitLine: Equatable, Identifiable {
+    enum Need: Equatable {
+        /// Epic or GOG isn't connected, or Epic signed the player out.
+        case signIn(Provider)
+        /// Steam for Mac isn't set up on this Mac.
+        case macSteam
+    }
+
+    let drivePath: String
+    let need: Need
+    let count: Int
+    /// The first game it's about: the Steam for Mac setup names one.
+    let firstName: String
+    /// Already translated, like the button's word.
+    let text: String
+    let button: String
+
+    var id: String {
+        switch need {
+        case .signIn(let provider): return drivePath + "|" + provider.rawValue
+        case .macSteam: return drivePath + "|mac"
+        }
+    }
+}
+
+/// What the player reads about a drive's games: one line for what happened, and one with a button
+/// where they have to act – nothing else (the user's rule, 15.11.).
+enum DriveTakeoverText {
+    /// The note after a takeover: "14 games on “Games” are back", or the one game's name.
+    static func note(_ games: [DriveTakeover.TakenGame], drive: String) -> String {
+        games.count == 1 ? L10n.t("%@ on “%@” is back", games[0].name, drive)
+                         : L10n.t("%ld games on “%@” are back", games.count, drive)
+    }
+
+    /// The lines with a button: a store that isn't signed in (Epic, GOG) and Steam for Mac not set up.
+    /// Nightforge's own Steam comes with the first start; folders that are no game of the account are
+    /// for the log only.
+    static func lines(_ waiting: [DriveFinds.Waiting], drive: String, path: String) -> [DriveWaitLine] {
+        var lines: [DriveWaitLine] = []
+        for provider in [Provider.epic, .gog] {
+            let names = waiting.filter { $0.provider == provider && $0.reason == .notConnected }.map(\.name)
+            guard let first = names.first else { continue }
+            let text: String
+            switch (provider, names.count) {
+            case (.epic, 1): text = L10n.t("One Epic game on “%@” is waiting for sign-in", drive)
+            case (.epic, _): text = L10n.t("%ld Epic games on “%@” are waiting for sign-in", names.count, drive)
+            case (_, 1): text = L10n.t("One GOG game on “%@” is waiting for sign-in", drive)
+            default: text = L10n.t("%ld GOG games on “%@” are waiting for sign-in", names.count, drive)
+            }
+            lines.append(DriveWaitLine(drivePath: path, need: .signIn(provider), count: names.count, firstName: first,
+                                       text: text, button: L10n.t("Sign In")))
+        }
+        let mac = waiting.filter { $0.provider == .steam && $0.platform == .mac && $0.reason == .steamNotSetUp }.map(\.name)
+        if let first = mac.first {
+            let text = mac.count == 1 ? L10n.t("One Mac game on “%@” is waiting for Steam for Mac", drive)
+                                      : L10n.t("%ld Mac games on “%@” are waiting for Steam for Mac", mac.count, drive)
+            lines.append(DriveWaitLine(drivePath: path, need: .macSteam, count: mac.count, firstName: first,
+                                       text: text, button: L10n.t("Set Up")))
+        }
+        return lines
+    }
+}
+
+/// A line that waits, as a row of Settings: its words, and its button for mouse, keyboard and pad.
+struct DriveWaitRow: View {
+    @EnvironmentObject private var model: LibraryModel
+    let line: DriveWaitLine
+    /// Where it shows ("storage", "stores"): the pad tells the rows apart by it.
+    let place: String
+
+    var body: some View {
+        LabeledContent {
+            Button(line.button) { model.resolve(line) }
+                .buttonStyle(GlassTextButtonStyle(prominent: true, small: true))
+                .padFocus("\(place).driveWait.\(line.id)", activate: { model.resolve(line) })
+        } label: {
+            Text(line.text).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
 /// Takes the games on a plugged-in drive over: a drive that holds games in "Nightforge Games" from an
 /// earlier Nightforge – after a reinstall, on a second Mac, or once Nightforge's data is gone – gets its
 /// games back as installed, without downloading them again and without anything on the drive being
@@ -38,8 +121,12 @@ enum DriveTakeoverRules {
 /// with Steam stopped), legendary takes an Epic game into its list (`legendary import`), and a GOG game
 /// goes into Nightforge's own record. What its store isn't ready for waits, and comes once it is.
 @MainActor
-final class DriveTakeover {
+final class DriveTakeover: ObservableObject {
     static let shared = DriveTakeover()
+
+    /// What waits for the player on the drives plugged in, from the last look: a line with a button each
+    /// (Settings › Storage, at the drive, and Settings › Stores). Everything else that waits is in the log.
+    @Published private(set) var lines: [DriveWaitLine] = []
 
     struct TakenGame: Equatable {
         var name: String
@@ -106,11 +193,18 @@ final class DriveTakeover {
         }
     }
 
+    /// The lines for the drives plugged in now (one unplugged since the last look has none).
+    func lines(onDrives paths: Set<String>) -> [DriveWaitLine] {
+        lines.filter { paths.contains($0.drivePath) }
+    }
+
     /// Looks at every drive plugged in that holds Nightforge's folder. True when something there still waits.
     private func run(_ model: LibraryModel) async -> Bool {
         let drives = await Engine.offMain { Self.drives() }
         var waits = false
         var failed = false
+        var lines: [DriveWaitLine] = []
+        defer { if lines != self.lines { self.lines = lines } }
         for drive in drives {
             let contents = await Engine.offMain { DriveContents.read(drive: drive.url) }
             guard !contents.isEmpty else { continue }
@@ -118,6 +212,7 @@ final class DriveTakeover {
             finds.epic.removeAll { epicTries[$0.folder.path, default: 0] >= DriveTakeoverRules.epicTries }
             if handedOver.contains(DriveLibrary.windowsSteam(on: drive.url).path) { finds.windowsSteam = [] }
             if handedOver.contains(DriveLibrary.macSteam(on: drive.url).path) { finds.macSteam = [] }
+            lines += DriveTakeoverText.lines(finds.waiting, drive: drive.name, path: drive.url.path)
             if !finds.waiting.isEmpty {
                 waits = true
                 GameLog.note("Drive takeover: on \(drive.name), \(Self.summary(finds.waiting))")
@@ -139,6 +234,9 @@ final class DriveTakeover {
             history.append(taken)
             model.reload(quiet: true)
             onTaken(taken)
+            // One line for what happened (the user's rule, 15.11.). Not over the first start, which shows the
+            // games as they are anyway.
+            if !model.showsFirstStart { Toasts.shared.show(DriveTakeoverText.note(taken.games, drive: drive.name)) }
         }
         if failed, retriesLeft > 0 {
             retriesLeft -= 1
@@ -227,6 +325,33 @@ final class DriveTakeover {
 }
 
 extension LibraryModel {
+    /// A waiting line's button: the store's sign-in, or the Steam for Mac setup – with Settings closed, which
+    /// both open over the library. Once that's done, the next look takes the games over by itself.
+    func resolve(_ line: DriveWaitLine) {
+        showingSettings = false
+        switch line.need {
+        case .signIn(let provider):
+            connect(provider)
+        case .macSteam:
+            guard macSetup == nil, !MacSteam.isReady else { return }
+            // The setup names a game: the first one on the drive. It's there already, so nothing is asked to download.
+            var game = Game(appID: 0, name: line.firstName, bottle: MacSteam.bottle, steamRoot: MacSteam.root, steamExeWindowsPath: "",
+                            installDir: MacSteam.steamapps, sizeOnDisk: 0)
+            game.platform = .mac
+            game.install = .installed
+            let setup = MacSteamSetup(game: game, next: .play)
+            setup.onReady = { [weak self] _ in
+                self?.macSetup = nil
+                DriveTakeover.shared.ask()
+            }
+            // Settings' sheet goes first: a second sheet over it wouldn't show.
+            Task {
+                try? await Task.sleep(for: .milliseconds(400))
+                if self.macSetup == nil { self.macSetup = setup }
+            }
+        }
+    }
+
     /// From the loop that watches the running games: takes over the games on a drive when a look is due.
     func lookAtDrives() {
         DriveTakeover.shared.look(self)
