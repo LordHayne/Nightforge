@@ -163,6 +163,18 @@ Befunde aus dem Lauf:
   Vorhang.
 - Die Werte sind die ersten drei Minuten (Vorspann, Menü, erste Sekunden), keine feste Szene: steht im Bericht.
 
+**Laufwerk wiedererkennen, Teil A live geprüft (15.11., 11:21–11:22, Testbuild `3c4981c` in leerem HOME
+`build/fh`, Disk-Image „NF Test“, nichts angeklickt; Skript `scratchpad/live-laufwerk.sh`):** bestanden.
+
+- A1: Mafia II (GOG) stand **5 s nach dem Start** in `GOG/installed.json`, Ordner
+  `/Volumes/NF Test/Nightforge Games/GOG Games/Mafia II/`, `build` 1, `language` de-DE, `platform` windows.
+- A2: Epic abgemeldet, legendary nicht gerufen (`installed.json` fehlt). A3: Steam nicht eingerichtet, keine Liste.
+- A4: Auf dem Image keine Datei geändert (Prüfsummen gleich). Die echte Anmeldung von Steam für Mac blieb unberührt.
+- Der Testbuild zeigte gleich die Startseite („Alle 3 Spiele“), keine Einrichtung; ob Mafia II in der Bibliothek als
+  installiert erscheint (A5), ist nicht angesehen. Bildschirmfoto im Notizordner `laufwerk/live-a-bildschirm.png`.
+- Aufgeräumt: Image ausgeworfen, Testordner gelöscht, Nightforge wieder offen.
+- Offen: Teil B (Steam, Steam für Mac, Epic wirklich zurückholen) – der Nutzer auf dem Mac mini.
+
 **Liste für 0.3.3 (Vorschlag des Koordinators, 15.11. vormittags, dem Nutzer vorgelegt):**
 
 Regel: Was schon im Testzweig liegt, geht mit, wenn es in einer Live-Runde vor dem Release besteht. Was dort
