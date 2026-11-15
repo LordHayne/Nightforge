@@ -2258,14 +2258,10 @@ final class LibraryModel: ObservableObject {
     /// game's app shows its windows again when it becomes active, and Wine's own ⌘-Tab hides the app to
     /// give the front away (`handleCommandTab`, dlls/winemac.drv/cocoa_app.m). So the game is hidden for a
     /// moment – macOS gives the front to the app before it – and shown and made active again.
-    /// It has to stay hidden until Wine has let the screen go: the player's switch on 15.11. left the game
-    /// out of the front for 1.7 s, the screen released, and its window came back when it got the front again.
-    /// A hide and show within a tenth of a second (the first try, 12:48) changed nothing.
     private func hideAndShow(_ app: NSRunningApplication) async -> Bool {
         app.hide()
-        for _ in 0..<40 where app.isActive || GameProcesses.screenCaptured() { try? await Task.sleep(for: .milliseconds(50)) }
-        let hidden = app.isHidden, released = !GameProcesses.screenCaptured(), lostFront = !app.isActive
-        try? await Task.sleep(for: .milliseconds(300))
+        for _ in 0..<20 where !app.isHidden { try? await Task.sleep(for: .milliseconds(50)) }
+        let hidden = app.isHidden
         app.unhide()
         for _ in 0..<20 where app.isHidden { try? await Task.sleep(for: .milliseconds(50)) }
         InputRouter.hidePointerForGame()
@@ -2273,9 +2269,7 @@ final class LibraryModel: ObservableObject {
         app.activate(from: .current, options: [.activateAllWindows])
         for _ in 0..<20 where !app.isActive { try? await Task.sleep(for: .milliseconds(50)) }
         GameLog.note("Fetching the game back: Nightforge didn't get the front, so the game was "
-                     + (hidden ? "hidden" : "asked to hide (it didn't)") + (lostFront ? ", lost the front" : ", kept the front")
-                     + (released ? ", the screen released" : ", the screen still captured")
-                     + ", shown again" + (app.isActive ? ", it's active" : ", not active"))
+                     + (hidden ? "hidden and shown again" : "asked to hide (it didn't)") + (app.isActive ? ", it's active" : ", not active"))
         return app.isActive
     }
 
