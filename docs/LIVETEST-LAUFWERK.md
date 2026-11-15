@@ -100,6 +100,14 @@ Listen und ist darum **die Entscheidung des Nutzers**:
 | B7 | Währenddessen ein Spiel starten: der Rest wartet und kommt nach dem Beenden | – |
 | B8 | Abstecken, anstecken: nichts passiert noch einmal, Steam startet nicht neu | keine neue Zeile |
 
+**Was der Nutzer sieht (Vorlage A, gewählt 15.11.):**
+
+| Nr. | Erwartet |
+|---|---|
+| B9 | Unten im Fenster einmal eine Zeile „14 Spiele auf „Games“ sind wieder da“ (bei einem Spiel sein Name), sonst nichts; sie geht nach ein paar Sekunden. Epic kommt später als Steam und GOG und kann eine zweite Zeile bringen. |
+| B10 | Der Dialog „Laufwerk vergessen“ endet jetzt mit „Steckst du Games später wieder an, sind seine Spiele ohne Download wieder da.“ |
+| B11 | Nur wenn ein Laden abgemeldet oder Steam für Mac nicht eingerichtet ist: in Einstellungen › Speicher beim Laufwerk und unter Läden eine Zeile wie „9 Epic-Spiele auf „Games“ warten auf die Anmeldung“ mit „Anmelden“ (bzw. „Einrichten“). Mit dem Controller anwählbar; der Knopf schließt die Einstellungen und öffnet die Anmeldung. Nach der Anmeldung verschwindet die Zeile, die Spiele kommen von selbst. |
+
 Was B nicht zeigt und nur eine echte Neuinstallation oder ein zweiter Mac zeigt: das Zusammenspiel mit der ersten
 Einrichtung (die Spiele sollen beim ersten Blick auf die Startseite schon da sein) und Epic direkt nach der ersten
 Anmeldung. Der Mac mini ist dafür kein Testgerät.
