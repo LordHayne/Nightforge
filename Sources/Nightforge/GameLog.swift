@@ -400,15 +400,28 @@ enum GameLog {
             guard lower.contains(":err:") || lower.contains("mvk-error") || lower.hasPrefix("err:")
                 || lower.hasPrefix("wine:") || lower.contains("unhandled"), !steamNoise(lower)
             else { continue }
-            // Thread ids ("0124:err:…") differ between otherwise equal lines.
-            var cleaned = String(line)
-            if line.count > 5, line.prefix(4).allSatisfy(\.isHexDigit), line.dropFirst(4).first == ":" {
-                cleaned = String(line.dropFirst(5))
-            }
-            cleaned = redacted(cleaned)
+            let cleaned = redacted(String(withoutIDs(line)))
             if seen.insert(cleaned).inserted { result.append(cleaned) }
         }
         return Array(result.suffix(limit))
+    }
+
+    /// A line of Wine's without what stands before its class: the thread's id ("0124:err:…"), with +pid the
+    /// process's before that ("0810:0124:err:…") – every start's since step E5 (CloserLook.everyStart) – and
+    /// with +timestamp a time before both. They differ between otherwise equal lines: with only the first id
+    /// taken off, one error of a game with a dozen threads filled the problem report's list by itself.
+    static func withoutIDs(_ line: Substring) -> Substring {
+        var rest = line
+        for _ in 0..<3 {
+            let start = rest.drop { $0 == " " }
+            guard let colon = start.firstIndex(of: ":") else { break }
+            let id = start[..<colon]
+            let isID = id.count >= 4 && id.allSatisfy(\.isHexDigit)
+            let isTime = id.contains(".") && id.allSatisfy { $0.isNumber || $0 == "." }
+            guard isID || isTime else { break }
+            rest = start[start.index(after: colon)...]
+        }
+        return rest
     }
 
     /// An error Steam's own helpers print at every start, whatever the game: its driver probes

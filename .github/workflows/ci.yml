@@ -63,3 +63,8 @@ jobs:
       # A shell script a workflow runs as a command has to be executable in git: enginefix.yml's never ran (2.11.).
       - name: Workflow scripts
         run: python3 -m unittest tests/test_workflow_scripts.py
+
+      # The switches for Nightforge's own tests stand in the #else of NIGHTFORGE_RELEASE, key and all, and
+      # release.yml looks for each of them in the build: the finished build tracks nothing.
+      - name: Test switches stay out of a release
+        run: python3 -m unittest tests/test_release_switches.py

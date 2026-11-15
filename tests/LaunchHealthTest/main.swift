@@ -515,6 +515,22 @@ struct LaunchHealthTest {
         check(errors.count == 6, "errors without repeats: \(errors.count)")
         check(errors.first?.hasPrefix("err:module") == true, "thread ids dropped: \(errors.first ?? "")")
         check(errors.contains("err:   DXGI: Failed to create swap chain"), "DXVK's own error lines kept")
+        // Every start carries +pid since step E5: the process's id stands before the thread's, and both differ
+        // between equal lines – as does a time, with +timestamp. One error is one line.
+        let withPids = """
+        0810:0124:err:module:import_dll Library MSVCP120.dll (which is needed by L"C:\\\\Games\\\\Some Game\\\\Game.exe") not found
+        0810:0128:err:module:import_dll Library MSVCP120.dll (which is needed by L"C:\\\\Games\\\\Some Game\\\\Game.exe") not found
+        0a2c:0a30:err:module:import_dll Library MSVCP120.dll (which is needed by L"C:\\\\Games\\\\Some Game\\\\Game.exe") not found
+          3.141:0810:0124:err:module:import_dll Library MSVCP120.dll (which is needed by L"C:\\\\Games\\\\Some Game\\\\Game.exe") not found
+        0810:0124:err:module:import_dll Library d3dx9_43.dll (which is needed by L"C:\\\\Games\\\\Some Game\\\\Game.exe") not found
+        """
+        let fromPids = GameLog.errors(in: withPids)
+        check(fromPids.count == 2 && fromPids.allSatisfy { $0.hasPrefix("err:module:import_dll") },
+              "with +pid one error is one line, whatever process and thread said it: \(fromPids)")
+        check(GameLog.withoutIDs("0124:err:module:x") == "err:module:x" && GameLog.withoutIDs("0810:0124:fixme:d3d:y") == "fixme:d3d:y"
+              && GameLog.withoutIDs("err:   DXGI: z") == "err:   DXGI: z" && GameLog.withoutIDs("wine: Call from 00006FFF to x") == "wine: Call from 00006FFF to x"
+              && GameLog.withoutIDs("[mvk-error] VK_ERROR: a") == "[mvk-error] VK_ERROR: a",
+              "only the ids go, a line without them stays as it is")
         // Steam's driver probes and browser at every start (live test of Control, 3.11.2026).
         let steamNoise = """
         0098:err:module:import_dll Library SDL2.dll (which is needed by L"C:\\\\Program Files (x86)\\\\Steam\\\\bin\\\\gldriverquery.exe") not found

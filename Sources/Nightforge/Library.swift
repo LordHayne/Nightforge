@@ -507,8 +507,30 @@ enum LibraryScanner {
     // MARK: - Manifests
 
     private static func manifests(in steamapps: URL) -> [URL] {
-        let files = (try? FileManager.default.contentsOfDirectory(at: steamapps, includingPropertiesForKeys: nil)) ?? []
-        return files.filter { $0.lastPathComponent.hasPrefix("appmanifest_") && $0.pathExtension == "acf" }
+        let files = (try? FileManager.default.contentsOfDirectory(at: steamapps, includingPropertiesForKeys: listFileKeys)) ?? []
+        return files.filter { $0.lastPathComponent.hasPrefix("appmanifest_") && $0.pathExtension == "acf" && isListFile($0) }
+    }
+
+    /// The most a store's own small file in a library has: Steam's manifests, GOG's info files and an Epic
+    /// launcher's notes come to a few KB.
+    static let listFileLimit = 1 << 20
+    static let listFileKeys: [URLResourceKey] = [.isRegularFileKey, .fileSizeKey]
+
+    /// Whether `file` is such a file as it lies there: a file of its own – not a link, which leads wherever its
+    /// writer liked, nor a pipe or a device, which are read without end – and no larger than `limit`. Read whole
+    /// into memory otherwise, at every look at a drive and every scan (a library on a drive someone else prepared).
+    static func isListFile(_ file: URL, limit: Int = listFileLimit) -> Bool {
+        guard let values = try? file.resourceValues(forKeys: Set(listFileKeys)) else { return false }
+        return values.isRegularFile == true && (values.fileSize ?? 0) <= limit
+    }
+
+    /// Whether a manifest's "installdir" names a folder in steamapps/common: one name, not a path. A library on
+    /// a drive is in Steam's list once the drive is plugged in (DriveTakeover), whoever wrote its manifests, and
+    /// "../../…" there would make a folder outside the library the game's own: where a start writes its settings
+    /// and DXVK's DLLs, and what "Move to …" takes along. Steam itself names one folder, always.
+    static func staysInLibrary(_ installDir: String) -> Bool {
+        let name = installDir.trimmingCharacters(in: .whitespaces)
+        return name != "." && name != ".." && !name.contains("/") && !name.contains("\\")
     }
 
     /// `measureStaging`: the files a download has unpacked so far say how far it is – not with
@@ -521,7 +543,7 @@ enum LibraryScanner {
               let appID = state["appid"]?.string.flatMap({ Int($0) }),
               !ignoredAppIDs.contains(appID),
               let name = state["name"]?.string, !name.isEmpty,
-              let installDirName = state["installdir"]?.string
+              let installDirName = state["installdir"]?.string, staysInLibrary(installDirName)
         else { return nil }
 
         // StateFlags bit 4 = fully installed; anything else is a download in progress.

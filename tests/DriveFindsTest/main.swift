@@ -118,6 +118,58 @@ struct DriveFindsTest {
               "a Mac version is its app; no language named: en-US: \(String(describing: stardew))")
         check(DriveContents.read(drive: root.appendingPathComponent("Volumes/Empty")).isEmpty, "a drive without Nightforge's folder holds nothing")
 
+        // A manifest someone else wrote: its folder is one name in steamapps/common, never a path out of the library.
+        for name in ["Left 4 Dead 2", "MGS_TPP", "Half-Life 2", "game.v2", "..hidden", "a..b", ""] {
+            check(LibraryScanner.staysInLibrary(name), "a folder's name stays in the library: \"\(name)\"")
+        }
+        for name in ["..", ".", " .. ", "../../../Users/Shared/x", "a/b", "/Users/Shared", #"..\..\x"#, #"C:\Windows"#] {
+            check(!LibraryScanner.staysInLibrary(name), "a path is no folder's name: \"\(name)\"")
+        }
+        let odd = root.appendingPathComponent("Volumes/Odd", isDirectory: true)
+        let oddSteam = DriveLibrary.windowsSteam(on: odd).appendingPathComponent("steamapps", isDirectory: true)
+        write(manifest(550, "Left 4 Dead 2", dir: "Left 4 Dead 2"), oddSteam.appendingPathComponent("appmanifest_550.acf"))
+        write(manifest(11, "Out", dir: "../../../../../Users/Shared/out"), oddSteam.appendingPathComponent("appmanifest_11.acf"))
+        write(manifest(12, "Up", dir: ".."), oddSteam.appendingPathComponent("appmanifest_12.acf"))
+        check(DriveContents.read(drive: odd).windowsSteam.map(\.appID) == [550],
+              "a manifest whose folder leads out of the library is no game: \(DriveContents.read(drive: odd).windowsSteam.map(\.name))")
+        // … and the scan of a Steam's libraries leaves it out too: no game whose folder lies outside.
+        let macRoot = root.appendingPathComponent("MacSteam", isDirectory: true)
+        write(manifest(892970, "Valheim", dir: "Valheim"), macRoot.appendingPathComponent("steamapps/appmanifest_892970.acf"))
+        write(manifest(13, "Out", dir: "../../../outside"), macRoot.appendingPathComponent("steamapps/appmanifest_13.acf"))
+        let scanned = LibraryScanner.scanMac(root: macRoot)
+        check(scanned.map(\.appID) == [892970], "the scan knows only the game whose folder is in the library: \(scanned.map(\.name))")
+        check(scanned.allSatisfy { $0.installDir.standardizedFileURL.path.hasPrefix(macRoot.standardizedFileURL.path + "/") },
+              "and every game's folder lies in its library")
+
+        // Only a store's own small files are read: no link (it leads wherever its writer liked), no pipe (read
+        // without end), nothing of megabytes (read whole into memory at every look).
+        let elsewhere = root.appendingPathComponent("elsewhere", isDirectory: true)
+        write(manifest(21, "Linked", dir: "Linked"), elsewhere.appendingPathComponent("manifest.acf"))
+        write(gogInfo("1888888888", name: "Linked"), elsewhere.appendingPathComponent("game.info"))
+        write(#"{ "AppName": "Linked" }"#, elsewhere.appendingPathComponent("note.mancpn"))
+        try? fm.createSymbolicLink(at: oddSteam.appendingPathComponent("appmanifest_21.acf"), withDestinationURL: elsewhere.appendingPathComponent("manifest.acf"))
+        mkfifo(oddSteam.appendingPathComponent("appmanifest_22.acf").path, 0o644)
+        write(manifest(23, "Huge", dir: "Huge") + String(repeating: "\n// padding", count: 120_000), oddSteam.appendingPathComponent("appmanifest_23.acf"))
+        check(LibraryScanner.isListFile(oddSteam.appendingPathComponent("appmanifest_550.acf")), "a manifest as Steam writes it is read")
+        check(!LibraryScanner.isListFile(oddSteam.appendingPathComponent("appmanifest_21.acf")), "a link isn't")
+        check(!LibraryScanner.isListFile(oddSteam.appendingPathComponent("appmanifest_22.acf")), "nor a pipe")
+        check(!LibraryScanner.isListFile(oddSteam.appendingPathComponent("appmanifest_23.acf")), "nor a file of more than a megabyte")
+        check(!LibraryScanner.isListFile(oddSteam.appendingPathComponent("appmanifest_99.acf")), "nor one that isn't there")
+        let oddGOG = DriveLibrary.gog(on: odd), oddEpic = DriveLibrary.epic(on: odd)
+        write("x", oddGOG.appendingPathComponent("Linked/game.exe"))
+        try? fm.createSymbolicLink(at: oddGOG.appendingPathComponent("Linked/goggame-1888888888.info"), withDestinationURL: elsewhere.appendingPathComponent("game.info"))
+        write("x", oddEpic.appendingPathComponent("Linked/game.exe"))
+        write("x", oddEpic.appendingPathComponent("Linked/.egstore/keep"))
+        try? fm.createSymbolicLink(at: oddEpic.appendingPathComponent("Linked/.egstore/1.mancpn"), withDestinationURL: elsewhere.appendingPathComponent("note.mancpn"))
+        let oddContents = DriveContents.read(drive: odd)
+        check(oddContents.windowsSteam.map(\.appID) == [550], "the drive's games are those in files of its own: \(oddContents.windowsSteam.map(\.name))")
+        check(oddContents.gog.isEmpty, "a GOG info file that is a link names no game: \(oddContents.gog.map(\.title))")
+        check(oddContents.epic.map(\.name) == ["Linked"] && oddContents.epic.first?.appNames == [], "nor does an Epic note that is one: \(oddContents.epic)")
+        // The scan of a Steam's own libraries reads the same way.
+        try? fm.createSymbolicLink(at: macRoot.appendingPathComponent("steamapps/appmanifest_21.acf"), withDestinationURL: elsewhere.appendingPathComponent("manifest.acf"))
+        mkfifo(macRoot.appendingPathComponent("steamapps/appmanifest_22.acf").path, 0o644)
+        check(LibraryScanner.scanMac(root: macRoot).map(\.appID) == [892970], "the scan reads no link and no pipe either")
+
         // A fresh Nightforge: no Steam set up, no store connected – everything waits, nothing is taken.
         let fresh = DriveFinds.look(drive: drive, contents: contents, known: KnownInstalls())
         check(fresh.isEmpty && fresh.count == 0, "nothing is taken over before its store is there")
