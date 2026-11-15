@@ -74,6 +74,30 @@ struct WindowsRootsTest {
         check(!text.contains("HKEY_LOCAL_MACHINE"), "never the machine's store, which Wine rewrites from the Mac's roots")
         check(GameRegistryRecord.Section(key: "WindowsRoots", text: text).digest.count == 32, "a section of the game settings' record")
 
+        // MARK: Roots the player is asked about (step E6, 15.11.2026)
+        let asked = TestDefaults.suite("windows-roots")
+        check(WindowsRoots.onRequest.isEmpty, "no root waits for a yes yet: each one here needs the user's OK first")
+        check(WindowsRoots.registrySection(defaults: asked) == WindowsRoots.registry(WindowsRoots.all)
+              && !WindowsRoots.registrySection(defaults: asked).contains("[-"), "without the test switch: every root in, nothing taken out, as before")
+        check(WindowsRoots.toAsk(named: root.name, defaults: asked) == nil, "… and nobody asked about VeriSign's, which is in every prefix")
+        asked.set(true, forKey: WindowsRoots.testRootQuestionKey)
+        let removal = #"[-HKEY_CURRENT_USER\Software\Microsoft\SystemCertificates\Root\Certificates\4EB6D578499B1CCF5F581EAD56BE3D9B6744A5E5]"#
+        check(WindowsRoots.registrySection(defaults: asked) == removal, "the test switch: VeriSign's asked about, and out of the prefix until a yes")
+        check(WindowsRoots.toAsk(named: root.name, defaults: asked)?.sha1 == root.sha1 && WindowsRoots.toAsk(named: "Some Other Root", defaults: asked) == nil,
+              "asked about by the name a check's chain gives it, and only a root Nightforge knows")
+        WindowsRoots.trust(root, defaults: asked)
+        check(WindowsRoots.registrySection(defaults: asked) == WindowsRoots.registry([root]) && WindowsRoots.trusted(defaults: asked) == [root.sha1],
+              "a yes: in the prefix as before, kept")
+        check(WindowsRoots.toAsk(named: root.name, defaults: asked) == nil, "said yes to: not asked again")
+        WindowsRoots.trust(root, defaults: asked)
+        check(WindowsRoots.trusted(defaults: asked).count == 1, "a yes twice is one")
+        check(GameRegistryRecord.Section(key: "WindowsRoots", text: WindowsRoots.registrySection(defaults: asked)).digest
+              != GameRegistryRecord.Section(key: "WindowsRoots", text: removal).digest, "a yes changes the section: the next start imports it")
+        let mgs = GameID.steam(287_700)
+        check(WindowsRoots.needed(by: mgs, defaults: asked) == nil, "nothing needed yet")
+        WindowsRoots.noteNeeded(root.name, by: mgs, defaults: asked)
+        check(WindowsRoots.needed(by: mgs, defaults: asked) == root.name, "the root a game stopped at, kept with it")
+
         print(failures == 0 ? "✓ WindowsRoots" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
     }

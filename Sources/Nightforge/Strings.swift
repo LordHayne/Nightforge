@@ -841,6 +841,18 @@ enum L10n {
         "The game reports an error": "Das Spiel meldet einen Fehler",
         "Press OK – Nightforge takes care of the rest.": "Drück OK – Nightforge kümmert sich um den Rest.",
         "%@ presses OK – Nightforge takes care of the rest.": "%@ drückt OK – Nightforge kümmert sich um den Rest.",
+        // The question about a Windows root on the curtain (board "Vorhang bei Fehlstart", 15.11.2026)
+        "%@ needs an older certificate": "%@ braucht ein älteres Zertifikat",
+        "At its start the game checks one of its files. It is signed with a certificate macOS no longer carries, but Windows does. Nightforge can add it for its Windows games – only there, not to your Mac.":
+            "Das Spiel prüft beim Start eine seiner Dateien. Sie ist mit einem Zertifikat signiert, das macOS nicht mehr führt, Windows aber schon. Nightforge kann es für seine Windows-Spiele eintragen – nur dort, nicht in deinem Mac.",
+        "Add and Start": "Eintragen und starten",
+        "Don't Add": "Nicht eintragen",
+        "The certificate is added. The game starts once more.": "Das Zertifikat ist eingetragen. Das Spiel startet noch einmal.",
+        "The game doesn't start this way.": "Das Spiel startet so nicht.",
+        "It doesn't run without the certificate. Nightforge asks again next time.":
+            "Ohne das Zertifikat läuft es nicht. Nightforge fragt beim nächsten Mal wieder.",
+        "Certificate added": "Zertifikat eingetragen",
+        "Not added": "Nicht eingetragen",
         "First start with this graphics version: shaders are prepared, so it can take a minute. Next time it's quicker.":
             "Erster Start mit dieser Grafikversion: Shader werden vorbereitet, das kann eine Minute dauern. Beim nächsten Mal geht es schneller.",
         "Steam asks something before the game starts – answer it in its window.": "Steam fragt vor dem Start etwas – antworte in seinem Fenster.",

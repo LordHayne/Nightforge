@@ -37,6 +37,8 @@ enum GameOverlay {
         @Published var soundStaysOn: String?
         /// What's said about a start on the curtain that looks stuck (`.stuck`).
         @Published var stuck: CurtainEscape.Words?
+        /// The root a game needs, by its name, while the player is asked about it (`.trustRoot`).
+        @Published var root: String?
         /// A controller came after the game started without one (LibraryModel.padArrivedLate):
         /// the menu offers a restart first, once.
         @Published var lateController = false
@@ -55,6 +57,8 @@ enum GameOverlay {
     private static let state = State()
     private static var panel: NSPanel?
     private static var actions: Actions?
+    /// The answer to the root question (`askRoot`), given once: yes, no, or no for a panel that closes without one.
+    private static var pendingAnswer: ((Bool) -> Void)?
     /// On the way to Nightforge: the panel stays until it's there, and takes no more presses.
     private static var leaving = false
     /// What the overlay was opened for: only that decides about the keys.
@@ -231,7 +235,7 @@ enum GameOverlay {
     /// the player but a game out of its full screen. The pad reaches Nightforge without them and the
     /// mouse works through a panel that doesn't need them; the keyboard answers only "Not starting?",
     /// where no picture is lost. The overlay opens only with the pad, so there's one in the hand.
-    nonisolated static func takesKeys(_ step: OverlayStep) -> Bool { step == .notStarting || step == .stuck }
+    nonisolated static func takesKeys(_ step: OverlayStep) -> Bool { step == .notStarting || step == .stuck || step == .trustRoot }
 
     /// The panel's level: the screen saver's (the curtain lies just under it), or above what covers
     /// the screen should that lie higher.
@@ -265,6 +269,25 @@ enum GameOverlay {
     static func quit() { handle(.quit) }
     static func restart() { handle(.restart) }
     static func toNightforge() { handle(.nightforge) }
+    /// The answer to the root question.
+    static func trustRoot(_ yes: Bool) { handle(yes ? .trust : .dontTrust) }
+
+    /// Asks whether the root `root` goes into the prefix, in the middle of the screen over the curtain, for the
+    /// pad, the keyboard and the mouse (step E6, board "Vorhang bei Fehlstart"). `answer` comes exactly once: yes,
+    /// no – B, Esc and the sticks held say no – or no when the panel goes without one.
+    static func askRoot(_ game: String, root: String, on screen: NSScreen?, symbols: PadSymbols, answer: @escaping (Bool) -> Void) {
+        if isOpen { close() }
+        state.root = root
+        pendingAnswer = answer
+        open(game, pids: [], pause: false, on: screen, symbols: symbols, step: .trustRoot, actions: Actions(quit: {}, nightforge: {}))
+        if !isOpen { answerRoot(false) }
+    }
+
+    private static func answerRoot(_ yes: Bool) {
+        let answer = pendingAnswer
+        pendingAnswer = nil
+        answer?(yes)
+    }
 
     private static func handle(_ event: OverlayEvent) {
         guard !leaving else { return }
@@ -276,6 +299,11 @@ enum GameOverlay {
         switch effect {
         case .none:
             break
+        case .trust, .dontTrust:
+            let answer = pendingAnswer
+            pendingAnswer = nil
+            close()
+            answer?(effect == .trust)
         case .close:
             InputRouter.hidePointerForGame()  // while the panel still has the keys
             closeForGame()
@@ -308,13 +336,17 @@ enum GameOverlay {
         }
     }
 
-    enum Effect: Equatable { case none, close, quit, nightforge, restart }
+    enum Effect: Equatable { case none, close, quit, nightforge, restart, trust, dontTrust }
 
     /// The overlay's steps: B steps back, the sticks held again go back to the game from anywhere
     /// but the quitting, and a game is only quit from the question.
     nonisolated static func transition(_ step: OverlayStep, _ event: OverlayEvent) -> (OverlayStep, Effect) {
         switch (step, event) {
         case (.quitting, _): return (.quitting, .none)
+        // The root question: only its two answers, and every way out of it is a no.
+        case (.trustRoot, .trust): return (step, .trust)
+        case (.trustRoot, .dontTrust), (.trustRoot, .back), (.trustRoot, .resume): return (step, .dontTrust)
+        case (.trustRoot, _): return (step, .none)
         case (.menu, .back), (.notStarting, .back), (.stuck, .back), (_, .resume): return (step, .close)
         case (.menu, .askQuit), (.notStarting, .askQuit): return (.confirmQuit, .none)
         case (.menu, .nightforge), (.notStarting, .nightforge), (.stuck, .nightforge): return (step, .nightforge)
@@ -327,6 +359,7 @@ enum GameOverlay {
 
     /// Also when Nightforge quits: a paused game never stays paused.
     static func close() {
+        answerRoot(false)  // a root question that goes without an answer: no
         cont()
         PadSilence.end()
         state.lateController = false
@@ -397,6 +430,7 @@ enum GameOverlay {
         switch step {
         case .menu: return "overlay.continue"
         case .notStarting, .stuck: return "overlay.wait"
+        case .trustRoot: return "overlay.trust"
         case .confirmQuit: return "overlay.cancel"
         case .quitting: return nil
         }
@@ -439,9 +473,9 @@ enum GameOverlay {
     }
 }
 
-enum OverlayStep: Equatable { case menu, notStarting, stuck, confirmQuit, quitting }
+enum OverlayStep: Equatable { case menu, notStarting, stuck, confirmQuit, quitting, trustRoot }
 
-enum OverlayEvent { case back, resume, askQuit, quit, nightforge, restart }
+enum OverlayEvent { case back, resume, askQuit, quit, nightforge, restart, trust, dontTrust }
 
 /// Can take keys without making Nightforge the active app, so the game's Space stays where it is –
 /// and only for what the overlay was opened for (`takesKeys`): never over a game showing its picture.

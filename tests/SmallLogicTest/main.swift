@@ -70,7 +70,7 @@ struct SmallLogicTest {
 
     /// What the curtain says while Nightforge mends a start (LaunchRepair, board B of 15.11.2026).
     static func repairs() {
-        let all: [LaunchRepair] = [.looking, .again, .onceMore, .otherWay, .settingUp, .closerLook, .gaveUp]
+        let all: [LaunchRepair] = [.looking, .again, .onceMore, .otherWay, .settingUp, .closerLook, .gaveUp, .rootAdded, .rootDeclined]
         for language in ["english", "german"] {
             UserDefaults.standard.set(language, forKey: AppLanguage.storageKey)
             for repair in all {
@@ -80,7 +80,7 @@ struct SmallLogicTest {
                 let marks = repair.steps.map(\.mark)
                 let order: [LaunchRepair.Step.Mark: Int] = [.done: 0, .now: 1, .next: 2]
                 check(marks == marks.sorted { order[$0]! < order[$1]! } && marks.first == .done, "\(repair): \(marks) in order, starting from the start")
-                check(marks.filter { $0 == .now }.count == (repair == .gaveUp ? 0 : 1), "\(repair): one step at work, none at the end")
+                check(marks.filter { $0 == .now }.count == (repair == .gaveUp || repair == .rootDeclined ? 0 : 1), "\(repair): one step at work, none at the end")
             }
         }
         UserDefaults.standard.set("german", forKey: AppLanguage.storageKey)
@@ -92,6 +92,8 @@ struct SmallLogicTest {
               && LaunchRepair.looking.steps.map(\.label) == ["Gestartet", "Sieht nach", "Neuer Versuch"],
               "the steps as the board has them")
         check(LaunchRepair.gaveUp.detail == "Nightforge hat alles versucht, was es kennt. Gleich bist du zurück in der Bibliothek.", "the honest end")
+        check(LaunchRepair.rootAdded.detail == "Das Zertifikat ist eingetragen. Das Spiel startet noch einmal."
+              && LaunchRepair.rootDeclined.title == "Das Spiel startet so nicht.", "after the root question, as the board has it")
         // Nothing technical on the curtain: no way, no DLL, no layer.
         let technical = ["DXVK", "DXMT", "D3DMetal", "Wine", "DLL", "nvapi", "PhysX", "AVX", "Direct3D"]
         for language in ["english", "german"] {

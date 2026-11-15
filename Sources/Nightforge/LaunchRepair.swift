@@ -19,6 +19,10 @@ enum LaunchRepair: Equatable {
     case closerLook
     /// Every way tried: said on the curtain for `endStands` before the library.
     case gaveUp
+    /// The player said yes to the root the game needed: the same way once more (NextStart.after(rootTrusted:)).
+    case rootAdded
+    /// … no: the start ends here, said for `endStands`.
+    case rootDeclined
 
     struct Step: Equatable {
         enum Mark: Equatable { case done, now, next }
@@ -32,10 +36,11 @@ enum LaunchRepair: Equatable {
     var title: String {
         switch self {
         case .looking: return L10n.t("One moment …")
-        case .again, .onceMore, .closerLook: return L10n.t("One more try …")
+        case .again, .onceMore, .closerLook, .rootAdded: return L10n.t("One more try …")
         case .otherWay: return L10n.t("One more try, another way …")
         case .settingUp: return L10n.t("Setting up the game …")
         case .gaveUp: return L10n.t("That didn't work.")
+        case .rootDeclined: return L10n.t("The game doesn't start this way.")
         }
     }
 
@@ -48,6 +53,8 @@ enum LaunchRepair: Equatable {
         case .settingUp: return L10n.t("A piece of Windows, only this once.")
         case .closerLook: return L10n.t("Nightforge takes a closer look and starts the game once more.")
         case .gaveUp: return L10n.t("Nightforge tried everything it knows. You'll be back in the library in a moment.")
+        case .rootAdded: return L10n.t("The certificate is added. The game starts once more.")
+        case .rootDeclined: return L10n.t("It doesn't run without the certificate. Nightforge asks again next time.")
         }
     }
 
@@ -70,6 +77,10 @@ enum LaunchRepair: Equatable {
             return [started, lookedAt, Step(label: L10n.t("Taking a closer look"), mark: .now)]
         case .gaveUp:
             return [started, lookedAt, Step(label: L10n.t("Tried everything"), mark: .done)]
+        case .rootAdded:
+            return [started, Step(label: L10n.t("Certificate added"), mark: .done), Step(label: L10n.t("Starting again"), mark: .now)]
+        case .rootDeclined:
+            return [started, lookedAt, Step(label: L10n.t("Not added"), mark: .done)]
         }
     }
 

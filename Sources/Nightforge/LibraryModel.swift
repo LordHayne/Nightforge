@@ -2015,6 +2015,18 @@ final class LibraryModel: ObservableObject {
                                progress: progress, trail: trail)
     }
 
+    /// Asks the player whether the root `root` goes into the prefix (GameOverlay.askRoot), and waits for the
+    /// answer. A start called off meanwhile takes the question away: no.
+    private func askToTrust(_ root: String, for game: Game) async -> Bool {
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { (answered: CheckedContinuation<Bool, Never>) in
+                GameOverlay.askRoot(game.name, root: root, on: GameDisplay.gameScreen, symbols: padSymbols) { answered.resume(returning: $0) }
+            }
+        } onCancel: {
+            Task { @MainActor in GameOverlay.close() }
+        }
+    }
+
     /// What Nightforge mends, on the curtain at once: the start loop says it between two starts, when no
     /// curtain look runs to say it.
     private func sayRepair(_ repair: LaunchRepair?) {
@@ -4636,6 +4648,8 @@ final class LibraryModel: ObservableObject {
             var looksCloser = false
             // Step E2: starts on the same way again in this Play, for the cap on them (NextStart.againLimit).
             var sameWayAgain = 0
+            // Step E6: the roots the player was asked about in this Play – once each.
+            var askedRoots = Set<String>()
             // Step E6: the way that had worked before and got a closer look in this Play. It keeps its place after
             // the one start more the look takes on it, which runs as a way not confirmed.
             var lookedAtProven: String?
@@ -5065,6 +5079,36 @@ final class LibraryModel: ObservableObject {
                     looksCloser = true
                     CloserLook.noteTaken(game.gameID, engine: engineID)
                     GameLog.note("\(game.name): nothing explains why it ended – \(how)")
+                }
+                // Step E6, the player's decision of 14.11.2026 and the board's question of 15.11.: a root the game's
+                // signature check stopped at, one Nightforge knows by its fingerprints and holds only on a yes
+                // (WindowsRoots.onRequest), is asked about on the curtain. Yes puts it into the prefix and starts the
+                // same way once more; no ends the start – the game checks the same file on every way. Never for a
+                // game with an anti-cheat, nor in a game test, where nobody answers.
+                if !antiCheat, let found,
+                   let root = NextStart.rootToAskAbout(found, known: { WindowsRoots.toAsk(named: $0) != nil }, askedBefore: askedRoots,
+                                                       needed: WindowsRoots.needed(by: game.gameID)) {
+                    askedRoots.insert(root)
+                    WindowsRoots.noteNeeded(root, by: game.gameID)
+                    if GameTest.active {
+                        GameLog.note("\(game.name) needs the root \"\(root)\": a game test asks nobody")
+                    } else {
+                        noteFailed()
+                        GameLog.note("\(game.name) needs the root \"\(root)\", which Nightforge knows: the player is asked")
+                        let yes = await askToTrust(root, for: game)
+                        if Task.isCancelled { return }
+                        GameLog.note("\(game.name): the player " + (yes ? "added" : "didn't add") + " the root \"\(root)\"")
+                        if yes, let known = WindowsRoots.toAsk(named: root) { WindowsRoots.trust(known) }
+                        if case .again = NextStart.after(rootTrusted: yes, againSoFar: sameWayAgain) {
+                            sameWayAgain += 1
+                            sayRepair(.rootAdded)
+                            continue
+                        }
+                        // No – or a yes past the cap on starts, which the next Play starts with.
+                        sayRepair(yes ? .gaveUp : .rootDeclined)
+                        try? await Task.sleep(for: .seconds(LaunchRepair.endStands))
+                        return
+                    }
                 }
                 // What the curtain says for it (LaunchRepair.after): nothing of its own where the start ends.
                 if let repair = LaunchRepair.after(next), repair != .gaveUp { sayRepair(repair) }

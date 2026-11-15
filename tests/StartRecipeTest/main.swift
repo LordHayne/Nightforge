@@ -530,6 +530,11 @@ struct StartRecipeTest {
               && NextStart.rootToAskAbout([found("signature", nil), found("crash", nil)], known: { _ in true }) == nil,
               "an unknown root, a chain that named none, another finding: only said, as before")
         check(NextStart.rootToAskAbout(rootFound, known: { $0 == verisign }, askedBefore: [verisign]) == nil, "asked once per Play")
+        check(NextStart.rootToAskAbout([found("said", nil)], known: { $0 == verisign }, needed: verisign) == verisign,
+              "a root the game needed before: asked at a failed start without a closer look")
+        check(NextStart.rootToAskAbout([found("said", nil)], known: { _ in false }, needed: verisign) == nil
+              && NextStart.rootToAskAbout([found("said", nil)], known: { $0 == verisign }, askedBefore: [verisign], needed: verisign) == nil,
+              "… unless it's in the prefix since, or asked in this Play")
         check(NextStart.after(rootTrusted: true, againSoFar: 0) == .again(why: ["untrusted-root"])
               && NextStart.after(rootTrusted: true, againSoFar: NextStart.againLimit) == .ends, "yes: the same way once more, within the cap")
         check(NextStart.after(rootTrusted: false, againSoFar: 0) == .ends, "no: the start ends here, the other ways aren't gone through")
