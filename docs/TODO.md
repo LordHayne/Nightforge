@@ -174,6 +174,11 @@ Testreihen, 281 pytest. Nicht eingespielt, live nichts gesehen; Anleitung `close
   (Fenster ausgeblendet unter übernommenem Bildschirm): „Stell im Spiel Randloses Fenster ein“; (b) Nightforge stellt
   den Bildschirm vor dem Start auf den Modus, den das Spiel will (60 Hz). **Entschieden vom Nutzer (15.11.):
   „Hinweis auf dem Vorhang“.** Erkennen und Board bei der Diagnose-Session, Bau nach der Wahl des Nutzers.
+  Erkennen gebaut (`a759361`, `claude/diagnose-start-033-92f729`, nur Protokollzeile „own full screen hides its
+  picture“): die Abschirmung gehört dem Spiel, sein großes Fenster ist nicht auf dem Schirm, nach zwei Versuchen,
+  es zurückzuholen, und 10 s so. Board „Vollbild verdeckt das Spiel“ (A nur der Satz, B zwei Schritte = Empfehlung,
+  C Nightforge holt das Bild = später): https://claude.ai/artifact/AKjxeNvdNbzo3HYjEStb7F, Quellen
+  `docs/entwuerfe/vollbild/`. Wartet auf die Wahl des Nutzers. Mit dem Controller gibt es heute keinen Weg ins Spiel.
 - [ ] **Overwatch: Zurückholen durch Ausblenden live gescheitert (15.11., 12:43–13:21, Builds `3254e96` und
   `19d7879`, Verläufe `overwatch-3/`, `overwatch-4/`):** Erst eine Zehntelsekunde, dann bis zu zwei Sekunden
   ausgeblendet: „the game was hidden, kept the front, the screen still captured, shown again“ – macOS lässt einem
