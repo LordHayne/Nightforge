@@ -164,6 +164,17 @@ Testreihen, 281 pytest. Nicht eingespielt, live nichts gesehen; Anleitung `close
   steht in einem optimierten Build nicht als Text) und `testRootQuestion` gehören mit hinein; `testFinding` dafür
   auf einen Namen über 15 Byte umstellen.
 
+- [ ] **Overwatch, zweite Runde mit Position und Space (15.11., 12:23–12:34, Testbuild `c2da535`, Verläufe im
+  Notizordner `overwatch-2/`):** Lauf 1 und 2 ohne Bild, Lauf 3 mit Bild. **Das Spielfenster bleibt auf Space 1, ist
+  aber ausgeblendet** (1516×891 „off sp1“, dann shield+2 „off sp1“) – es wandert nicht auf einen anderen Space. Im
+  guten Lauf ist es einmal kurz „off“ und kommt sofort wieder „on“; im schlechten kommt es nicht wieder. In Lauf 1
+  schaltete der Nutzer selbst auf Overwatch um (er hörte den Ton, der Vorhang blieb vorn): Danach war das Fenster
+  sofort „on“ über der Abschirmung, das Spiel lief. Die Spiel-App war beim Ausblenden vorn. Ob macOS die App als
+  „hidden“ führte, ist nur im guten Lauf 3 mitgeschrieben (nein).
+  **Vorschlag:** Nightforges Zurückholen (`handFocus(again:)`, `LibraryModel.swift`) scheitert unter dem übernommenen
+  Bildschirm, weil es zuerst selbst nach vorn will. Stattdessen nachmachen, was das Umschalten des Nutzers tat: die
+  Spiel-App kurz ausblenden (`NSRunningApplication.hide()`, wie Wines eigenes ⌘-Tab in `handleCommandTab`), dann
+  einblenden und aktivieren – Wine zeigt seine Fenster wieder, wenn die App aktiv wird. Ungeprüft.
 - [ ] **Overwatch live mit Fensterblick (15.11., 11:44–11:55, Testbuild `99405ee`, dreimal über den Spieletest,
   `scratchpad/fensterblick` alle 200 ms, Verläufe im Notizordner `overwatch/`):** Lauf 1 Bild nach 66 s, Läufe 2 und
   3 „hängt ohne Bild“ (DXMT zählte 48 FPS). **Kein `sample` genommen** – die Regel `ownAntiCheat` greift live.
