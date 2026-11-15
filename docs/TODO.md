@@ -163,6 +163,28 @@ Befunde aus dem Lauf:
   Vorhang.
 - Die Werte sind die ersten drei Minuten (Vorspann, Menü, erste Sekunden), keine feste Szene: steht im Bericht.
 
+**Liste für 0.3.3 (Vorschlag des Koordinators, 15.11. vormittags, dem Nutzer vorgelegt):**
+
+Regel: Was schon im Testzweig liegt, geht mit, wenn es in einer Live-Runde vor dem Release besteht. Was dort
+scheitert und sich nicht schnell beheben lässt, wird ausgeschaltet oder herausgenommen, nicht in 0.3.3 repariert.
+
+- **Neu zu bauen für 0.3.3:** Vorhang B (vom Nutzer gewählt), Fehlerfenster des Spiels „einordnen“ und die Frage
+  zur Wurzel auf dem Vorhang (beides „Ja, wie empfohlen“, 15.11.), E4 schneller (Rezept sofort übernehmen), ein
+  versteckter Testschalter für E3 (nicht im Release). Bei der Diagnose-Session.
+- **Im Testzweig, Live-Runde nötig:** Schritt E; Laufwerk wiedererkennen (erst mit nachgebautem Laufwerk, dann der
+  Nutzer auf dem Mac mini); ruhiger Ladescreen (13 Punkte oben); Lizenz beim ersten Start; Download-Hinweise; Ruhe
+  im Leerlauf; Steam nur bei Bedarf; Battle.net-Start; Einstellungen › Startseite; Anmelden am Sofa; kein `sample`
+  bei Cheat-Schutz. Touchpad als Zeiger und Spieler 1/2 nur, wenn ihr Live-Test (DualSense, zwei Pads) besteht.
+- **Fehler, die in 0.3.3 geklärt werden:** Overwatch zeichnet ohne sichtbares Fenster (lief am 7.11.); ABZU braucht
+  zwei Anläufe (passt zu „Start repariert sich selbst“).
+- **Nur für unsere Tests, im Release nicht vorhanden:** Messen beim Spielen (`gameTest.measurePlay`, seit `3c4981c`
+  mit Release-Flagge und Prüfung im Release-Ablauf).
+- **Auf 0.3.4:** Limit auf D3DMetal (Weg A); Bildschirmtastatur (Board fehlt); Create-Taste im Spiel; Klänge und
+  TV-Stufe G2 (Boards fehlen); Konsolen-Modus; HUD im Spiel umschalten; Shader-Vorbereitung; Overlay-Variante B;
+  Mac-Fassungen messen; FPS auf der Landingpage (erst nach Messungen beim Spielen).
+- **Abschluss wie 0.3.2:** Audit- und Testrunde, Profilliste signieren (Nutzer), Zusammenführen auf `main` (OK des
+  Nutzers), Release-Notizen, Bot-PRs #39–#41 entscheiden.
+
 **Zuschnitt von 0.3.3 (entschieden vom Nutzer, 15.11.: „ja machen wir 0.3.3 so zugeschnitten. sonst kommen wir
 langsamer voran“):** 0.3.3 = „Der Start repariert sich selbst, sichtbar“ (Schritt E live, Vorhang nach dem Board)
 und „Laufwerk wiedererkennen“, dazu was schon fertig im Testzweig liegt und geprüft ist. Auf 0.3.4: das Limit auf
