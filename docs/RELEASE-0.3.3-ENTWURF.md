@@ -1,135 +1,112 @@
-# 0.3.3: Entwurf der Release Notes
+# 0.3.3: Status der Release-Notizen (nur für uns)
 
-Stand: `claude/staging-033` 1e6ed95 und `docs/TODO.md` vom 9.11. **Für das Release muss Teil A nach `docs/release-notes/v0.3.3.md`:** `release.yml` veröffentlicht nur diese Datei. Die Versionsnummer setzt `release.yml` aus dem Tag; bei 0.3.1 und 0.3.2 stand sie zusätzlich in `Resources/Info.plist`.
+Stand: `claude/staging-033` bei `60b582b` (15.11. abends), `docs/TODO.md` (Abschlussliste, Liste für 0.3.3, Vorhang nach
+der Regel, Live-Ergebnisse vom 15.11.), `docs/AUDIT-0.3.3-ABSCHLUSS.md` und der Code. Ersetzt den Entwurf vom 9.11.
 
-Nichts davon ist veröffentlicht. Was der Live-Test nicht bestätigt, fliegt vor dem Release aus Teil A (siehe Teil B).
+Der öffentliche Text steht in `docs/release-notes/v0.3.3.md` (den veröffentlicht `release.yml`). Dort trägt jeder Punkt,
+der noch nicht live bestanden hat, einen HTML-Kommentar. Nach der Live-Runde: bestanden → Kommentar löschen,
+gescheitert → Zeile streichen (und die Funktion ausschalten oder auf 0.3.4 schieben).
 
-## A. Release Notes
+Status: **live** (Datum, woran) · **nur Tests** (Testreihen grün, nie in der echten App) · **ungeprüft**.
 
-<!-- Zum Kopieren nach docs/release-notes/v0.3.3.md: alles zwischen hier und „B. Hängt am Live-Test“. -->
+## In den Notizen
 
-## Deutsch
+### Der Start repariert sich selbst
 
-Nightforge 0.3.3 macht deinen Mac mehr zur Konsole. Suchen und Zeigen gehen jetzt mit dem Controller, im Spiel gibt es ein neues Menü, und der Ladescreen bleibt ruhig stehen, bis das Spiel da ist. Das Wichtigste:
+| Punkt | Status |
+|---|---|
+| Fehlstart → Abhilfe aus dem Protokoll → zweiter Start, „Noch ein Versuch …“, gelernt fürs nächste Mal | **live** 15.11. 12:09 ABZU (Befund `nvidia-interface` über den Testschalter `testFinding`, zweiter Start mit Bild, `learned.dllsOff`) und 16:40 nach der Regel. E3 (It Takes Two) und E4 (anderes Rezept) nie gesehen; ein echter, nicht ausgelöster Fall fehlt. |
+| Fehlerfenster des Spiels zählt als Fehlstart, nächster Weg | **live** 15.11. 15:54 MGS V auf D3DMetal („Failed to load SteamAPI“ → Fehlstart → DXMT). |
+| Genauerer Blick (ein Start mit mehr Protokoll) | **live** 15.11. 15:54 MGS V („nothing explains why it ended“ → Steam einmal neu → Diagnose). |
+| Ruhiger Ladescreen nach der Regel des Nutzers, L3+R3-Tipp nur beim ersten Start | **live** 15.11. 16:36–16:47 (Testbuild `9bda7de`, ABZU, MGS V). Der Vollbild-Hinweis daraus: siehe „Bekannt“. |
+| „Shader werden vorbereitet …“ nur beim ersten Start auf einem Weg | **nur Tests** (Kette auf `bb80f7f` grün, nicht eingespielt). |
+| Start-Runde auf dem Endstand | **live** 15.11. 21:03–21:34 (`389cb19`): 21 von 21 mit Bild, auf jedem Weg, kein zweiter Anlauf. Nicht als eigene Zeile in den Notizen, aber der Beleg, dass die umgebaute Startschleife gewöhnliche Starts nicht stört. |
 
-**Voraussetzung** wie bisher: ein Mac mit Apple silicon und macOS 26 (Tahoe) oder neuer.
+### Laufwerk wiedererkennen
 
-### Controller
-- **Tastatur für den Controller:** Y öffnet sie. Am DualSense tippst du mit beiden Daumen auf dem Touchpad und mit L2 und R2, bei anderen Controllern führt jeder Stick eine Hälfte. Die Suchleiste rückt groß über die Tastatur, und Treffer kommen ab dem ersten Buchstaben.
-- **Touchpad als Maus:** Ein Finger bewegt den Zeiger, Drücken klickt, zwei Finger scrollen. Controller ohne Touchpad nehmen den rechten Stick. Für Klicks in anderen Programmen braucht Nightforge einmal das Recht „Bedienungshilfen“, unter Einstellungen › Controller › Als Maus.
-- **Der Mauszeiger geht aus dem Weg,** sobald du mit dem Controller spielst. Maus oder Touchpad holen ihn zurück.
-- **Spieler 1 und 2:** Die Leiste unten zeigt, welcher Controller welche Nummer hat, und am DualSense leuchtet die Lichtleiste passend. Ein ausgeschalteter Controller behält seinen Platz.
-- **Meldungen im Spiel:** Controller verbunden, getrennt oder Akku unter 15 % erscheinen auch über einem Spiel, ohne ihm etwas wegzunehmen.
-- **Vibration** beim Bestätigen, beim Spielstart und beim Öffnen des Menüs, abschaltbar unter Einstellungen › Controller.
-- **PS-Taste:** Auf macOS 27 richtest du sie unter Einstellungen › Controller ein. Der lange Druck öffnet dann Nightforge, der kurze führt zur Startseite, solange Nightforge vorn ist.
-- **Windows-Fragen vor dem Spiel** beantwortest du mit A und B.
-- **Ein und Aus:** Im kleinen Menü auf ⧉ legst du den Mac schlafen oder beendest Nightforge. Ein Controller weckt das Bild wieder.
-- Sobald ein Controller verbunden ist, bietet Nightforge am MacBook einmal das Vollbild an.
-
-### Im Spiel
-- **Neues Menü:** L3 und R3 halten öffnet rechts eine Spalte mit Spielname, Spielzeit, Uhr, Controller-Akku, Weiterspielen, Spiel beenden und Zu Nightforge. Das Spiel steht, solange sie offen ist.
-- **Steams Fenster über einem Spiel,** etwa für herunterladbare Inhalte, kommt nach vorn und lässt sich bedienen. Machst du es zu, ist das Spiel wieder im Vollbild da.
+| Punkt | Status |
+|---|---|
+| Übernahme ohne Download, nichts gelöscht, Zeile „… sind wieder da“ | **live nur für GOG**: Teil A, 15.11. 11:21 (`3c4981c`, leeres HOME, Disk-Image „NF Test“, Mafia II nach 5 s in `GOG/installed.json`, Image unverändert). Steam, Steam für Mac und Epic: Teil B auf dem Mac mini mit dem Nutzer, **ungeprüft**. Die Zeile selbst (Toast) ist nicht gesehen. |
+| Zeile mit „Anmelden“ / „Einrichten“ in Einstellungen › Speicher | **nur Tests** (Live-Anleitung B9–B11). |
 
 ### Starten und Beenden
-- **Ein ruhiger Ladescreen:** Er steht sofort beim Druck auf „Spielen“ und bleibt, bis das Spiel da ist. Kein Flackern, kein Desktop dazwischen, auch beim Beenden und beim direkten Wechsel zum nächsten Spiel.
-- **Updates auf dem Ladescreen:** Lädt Epic oder GOG vor dem Start etwas nach, siehst du Fortschritt, Tempo und Restzeit. B bricht ab, und beim nächsten Start geht es dort weiter.
-- **Ein Ausweg, wenn Steam hängt:** Nach 30 Sekunden ohne Spiel steht auf dem Ladescreen „Hängt es? Zurück zu Nightforge“.
-- **Steams Fragen liegen auf dem Ladescreen,** statt dass kurz die Nightforge-Seite aufblitzt.
-- **Die Lizenz beim ersten Start:** Steam fragt bei manchen Spielen einmal nach der Lizenz. Nightforge sagt das an, rahmt Steams Fenster ein und startet das Spiel nach deinem Ja einmal neu, weil das Windows-Steam von selbst nicht weitermacht. Zustimmen musst immer du selbst.
 
-### Fernseher und Sofa
-- **Am Fernseher** ist die Schrift größer, die Ränder sind breiter und die Markierung ist dicker. Nightforge erkennt Fernseher auch an ihrer Größe.
-- **Beim Anmelden öffnen:** Nightforge startet mit dem Mac und kommt nach vorn.
-- **Mac wach halten:** Am Netzteil bleibt der Mac so lange wach, wie du es einstellst, damit der Controller ihn bereit findet. Ab Werk aus, auf Akku nie.
-- **Anmelden am Sofa:** GOG geht jetzt per QR-Code mit dem Handy. Bei Epic sagt Nightforge vorher, dass einmal eine Tastatur nötig ist.
+| Punkt | Status |
+|---|---|
+| Beenden beim ersten Mal, auch mit offenem Blatt (E12) | **live** 14.11. abends, viermal beim ersten Anlauf. |
+| Kein Flackern, kein Desktop (ruhiger Ladescreen, Punkte 1–13 vom 8.11.) | **ungeprüft**. |
+| Updates von Epic/GOG auf dem Ladescreen, B bricht ab (Punkt 10) | **ungeprüft**. „Restzeit“ bewusst weggelassen, wie schon bei 0.3.1. |
+| „Hängt es? Zurück zu Nightforge“ nach 30 s (Punkt 9) | **ungeprüft**. |
+| Steams Fragen auf dem Ladescreen (Punkt 11) | **ungeprüft**. |
+| Lizenz beim ersten Start | **ungeprüft** (GTA V Enhanced; „Abbrechen“ in Steams Fenster hat noch nie ein Zeichen gezeigt). |
+| Battle.net-Spiele für den Mac aus Nightforge | **ungeprüft** (Hearthstone startete in der Runde nicht; Spiele des Windows-Clients starten bewusst nicht, `LibraryModel.launch`). |
 
-### Spiele und Launcher
-- **Battle.net-Spiele starten aus Nightforge,** ohne dass du den Client bedienen musst.
-- **Weniger Ruckeln am Anfang:** Bei DirectX-11-Spielen auf DXMT ohne Anti-Cheat übersetzt Nightforge Shader früher.
-- **Startseite einstellen:** Unter Einstellungen › Startseite wählst du die Quellen und die Reihenfolge deiner angehefteten Spiele.
-- **Valheim und andere Mac-Versionen:** Die Meldung „Cloud Out of Date“ nach einem Wechsel zwischen den beiden Steam-Versionen sollte nicht mehr kommen.
+### Controller und Sofa
+
+| Punkt | Status |
+|---|---|
+| Menü im Spiel als Leiste rechts, Spiel daneben sichtbar (`OverlayView.swift`, Overlay-Entwurf) | **ungeprüft** (Overlay-Größen, R1). Die Leiste selbst ist im Build; „Overlay-Variante B“ der 0.3.4-Liste ist etwas anderes. |
+| Tastatur für den Controller | **ungeprüft, aber an**: Y öffnet sie (`InputRouter.swift:610`, `LibraryModel.openPadKeyboard`). Die Liste für 0.3.3 schiebt die Bildschirmtastatur auf 0.3.4 („Board fehlt“). **Entscheidung nötig:** live prüfen oder vor dem Release ausschalten. |
+| Touchpad als Maus | **ungeprüft**, ab Werk an (`Prefs.padPointer` = true). |
+| Spieler 1 und 2 | **ungeprüft** (zwei Pads). |
+| Anmelden am Sofa (GOG per QR) | **ungeprüft**. |
+| Einstellungen › Startseite | **ungeprüft**. |
+| Fernseher (Schrift, Ränder, Erkennen an der Größe) | **ungeprüft** (T1–T5, 4K nie gelaufen). |
 
 ### Downloads und Strom
-- **Der Mac bleibt wach, solange geladen wird,** bei allen Stores, auch mit ausgeschaltetem Bildschirm. Am Ring steht, ob der Mac wach bleibt oder schlafen darf, und kommst du zurück, sagt eine Zeile, wie viel in der Zwischenzeit geladen wurde.
-- **Nightforge ruht, wenn niemand da ist:** Ohne Eingabe schaut es seltener nach, und Steam geht nach 30 Minuten schlafen, wenn nichts es braucht, auch am Netzteil. Auf Akku reicht es, wenn Nightforge so lange nicht vorn war. Steam wacht auf, sobald du zurückkommst.
-- **Updates nach dem Aufwachen:** Lief der Mac eine Weile nicht, schaut Nightforge beim Aufwachen nach Neuem, ohne Admin-Rechte und ohne den Mac dafür zu wecken. Ein Spielstart hat immer Vorrang.
+
+| Punkt | Status |
+|---|---|
+| Mac bleibt wach beim Laden, Zeile beim Zurückkommen | **ungeprüft** (Download-Hinweise). |
+| Ruhe im Leerlauf, Steam schläft nach 30 min | **ungeprüft** (Koordinator am Protokoll einer Nacht). |
+
+### Privatsphäre
+
+`start-evidence.jsonl` liegt in `Engine.supportDir` (`StartEvidence.swift:58`), ist immer an, wird nie gekürzt (Audit W7,
+Kürzen für 0.3.4) und von nichts gesendet. Der Problembericht nimmt daraus nur eine Zahl (`sortGames`, „wie viele
+Spiele dieser Art hier laufen“), und den sendet der Spieler selbst. Die drei Testschalter (`gameTest.measurePlay`,
+`gameTest.testFinding`, `testRootQuestion`) stehen nur im `#else` und fehlen im Release (B5, `release.yml:67`).
+
+**Bewusst nicht** geschrieben: „die Test- und Messschalter gibt es im Release nicht“. Laut Audit W7 kennt das Release
+weiter versteckte Schalter, darunter den Spieletest mit eigenem Bildraten-Protokoll (`gameTest.frameLog`, schon in
+0.3.2), `closerLook` und `wineDebug`. Sie zeichnen nur auf, wenn jemand sie setzt. Die Notizen sagen deshalb nur, dass
+das Messen beim Spielen nicht enthalten ist. Ebenso nicht „Nightforge misst nichts“: Die Zeilen mit Bildraten von DXMT
+stehen wie bisher im lokalen Protokoll.
 
 ### Bekannt
-- In Windows-Spielen vergibt das Spiel die Spielerplätze selbst. Spieler 1 im Spiel kann der andere Controller sein.
-- Die Epic-Anmeldung braucht einmal eine Tastatur.
-- Blizzards Mac-Spiele bleiben auf der internen Platte, weil Blizzards Mac-Agent nicht auf externe Laufwerke darf.
-- Weiter wie bisher: Online-Spiele mit Anti-Cheat laufen in ihrer Windows-Version nur über GeForce Now, und DirectX 9 läuft meist über WineD3D, oft langsamer und ohne MetalFX.
 
----
-
-## English
-
-Nightforge 0.3.3 makes your Mac more of a console. Searching and pointing now work with a controller, there's a new in-game menu, and the loading screen stays calm until the game is there. The main changes:
-
-**Requirements** as before: a Mac with Apple silicon and macOS 26 (Tahoe) or later.
-
-### Controller
-- **A keyboard for the controller:** Y opens it. On a DualSense you type with both thumbs on the touchpad and L2 and R2; on other controllers each stick drives one half. The search field moves large above the keyboard, and hits come from the first letter.
-- **Touchpad as a mouse:** one finger moves the pointer, pressing clicks, two fingers scroll. Controllers without a touchpad use the right stick. For clicks in other apps Nightforge needs the Accessibility right once, under Settings › Controller › As a mouse.
-- **The mouse pointer gets out of the way** as soon as you play with a controller. The mouse or the touchpad brings it back.
-- **Player 1 and 2:** the bar at the bottom shows which controller has which number, and a DualSense's light bar matches. A controller you switch off keeps its place.
-- **Notes in a game:** controller connected, disconnected or battery below 15 % also show over a game, without taking anything from it.
-- **Vibration** when confirming, when a game starts and when opening the menu; switch it off under Settings › Controller.
-- **PS button:** on macOS 27 you set it up under Settings › Controller. A long press then opens Nightforge, a short press goes to Home while Nightforge is in front.
-- **Windows questions before a game** answer to A and B.
-- **On and off:** in the small menu on ⧉ you put the Mac to sleep or quit Nightforge. A controller wakes the picture again.
-- Once a controller connects, Nightforge offers full screen on a MacBook, one time.
-
-### In a game
-- **New menu:** holding L3 and R3 opens a column on the right with the game's name, play time, clock, controller battery, Continue Playing, Quit Game and Go to Nightforge. The game stands still while it's open.
-- **Steam's window over a game,** for downloadable content for example, comes to the front and can be used. Close it and the game is back in full screen.
-
-### Starting and quitting
-- **A calm loading screen:** it's there the moment you press Play and stays until the game is. No flicker and no desktop in between, also when quitting and when going straight to the next game.
-- **Updates on the loading screen:** when Epic or GOG has something to fetch before a start, you see progress, speed and time left. B cancels, and the next start picks up where it stopped.
-- **A way out when Steam hangs:** after 30 seconds without a game the loading screen says "Stuck? Back to Nightforge".
-- **Steam's questions sit on the loading screen,** instead of the Nightforge page flashing up.
-- **The licence at the first start:** Steam asks some games' licence once. Nightforge announces it, frames Steam's window and starts the game once more after your yes, because the Windows Steam doesn't go on by itself. Agreeing is always up to you.
-
-### TV and couch
-- **On a TV** the text is larger, the margins are wider and the selection is thicker. Nightforge also recognises a TV by its size.
-- **Open when you log in:** Nightforge starts with the Mac and comes to the front.
-- **Keep the Mac awake:** plugged in, the Mac stays awake for as long as you set, so the controller finds it ready. Off by default, never on battery.
-- **Signing in from the couch:** GOG now works with a QR code and your phone. For Epic, Nightforge says up front that a keyboard is needed once.
-
-### Games and launchers
-- **Battle.net games start from Nightforge,** without you operating the client.
-- **Less stutter at the start:** for DirectX 11 games on DXMT without anti-cheat, Nightforge translates shaders earlier.
-- **Set up Home:** under Settings › Home you choose the sources and the order of your pinned games.
-- **Valheim and other Mac versions:** the "Cloud Out of Date" message after switching between the two Steam versions shouldn't come any more.
-
-### Downloads and power
-- **Your Mac stays awake while games download,** for all stores, also with the display off. The ring says whether the Mac stays awake or may sleep, and when you come back a line says how much was downloaded meanwhile.
-- **Nightforge rests when nobody's there:** with no input it looks around less often, and Steam goes to sleep after 30 minutes when nothing needs it, also when plugged in. On battery it's enough that Nightforge hasn't been in front for that long. Steam wakes as soon as you come back.
-- **Updates after waking:** when the Mac has been away for a while, Nightforge looks for what's new as it wakes, without admin rights and without waking the Mac for it. A game start always comes first.
-
-### Known
-- In Windows games the game hands out the player slots itself. Player 1 in the game can be the other controller.
-- Signing in to Epic needs a keyboard once.
-- Blizzard's Mac games stay on the internal disk, because Blizzard's Mac agent can't reach external drives.
-- Still as before: online games with anti-cheat only run through GeForce Now in their Windows version, and DirectX 9 mostly runs through WineD3D, often slower and without MetalFX.
-
-## B. Hängt am Live-Test
-
-Diese Zeilen bleiben nur, wenn der Test sie bestätigt:
-
-| Zeile | Was es braucht |
+| Punkt | Status |
 |---|---|
-| Lizenz beim ersten Start | GTA V Enhanced, Abendliste L1–L4; „Abbrechen“ in Steams Fenster ist noch ungeprüft |
-| Battle.net-Spiele starten | Hearthstone, `docs/LIVETEST-0.3.3.md` Block F; ob `launch WTCG` greift, ist nur statisch belegt |
-| Weniger Ruckeln | Shader-Kurztest, Abendliste S1–S3; die Wirkung ist nicht gemessen, der Nutzer hat die Messung vertagt. Bis dahin vorsichtig formuliert. Braucht ein Grafik-Paket |
-| Das Spiel steht, solange das Menü offen ist | Controller still im Windows-Spiel: braucht das neue `gamepad`-Paket (`winebus`-Patch), bis dahin wird angehalten wie bisher |
-| A und B in Windows-Fragen | Binärprogramm aus `pad-answer.yml`, sonst bleibt A/B beim Spiel; live noch nie gelaufen |
-| PS-Taste, Ein und Aus, Wecken | Block J und I; Schlafen ohne Admin-Abfrage und Wecken sind ungeprüft |
-| Vibration | Ob der DualSense über Bluetooth vibriert, ist offen (A4) |
-| Anmelden am Sofa | GOG bis zum Ende mit dem Handy, macOS-Firewall und Port |
-| Valheim „Cloud Out of Date“ | Abendliste R7 |
-| Nightforge ruht, Updates nach dem Aufwachen | Block H und Abendliste W1, W2; ob das Windows-Steam den Schlaf sperrt, ist offen |
-| Fernseher | Abendliste T1–T5, 4K ist noch nie gelaufen |
+| Overwatch im exklusiven Vollbild ohne Bild, „Randloses Fenster“ hilft | **live** 15.11. 15:36–15:45 (`306c29f`): 3 von 3 mit Bild im randlosen Fenster, vorher etwa jeder zweite Start ohne. |
+| Hinweis dazu auf dem Ladescreen mit „Neu starten“ | **ungeprüft** (ein ⌘⇥, „Neu starten“ per Pad, W8). Braucht die signierte Profilliste mit `fullscreenHint`. Der deutsche Menüwortlaut („Optionen › Video › Randloses Fenster“) ist ein Arbeitswort, in Overwatch nachsehen. |
+| 60-FPS-Limit greift auf D3DMetal nicht | belegt 14.11. (Wukong Ø 201, Control Ø 113 bei Limit 60; D3DMetal kennt keinen Schalter dafür). Weg A ist auf 0.3.4. |
+| Mac-Fassungen ohne Bildraten-Messung | belegt (Messlauf 14.11.). |
+| Grenzen der Laufwerks-Übernahme (Epic braucht Anmeldung und Netz, nur Spiele des Kontos; GOGs nächstes Update lädt vermutlich alles) | aus dem Code gelesen (TODO, „Offen, gelesen und nicht belegt“ 1–4), nicht gelaufen. |
 
-Die Schritte bis `main` (Workflows, Manifeste, Signaturen) kommen aus der Gesamtprüfung in `docs/AUDIT-0.3.3.md`.
+## Weggelassen, und warum
+
+- **Frage nach einer älteren Windows-Wurzel (Zertifikat):** Die Mechanik ist drin und live an MGS V belegt, aber nur
+  mit dem Testschalter `testRootQuestion`; `WindowsRoots.onRequest` ist leer (Audit), im Release kommt die Frage nie.
+- **A und B in Windows-Fragen:** braucht `pad-answer.exe` im Bundle. Ein Release-Build nimmt die eingecheckte Datei
+  (`build.sh:86`), die es nicht gibt; `pad-answer.yml` schlägt sie erst als Bot-PR vor.
+- **Weniger Ruckeln durch frühe Shader-Übersetzung:** In der App ab Werk an (`dxmtEarlyShaders`), wirkt aber nur mit dem
+  DXMT-Patch `dxmt-0.80-prepare-shaders` im Grafik-Baustein. Den bringt erst Bot-PR #41 (graphics `-17` → `-18`), der an
+  der LGPL-Entscheidung zu DXMT hängt. Steht ohnehin auf der 0.3.4-Liste.
+- **Inhalt des Menüs im Spiel** (Spielzeit, Uhr, Akku, wie im Entwurf vom 9.11.): nicht nachgeprüft, darum nennen die
+  Notizen nur die Leiste rechts.
+- **Auf 0.3.4 laut Liste:** Limit auf D3DMetal, Create-Taste, Klänge, TV-Stufe G2, Konsolen-Modus, HUD im Spiel
+  umschalten, Mac-Fassungen messen, FPS auf der Landingpage.
+- **Nicht genannt, obwohl im Zweig:** Regedit nur bei Änderung (live 15.11. als Protokollzeile, Nutzen ungemessen),
+  msync je Spiel (kein Profil nutzt es), Mac-Startarten über `-applaunch`, Valheims „Cloud Out of Date“, PS-Taste und
+  Ein/Aus, Vibration, „Beim Anmelden öffnen“, „Mac wach halten“. Alles ungeprüft. Wer davon live besteht, kann eine
+  Zeile bekommen.
+- **„Noch einmal von vorn“ vergisst Gelerntes (B8):** Den Knopf und seinen Wortlaut habe ich nicht gefunden, darum ohne
+  Zeile.
+
+## Offen vor dem Release
+
+1. Tastatur für den Controller: live prüfen oder ausschalten (siehe oben).
+2. Live-Runde mit dem Nutzer (Abschlussliste Punkt 2), danach die Kommentare in `v0.3.3.md` abarbeiten.
+3. `scripts/sign-lists.sh main` (neue Felder `ownAntiCheat`, `fullscreenHint`), sonst fehlt der Overwatch-Hinweis.
+4. Overwatchs deutscher Menüwortlaut für „Randloses Fenster“.
+5. Datum und Version: Version in `Info.plist` und Landingpage kommen mit dem Release (nicht Teil dieses Auftrags).
