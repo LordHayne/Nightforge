@@ -1621,7 +1621,7 @@ extension PlayButton {
                    isUninstalling: model.uninstallingID == game.id,
                    isRunning: model.isRunning(game),
                    needsConfirmation: model.launchNeedsConfirmation,
-                   status: model.sizingID == game.id ? L10n.t("Checking the size …") : model.launchPhase?.title,
+                   status: model.sizingID == game.id ? L10n.t("Checking the size …") : model.launchTitle,
                    unavailable: unavailable(game, model: model), cloud: game.playsInCloud,
                    noSpace: game.downloadNeedsSpace != nil,
                    demo: game.demoOf != nil,

@@ -127,6 +127,9 @@ final class LibraryModel: ObservableObject {
     private var launchAsksLicence = false
     /// What the launch is busy with when it's more than waiting for Steam ("Restarting Steam …").
     @Published private(set) var launchPhase: LaunchPhase?
+    /// A start Nightforge mends after one that ended without a picture (LaunchRepair): said on the curtain
+    /// while no phase of its own (a Steam restart, an update) has the line.
+    @Published private(set) var launchRepair: LaunchRepair?
     /// How fast Steam's update before a start goes ("12.4 MB/s · 4 min left"), once it's known.
     @Published private(set) var updateSpeed: String?
     /// The start in progress is the game's first with these graphics: its shaders get built.
@@ -141,8 +144,13 @@ final class LibraryModel: ObservableObject {
         if case .updating? = launchPhase, let updateSpeed { return LaunchPhase.steamUpdateHint(speed: updateSpeed) }
         if launchPhase == .syncingSaves, provider == .gog { return LaunchPhase.gogSavesHint }
         if let launchPhase { return launchPhase.hint }
+        if let launchRepair { return launchRepair.detail }
         return launchBuildsShaders ? LaunchPhase.shaderHint : nil
     }
+
+    /// The line on the Play button and the curtain while a game starts: its phase, else what Nightforge
+    /// mends (LaunchRepair).
+    var launchTitle: String? { launchPhase?.title ?? launchRepair?.title }
     /// A game that ended right after starting with every way Nightforge knows.
     @Published var failedLaunch: FailedLaunch?
     /// Both versions of a game have saves and the one played before has newer ones: which to go on with.
@@ -1976,15 +1984,25 @@ final class LibraryModel: ObservableObject {
     /// The curtain's lines at a look (`curtainStatus`, `curtainDetail`); once it's down they wait for the next start.
     private func sayOnCurtain(gameRuns: Bool, shaders: Bool, asks: Bool = false, macOSAsks: Bool = false,
                               macOSOpen: Bool = false) {
-        let phase = launchingID == nil ? nil : launchPhase?.title
+        let phase = launchingID == nil ? nil : launchTitle
         let progress = launchingID == nil ? nil : Self.curtainProgress(phase: launchPhase)
+        // The steps of a start Nightforge mends, while its line is the one shown.
+        let trail = launchingID == nil || launchPhase != nil || asks || macOSAsks ? nil : launchRepair?.steps
         GameBackdrop.setStatus(Self.curtainStatus(phase: phase, shaders: shaders, gameRuns: gameRuns,
                                                   asks: asks, macOSAsks: macOSAsks,
                                                   padAnswers: controllerConnected && PadAnswerRun.available
                                                       ? (PadPart.a.name(padSymbols.layout), PadPart.b.name(padSymbols.layout)) : nil),
                                detail: Self.curtainDetail(launchHint: Self.curtainHint(progress: progress, speed: updateSpeed, launchHint: launchHint ?? curtainNote),
                                                   asks: asks || macOSAsks, macOSOpen: macOSOpen),
-                               progress: progress)
+                               progress: progress, trail: trail)
+    }
+
+    /// What Nightforge mends, on the curtain at once: the start loop says it between two starts, when no
+    /// curtain look runs to say it.
+    private func sayRepair(_ repair: LaunchRepair?) {
+        launchRepair = repair
+        guard let repair else { return }
+        GameBackdrop.setStatus(repair.title, detail: repair.detail, trail: repair.steps)
     }
 
     /// The curtain's second line: none under a question it waits for (`asks`), else the start's
@@ -4487,6 +4505,7 @@ final class LibraryModel: ObservableObject {
         if viaSteam && game.bottle.isBuiltIn && !Engine.steamSignedIn && !otherSteamFree(for: .windows) { return }
         let number = beginLaunch(game)
         let behavior = Prefs.afterLaunch
+        launchRepair = nil  // a start before this one mended nothing of this one's
         launchTask = Task {
             defer { endLaunch(number) }
             // However the start ends, one judged by its first seconds brings Nightforge back from its curtain.
@@ -4861,6 +4880,9 @@ final class LibraryModel: ObservableObject {
                     if let build { EngineRollback.shared.recordGood(game.gameID, build: build, way: way) }
                     return
                 }
+                // It ended without a picture: the curtain says Nightforge looks into it while it does
+                // (LaunchRepair, board B of 15.11.2026). An end that turns out to be the player's goes back as before.
+                if !Task.isCancelled { sayRepair(.looking) }
                 // What the start left behind, read through the table (StartDiagnosis): said in the log, kept for
                 // the record and the problem report, and what the decision below goes by (step E3). Never for a
                 // game with an anti-cheat: its files aren't looked into (`found` stays nil).
@@ -4940,6 +4962,7 @@ final class LibraryModel: ObservableObject {
                     if presence.mayBeRunning { return }
                     startedQuietlyAgain = true
                     GameLog.note("\(game.name) ended in its first seconds without a picture on its proven way: started once more on it")
+                    sayRepair(.onceMore)
                     continue
                 }
                 // Not known (no process list, or an old one from before the start) counts as running too.
@@ -5008,6 +5031,8 @@ final class LibraryModel: ObservableObject {
                     CloserLook.noteTaken(game.gameID, engine: engineID)
                     GameLog.note("\(game.name): nothing explains why it ended – \(how)")
                 }
+                // What the curtain says for it (LaunchRepair.after): nothing of its own where the start ends.
+                if let repair = LaunchRepair.after(next), repair != .gaveUp { sayRepair(repair) }
                 switch next {
                 case .again(let changed, let why):
                     // The same way once more: with what Wine said is missing installed, the settings file
@@ -5042,7 +5067,6 @@ final class LibraryModel: ObservableObject {
                     noteFailed()
                     if look == .nextWay { lookCloser("the next start carries Wine's debug channels") }
                     LaunchHealth.advance(game.gameID, attempts, to: other)
-                    launchPhase = .retrying(attempts[other].label)
                     continue
                 case .giveUp:
                     noteFailed()
@@ -5051,6 +5075,10 @@ final class LibraryModel: ObservableObject {
                     // One way only (Vulkan, DirectX 12): what the game draws with says more than a layer.
                     let tried = attempts.count > 1 ? attempts.map(\.label) : [analysis?.summary ?? attempts.first?.label ?? ""]
                     StartEvidence.note(.gaveUp, game: game.gameID, way: way)
+                    // The honest end, on the curtain a moment before the library and its sheet.
+                    sayRepair(.gaveUp)
+                    try? await Task.sleep(for: .seconds(LaunchRepair.endStands))
+                    if Task.isCancelled { return }  // a new start has the curtain: no sheet over it
                     failedLaunch = FailedLaunch(game: game, tried: tried)
                     return
                 }
@@ -5070,17 +5098,19 @@ final class LibraryModel: ObservableObject {
         let known = macSources.runtimes(for: game)
         let missing = Engine.missingWinetricks((profile?.winetricks ?? []) + learned.filter { $0 != GameLog.wineMono } + known)
             .filter(Engine.isSafeWinetricksVerb)
+        // A runtime set up for a start Nightforge mends keeps that line and its steps (LaunchRepair.settingUp).
+        let says = showStatus && launchRepair != .settingUp
         // The game test fetches nothing: what a game lacks goes into its report instead (GameTestRun).
         if !missing.isEmpty, !GameTest.active {
-            if showStatus { launchPhase = .settingUp }
+            if says { launchPhase = .settingUp }
             await Engine.installWinetricks(missing, wine: wine)
-            if showStatus { launchPhase = nil }
+            if says { launchPhase = nil }
         }
         if game.bottle.isBuiltIn, analysis?.usesDotNet == true || learned.contains(GameLog.wineMono),
            !Engine.wineMonoInstalled {
-            if showStatus { launchPhase = .settingUpDotNet }
+            if says { launchPhase = .settingUpDotNet }
             await Engine.installWineMono(wine)
-            if showStatus { launchPhase = nil }
+            if says { launchPhase = nil }
         }
     }
 

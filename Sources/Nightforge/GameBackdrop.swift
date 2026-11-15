@@ -33,6 +33,8 @@ enum GameBackdrop {
         @Published var wayOut: LaunchTip?
         /// How far an update is, 0 to 1 (the thin bar under the step); nil without one.
         @Published var progress: Double?
+        /// The steps of a start Nightforge mends (LaunchRepair), in the bar's place; nil without one.
+        @Published var trail: [LaunchRepair.Step]?
         /// Steam's window stands on the curtain: the mark gives way, a bar at the bottom says what to do.
         @Published var steamAsks = false
         /// That question is its licence: said so at the top, with a seam round its window (`seam`) and the way to answer.
@@ -108,11 +110,13 @@ enum GameBackdrop {
     }
 
     /// What's happening: the step at once, the why once the curtain has been up a few seconds, so
-    /// a quick start stays calm and a long one doesn't look stuck.
-    static func setStatus(_ step: String?, detail: String?, progress: Double? = nil) {
+    /// a quick start stays calm and a long one doesn't look stuck. `trail`: the steps of a start
+    /// Nightforge mends, at once as well.
+    static func setStatus(_ step: String?, detail: String?, progress: Double? = nil, trail: [LaunchRepair.Step]? = nil) {
         guard state.stage == .starting else { return }
         if state.step != step { state.step = step }
         if state.progress != progress { state.progress = progress }
+        if state.trail != trail { state.trail = trail }
         let shown = Date().timeIntervalSince(raisedAt) >= detailAfter ? detail : nil
         if state.detail != shown { state.detail = shown }
     }
@@ -358,6 +362,7 @@ enum GameBackdrop {
             state.tip = tip
             state.wayOut = nil
             state.progress = nil
+            state.trail = nil
             state.steamAsks = false
             state.licence = nil
             state.seam = nil
@@ -585,8 +590,13 @@ struct BackdropView: View {
                 .foregroundStyle(Theme.muted)
                 .animation(.easeInOut(duration: 0.4), value: status)
                 .padding(.top, 34)
-                // In the gap above the second line, which is there anyway: nothing moves when it comes.
-                UpdateBar(fraction: state.stage == .starting ? state.progress : nil)
+                // In the gap above the second line, which is there anyway: an update's bar, or the steps of a
+                // start Nightforge mends – nothing moves when either comes.
+                ZStack {
+                    UpdateBar(fraction: state.stage == .starting ? state.progress : nil)
+                    RepairTrail(steps: state.stage == .starting ? state.trail : nil)
+                }
+                .frame(height: RepairTrail.height)
                 // Its own fade only, nothing else on the page moves with it.
                 Text(state.stage == .starting ? state.detail ?? " " : " ")
                     .font(size: 14)
@@ -627,6 +637,52 @@ struct BackdropView: View {
         case .behind: return L10n.t("Nightforge waits here until you're done.")
         case .returning: return L10n.t("Back to Nightforge …")
         }
+    }
+}
+
+/// The steps of a start Nightforge mends (LaunchRepair): what happened, quiet, and the one it's at, in the
+/// seam's light. Three small marks and words – the one at work breathes slowly (with "Reduce motion" it
+/// stands still), nothing else moves.
+private struct RepairTrail: View {
+    let steps: [LaunchRepair.Step]?
+    static let height: CGFloat = 34
+
+    var body: some View {
+        HStack(spacing: 10) {
+            ForEach(Array((steps ?? []).enumerated()), id: \.offset) { index, step in
+                if index > 0 { Capsule().fill(Theme.muted.opacity(0.3)).frame(width: 26, height: 2) }
+                HStack(spacing: 7) {
+                    switch step.mark {
+                    case .done: Circle().fill(Theme.muted).frame(width: 9, height: 9)
+                    case .now: NowMark()
+                    case .next: Circle().strokeBorder(Theme.muted.opacity(0.6), lineWidth: 1.5).frame(width: 9, height: 9)
+                    }
+                    Text(step.label)
+                }
+                .foregroundStyle(step.mark == .now ? Theme.ink : Theme.muted.opacity(step.mark == .done ? 1 : 0.8))
+            }
+        }
+        .font(size: 14, weight: .medium)
+        .lineLimit(1)
+        .opacity(steps == nil ? 0 : 1)
+        .animation(.easeInOut(duration: 0.4), value: steps)
+    }
+}
+
+/// The step at work: the seam's bright core with its blue glow, breathing.
+private struct NowMark: View {
+    @Environment(\.reduceMotion) private var reduceMotion
+    @State private var dim = false
+
+    var body: some View {
+        Circle().fill(Color(red: 0.75, green: 0.87, blue: 1))
+            .frame(width: 9, height: 9)
+            .shadow(color: Color(nsColor: BrandArt.seamBlue), radius: 4)
+            .opacity(dim ? 0.45 : 1)
+            .onAppear {
+                guard !reduceMotion else { return }
+                withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) { dim = true }
+            }
     }
 }
 
