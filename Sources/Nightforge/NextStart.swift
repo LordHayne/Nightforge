@@ -178,6 +178,17 @@ enum NextStart {
         rootTrusted && againSoFar < againLimit ? .again(why: [untrustedRoot]) : .ends
     }
 
+    /// Whether a failed start of the game is read as before step E and its recipe left as it is: it carries an
+    /// anti-cheat (ShaderCaches.hasAntiCheat: its profile's, a block, the files of one in its folder) or brings a
+    /// cheat protection of its own (GameProfile.ownAntiCheat: Overwatch). The user's rule for such games – the
+    /// player's account is at stake: nothing changes what they load, no tool attaches to their process, their
+    /// files aren't looked into. So no crash dump of theirs is read, no DLL is switched off, no closer look is
+    /// taken and no root is asked about (LibraryModel.launch); what acted before step E still does (`asBefore`).
+    /// Up to 15.11.2026 only the first kind counted here, and Overwatch went through the loop as any game.
+    static func handsOff(profile: GameProfile?, block: AntiCheatBlock?, installDir: URL) -> Bool {
+        profile?.ownAntiCheat == true || ShaderCaches.hasAntiCheat(profile: profile, block: block, installDir: installDir)
+    }
+
     /// The rules whose remedies changed a start before step E: the three things a game says that point to a
     /// way, and what Wine's log says of a missing runtime and an illegal instruction.
     static let actedBefore: Set<String> = ["refused-switch", "needs-d3d12", "direct3d9", "missing-runtime", "illegal-instruction"]

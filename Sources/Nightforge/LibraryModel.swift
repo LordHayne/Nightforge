@@ -5030,7 +5030,8 @@ final class LibraryModel: ObservableObject {
                 if !Task.isCancelled { sayRepair(.looking) }
                 // What the start left behind, read through the table (StartDiagnosis): said in the log, kept for
                 // the record and the problem report, and what the decision below goes by (step E3). Never for a
-                // game with an anti-cheat: its files aren't looked into (`found` stays nil).
+                // game with an anti-cheat or a cheat protection of its own (NextStart.handsOff): its dumps aren't
+                // looked into (`found` stays nil), and all that follows from nil below holds for both kinds.
                 var diagnosis: [String] = []
                 var found: [StartDiagnosis]?
                 // Step E5: the message box the game ended at, if it ended at one (CloserLook.Reading.endedAtBox).
@@ -5040,7 +5041,7 @@ final class LibraryModel: ObservableObject {
                 if !Task.isCancelled {
                     let hung = noPicture != nil, folder = game.installDirName, block = game.antiCheatBlock
                     (found, endedAtBox) = await Task.detached(priority: .utility) {
-                        guard !ShaderCaches.hasAntiCheat(profile: profile, block: block, installDir: installDir) else { return (nil, nil) }
+                        guard !NextStart.handsOff(profile: profile, block: block, installDir: installDir) else { return (nil, nil) }
                         let finding = StartDiagnosis.finding(logText: log, installDir: installDir, gameFolder: folder,
                                                              since: startedAt, layer: layer, hung: hung)
                         // The test switch's finding comes on top here, past the anti-cheat's guard (StartDiagnosis.testFinding).
