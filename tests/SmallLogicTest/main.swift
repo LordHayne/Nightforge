@@ -19,6 +19,7 @@ struct SmallLogicTest {
         downloadLines()
         phases()
         repairs()
+        errorBox()
         ratings()
         testDays()
         moving()
@@ -113,6 +114,38 @@ struct SmallLogicTest {
         check(LaunchRepair.after(.giveUp) == .gaveUp, "the honest end")
         check(LaunchRepair.after(.keepsItsPlace) == nil && LaunchRepair.after(.noOtherWay) == nil, "a start that just ends says nothing of its own")
         check(LaunchRepair.endStands >= 2 && LaunchRepair.endStands <= 5, "the end stands long enough to read, not longer")
+        UserDefaults.standard.removeObject(forKey: AppLanguage.storageKey)
+    }
+
+    /// The game's own error box under the curtain (board way 1, 15.11.2026).
+    static func errorBox() {
+        let wake = "Alan Wake could not initialize your 3D graphics card. Technical: DEVICE_CREATE_ERROR - Not available"
+        check(CloserLook.errorNotice(wake) && CloserLook.errorNotice("Failed to load SteamAPI")
+              && CloserLook.errorNotice("Das Spiel konnte nicht gestartet werden."), "a box that reports a failure and asks nothing")
+        check(!CloserLook.errorNotice("Fatal error! Would you like to send a crash report?") && !CloserLook.errorNotice("Start in safe mode?")
+              && !CloserLook.errorNotice("Your graphics driver is older than recommended.") && !CloserLook.errorNotice(""),
+              "one that asks, even after a failure, or only says something: not one")
+        for language in ["english", "german"] {
+            UserDefaults.standard.set(language, forKey: AppLanguage.storageKey)
+            let line = LibraryModel.curtainStatus(phase: nil, shaders: false, gameRuns: true, asks: true, errorBox: true, padAnswers: ("A", "B"))
+            check(line == L10n.t("The game reports an error") && line?.isEmpty == false, "the line over an error box, in \(language): \(line ?? "nil")")
+            let withPad = LibraryModel.curtainDetail(launchHint: "hint", asks: true, errorBox: true, padOK: "A", macOSOpen: false)
+            let withoutPad = LibraryModel.curtainDetail(launchHint: "hint", asks: true, errorBox: true, padOK: nil, macOSOpen: false)
+            check(withPad?.contains("A") == true && withPad?.contains("OK") == true && withoutPad?.contains("OK") == true && withPad != withoutPad,
+                  "under it what to press, with the pad's button where it answers, in \(language): \(withPad ?? "nil") / \(withoutPad ?? "nil")")
+        }
+        UserDefaults.standard.set("german", forKey: AppLanguage.storageKey)
+        check(LibraryModel.curtainStatus(phase: nil, shaders: false, gameRuns: true, asks: true, errorBox: true) == "Das Spiel meldet einen Fehler"
+              && LibraryModel.curtainDetail(launchHint: nil, asks: true, errorBox: true, macOSOpen: false) == "Drück OK – Nightforge kümmert sich um den Rest.",
+              "the board's words")
+        UserDefaults.standard.set("english", forKey: AppLanguage.storageKey)
+        // A question, macOS's question, or no box read: as before.
+        check(LibraryModel.curtainStatus(phase: nil, shaders: false, gameRuns: true, asks: true, padAnswers: ("A", "B"))?.contains("asking") == true
+              && LibraryModel.curtainDetail(launchHint: "hint", asks: true, macOSOpen: false) == nil, "the game's question: as before, no second line")
+        check(LibraryModel.curtainStatus(phase: nil, shaders: false, gameRuns: true, asks: true, errorBox: true, macOSAsks: true)?.contains("macOS") == true,
+              "macOS's question comes first")
+        check(LibraryModel.curtainStatus(phase: nil, shaders: false, gameRuns: true, asks: false, errorBox: true) == L10n.t("Waiting for the first picture …"),
+              "no question on screen: no box said")
         UserDefaults.standard.removeObject(forKey: AppLanguage.storageKey)
     }
 

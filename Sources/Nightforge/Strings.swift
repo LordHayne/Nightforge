@@ -837,6 +837,10 @@ enum L10n {
         "Getting it": "Wird geholt",
         "Taking a closer look": "Sieht genauer hin",
         "Tried everything": "Alles versucht",
+        // The game's own error box under the curtain (board "Vorhang bei Fehlstart", way 1, 15.11.2026)
+        "The game reports an error": "Das Spiel meldet einen Fehler",
+        "Press OK – Nightforge takes care of the rest.": "Drück OK – Nightforge kümmert sich um den Rest.",
+        "%@ presses OK – Nightforge takes care of the rest.": "%@ drückt OK – Nightforge kümmert sich um den Rest.",
         "First start with this graphics version: shaders are prepared, so it can take a minute. Next time it's quicker.":
             "Erster Start mit dieser Grafikversion: Shader werden vorbereitet, das kann eine Minute dauern. Beim nächsten Mal geht es schneller.",
         "Steam asks something before the game starts – answer it in its window.": "Steam fragt vor dem Start etwas – antworte in seinem Fenster.",

@@ -1395,6 +1395,9 @@ final class LibraryModel: ObservableObject {
         var madeWay = false
         /// The game's question window on screen and since when; when it was last taken as one.
         var questionSeen: (number: Int, since: Date)?
+        /// That window's text, when it's one of Windows' message boxes (Wine's +msgbox, which every start
+        /// carries): read for each window, a few looks long until Wine has printed it.
+        var boxRead: (number: Int, text: String?, looks: Int)?
         var lastAsked: Date?
         /// When that question went, answered by the player – a click or key press just before.
         var answeredAt: Date?
@@ -1668,6 +1671,20 @@ final class LibraryModel: ObservableObject {
                 && asking.map { Self.takenAsQuestion($0.size, standing: Date().timeIntervalSince(questionSeen?.since ?? Date()),
                                                      helperPresses: helperPresses) } == true
             windowsQuestion = asks && game.bottle.isBuiltIn ? game : nil
+            // A message box that reports an error (CloserLook.errorNotice): said so on the curtain around it, and
+            // that Nightforge takes it from there (board "Vorhang bei Fehlstart", way 1, the player's pick of 15.11.2026).
+            if asks, let question, game.platform == .windows,
+               boxRead?.number != question || (boxRead?.text == nil && (boxRead?.looks ?? 0) < 3) {
+                let mark = LearnedFixes.lastLaunchMark(game.gameID) ?? 0, gameFolder = game.installDirName
+                let text = await Task.detached(priority: .utility) {
+                    CloserLook.read(GameLog.text(since: mark), gameFolder: gameFolder).boxes.last
+                }.value
+                boxRead = (question, text, boxRead?.number == question ? (boxRead?.looks ?? 0) + 1 : 1)
+                if let text, CloserLook.errorNotice(text) {
+                    GameLog.note("Curtain under a window of \(game.name)'s: a message box that reports an error – \"\(GameLog.redacted(String(text.prefix(160))))\"")
+                }
+            }
+            let reportsError = asks && boxRead?.number == question && boxRead?.text.map(CloserLook.errorNotice) == true
             if asks {
                 if lastAsked == nil { askedSince = Date() }
                 lastAsked = Date()
@@ -1714,7 +1731,7 @@ final class LibraryModel: ObservableObject {
                 madeWay = false
                 curtainUp()
             }
-            sayOnCurtain(gameRuns: !pids.isEmpty, shaders: buildsShaders, asks: asks,
+            sayOnCurtain(gameRuns: !pids.isEmpty, shaders: buildsShaders, asks: asks, errorBox: reportsError,
                          macOSAsks: macOSAsks, macOSOpen: macOSOpen)
             pictureSince = here ? (pictureSince ?? Date()) : nil
             switch Self.curtainStep(lowered: loweredAt != nil, gameFront: gameFront, nightforgeFront: front == getpid(),
@@ -1982,18 +1999,19 @@ final class LibraryModel: ObservableObject {
     nonisolated static func hidesBattleNetWindow(messageUp: Bool) -> Bool { !messageUp }
 
     /// The curtain's lines at a look (`curtainStatus`, `curtainDetail`); once it's down they wait for the next start.
-    private func sayOnCurtain(gameRuns: Bool, shaders: Bool, asks: Bool = false, macOSAsks: Bool = false,
+    private func sayOnCurtain(gameRuns: Bool, shaders: Bool, asks: Bool = false, errorBox: Bool = false, macOSAsks: Bool = false,
                               macOSOpen: Bool = false) {
         let phase = launchingID == nil ? nil : launchTitle
         let progress = launchingID == nil ? nil : Self.curtainProgress(phase: launchPhase)
         // The steps of a start Nightforge mends, while its line is the one shown.
         let trail = launchingID == nil || launchPhase != nil || asks || macOSAsks ? nil : launchRepair?.steps
+        let padAnswers = controllerConnected && PadAnswerRun.available
+            ? (PadPart.a.name(padSymbols.layout), PadPart.b.name(padSymbols.layout)) : nil
         GameBackdrop.setStatus(Self.curtainStatus(phase: phase, shaders: shaders, gameRuns: gameRuns,
-                                                  asks: asks, macOSAsks: macOSAsks,
-                                                  padAnswers: controllerConnected && PadAnswerRun.available
-                                                      ? (PadPart.a.name(padSymbols.layout), PadPart.b.name(padSymbols.layout)) : nil),
+                                                  asks: asks, errorBox: errorBox, macOSAsks: macOSAsks, padAnswers: padAnswers),
                                detail: Self.curtainDetail(launchHint: Self.curtainHint(progress: progress, speed: updateSpeed, launchHint: launchHint ?? curtainNote),
-                                                  asks: asks || macOSAsks, macOSOpen: macOSOpen),
+                                                  asks: asks || macOSAsks, errorBox: errorBox && !macOSAsks, padOK: padAnswers?.0,
+                                                  macOSOpen: macOSOpen),
                                progress: progress, trail: trail)
     }
 
@@ -2005,9 +2023,16 @@ final class LibraryModel: ObservableObject {
         GameBackdrop.setStatus(repair.title, detail: repair.detail, trail: repair.steps)
     }
 
-    /// The curtain's second line: none under a question it waits for (`asks`), else the start's
-    /// hint, else a word on a question of macOS's the start doesn't wait for (`macOSOpen`).
-    nonisolated static func curtainDetail(launchHint: String?, asks: Bool, macOSOpen: Bool) -> String? {
+    /// The curtain's second line: none under a question it waits for (`asks`) – under the game's error box
+    /// (`errorBox`) what to press and that Nightforge goes on from there, with the pad's button (`padOK`) where
+    /// one answers it –, else the start's hint, else a word on a question of macOS's the start doesn't wait for
+    /// (`macOSOpen`).
+    nonisolated static func curtainDetail(launchHint: String?, asks: Bool, errorBox: Bool = false, padOK: String? = nil,
+                                          macOSOpen: Bool) -> String? {
+        if asks, errorBox {
+            return padOK.map { L10n.t("%@ presses OK – Nightforge takes care of the rest.", $0) }
+                ?? L10n.t("Press OK – Nightforge takes care of the rest.")
+        }
         if asks { return nil }
         return launchHint ?? (macOSOpen ? L10n.t("macOS still has a question open.") : nil)
     }
@@ -2015,10 +2040,13 @@ final class LibraryModel: ObservableObject {
     /// The step the curtain names: a question on it – macOS's (`macOSAsks`) or the game's (`asks`) –
     /// else the start's own (`phase`, "Starting Steam …") while it has one, then what the game does
     /// until its window shows. Nil: "Starting …".
+    /// `errorBox`: the game's question is one of Windows' message boxes reporting an error, with only OK
+    /// to press (CloserLook.errorNotice).
     nonisolated static func curtainStatus(phase: String?, shaders: Bool, gameRuns: Bool,
-                                          asks: Bool = false, macOSAsks: Bool = false,
+                                          asks: Bool = false, errorBox: Bool = false, macOSAsks: Bool = false,
                                           padAnswers: (ok: String, cancel: String)? = nil) -> String? {
         if macOSAsks { return L10n.t("macOS is asking for permission – answer it with the mouse or trackpad.") }
+        if asks, errorBox { return L10n.t("The game reports an error") }
         if asks, let padAnswers { return L10n.t("The game is asking something – %@ confirms, %@ cancels, or use the mouse.", padAnswers.ok, padAnswers.cancel) }
         if asks { return L10n.t("The game is asking something – answer it with the mouse or trackpad.") }
         if let phase { return phase }
