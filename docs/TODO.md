@@ -352,6 +352,13 @@ füllte ein Fehler die Liste des Problemberichts (`963f526`), B5 Test hält die 
 **3a. Frühere Fassung dieses Punktes:** Audit- und Testrunde über alles seit dem 8.11.: Start-Rezept und Schritt E, Laufwerk-Übernahme (fasst Steams
 Listen, legendary und GOGs Liste an), Vorhang, Frage zur Wurzel, Testschalter. Eigene Session; Befunde prüft der Koordinator.
 
+**4a. Release-Notizen neu geschrieben (15.11., Landingpage-Session, `8db7d86`/`4e42876`, im Testzweig):**
+`docs/release-notes/v0.3.3.md` deutsch und englisch; jeder Punkt, der noch nicht live bestanden hat, trägt einen
+HTML-Kommentar; `docs/RELEASE-0.3.3-ENTWURF.md` ist die Statusliste dazu. Gestrichen: Zertifikat-Frage (Liste leer),
+A/B in Windows-Fragen (kein `pad-answer.exe` im Release), frühe Shader-Übersetzung (braucht den Grafik-Baustein aus
+Bot-PR #41). **Offen: die Tastatur für den Controller ist im Build an (Y öffnet sie), steht aber auf der 0.3.4-Liste –
+live prüfen oder ausschalten (Entscheidung des Nutzers).**
+
 **4. Texte und Version:** Release-Notizen neu gegen den Endstand (deutsch/englisch, `docs/release-notes/v0.3.3.md`,
 Landingpage-Session), Version 0.3.3 in `Info.plist`, `docs/TESTABDECKUNG.md` nachziehen (zuletzt 37 % Zeilen).
 
