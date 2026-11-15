@@ -19,7 +19,7 @@ Nichts gepusht, kein PR. Die Behebungen liegen auf `claude/audit-033-abschluss-d
 
 | Nr. | Schwere | Fehler | Datei | Commit |
 |---|---|---|---|---|
-| B1 | hoch | Verschachteltes Manifest auf einem Laufwerk bringt Nightforge bei jedem Start zum Absturz | `VDF.swift:97`, `:122` | `6e0784a` |
+| B1 | hoch | Verschachteltes Manifest auf einem Laufwerk bringt Nightforge bei jedem Start zum Absturz | `VDF.swift:112`, `:137` | `6e0784a` |
 | B2 | mittel | Ordnername aus Steams Manifest wird ungeprüft zum Pfad, auch aus der Bibliothek heraus | `Library.swift:556`, `DriveFinds.swift:60` | `ca716ab` |
 | B3 | niedrig | Aus einer Bibliothek wird jede Datei ganz gelesen, auch Link, Pipe und Gigabytes | `DriveFinds.swift:59`, `:80`, `:100`, `Library.swift:510` | `8c19745` |
 | B4 | niedrig | Seit `+pid` füllt ein einziger Fehler die Fehlerliste des Problemberichts | `GameLog.swift:403` | `963f526` |
