@@ -141,6 +141,20 @@ Befunde aus dem Lauf:
 - [x] **Die Listen sagen dazu „hält das Limit: Ø 201“.** (Behoben 14.11., `ce7647c`, im Testzweig `4c8c392`: Feld
   `limitState`, D3DMetal-Zahlen gelten als frei, „Limit greift nicht“ über 105 % des Limits.) Gemeint ist „erreicht es“, es liest sich aber, als
   griffe die Sperre. Über dem Limit muss es „Limit greift nicht“ heißen, bevor die Landingpage die Daten nimmt.
+- [ ] **Overwatch ohne sichtbares Fenster, aus den Protokollen untersucht (15.11., Koordinator; nichts gestartet,
+  kein sample):** Das tritt bei **3 von 6 Starts** seit dem 8.11. auf (8.11. 14:53, 10.11. 00:02, 14.11. 20:10;
+  gut: 8.11. zweimal, 10.11. 00:49). Overwatch stellt beim Start den Bildschirm von 120 auf **60 Hz** um
+  („Setting display mode: 1512x982@60“, exklusiver Vollbildmodus). Dafür übernimmt Wines Mac-Treiber den Bildschirm
+  (`CGCaptureAllDisplays` in `-[WineApplicationController setMode:forDisplay:]`, `dlls/winemac.drv/cocoa_app.m`),
+  macOS legt die schwarze Abschirmung (L2147483628) darüber, und Wine hebt die Spielfenster darüber (L2147483630).
+  **Bei den guten Starts liegt das Spielfenster danach über der Abschirmung; bei den schlechten ist es schon kurz vor
+  dem Umschalten versteckt** („windows 6 hidden, picture elsewhere“) und kommt nicht wieder: Auf dem Schirm ist nur
+  die Abschirmung, das Spiel zeichnet unsichtbar (DXMT zählt 50 FPS). Nightforges Zurückholen scheitert, weil es
+  unter einem übernommenen Bildschirm die Front nicht bekommt. Der Vorhang ist nicht die Ursache. Ungeklärt, warum
+  das Fenster versteckt bleibt. Nächster Schritt: Live-Start mit einem Blick auf die Fensterliste alle 200 ms um
+  das Umschalten (ohne sample, ohne winedbg). Mögliche Abhilfen, ungeprüft: Overwatch im Spiel auf „Randloses
+  Fenster“ stellen (macht der Spieler im Spielmenü, Nightforge ändert keine Datei des Spiels); Nightforges
+  Zurückholen für den übernommenen Bildschirm anders lösen.
 - [ ] **Overwatch: der Spieletest sagt „hängt ohne Bild“, das Spiel zeichnete aber** (DXMT-Protokoll Ø 49 über
   170 s, Limit 40). Vorhang: erst „picture here“ (1512×853 L0), dann das Fenster auf der Abschirmungsebene
   (L2147483628) und „picture elsewhere“; „its window isn't on the screen: fetching it back (1)/(2)“, beide Male
