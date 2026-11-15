@@ -452,7 +452,8 @@ probiert):** Nightforge übernimmt die Spiele auf dem Laufwerk nicht von selbst.
   wiedererkennen und übernehmen, je Laden, ohne neu zu laden; Hinweis an den Spieler erst als Board.
 **Neuinstallation und ein Laufwerk mit Spielen (Frage des Nutzers, 15.11.):** gebaut auf
 `claude/sad-nightingale-196da3` (Commits ab `ff7c884`), mit Tests, **nicht live gelaufen und nicht eingespielt**.
-Anleitung für die Live-Prüfung: `docs/LIVETEST-LAUFWERK.md`. Board: `docs/entwuerfe/LaufwerkUebernahme.dc.html`.
+Anleitung für die Live-Prüfung: `docs/LIVETEST-LAUFWERK.md`. Board: https://claude.ai/artifact/TyJ67wguhLXYyxdNBtNccJ
+(Quelle `docs/entwuerfe/LaufwerkUebernahme.dc.html`).
 
 - [x] **Befund nachgelesen, zwei Korrekturen.** Steam und GOG wie notiert. Epic: legendary legt im Spielordner nichts
   Eigenes ab – ein `.egstore` gibt es nur, wo die Spieldateien eines mitbringen (auf „Games“ bei einem von neun) –,
@@ -473,9 +474,11 @@ Anleitung für die Live-Prüfung: `docs/LIVETEST-LAUFWERK.md`. Board: `docs/entw
 - **Was der Testbau auf „Games“ fände (15.11., nur gelesen):** 8 Steam-Spiele (eines halb geladen), 5 für Steam für
   Mac, 9 Epic-Ordner, 1 GOG-Spiel – alle bekannt, also nichts zu tun und nichts wartend. Derselbe Stand ohne Nightforges
   Listen, alle Läden angemeldet: alle 23 werden erkannt, kein Ordner bleibt übrig.
-- [ ] **Der Nutzer wählt am Board, was der Spieler sieht** (A still mit ruhigem Hinweis, B Hinweis mit „Ansehen“,
-  C einmal fragen; Empfehlung A). Bis dahin stehen die Spiele einfach als installiert da; der Hinweis hängt an
-  `DriveTakeover.onTaken`, die Zeile für Wartendes an `DriveFinds.waiting`. Texte deutsch und englisch am Board.
+- [ ] **Der Nutzer wählt am Board, was der Spieler sieht** – nach der Startregel vom 15.11. gekürzt (eine Zeile, was
+  passiert; mehr nur mit Knopf, wenn der Spieler etwas tun muss; alles andere ins Protokoll): A eine Zeile je Laufwerk,
+  B ganz still; in beiden je Laden eine Zeile mit „Anmelden“ bzw. „Einrichten“ für Wartendes. „Einmal fragen“ und
+  „Ansehen“ sind weggefallen (keine Wahl, kein Bedarf). Empfehlung A. Bis zur Wahl gilt B ohne die Zeile; der Hinweis
+  hängt an `DriveTakeover.onTaken`, die Zeile an `DriveFinds.waiting`.
 - [ ] **Live prüfen** nach `docs/LIVETEST-LAUFWERK.md`: Teil A im leeren HOME mit einem Disk-Image (dort sieht die
   Übernahme nur Disk-Images an, nie ein echtes Laufwerk); Teil B der echte Fall über „Laufwerk vergessen“ – ändert
   Nightforges echte Listen, also die Entscheidung des Nutzers.
