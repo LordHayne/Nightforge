@@ -216,6 +216,33 @@ struct LaunchHealthTest {
         LearnedFixes.setLastLaunch(taught, logMark: 123_456_789_012)
         check(LearnedFixes.lastLaunchMark(taught) == 123_456_789_012, "where its last start begins in the log, past 32 bits too")
         for key in ["learned.winetricks.\(taught.key)", "learned.logMark.\(taught.key)"] { UserDefaults.standard.removeObject(forKey: key) }
+
+        // A start over forgets what was learned (LearnedFixes.forget): kept for good up to 15.11.2026, with no button
+        // that took a remedy back. What went is said; the other game's and where the last start begins stay.
+        let wrong = GameID.steam(990_004), other = GameID.epic("990005")
+        let lessons = StartRecipe.Learned(dllsOff: ["nvapi64", "nvngx"], runtimes: ["vcrun2019"], noAVX: true, steps: ["nvidia-interface", "missing-runtime"])
+        LearnedFixes.keep(lessons, for: wrong)
+        LearnedFixes.keep(StartRecipe.Learned(dllsOff: ["physxupdateloader"], steps: ["physx-update-loader"]), for: other)
+        LearnedFixes.setLastLaunch(wrong, logMark: 77)
+        check(LearnedFixes.learned(wrong) == lessons && LearnedFixes.noAVX(wrong) && LearnedFixes.winetricks(wrong) == ["vcrun2019"], "what a game learned is kept")
+        check(lessons.summary == "DLLs off nvapi64, nvngx; runtimes vcrun2019; without AVX (nvidia-interface, missing-runtime)"
+              && StartRecipe.Learned().summary.isEmpty, "… and can be said in a line: \(lessons.summary)")
+        LaunchHealth.reset(wrong)
+        check(LearnedFixes.learned(wrong) == lessons, "a layer chosen by hand resets the ways, not what was learned: its starts aren't watched")
+        check(LearnedFixes.forget(wrong) == lessons, "a start over says what it forgets")
+        check(LearnedFixes.learned(wrong) == StartRecipe.Learned() && !LearnedFixes.noAVX(wrong) && LearnedFixes.winetricks(wrong).isEmpty,
+              "… and all of it is gone: DLLs, runtimes, the AVX hint, the rules' names")
+        for part in ["dllsOff", "steps", "winetricks", "noAVX"] {
+            check(UserDefaults.standard.object(forKey: "learned.\(part).\(wrong.key)") == nil, "no entry is left for \(part)")
+        }
+        check(LearnedFixes.lastLaunchMark(wrong) == 77, "where its last start begins in the log stays")
+        check(LearnedFixes.learned(other).dllsOff == ["physxupdateloader"], "another game's lessons stay")
+        check(LearnedFixes.forget(wrong) == StartRecipe.Learned(), "nothing to forget the second time")
+        // The recipe of the next start is the way's and the profile's again.
+        let afresh = StartRecipe.of(way: LaunchAttempt(graphics: .d3dmetal), learned: LearnedFixes.learned(wrong), profile: nil, d3dMetalEngine: true)
+        check(afresh.dllOverrides["nvngx"] != "" && afresh.avx && afresh.steps == nil, "the next start has NVIDIA's interface and AVX back: \(afresh.dllOverrides)")
+        LearnedFixes.forget(other)
+        UserDefaults.standard.removeObject(forKey: "learned.logMark.\(wrong.key)")
         let dx11 = LaunchAttempt(graphics: .dxvk, arguments: ["-dx11"])
         check(dx11.label == GraphicsLayer.dxvk.label + " -dx11" && dx11.shortLabel == GraphicsLayer.dxvk.shortLabel + " -dx11"
               && LaunchAttempt(graphics: .dxmt).label == GraphicsLayer.dxmt.label, "a way's name says its layer and what's added")

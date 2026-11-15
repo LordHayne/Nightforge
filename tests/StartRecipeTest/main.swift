@@ -502,6 +502,41 @@ struct StartRecipeTest {
         check(NextStart.after(NextStart.Failed(ladder: hogwarts, index: 2, recipe: plain, found: nvidiaFound, antiCheat: true)) == .giveUp,
               "… and never a DLL off")
 
+        // Which games that is (NextStart.handsOff): one with an anti-cheat, and one that brings a cheat protection of
+        // its own – Overwatch, whose profile says so and whose folder holds no file of Easy Anti-Cheat or BattlEye.
+        // Up to 15.11.2026 only the first kind counted in the start loop: Overwatch's dumps were read, a rule could
+        // have switched a DLL of its off, and it got the closer look.
+        let fm = FileManager.default
+        let folders = fm.temporaryDirectory.appendingPathComponent("hands-off-\(UUID().uuidString)", isDirectory: true)
+        defer { try? fm.removeItem(at: folders) }
+        let plainFolder = folders.appendingPathComponent("Plain", isDirectory: true)
+        let guardedFolder = folders.appendingPathComponent("Guarded", isDirectory: true)
+        try fm.createDirectory(at: plainFolder, withIntermediateDirectories: true)
+        try fm.createDirectory(at: guardedFolder.appendingPathComponent("EasyAntiCheat", isDirectory: true), withIntermediateDirectories: true)
+        try Data("x".utf8).write(to: plainFolder.appendingPathComponent("Game.exe"))
+        let own = profile(#"{"ownAntiCheat": true, "graphics": "dxmt", "dllOverrides": {"nvapi64": "", "nvngx": ""}}"#)
+        check(own?.ownAntiCheat == true && own?.antiCheat == nil && !ShaderCaches.hasAntiCheat(profile: own, block: nil, installDir: plainFolder),
+              "a cheat protection of its own is no anti-cheat for the shader cache, as before")
+        check(NextStart.handsOff(profile: own, block: nil, installDir: plainFolder), "… and one for the start loop: its failed start is read as before step E")
+        check(!NextStart.handsOff(profile: nil, block: nil, installDir: plainFolder)
+              && !NextStart.handsOff(profile: profile(#"{"graphics": "dxmt"}"#), block: nil, installDir: plainFolder)
+              && !NextStart.handsOff(profile: profile(#"{"ownAntiCheat": false}"#), block: nil, installDir: plainFolder),
+              "a game without either is read through the whole table")
+        check(NextStart.handsOff(profile: profile(#"{"antiCheat": ["Vanguard"]}"#), block: nil, installDir: plainFolder)
+              && NextStart.handsOff(profile: profile(#"{"antiCheatOnline": ["BattlEye"]}"#), block: nil, installDir: plainFolder)
+              && NextStart.handsOff(profile: nil, block: AntiCheatBlock(antiCheat: ["RICOCHET"], geforceNow: nil), installDir: plainFolder)
+              && NextStart.handsOff(profile: nil, block: nil, installDir: guardedFolder),
+              "an anti-cheat by its profile, a block or its files, as before")
+        // What follows from it in the loop, with Overwatch's own recipe: a crash the table knows changes nothing it
+        // loads, nothing is looked at closer, and its way moves on as before step E.
+        let overwatch = StartRecipe.of(way: hogwarts[0], learned: Learned(), profile: own, d3dMetalEngine: true)
+        let crashFound = [found("physx-update-loader", .dllsOff(["physxupdateloader", "physxupdateloader64"])), found("crash", nil)]
+        check(NextStart.after(NextStart.Failed(ladder: hogwarts, recipe: overwatch, found: NextStart.asBefore(crashFound), antiCheat: true)) == .way(1, why: nil),
+              "hands off: no DLL of its is switched off, whatever a dump would have said")
+        check(CloserLook.step(unexplained: true, antiCheat: true, carried: false, takenBefore: false, canCarry: true, lastWay: true) == .none
+              && CloserLook.step(unexplained: true, antiCheat: true, carried: false, takenBefore: false, canCarry: true, lastWay: false, proven: true) == .none,
+              "… and no start of its carries the closer look's channels")
+
         // MARK: Step E6 – a closer look for a way that had worked, and a root the player is asked about
 
         // A proven way that ends again with nothing that says why: once more on it with the channels, quietly,

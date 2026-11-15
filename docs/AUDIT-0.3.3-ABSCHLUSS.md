@@ -6,12 +6,16 @@ aus dem Code belegt; **Vermutung** steht dabei, wo nur ein Live-Test es klären 
 Keine Nightforge-Fenster, keine Spiele, kein `sample`, kein `winedbg`, nichts auf echten Laufwerken, Tests höchstens `-P 2`.
 Nichts gepusht, kein PR. Die Behebungen liegen auf `claude/audit-033-abschluss-d51880`, je Fehler ein Commit mit Test.
 
+**Nachtrag, 15.11. abends:** B1 bis B5 sind im Testzweig (`689520f`). Auf Bitte des Koordinators danach behoben: S1,
+S2 und W1 im Kleinen (B6 bis B8, auf `689520f`). Die Abschnitte unten sind nachgeführt; was dabei neu auffiel, steht
+unter „Beim Nachtrag aufgefallen“.
+
 ## Ergebnis
 
 - **Nichts blockiert das Release**, wenn B1 eingespielt ist (Absturz durch eine Datei auf einem angesteckten Laufwerk).
 - **Vier Fehler behoben** (B1 bis B4), dazu ein Test, der die Testschalter aus dem Release hält (B5).
-- **Zwei Punkte sollte der Nutzer vor dem Release entscheiden** (S1, S2); beide sind klein, ändern aber, was der
-  Spieler erlebt, und sind deshalb nur beschrieben.
+- **S1, S2 und W1 sind im Nachtrag behoben** (B6 bis B8): `ownAntiCheat` zählt in der Startschleife wie Anti-Cheat,
+  der Vorhang sagt das Ende, wo kein Versuch mehr kommt, und „Noch einmal von vorn“ vergisst das Gelernte.
 - **Keine Endlosschleife** in der Startschleife, die Frage zur Wurzel und die Testschalter halten, was sie versprechen,
   die Übernahme löscht auf dem Laufwerk nichts.
 
@@ -24,6 +28,9 @@ Nichts gepusht, kein PR. Die Behebungen liegen auf `claude/audit-033-abschluss-d
 | B3 | niedrig | Aus einer Bibliothek wird jede Datei ganz gelesen, auch Link, Pipe und Gigabytes | `DriveFinds.swift:59`, `:80`, `:100`, `Library.swift:510` | `8c19745` |
 | B4 | niedrig | Seit `+pid` füllt ein einziger Fehler die Fehlerliste des Problemberichts | `GameLog.swift:403` | `963f526` |
 | B5 | Test | Kein Test hielt die drei Testschalter aus dem Release | `tests/test_release_switches.py`, `ci.yml` | `c2d4950` |
+| B6 | mittel | S1: `ownAntiCheat` galt in der Startschleife nicht als Anti-Cheat | `LibraryModel.swift:5043`, `NextStart.swift` | `80a236b` |
+| B7 | niedrig | S2: „Noch ein Versuch …“, und dann kam keiner | `LaunchRepair.swift:76`, `LibraryModel.swift:5233` | `148a67c` |
+| B8 | niedrig | W1: Kein Knopf nahm eine gelernte Abhilfe zurück | `LibraryModel.swift:5857`, `LaunchHealth.swift` | `9522227` |
 
 ### B1 · Verschachteltes Manifest
 
@@ -68,9 +75,25 @@ Schalter einspringt, liest keine Einstellungen. Von Hand geprüft: `swiftc -type
 Aus diesem Audit nichts außer B1 (behoben). Die bekannten Schritte des Nutzers bleiben: Profilliste signieren
 (`ownAntiCheat`, `fullscreenHint` sind neue Felder), Version, Release-Notizen.
 
-## Sollte vor dem Release behoben werden (nur beschrieben)
+## Sollte vor dem Release behoben werden (im Nachtrag behoben)
 
-### S1 · `ownAntiCheat` gilt in der Startschleife nicht als Anti-Cheat
+### S1 · `ownAntiCheat` gilt in der Startschleife nicht als Anti-Cheat (behoben, `80a236b`)
+
+**Behoben:** `NextStart.handsOff` sagt jetzt, für welche Spiele die Regel des Nutzers gilt (nichts ändern, was sie
+laden; kein Werkzeug am Prozess; ihre Dateien nicht ansehen): Anti-Cheat wie bisher **oder** `profile.ownAntiCheat`.
+Die Startschleife fragt dort statt bei `ShaderCaches.hasAntiCheat`. Für Overwatch heißt das: Seine Dumps werden nicht
+gelesen, keine Regel schaltet eine DLL ab, die Entscheidung bekommt nur die fünf Abhilfen von vor Schritt E, kein
+Befund vom Testschalter, keine Frage zur Wurzel. Wie vom Koordinator gewünscht bleibt der leise zweite Start (er
+ändert nichts am Spiel), und der genauere Blick ist gehalten wie bei Anti-Cheat-Spielen: **es gibt ihn nicht.**
+
+Was der genauere Blick ist: kein Werkzeug und kein Debugger, sondern ein weiterer Start mit mehr von Wines eigenen
+Protokoll-Kanälen in der Umgebung (`WINEDEBUG` mit `warn+debugstr,+wintrust,+chain` zu den `+pid,+loaddll,+msgbox`
+jedes Starts, `CloserLook.channels`); für ein Steam-Spiel startet Steam dafür neu. Gelesen wird danach nur Wines
+Protokoll. Am Spiel und an dem, was es lädt, ändert er nichts; er kostet einen Start. Die Kanäle jedes Starts
+(`CloserLook.everyStart`) bekommt auch ein Anti-Cheat-Spiel, wie bisher.
+
+Nicht geändert: `ShaderCaches.hasAntiCheat` selbst (sonst verlöre Overwatch die frühe Shader-Übersetzung), der leise
+zweite Start und das Warten aufs Bild. So stand es davor:
 
 `ShaderCaches.hasAntiCheat` (`ShaderCaches.swift:30`) kennt `antiCheat`, `antiCheatOnline`, die Sperre und die Dateien
 von EAC/BattlEye, nicht `profile.ownAntiCheat`; `analysis.antiCheat` kommt ebenfalls aus Dateien. Overwatch
@@ -91,7 +114,15 @@ Auslösen: Overwatch endet ohne Bild. Empfehlung: an den drei Stellen `profile?.
 behandeln (nur die Abhilfen von vor Schritt E, kein genauerer Blick, kein leiser zweiter Start). Zwei Zeilen und ein
 Test; nicht gebaut, weil es Overwatchs Startverhalten ändert.
 
-### S2 · „Noch ein Versuch …“, und dann kommt keiner
+### S2 · „Noch ein Versuch …“, und dann kommt keiner (behoben, `148a67c`)
+
+**Behoben:** `LaunchRepair.after` antwortet für `.keepsItsPlace` und `.noOtherWay` mit dem Ende (`keptPlace`,
+`noOtherWay`): „Das hat nicht geklappt.“ mit „Gleich bist du zurück in der Bibliothek.“, drei Sekunden
+(`LaunchRepair.endStands`), dann die Seite. Keine neuen Texte; das Protokoll sagt, welches Ende es war. Ein Test hält
+fest: Der Vorhang verspricht genau dort einen Versuch, wo einer kommt. Eine Änderung dabei, die über den Text
+hinausgeht: `.noOtherWay` endet jetzt wie die anderen Enden mit `return`. Bisher lief es ans Ende der Schleife und
+trat „hinter das Spiel“ (`stepBack`), das es nicht mehr gab – mit der Einstellung „Launcher beenden“ beendete sich
+Nightforge nach dem Fehlstart. So stand es davor:
 
 `sayRepair(.looking)` (`LibraryModel.swift:5030`) schreibt nach jedem Ende ohne Bild „Noch ein Versuch …“ auf den
 Vorhang. Entscheidet `NextStart.after` danach `.keepsItsPlace` (ein bewährter Weg hat seine Versuche hinter sich,
@@ -103,7 +134,16 @@ geklappt.“, `LaunchRepair.endStands` lang), wie bei `.gaveUp` und `.rootDeclin
 
 ## Kann warten
 
-- **W1 · Eine gelernte Abhilfe lässt sich nicht zurücknehmen** (im Entwurf als offen vermerkt,
+- **W1 · Eine gelernte Abhilfe lässt sich nicht zurücknehmen** – **im Kleinen behoben (`9522227`):**
+  `LaunchHealth.reset` löschte das Gelernte nicht. Jetzt vergessen die zwei Knöpfe nach „Das hat nicht geklappt“
+  („Nochmal mit dem ersten Weg versuchen“, „‚Am verträglichsten‘ versuchen“) alles Gelernte (`LearnedFixes.forget`: `learned.dllsOff`,
+  `.steps`, `.winetricks`, `.noAVX`), mit einer Zeile im Protokoll, was ging. Was ein Spiel wirklich braucht, lernt
+  es beim nächsten Fehlstart neu: dort wird jeder Start beobachtet. **Bewusst nicht** beim dritten Aufrufer, dem
+  Sichern der Optionen mit von Hand gewählter Grafik (`SettingsViews.swift:359`): Das läuft bei jedem Sichern, und
+  ein Start auf einem von Hand gewählten Weg, der schon einmal gut lief, wird nicht beobachtet
+  (`EngineRollback.needsWatch`) – eine Abhilfe, die das Spiel braucht, käme dann nie wieder, und es startete nicht
+  mehr. Offen bleibt damit der Fall „Abhilfe hat geholfen, kostet aber etwas“ (kein DLSS nach `nvidia-interface`):
+  dafür gibt es weiter keinen Knopf. So stand es davor (im Entwurf als offen vermerkt,
   `docs/ENTWURF-STARTREZEPT.md:571`). `LearnedFixes.keep` (`LaunchHealth.swift:640`) schreibt vor dem Start, der die
   Abhilfe prüft; nichts löscht `learned.dllsOff.*`, `learned.steps.*`, `learned.noAVX.*` je wieder – nicht
   `LaunchHealth.reset` (`:437`), nicht das Entfernen des Spiels. Dauerhaft schlechter stellt das ein Spiel in zwei
@@ -151,6 +191,25 @@ geklappt.“, `LaunchRepair.endStands` lang), wie bei `.gaveUp` und `.rootDeclin
   Druck kommt nicht an. Live an Overwatch ansehen.
 - **W9 · „Hinzufügen und starten“ ist vorgewählt** (`OverlayView.swift:207`). Sobald eine Wurzel in
   `WindowsRoots.onRequest` steht, ist die Frage mit einem A bejaht.
+
+## Beim Nachtrag aufgefallen (nur beschrieben)
+
+- **N1 · Der Anti-Cheat-Weg liest weiter die Absturzberichte des Spiels** (Textdateien, keine Dumps). „Der Befund nur
+  aus Wines Protokoll“ stimmt für Dumps, Debug-Kanäle und alles aus Schritt E, nicht für diese vier Stellen, die es
+  schon vor Schritt E gab und die für jedes Spiel laufen: `crashed` bei bestätigtem Weg (`LibraryModel.swift:5016`),
+  `crashedAtAll` (`:5061`), `crashTexts` (`:5137`) und `GameLog.illegalInstruction` (`:5149`). Sie durchsuchen den
+  Spielordner und den Prefix nach `CrashContext.runtime-xml` seit dem Start und lesen die Meldung. Darauf beruhen die
+  Abhilfen „ohne die Schalter“ und „braucht DirectX 12“, die auch Anti-Cheat-Spiele bekommen. Meint die Regel „ihre
+  Dateien nicht ansehen“ auch diese Berichte, ist das ein eigener kleiner Schritt für alle solchen Spiele, mit dem
+  Preis, dass die zwei Abhilfen dort entfallen. Nicht gebaut.
+- **N2 · Drei weitere Enden nach „Noch ein Versuch …“ ohne Versuch**, alle dort, wo das Ende als das des Spielers
+  gilt und „Das hat nicht geklappt.“ falsch wäre: ein bewährter Weg endet zum ersten Mal früh und bekommt keinen
+  leisen zweiten Start (eigener Launcher oder Anti-Cheat, `:5093`), das Spiel endete an seiner eigenen Frage und der
+  Spieler hat gewählt (`:5077`), und beim leisen Start ist nicht sicher, ob das Spiel weg ist (`:5109`). Die Zeile
+  steht dort nur, solange Nightforge liest (unter einer Sekunde). Empfehlung: `sayRepair(.looking)` in diesen Fällen
+  gar nicht sagen; ob es das Ende des Spielers sein kann, steht vor dem Lesen fest (`outcome`, `ownQuestionEnd`).
+- **N3 · W2 bleibt:** Was ein Spiel gelernt hat, bevor es als Spiel mit (eigenem) Cheat-Schutz galt, trägt das Rezept
+  weiter ein (`StartRecipe.swift:44`). In einem Release hat kein Spiel etwas gelernt, bevor 0.3.3 es kennt.
 
 ## Geprüft, in Ordnung
 
@@ -204,6 +263,9 @@ Nach den `.rc`-Dateien in `build/test-logs`, je Lauf `scripts/run-tests.sh -P 2 
   StartRecipe.
 - `python3 -m unittest tests/test_release_switches.py tests/test_workflow_scripts.py`: 7 Tests, OK.
 - Nicht gelaufen: die übrigen rund 90 Reihen und die anderen pytest-Dateien. Vor dem Einspielen einmal die ganze Kette.
+- Nachtrag (B6 bis B8, auf `689520f`), 18 Reihen, alle 0: CloserLook, CurtainKeeper, EngineLayout, ExperienceAudit,
+  GameMenu, GameOverlay, GameTest, LaunchEdge, LaunchHealth, ModelFlows, ModelNavigation, PadAndCurtainFuzz,
+  SmallLogic, StartDiagnosis, StartRecipe, StartRules, StringRules, Strings. Die ganze Kette lief auch hier nicht.
 
 Ein Fehler von mir unterwegs, behoben: Der Ordner heißt in git `tests/`, ich hatte `Tests/` angegeben, und die ersten
 drei Commits enthielten ihre Testdateien nicht. Ich habe die drei lokalen, nicht gepushten Commits neu gebaut, jeder
@@ -214,4 +276,9 @@ jetzt mit seinem Test; der Baum ist derselbe wie davor plus die Tests.
 - Overwatch im Vollbild: ein ⌘⇥ reicht, „Neu starten“ per Pad, und was das A im unsichtbaren Spiel auslöst (W8).
 - Ein Spiel mit kleinem eigenem Startfenster, dort „Beenden“: kommt es wieder (W3)?
 - Laufwerk Teil B: bleibt der Spielordner nach `legendary import` unverändert; die Zeile bei einem fremden Konto (W5).
-- Ein bewährtes Spiel dreimal in den ersten Sekunden beenden: was der Vorhang zuletzt sagt (S2).
+- Ein bewährtes Spiel dreimal in den ersten Sekunden beenden: was der Vorhang zuletzt sagt (S2) – jetzt
+  „Das hat nicht geklappt.“ für drei Sekunden, dann die Seite.
+- Overwatch nach einem Ende ohne Bild: im Protokoll keine „Diagnosis for …“-Zeile aus Dumps, kein genauerer Blick,
+  der nächste Weg wie vor Schritt E (S1).
+- Nach „Das hat nicht geklappt“ auf „Nochmal mit dem ersten Weg versuchen“: im Protokoll „… starts over: what earlier
+  starts taught is forgotten – …“, wenn das Spiel etwas gelernt hatte (W1).

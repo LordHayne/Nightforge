@@ -5030,7 +5030,8 @@ final class LibraryModel: ObservableObject {
                 if !Task.isCancelled { sayRepair(.looking) }
                 // What the start left behind, read through the table (StartDiagnosis): said in the log, kept for
                 // the record and the problem report, and what the decision below goes by (step E3). Never for a
-                // game with an anti-cheat: its files aren't looked into (`found` stays nil).
+                // game with an anti-cheat or a cheat protection of its own (NextStart.handsOff): its dumps aren't
+                // looked into (`found` stays nil), and all that follows from nil below holds for both kinds.
                 var diagnosis: [String] = []
                 var found: [StartDiagnosis]?
                 // Step E5: the message box the game ended at, if it ended at one (CloserLook.Reading.endedAtBox).
@@ -5040,7 +5041,7 @@ final class LibraryModel: ObservableObject {
                 if !Task.isCancelled {
                     let hung = noPicture != nil, folder = game.installDirName, block = game.antiCheatBlock
                     (found, endedAtBox) = await Task.detached(priority: .utility) {
-                        guard !ShaderCaches.hasAntiCheat(profile: profile, block: block, installDir: installDir) else { return (nil, nil) }
+                        guard !NextStart.handsOff(profile: profile, block: block, installDir: installDir) else { return (nil, nil) }
                         let finding = StartDiagnosis.finding(logText: log, installDir: installDir, gameFolder: folder,
                                                              since: startedAt, layer: layer, hung: hung)
                         // The test switch's finding comes on top here, past the anti-cheat's guard (StartDiagnosis.testFinding).
@@ -5208,7 +5209,8 @@ final class LibraryModel: ObservableObject {
                         return
                     }
                 }
-                // What the curtain says for it (LaunchRepair.after): nothing of its own where the start ends.
+                // What the curtain says for it (LaunchRepair.after): the try that comes, or – a proven way keeping its
+                // place, no other way to try – that none does. Every way tried says so below, after its record.
                 if let repair = LaunchRepair.after(next), repair != .gaveUp { sayRepair(repair) }
                 switch next {
                 case .again(let changed, let why):
@@ -5231,13 +5233,19 @@ final class LibraryModel: ObservableObject {
                     }
                     continue
                 case .noOtherWay:
-                    // Graphics chosen by hand, or nothing known about the game: no other way to try.
-                    break starts
+                    // Graphics chosen by hand, or nothing known about the game: no other way to try. The curtain said
+                    // "One more try …" while Nightforge looked (`looking`), so it says that none comes, a moment before
+                    // the page (LaunchRepair.noOtherWay). The game is gone: nothing to step back behind, as the loop's
+                    // end did up to 15.11.2026 – with "Quit launcher" that quit Nightforge after a start that failed.
+                    try? await Task.sleep(for: .seconds(LaunchRepair.endStands))
+                    return
                 case .keepsItsPlace:
                     // A way that worked before and ended without a graphics error keeps its place:
-                    // watched again at the next start. Nightforge stays in front.
+                    // watched again at the next start. Nightforge stays in front, after the curtain said so
+                    // (LaunchRepair.keptPlace).
                     StartEvidence.note(.failed, game: game.gameID, way: way, reason: "a proven way ended in its first seconds again",
                                        diagnosis: diagnosis)
+                    try? await Task.sleep(for: .seconds(LaunchRepair.endStands))
                     return
                 case .way(let other, _):
                     // On to the way that answers what the game said, or simply the next.
@@ -5856,7 +5864,7 @@ final class LibraryModel: ObservableObject {
     /// After a failed start: every way again from the first, as if the game were new.
     func startOver(_ failed: FailedLaunch) {
         failedLaunch = nil
-        LaunchHealth.reset(failed.game.gameID)
+        beginAnew(failed.game)
         play(failed.game)
     }
 
@@ -5864,8 +5872,19 @@ final class LibraryModel: ObservableObject {
     func startMostCompatible(_ failed: FailedLaunch) {
         failedLaunch = nil
         GameOptionsStore.choose(.compatible, for: failed.game.gameID)
-        LaunchHealth.reset(failed.game.gameID)
+        beginAnew(failed.game)
         play(failed.game)
+    }
+
+    /// As if the game were new: its ways from the first (LaunchHealth.reset), and nothing kept of what earlier
+    /// starts taught (LearnedFixes.forget) – the two buttons after a start that failed are how a player gets rid
+    /// of a remedy that was learned and didn't help. What went is in the log.
+    private func beginAnew(_ game: Game) {
+        LaunchHealth.reset(game.gameID)
+        let had = LearnedFixes.forget(game.gameID)
+        if had != StartRecipe.Learned() {
+            GameLog.note("\(game.name) starts over: what earlier starts taught is forgotten – \(had.summary)")
+        }
     }
 
     /// L1/R1 in Settings: a tab to the left or right (SettingsView takes it, PadRules.settingsTab).

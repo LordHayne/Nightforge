@@ -79,8 +79,9 @@ struct SmallLogicTest {
 
     /// What the curtain says while Nightforge mends a start (LaunchRepair): one line, after the rule of 15.11.2026.
     static func repairs() {
-        let all: [LaunchRepair] = [.looking, .again, .onceMore, .otherWay, .settingUp, .closerLook, .gaveUp, .rootAdded, .rootDeclined]
-        let ends: [LaunchRepair] = [.settingUp, .gaveUp, .rootDeclined]
+        let all: [LaunchRepair] = [.looking, .again, .onceMore, .otherWay, .settingUp, .closerLook, .gaveUp, .rootAdded, .rootDeclined,
+                                   .keptPlace, .noOtherWay]
+        let ends: [LaunchRepair] = [.settingUp, .gaveUp, .rootDeclined, .keptPlace, .noOtherWay]
         for language in ["english", "german"] {
             UserDefaults.standard.set(language, forKey: AppLanguage.storageKey)
             for repair in all {
@@ -117,7 +118,29 @@ struct SmallLogicTest {
         check(LaunchRepair.after(.again(learned, why: [NextStart.engineBefore])) == nil, "the engine before has its own line")
         check(LaunchRepair.after(.way(2, why: nil)) == .otherWay && LaunchRepair.after(.way(1, why: "refused-switch")) == .otherWay, "another way")
         check(LaunchRepair.after(.giveUp) == .gaveUp, "the honest end")
-        check(LaunchRepair.after(.keepsItsPlace) == nil && LaunchRepair.after(.noOtherWay) == nil, "a start that just ends says nothing of its own")
+        // "One more try …" is a promise: where no start follows, the curtain says the end – a proven way that keeps
+        // its place and a way chosen by hand ended without a word up to 15.11.2026, right after that line.
+        check(LaunchRepair.after(.keepsItsPlace) == .keptPlace && LaunchRepair.after(.noOtherWay) == .noOtherWay, "a start that just ends says so")
+        UserDefaults.standard.set("german", forKey: AppLanguage.storageKey)
+        for end in [LaunchRepair.keptPlace, .noOtherWay] {
+            check(end.title == LaunchRepair.gaveUp.title && end.detail == LaunchRepair.gaveUp.detail && end.title == "Das hat nicht geklappt.",
+                  "\(end): the end in the words the curtain has for it already")
+            check(end.logLine != LaunchRepair.gaveUp.logLine && !end.logLine.contains("every way"), "\(end): the log says which end it was")
+        }
+        let promise = LaunchRepair.looking.title
+        for repair in all {
+            check(repair.endsStart == (repair.title != promise && repair != .settingUp), "\(repair): a try is promised, or the end is said")
+        }
+        let steps: [(step: NextStart.Step, starts: Bool)] = [
+            (.again(learned, why: ["nvidia-interface"]), true), (.again(learned, why: ["missing-runtime"]), true),
+            (.again(learned, why: [NextStart.closerLook]), true), (.again(learned, why: [NextStart.fileEdits]), true),
+            (.way(1, why: nil), true), (.way(2, why: "needs-d3d12"), true),
+            (.giveUp, false), (.keepsItsPlace, false), (.noOtherWay, false),
+        ]
+        for (step, starts) in steps {
+            check(LaunchRepair.after(step).map { !$0.endsStart } == starts, "\(step): the curtain promises a try exactly where one comes")
+        }
+        UserDefaults.standard.set("english", forKey: AppLanguage.storageKey)
         check(LaunchRepair.endStands >= 2 && LaunchRepair.endStands <= 5, "the end stands long enough to read, not longer")
         UserDefaults.standard.removeObject(forKey: AppLanguage.storageKey)
     }

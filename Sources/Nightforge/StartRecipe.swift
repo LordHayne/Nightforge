@@ -98,6 +98,15 @@ struct StartRecipe: Codable, Equatable {
             return changed
         }
 
+        /// For the log: "DLLs off nvapi64, nvngx; runtimes vcrun2019; without AVX (nvidia-interface, missing-runtime)".
+        var summary: String {
+            var parts: [String] = []
+            if !dllsOff.isEmpty { parts.append("DLLs off " + dllsOff.joined(separator: ", ")) }
+            if !runtimes.isEmpty { parts.append("runtimes " + runtimes.joined(separator: ", ")) }
+            if noAVX { parts.append("without AVX") }
+            return parts.joined(separator: "; ") + (steps.isEmpty ? "" : " (" + steps.joined(separator: ", ") + ")")
+        }
+
         /// "NVAPI64.dll" → "nvapi64": a DLL as Wine's overrides name it.
         static func dllName(_ name: String) -> String {
             let lower = name.lowercased()
