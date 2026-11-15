@@ -5864,7 +5864,7 @@ final class LibraryModel: ObservableObject {
     /// After a failed start: every way again from the first, as if the game were new.
     func startOver(_ failed: FailedLaunch) {
         failedLaunch = nil
-        LaunchHealth.reset(failed.game.gameID)
+        beginAnew(failed.game)
         play(failed.game)
     }
 
@@ -5872,8 +5872,19 @@ final class LibraryModel: ObservableObject {
     func startMostCompatible(_ failed: FailedLaunch) {
         failedLaunch = nil
         GameOptionsStore.choose(.compatible, for: failed.game.gameID)
-        LaunchHealth.reset(failed.game.gameID)
+        beginAnew(failed.game)
         play(failed.game)
+    }
+
+    /// As if the game were new: its ways from the first (LaunchHealth.reset), and nothing kept of what earlier
+    /// starts taught (LearnedFixes.forget) – the two buttons after a start that failed are how a player gets rid
+    /// of a remedy that was learned and didn't help. What went is in the log.
+    private func beginAnew(_ game: Game) {
+        LaunchHealth.reset(game.gameID)
+        let had = LearnedFixes.forget(game.gameID)
+        if had != StartRecipe.Learned() {
+            GameLog.note("\(game.name) starts over: what earlier starts taught is forgotten – \(had.summary)")
+        }
     }
 
     /// L1/R1 in Settings: a tab to the left or right (SettingsView takes it, PadRules.settingsTab).

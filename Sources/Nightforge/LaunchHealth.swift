@@ -647,6 +647,20 @@ enum LearnedFixes {
         if learned.noAVX { defaults.set(true, forKey: noAVXKey(game)) } else { defaults.removeObject(forKey: noAVXKey(game)) }
     }
 
+    /// Forgets all the diagnosis taught about the game (`learned`) and says what went. For a start over "as if
+    /// the game were new" (LibraryModel.startOver, startMostCompatible): what was learned was kept for good up to
+    /// 15.11.2026 – a remedy that didn't help, or one that cost the game something (NVIDIA's interface off takes
+    /// DLSS along), had no button that took it back. What a game still needs is learned again at the first
+    /// start that fails for it: a start over's ways are watched, every one. Not where a layer is chosen by hand
+    /// (LaunchHealth.reset alone): a start on a way that ran well before isn't watched, and a remedy the game
+    /// needs wouldn't come back. Where its last start begins in the log stays.
+    @discardableResult
+    static func forget(_ game: GameID, defaults: UserDefaults = .standard) -> StartRecipe.Learned {
+        let had = learned(game, defaults: defaults)
+        keep(StartRecipe.Learned(), for: game, defaults: defaults)
+        return had
+    }
+
     static func setLastLaunch(_ game: GameID, logMark: UInt64) {
         UserDefaults.standard.set(String(logMark), forKey: markKey(game))
     }
