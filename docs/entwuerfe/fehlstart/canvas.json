@@ -1,0 +1,23 @@
+{
+  "v": 3,
+  "createdOnFiles": {"v": 1, "at": "2026-11-14T23:46:17Z"},
+  "title": "Vorhang bei Fehlstart",
+  "launch": {"view": "canvas"},
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {"x": 0, "y": 0, "w": 1480, "h": 1260, "title": "A · Ruhig"},
+    "VorhangB.dc.html": {"x": 1560, "y": 0, "w": 1480, "h": 1260, "title": "B · Mit Lebenszeichen (Empfehlung)"},
+    "VorhangC.dc.html": {"x": 3120, "y": 0, "w": 1480, "h": 1260, "title": "C · Erzählt mit"},
+    "Fehlerfenster.dc.html": {"x": 0, "y": 1700, "w": 2260, "h": 1120, "title": "Das Fehlerfenster des Spiels"},
+    "Wurzel.dc.html": {"x": 2340, "y": 1700, "w": 1480, "h": 1120, "title": "Frage zur Windows-Wurzel"}
+  },
+  "order": ["Main.dc.html", "VorhangB.dc.html", "VorhangC.dc.html", "Fehlerfenster.dc.html", "Wurzel.dc.html"],
+  "notes": {
+    "t1": {"x": 0, "y": -300, "text": "1 · Der Vorhang, während Nightforge einen Fehlstart behebt", "kind": "title1", "maxW": 4600},
+    "t2": {"x": 0, "y": 1400, "text": "2 · Das Fehlerfenster des Spiels", "kind": "title1", "maxW": 2260},
+    "t3": {"x": 2340, "y": 1400, "text": "3 · Die Frage zur Windows-Wurzel", "kind": "title1", "maxW": 1480}
+  },
+  "designSystems": [
+    {"title": "Nightforge", "namespace": "nightforge", "artifact": "https://claude.ai/artifact/Ga8ea7631PdaJKhcTmNMj2", "version": "1794699777-affd", "copiedAt": "2026-11-14T23:46:17Z"}
+  ]
+}

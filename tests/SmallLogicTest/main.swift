@@ -18,6 +18,8 @@ struct SmallLogicTest {
         TestDefaults.useWorkFolder()
         downloadLines()
         phases()
+        repairs()
+        errorBox()
         ratings()
         testDays()
         moving()
@@ -63,6 +65,89 @@ struct SmallLogicTest {
         UserDefaults.standard.set("english", forKey: AppLanguage.storageKey)
         check(LaunchPhase.updating(0.42).title == "Updating … 42 %", "how far an update is: \(LaunchPhase.updating(0.42).title)")
         check(LaunchPhase.retrying("DXVK").title.contains("DXVK"), "which way it tries next")
+        UserDefaults.standard.removeObject(forKey: AppLanguage.storageKey)
+    }
+
+    /// What the curtain says while Nightforge mends a start (LaunchRepair, board B of 15.11.2026).
+    static func repairs() {
+        let all: [LaunchRepair] = [.looking, .again, .onceMore, .otherWay, .settingUp, .closerLook, .gaveUp, .rootAdded, .rootDeclined]
+        for language in ["english", "german"] {
+            UserDefaults.standard.set(language, forKey: AppLanguage.storageKey)
+            for repair in all {
+                check(!repair.title.isEmpty && !repair.detail.isEmpty && repair.steps.count == 3, "\(repair) in \(language): a line, a sentence, three steps")
+                check(repair.steps.allSatisfy { !$0.label.isEmpty } && Set(repair.steps.map(\.label)).count == 3, "\(repair) in \(language): three different steps")
+                // Done first, then the one at work, then what's still to come: never a step marked done after one not done.
+                let marks = repair.steps.map(\.mark)
+                let order: [LaunchRepair.Step.Mark: Int] = [.done: 0, .now: 1, .next: 2]
+                check(marks == marks.sorted { order[$0]! < order[$1]! } && marks.first == .done, "\(repair): \(marks) in order, starting from the start")
+                check(marks.filter { $0 == .now }.count == (repair == .gaveUp || repair == .rootDeclined ? 0 : 1), "\(repair): one step at work, none at the end")
+            }
+        }
+        UserDefaults.standard.set("german", forKey: AppLanguage.storageKey)
+        // The board's words (B, the player's pick).
+        check(LaunchRepair.again.title == "Noch ein Versuch …" && LaunchRepair.looking.title == "Einen Moment …"
+              && LaunchRepair.otherWay.title == "Noch ein Versuch, auf anderem Weg …" && LaunchRepair.gaveUp.title == "Das hat nicht geklappt.",
+              "the lines as the board has them")
+        check(LaunchRepair.again.steps.map(\.label) == ["Gestartet", "Ursache gefunden", "Startet noch einmal"]
+              && LaunchRepair.looking.steps.map(\.label) == ["Gestartet", "Sieht nach", "Neuer Versuch"],
+              "the steps as the board has them")
+        check(LaunchRepair.gaveUp.detail == "Nightforge hat alles versucht, was es kennt. Gleich bist du zurück in der Bibliothek.", "the honest end")
+        check(LaunchRepair.rootAdded.detail == "Das Zertifikat ist eingetragen. Das Spiel startet noch einmal."
+              && LaunchRepair.rootDeclined.title == "Das Spiel startet so nicht.", "after the root question, as the board has it")
+        // Nothing technical on the curtain: no way, no DLL, no layer.
+        let technical = ["DXVK", "DXMT", "D3DMetal", "Wine", "DLL", "nvapi", "PhysX", "AVX", "Direct3D"]
+        for language in ["english", "german"] {
+            UserDefaults.standard.set(language, forKey: AppLanguage.storageKey)
+            for repair in all {
+                let words = ([repair.title, repair.detail] + repair.steps.map(\.label)).joined(separator: " ")
+                check(!technical.contains { words.contains($0) }, "\(repair) in \(language) says nothing technical: \(words)")
+            }
+        }
+        UserDefaults.standard.set("english", forKey: AppLanguage.storageKey)
+        // What the decision after a failed start puts on the curtain.
+        let learned = StartRecipe.Learned()
+        check(LaunchRepair.after(.again(learned, why: ["nvidia-interface"])) == .again
+              && LaunchRepair.after(.again(learned, why: [NextStart.fileEdits])) == .again, "the recipe changed: one more try")
+        check(LaunchRepair.after(.again(learned, why: ["missing-runtime"])) == .settingUp
+              && LaunchRepair.after(.again(learned, why: ["illegal-instruction", "missing-runtime"])) == .settingUp, "a runtime: setting up")
+        check(LaunchRepair.after(.again(learned, why: [NextStart.closerLook])) == .closerLook, "a closer look")
+        check(LaunchRepair.after(.again(learned, why: [NextStart.engineBefore])) == nil, "the engine before has its own line")
+        check(LaunchRepair.after(.way(2, why: nil)) == .otherWay && LaunchRepair.after(.way(1, why: "refused-switch")) == .otherWay, "another way")
+        check(LaunchRepair.after(.giveUp) == .gaveUp, "the honest end")
+        check(LaunchRepair.after(.keepsItsPlace) == nil && LaunchRepair.after(.noOtherWay) == nil, "a start that just ends says nothing of its own")
+        check(LaunchRepair.endStands >= 2 && LaunchRepair.endStands <= 5, "the end stands long enough to read, not longer")
+        UserDefaults.standard.removeObject(forKey: AppLanguage.storageKey)
+    }
+
+    /// The game's own error box under the curtain (board way 1, 15.11.2026).
+    static func errorBox() {
+        let wake = "Alan Wake could not initialize your 3D graphics card. Technical: DEVICE_CREATE_ERROR - Not available"
+        check(CloserLook.errorNotice(wake) && CloserLook.errorNotice("Failed to load SteamAPI")
+              && CloserLook.errorNotice("Das Spiel konnte nicht gestartet werden."), "a box that reports a failure and asks nothing")
+        check(!CloserLook.errorNotice("Fatal error! Would you like to send a crash report?") && !CloserLook.errorNotice("Start in safe mode?")
+              && !CloserLook.errorNotice("Your graphics driver is older than recommended.") && !CloserLook.errorNotice(""),
+              "one that asks, even after a failure, or only says something: not one")
+        for language in ["english", "german"] {
+            UserDefaults.standard.set(language, forKey: AppLanguage.storageKey)
+            let line = LibraryModel.curtainStatus(phase: nil, shaders: false, gameRuns: true, asks: true, errorBox: true, padAnswers: ("A", "B"))
+            check(line == L10n.t("The game reports an error") && line?.isEmpty == false, "the line over an error box, in \(language): \(line ?? "nil")")
+            let withPad = LibraryModel.curtainDetail(launchHint: "hint", asks: true, errorBox: true, padOK: "A", macOSOpen: false)
+            let withoutPad = LibraryModel.curtainDetail(launchHint: "hint", asks: true, errorBox: true, padOK: nil, macOSOpen: false)
+            check(withPad?.contains("A") == true && withPad?.contains("OK") == true && withoutPad?.contains("OK") == true && withPad != withoutPad,
+                  "under it what to press, with the pad's button where it answers, in \(language): \(withPad ?? "nil") / \(withoutPad ?? "nil")")
+        }
+        UserDefaults.standard.set("german", forKey: AppLanguage.storageKey)
+        check(LibraryModel.curtainStatus(phase: nil, shaders: false, gameRuns: true, asks: true, errorBox: true) == "Das Spiel meldet einen Fehler"
+              && LibraryModel.curtainDetail(launchHint: nil, asks: true, errorBox: true, macOSOpen: false) == "Drück OK – Nightforge kümmert sich um den Rest.",
+              "the board's words")
+        UserDefaults.standard.set("english", forKey: AppLanguage.storageKey)
+        // A question, macOS's question, or no box read: as before.
+        check(LibraryModel.curtainStatus(phase: nil, shaders: false, gameRuns: true, asks: true, padAnswers: ("A", "B"))?.contains("asking") == true
+              && LibraryModel.curtainDetail(launchHint: "hint", asks: true, macOSOpen: false) == nil, "the game's question: as before, no second line")
+        check(LibraryModel.curtainStatus(phase: nil, shaders: false, gameRuns: true, asks: true, errorBox: true, macOSAsks: true)?.contains("macOS") == true,
+              "macOS's question comes first")
+        check(LibraryModel.curtainStatus(phase: nil, shaders: false, gameRuns: true, asks: false, errorBox: true) == L10n.t("Waiting for the first picture …"),
+              "no question on screen: no box said")
         UserDefaults.standard.removeObject(forKey: AppLanguage.storageKey)
     }
 

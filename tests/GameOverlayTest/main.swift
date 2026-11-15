@@ -228,6 +228,17 @@ struct GameOverlayTest {
         expect(.stuck, .askQuit, (.stuck, .none), "nothing to quit")
         expect(.stuck, .quit, (.stuck, .none), "nothing to quit, ever")
         check(GameOverlay.defaultButton(.stuck) == "overlay.wait", "the safe answer first")
+        // The root question (step E6): only its two answers; every way out of it is a no.
+        expect(.trustRoot, .trust, (.trustRoot, .trust), "Add and Start: yes")
+        expect(.trustRoot, .dontTrust, (.trustRoot, .dontTrust), "Don't Add: no")
+        expect(.trustRoot, .back, (.trustRoot, .dontTrust), "B or Esc: no")
+        expect(.trustRoot, .resume, (.trustRoot, .dontTrust), "the sticks held: no, never a question left without an answer")
+        expect(.trustRoot, .quit, (.trustRoot, .none), "nothing to quit from it")
+        expect(.trustRoot, .nightforge, (.trustRoot, .none), "nor to leave it another way")
+        expect(.trustRoot, .askQuit, (.trustRoot, .none), "nor a quit question")
+        expect(.menu, .trust, (.menu, .none), "an answer outside the question is nothing")
+        check(GameOverlay.takesKeys(.trustRoot) && GameOverlay.defaultButton(.trustRoot) == "overlay.trust",
+              "the keyboard works there, and the highlight starts on the board's main button")
         check(GameOverlay.takesKeys(.stuck), "no picture to lose: Esc and the arrows work")
         // The highlight starts on the safe answer, by its id: the first press already answers.
         check(GameOverlay.defaultButton(.menu) == "overlay.continue", "the choice: Continue Playing")

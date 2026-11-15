@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Vorhang bei Fehlstart, Vorlage C: erzählt mit</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.board{width:1480px;height:1260px;box-sizing:border-box;padding:40px 40px 24px;display:flex;flex-direction:column;gap:24px;background:#0f141c;color:#f3f1ec;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-serif}
+.top{display:grid;grid-template-columns:880px minmax(0,1fr);gap:32px;align-items:start}
+.frame{position:relative;width:880px;height:495px;overflow:hidden;border-radius:10px;box-shadow:0 12px 22px rgba(0,0,0,.55)}
+.cur{position:absolute;left:0;top:0;width:1512px;height:850px;transform:scale(.582);transform-origin:top left;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(180deg,#171a24,#06080b);text-align:center}
+.mark{height:270px;margin-bottom:4px}
+.word{font-size:50px;font-weight:300;font-stretch:expanded;letter-spacing:15px;padding-left:15px;color:#e6e6e6}
+.game{margin-top:18px;font-size:22px;font-stretch:expanded;letter-spacing:8px;padding-left:8px;color:#8ca8db}
+.status{margin-top:30px;font-size:18px;font-weight:500;color:#9aa3af}
+.tale{margin-top:12px;display:flex;flex-direction:column;align-items:center;font-size:14px;line-height:19px;color:#9aa3af}
+.tale .old{color:rgba(154,163,175,.78)}
+.tale .new{color:#f3f1ec}
+.col{display:flex;flex-direction:column;gap:12px}
+h1{margin:0;font-size:30px;font-weight:800;font-stretch:expanded}
+.lead{margin:0;font-size:15px;line-height:22px;color:#9aa3af}
+.plus,.minus{margin:0;font-size:14px;line-height:21px}
+.minus{color:#9aa3af}
+.label{font-size:11px;font-weight:700;letter-spacing:.8px;color:#9aa3af;text-transform:uppercase}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 24px}
+.state{display:flex;flex-direction:column;gap:8px}
+.card{height:158px;box-sizing:border-box;padding:0 40px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:linear-gradient(180deg,#171a24,#0a0d12)}
+.card .status{margin-top:0}
+.acts{display:flex;gap:12px;margin-top:12px}
+.btn{height:34px;padding:0 18px;border-radius:999px;font:600 13px -apple-system,BlinkMacSystemFont,system-ui,sans-serif;color:#f3f1ec;background:rgba(243,241,236,.1);border:1px solid rgba(243,241,236,.14)}
+.btn.main{background:#ffb347;color:#0f141c;border-color:rgba(255,255,255,.3);outline:3px solid #ffb347;outline-offset:4px}
+.cap{display:flex;gap:12px;align-items:baseline;font-size:12px;line-height:17px;color:#9aa3af}
+.cap b{flex:none;width:150px;font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:#f3f1ec}
+</style>
+</helmet>
+<div class="board">
+  <div class="top">
+    <div class="frame">
+      <div class="cur">
+        <img class="mark" src="/_blob/f6d257c7e47aa9b75c3a3d698083802b" alt="">
+        <div class="word">NIGHTFORGE</div>
+        <div class="game">ALAN WAKE</div>
+        <div class="status">Noch ein Versuch …</div>
+        <div class="tale">
+          <span class="old">Das Spiel ist nach wenigen Sekunden zugegangen.</span>
+          <span>Ein Zusatz, den es nicht verträgt, bleibt jetzt draußen.</span>
+          <span class="new">Es startet noch einmal.</span>
+        </div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="label">Vorlage C</div>
+      <h1>Erzählt mit</h1>
+      <p class="lead">Unter der Zeile steht in bis zu drei Sätzen, was geschehen ist und was Nightforge daraus macht. Der neueste Satz ist hell, die älteren treten zurück. Das Ende steht auf dem Vorhang selbst, mit zwei Knöpfen.</p>
+      <p class="plus">Dafür: Der Spieler erfährt den Grund in ganzen Sätzen. Nach einem langen Start bleibt nachvollziehbar, was Nightforge getan hat.</p>
+      <p class="minus">Dagegen: am meisten zu lesen, in der kleinsten Schrift des Vorhangs. Jede Abhilfe braucht ihren eigenen Satz in zwei Sprachen, und er muss stimmen: Das ist laufende Pflege. Die Mechanik rückt näher an den Spieler, als der Leitsatz will.</p>
+      <p class="minus">Kosten: bis zu drei Zeilen, jede blendet einzeln ein. Die zwei Knöpfe am Ende sind neue Bedienung auf dem Vorhang (Controller-Fokus, B führt zurück).</p>
+    </div>
+  </div>
+  <div class="label">Die sechs Zustände, Text in Originalgröße. Unter jeder Karte die englische Fassung.</div>
+  <div class="grid">
+    <sc-for list="{{states}}" as="s" hint-placeholder-count="6">
+      <div class="state">
+        <div class="card">
+          <div class="status">{{s.de}}</div>
+          <div class="tale">
+            <span class="old">{{s.l1}}</span>
+            <span>{{s.l2}}</span>
+            <span class="new">{{s.l3}}</span>
+          </div>
+          <sc-if value="{{s.end}}" hint-placeholder-val="{{false}}">
+            <div class="acts">
+              <button class="btn main" type="button">Zurück zur Bibliothek</button>
+              <button class="btn" type="button">Problem melden</button>
+            </div>
+          </sc-if>
+        </div>
+        <div class="cap"><b>{{s.name}}</b><span>{{s.en}} · {{s.enLines}}</span></div>
+      </div>
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1480,"height":1260}}'>
+class Component extends DCLogic {
+renderVals() {
+return { states: [
+{ name: "Ursache wird gesucht", de: "Einen Moment …", l1: "", l2: "Das Spiel ist nach wenigen Sekunden zugegangen.", l3: "Nightforge sieht nach, woran es lag.", end: false, en: "One moment …", enLines: "The game closed after a few seconds. Nightforge is finding out why." },
+{ name: "Abhilfe gefunden", de: "Noch ein Versuch …", l1: "Das Spiel ist nach wenigen Sekunden zugegangen.", l2: "Ein Zusatz, den es nicht verträgt, bleibt jetzt draußen.", l3: "Es startet noch einmal.", end: false, en: "One more try …", enLines: "The game closed after a few seconds. An extra it can’t take stays out now. It starts once more." },
+{ name: "Anderer Weg", de: "Noch ein Versuch, auf anderem Weg …", l1: "So hat es nicht geklappt.", l2: "Nightforge nimmt einen anderen Weg für das Bild.", l3: "Was läuft, merkt es sich fürs nächste Mal.", end: false, en: "One more try, another way …", enLines: "That didn’t work. Nightforge takes another way for the picture. It remembers what runs for next time." },
+{ name: "Laufzeit wird eingerichtet", de: "Richtet das Spiel ein …", l1: "Dem Spiel fehlte ein Baustein von Windows.", l2: "Nightforge holt ihn, das dauert einen Moment.", l3: "Danach startet es noch einmal.", end: false, en: "Setting up the game …", enLines: "The game was missing a piece of Windows. Nightforge gets it, that takes a moment. Then it starts once more." },
+{ name: "Genauerer Blick", de: "Noch ein Versuch …", l1: "", l2: "Das Spiel ist wieder zugegangen, und nichts sagt, warum.", l3: "Nightforge startet es noch einmal und sieht genauer hin.", end: false, en: "One more try …", enLines: "The game closed again, and nothing says why. Nightforge starts it once more and takes a closer look." },
+{ name: "Ehrliches Ende", de: "Das hat nicht geklappt.", l1: "", l2: "Nightforge hat es auf drei Wegen versucht.", l3: "Auf keinem kam ein Bild.", end: true, en: "That didn’t work.", enLines: "Nightforge tried three ways. None of them got to a picture. Buttons: Back to the Library, Report a Problem." }
+] };
+}
+}
+</script>
+</body>
+</html>

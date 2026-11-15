@@ -359,6 +359,26 @@ struct LaunchHealthTest {
         check(LaunchHealth.holds(twoGame, twoWays, for: withLoader), "nor after the list started over")
         LaunchHealth.reset(twoGame)
 
+        // A way confirmed without a recipe takes one at its next start: what the record says it worked with, else
+        // that start's own. It Takes Two, 15.11.: proven long before, started with a profile that changed its DLLs.
+        LaunchHealth.confirm(twoGame, twoWays)
+        LaunchHealth.adoptRecipe(twoGame, twoWays, recorded: plainStart, starting: withLoader)
+        check(!LaunchHealth.holds(twoGame, twoWays, for: withLoader) && LaunchHealth.holds(twoGame, twoWays, for: plainStart),
+              "the record's recipe: a start with other DLLs isn't proven")
+        LaunchHealth.reset(twoGame)
+        LaunchHealth.confirm(twoGame, twoWays)
+        LaunchHealth.adoptRecipe(twoGame, twoWays, recorded: nil, starting: withLoader)
+        check(LaunchHealth.holds(twoGame, twoWays, for: withLoader) && !LaunchHealth.holds(twoGame, twoWays, for: plainStart),
+              "none on record: this start's, and from the next start on a change counts")
+        LaunchHealth.adoptRecipe(twoGame, twoWays, recorded: plainStart, starting: plainStart)
+        check(LaunchHealth.holds(twoGame, twoWays, for: withLoader), "a recipe on record already stays")
+        LaunchHealth.reset(twoGame)
+        LaunchHealth.recordStart(twoGame, twoWays)
+        LaunchHealth.adoptRecipe(twoGame, twoWays, recorded: nil, starting: plainStart)
+        LaunchHealth.confirm(twoGame, twoWays)
+        check(LaunchHealth.holds(twoGame, twoWays, for: withLoader), "a way not confirmed takes none: its proof comes with its picture")
+        LaunchHealth.reset(twoGame)
+
         // MARK: A confirmed way loses its confirmation only on evidence
         // The player quits after 20 s (OxyRail after 22 s) on a layer that logs no frames.
         check(LaunchHealth.earlyEnd(trusted: true, graphicsFailed: false, crashed: false, drew: false, shortEndsBefore: 0) == .keep,

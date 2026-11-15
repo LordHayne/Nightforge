@@ -331,6 +331,15 @@ enum CloserLook {
         "fehler", "fehlgeschlagen", "abgestürzt", "konnte nicht", "kann nicht",
     ]
 
+    /// A message box that reports a failure and asks nothing: one with only OK to press, the game's word that
+    /// it won't go on (Alan Wake, "could not initialize your 3D graphics card", 15.11.2026). The curtain says so
+    /// around it (LibraryModel.curtainStatus); a box that asks – even after a failure ("… Send a report?") –
+    /// or only says something stays the game's question as before.
+    static func errorNotice(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        return !lower.contains(where: { $0 == "?" || $0 == "？" || $0 == "؟" }) && failureWords.contains(where: lower.contains)
+    }
+
     /// What a message box's text is. Wine's channel prints the text alone, not the buttons, so the text
     /// decides: without a question mark it's a notice – a box that asks nothing has only OK to press – and so
     /// is one that reports a failure before it asks.

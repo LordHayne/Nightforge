@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Das Fehlerfenster des Spiels unter dem Vorhang</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.board{width:2260px;height:1120px;box-sizing:border-box;padding:40px;display:flex;flex-direction:column;gap:24px;background:#0f141c;color:#f3f1ec;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-serif}
+h1{margin:0;font-size:30px;font-weight:800;font-stretch:expanded}
+.lead{margin:0;max-width:1500px;font-size:15px;line-height:22px;color:#9aa3af}
+.cols{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:28px;align-items:start}
+.colx{display:flex;flex-direction:column;gap:10px}
+.frame{position:relative;height:300px;border-radius:10px;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;background:linear-gradient(180deg,#171a24,#06080b);box-shadow:0 12px 22px rgba(0,0,0,.55)}
+.frame.bare{background:#000}
+.tag{position:absolute;top:16px;left:0;right:0;font-size:11px;font-stretch:expanded;letter-spacing:4px;color:#8ca8db}
+.status{font-size:18px;font-weight:500;color:#9aa3af}
+.detail{max-width:400px;font-size:14px;line-height:19px;color:rgba(154,163,175,.78)}
+.said{max-width:420px;font-size:13px;line-height:18px;color:#8ca8db}
+.box{width:330px;border-radius:6px;overflow:hidden;text-align:left;background:#ecebe8;color:#1b1b1b;box-shadow:0 8px 20px rgba(0,0,0,.6)}
+.box .bar{padding:5px 10px;font-size:12px;font-weight:600;background:#d6d4cf}
+.box .txt{padding:12px 14px 8px;font-size:12px;line-height:16px}
+.box .ok{display:flex;justify-content:flex-end;padding:0 14px 12px}
+.box button{width:74px;height:22px;border:1px solid #8a8a8a;border-radius:3px;font:12px -apple-system,system-ui,sans-serif;background:#f6f5f2;color:#1b1b1b}
+.hints{position:absolute;left:0;right:0;bottom:14px;display:flex;justify-content:center;gap:22px;font-size:12px;font-weight:500;color:#9aa3af}
+.name{display:flex;align-items:center;gap:10px;font-size:19px;font-weight:800;font-stretch:expanded}
+.pick{padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;font-stretch:normal;background:#ffb347;color:#0f141c}
+.text{margin:0;font-size:14px;line-height:21px;color:#f3f1ec}
+.en{margin:0;font-size:12px;line-height:17px;color:#9aa3af}
+.label{margin-top:4px;font-size:11px;font-weight:700;letter-spacing:.8px;color:#9aa3af;text-transform:uppercase}
+.muted{margin:0;font-size:14px;line-height:21px;color:#9aa3af}
+.foot{margin:0;font-size:14px;line-height:21px;color:#f3f1ec}
+</style>
+</helmet>
+<div class="board">
+  <h1>Das Spiel zeigt ein Fehlerfenster</h1>
+  <p class="lead">Alan Wake, 15.11.: Das Spiel öffnet ein Windows-Meldungsfenster, der Vorhang geht darunter, und der Spieler muss OK drücken, bevor Nightforge weitermacht. Seit jeder Start die Texte solcher Fenster mitschreibt, weiß Nightforge, was darin steht. Drei Wege, damit umzugehen. Lizenzen, Anmeldungen, eigene Launcher und jede echte Frage des Spiels bleiben in allen dreien beim Spieler.</p>
+  <div class="cols">
+    <div class="colx">
+      <div class="frame bare">
+        <div class="box">
+          <div class="bar">Alan Wake</div>
+          <div class="txt">Alan Wake could not initialize your 3D graphics card. Technical: DEVICE_CREATE_ERROR - Not available</div>
+          <div class="ok"><button type="button">OK</button></div>
+        </div>
+      </div>
+      <div class="name">Heute</div>
+      <p class="text">Der Vorhang sinkt unter das Fenster. Zu sehen ist nur die Box des Spiels, englisch und technisch.</p>
+      <p class="muted">Der Spieler weiß nicht, dass Nightforge danach weitermacht. Mit dem Controller ist OK nur über den Zeiger zu erreichen, und das sagt niemand.</p>
+    </div>
+    <div class="colx">
+      <div class="frame">
+        <div class="tag">ALAN WAKE</div>
+        <div class="status">Das Spiel meldet einen Fehler</div>
+        <div class="box">
+          <div class="bar">Alan Wake</div>
+          <div class="txt">Alan Wake could not initialize your 3D graphics card. Technical: DEVICE_CREATE_ERROR - Not available</div>
+          <div class="ok"><button type="button">OK</button></div>
+        </div>
+        <div class="detail">Drück OK – Nightforge kümmert sich um den Rest.</div>
+        <div class="hints"><span>Rechter Stick bewegt den Zeiger</span><span>R2 klickt</span></div>
+      </div>
+      <div class="name">1 · Einordnen <span class="pick">Empfehlung, zuerst</span></div>
+      <p class="text">Die Box bleibt sichtbar, aber der Vorhang rahmt sie: oben, was los ist, darunter, was zu tun ist und dass Nightforge übernimmt. Unten steht, wie man mit dem Controller drückt.</p>
+      <p class="en">EN: “The game reports an error” · “Press OK – Nightforge takes care of the rest.” · “Right stick moves the pointer” · “R2 clicks”</p>
+      <div class="label">Braucht</div>
+      <p class="muted">Die Zeile über das Fenster lesen, während der Start läuft, nicht erst nach seinem Ende. Den Rahmen, den Steams Frage auf dem Vorhang schon hat.</p>
+      <div class="label">Dagegen</div>
+      <p class="muted">Der Spieler drückt weiter selbst. Der Text der Box bleibt, wie das Spiel ihn schrieb.</p>
+    </div>
+    <div class="colx">
+      <div class="frame">
+        <div class="tag">ALAN WAKE</div>
+        <div class="status">Noch ein Versuch, auf anderem Weg …</div>
+        <div class="detail">Das Spiel konnte sein Bild nicht aufbauen. Nightforge versucht es anders.</div>
+      </div>
+      <div class="name">2 · Nightforge sagt es selbst</div>
+      <p class="text">Die Box bleibt unter dem Vorhang. Nightforge sagt in eigenen Worten, was sie meldet, beendet das Spiel und macht weiter. Der Spieler drückt nichts.</p>
+      <p class="en">EN: “One more try, another way …” · “The game couldn’t set up its picture. Nightforge tries another way.”</p>
+      <div class="label">Braucht</div>
+      <p class="muted">Wie 1. Dazu: Der Vorhang bleibt über einem Meldungsfenster, obwohl er heute für jedes Fenster des Spiels sinkt. Nightforge beendet das Spiel selbst. Je bekannter Meldung ein eigener Satz in zwei Sprachen.</p>
+      <div class="label">Dagegen</div>
+      <p class="muted">Nicht jede Box ist das Ende. „Dein Treiber ist veraltet“, OK, und das Spiel liefe weiter: Beendet Nightforge es dort, zerstört es einen Start, der gelungen wäre. Sicher ist das nur bei Meldungen, die Nightforge als Fehler kennt. Jede andere muss doch gezeigt werden.</p>
+    </div>
+    <div class="colx">
+      <div class="frame">
+        <div class="tag">ALAN WAKE</div>
+        <div class="status">Noch ein Versuch, auf anderem Weg …</div>
+        <div class="detail">Nightforge hat die Meldung des Spiels für dich bestätigt.</div>
+        <div class="said">Das Spiel meldete: „could not initialize your 3D graphics card“</div>
+      </div>
+      <div class="name">3 · Nightforge drückt OK</div>
+      <p class="text">Hat das Fenster genau einen Knopf, drückt Nightforge ihn. Das Spiel endet oder läuft weiter, wie es selbst will. Was es meldete, steht danach in seinen Worten auf dem Vorhang.</p>
+      <p class="en">EN: “One more try, another way …” · “Nightforge confirmed the game’s message for you.” · “The game said: ‘…’”</p>
+      <div class="label">Braucht</div>
+      <p class="muted">Ein kleines Hilfsprogramm in der Windows-Umgebung, das die Knöpfe des Fensters zählt und OK drückt. Von außen ginge es nur mit der Bedienungshilfen-Erlaubnis von macOS, und der mitgeschriebene Text nennt die Knöpfe nicht. Das Programm muss gebaut, signiert und mit der Engine verteilt werden.</p>
+      <div class="label">Dagegen</div>
+      <p class="muted">Nightforge beantwortet ein Fenster für den Spieler. Eine Mitteilung, die er lesen sollte („Spielstand beschädigt“), wäre weg, stünde sie nicht danach auf dem Vorhang. Nie bei Spielen mit Anti-Cheat.</p>
+    </div>
+  </div>
+  <p class="foot">Vorschlag zur Reihenfolge: 1 sofort. 2 nur für Meldungen, die Nightforge sicher als Fehler kennt. 3 erst, wenn das Hilfsprogramm steht und an echten Spielen geprüft ist.</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2260,"height":1120}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

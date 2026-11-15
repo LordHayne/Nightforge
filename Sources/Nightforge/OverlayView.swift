@@ -146,6 +146,7 @@ struct OverlayView: View {
                 switch state.step {
                 case .notStarting: notStarting
                 case .stuck: stuck
+                case .trustRoot: rootQuestion
                 case .confirmQuit: question(title: 22, detail: 14, metrics: nil)
                 case .quitting: Text(L10n.t("Quitting %@ …", state.game)).font(size: 20, weight: .semibold)
                 default: EmptyView()
@@ -185,6 +186,26 @@ struct OverlayView: View {
         VStack(spacing: 12) {
             choice("overlay.wait", L10n.t("Keep Waiting"), tint: Theme.sodium, preferred: true, nil) { GameOverlay.resume() }
             choice("overlay.nightforge", L10n.t("Go to Nightforge"), nil) { GameOverlay.toNightforge() }
+        }
+        .padding(.top, 10)
+    }
+
+    /// A Windows root the game needs, known to Nightforge by its fingerprints (step E6): added for the
+    /// Windows games only, on the player's yes. Board "Vorhang bei Fehlstart", the player's pick of 15.11.2026.
+    @ViewBuilder private var rootQuestion: some View {
+        Text(L10n.t("%@ needs an older certificate", state.game))
+            .font(size: 22, weight: .semibold)
+            .fixedSize(horizontal: false, vertical: true)
+        Text(L10n.t("At its start the game checks one of its files. It is signed with a certificate macOS no longer carries, but Windows does. Nightforge can add it for its Windows games – only there, not to your Mac."))
+            .font(size: 14)
+            .foregroundStyle(Theme.muted)
+            .fixedSize(horizontal: false, vertical: true)
+        Text(verbatim: state.root ?? "")
+            .font(size: 12)
+            .foregroundStyle(Theme.muted.opacity(0.8))
+        VStack(spacing: 12) {
+            choice("overlay.trust", L10n.t("Add and Start"), tint: Theme.sodium, preferred: true, nil) { GameOverlay.trustRoot(true) }
+            choice("overlay.dontTrust", L10n.t("Don't Add"), nil) { GameOverlay.trustRoot(false) }
         }
         .padding(.top, 10)
     }

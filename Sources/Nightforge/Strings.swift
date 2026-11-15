@@ -813,6 +813,46 @@ enum L10n {
         "Steam got stuck while starting – a fresh start fixes that.": "Steam ist beim Starten hängen geblieben – ein Neustart behebt das.",
         "It closed right away – Nightforge starts it the next way and remembers what works.":
             "Es hat sich sofort beendet – Nightforge startet es auf dem nächsten Weg und merkt sich, was funktioniert.",
+        // A start Nightforge mends (LaunchRepair, board "Vorhang bei Fehlstart" B, 15.11.2026)
+        "One moment …": "Einen Moment …",
+        "One more try …": "Noch ein Versuch …",
+        "One more try, another way …": "Noch ein Versuch, auf anderem Weg …",
+        "That didn't work.": "Das hat nicht geklappt.",
+        "The game closed right away.": "Das Spiel ist gleich wieder zugegangen.",
+        "Nightforge found the cause and starts the game once more.": "Nightforge hat die Ursache gefunden und startet das Spiel noch einmal.",
+        "The game closed right away. Nightforge starts it once more.": "Das Spiel ist gleich wieder zugegangen. Nightforge startet es noch einmal.",
+        "Nightforge remembers what runs.": "Nightforge merkt sich, was läuft.",
+        "A piece of Windows, only this once.": "Ein Baustein von Windows, nur dieses eine Mal.",
+        "Nightforge takes a closer look and starts the game once more.": "Nightforge sieht genauer hin und startet das Spiel noch einmal.",
+        "Nightforge tried everything it knows. You'll be back in the library in a moment.":
+            "Nightforge hat alles versucht, was es kennt. Gleich bist du zurück in der Bibliothek.",
+        "Started": "Gestartet",
+        "Looked into it": "Nachgesehen",
+        "Looking into it": "Sieht nach",
+        "New try": "Neuer Versuch",
+        "Cause found": "Ursache gefunden",
+        "Starting again": "Startet noch einmal",
+        "Another way": "Anderer Weg",
+        "A piece was missing": "Ein Baustein fehlte",
+        "Getting it": "Wird geholt",
+        "Taking a closer look": "Sieht genauer hin",
+        "Tried everything": "Alles versucht",
+        // The game's own error box under the curtain (board "Vorhang bei Fehlstart", way 1, 15.11.2026)
+        "The game reports an error": "Das Spiel meldet einen Fehler",
+        "Press OK – Nightforge takes care of the rest.": "Drück OK – Nightforge kümmert sich um den Rest.",
+        "%@ presses OK – Nightforge takes care of the rest.": "%@ drückt OK – Nightforge kümmert sich um den Rest.",
+        // The question about a Windows root on the curtain (board "Vorhang bei Fehlstart", 15.11.2026)
+        "%@ needs an older certificate": "%@ braucht ein älteres Zertifikat",
+        "At its start the game checks one of its files. It is signed with a certificate macOS no longer carries, but Windows does. Nightforge can add it for its Windows games – only there, not to your Mac.":
+            "Das Spiel prüft beim Start eine seiner Dateien. Sie ist mit einem Zertifikat signiert, das macOS nicht mehr führt, Windows aber schon. Nightforge kann es für seine Windows-Spiele eintragen – nur dort, nicht in deinem Mac.",
+        "Add and Start": "Eintragen und starten",
+        "Don't Add": "Nicht eintragen",
+        "The certificate is added. The game starts once more.": "Das Zertifikat ist eingetragen. Das Spiel startet noch einmal.",
+        "The game doesn't start this way.": "Das Spiel startet so nicht.",
+        "It doesn't run without the certificate. Nightforge asks again next time.":
+            "Ohne das Zertifikat läuft es nicht. Nightforge fragt beim nächsten Mal wieder.",
+        "Certificate added": "Zertifikat eingetragen",
+        "Not added": "Nicht eingetragen",
         "First start with this graphics version: shaders are prepared, so it can take a minute. Next time it's quicker.":
             "Erster Start mit dieser Grafikversion: Shader werden vorbereitet, das kann eine Minute dauern. Beim nächsten Mal geht es schneller.",
         "Steam asks something before the game starts – answer it in its window.": "Steam fragt vor dem Start etwas – antworte in seinem Fenster.",

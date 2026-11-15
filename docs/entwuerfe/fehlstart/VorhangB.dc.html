@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Vorhang bei Fehlstart, Vorlage B: mit Lebenszeichen</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.board{width:1480px;height:1260px;box-sizing:border-box;padding:40px 40px 24px;display:flex;flex-direction:column;gap:24px;background:#0f141c;color:#f3f1ec;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-serif}
+.top{display:grid;grid-template-columns:880px minmax(0,1fr);gap:32px;align-items:start}
+.frame{position:relative;width:880px;height:495px;overflow:hidden;border-radius:10px;box-shadow:0 12px 22px rgba(0,0,0,.55)}
+.cur{position:absolute;left:0;top:0;width:1512px;height:850px;transform:scale(.582);transform-origin:top left;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(180deg,#171a24,#06080b);text-align:center}
+.mark{height:300px;margin-bottom:6px}
+.word{font-size:50px;font-weight:300;font-stretch:expanded;letter-spacing:15px;padding-left:15px;color:#e6e6e6}
+.game{margin-top:18px;font-size:22px;font-stretch:expanded;letter-spacing:8px;padding-left:8px;color:#8ca8db}
+.status{margin-top:34px;font-size:18px;font-weight:500;color:#9aa3af}
+.trail{display:flex;align-items:center;gap:10px;margin-top:16px;font-size:13px;font-weight:500}
+.step{display:flex;align-items:center;gap:7px;color:rgba(154,163,175,.8)}
+.dot{width:9px;height:9px;border-radius:50%;box-sizing:border-box;border:1.5px solid rgba(154,163,175,.6)}
+.done{color:#9aa3af}
+.done .dot{background:#9aa3af;border-color:#9aa3af}
+.now{color:#f3f1ec}
+.now .dot{background:#bfdeff;border-color:#bfdeff;box-shadow:0 0 8px #2e7aff}
+.bar{width:26px;height:2px;border-radius:1px;background:rgba(154,163,175,.3)}
+.detail{margin-top:14px;max-width:560px;font-size:14px;line-height:19px;color:rgba(154,163,175,.78)}
+.col{display:flex;flex-direction:column;gap:12px}
+h1{margin:0;font-size:30px;font-weight:800;font-stretch:expanded}
+.lead{margin:0;font-size:15px;line-height:22px;color:#9aa3af}
+.plus,.minus{margin:0;font-size:14px;line-height:21px}
+.minus{color:#9aa3af}
+.label{font-size:11px;font-weight:700;letter-spacing:.8px;color:#9aa3af;text-transform:uppercase}
+.pick{align-self:flex-start;padding:5px 12px;border-radius:999px;font-size:12px;font-weight:700;background:#ffb347;color:#0f141c}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 24px}
+.state{display:flex;flex-direction:column;gap:8px}
+.card{height:150px;box-sizing:border-box;padding:0 40px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:linear-gradient(180deg,#171a24,#0a0d12)}
+.card .status{margin-top:0}
+.cap{display:flex;gap:12px;align-items:baseline;font-size:12px;line-height:17px;color:#9aa3af}
+.cap b{flex:none;width:150px;font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:#f3f1ec}
+</style>
+</helmet>
+<div class="board">
+  <div class="top">
+    <div class="frame">
+      <div class="cur">
+        <img class="mark" src="/_blob/f6d257c7e47aa9b75c3a3d698083802b" alt="">
+        <div class="word">NIGHTFORGE</div>
+        <div class="game">ALAN WAKE</div>
+        <div class="status">Noch ein Versuch …</div>
+        <div class="trail">
+          <span class="step done"><span class="dot"></span>Gestartet</span>
+          <span class="bar"></span>
+          <span class="step done"><span class="dot"></span>Ursache gefunden</span>
+          <span class="bar"></span>
+          <span class="step now"><span class="dot"></span>Startet noch einmal</span>
+        </div>
+        <div class="detail">Nightforge hat die Ursache gefunden und startet das Spiel noch einmal.</div>
+      </div>
+    </div>
+    <div class="col">
+      <span class="pick">Empfehlung</span>
+      <div class="label">Vorlage B</div>
+      <h1>Mit Lebenszeichen</h1>
+      <p class="lead">Wie A, dazu drei Schritte unter der Zeile: gestartet, nachgesehen, neuer Versuch. Der Schritt, an dem Nightforge gerade ist, leuchtet im Blau der Naht und atmet langsam. Was erledigt ist, steht ruhig daneben.</p>
+      <p class="plus">Dafür: Man sieht ohne zu lesen, dass Nightforge arbeitet und wo es steht, auch vom Sofa aus. Die Sätze darunter werden kürzer, weil die Schritte den Rest sagen.</p>
+      <p class="minus">Dagegen: drei kleine Wörter mehr auf dem Bild. Die Schritte müssen ehrlich bleiben: kein Punkt für etwas, das nicht geschehen ist, und bei einem gewöhnlichen Start gar keine Schritte.</p>
+      <p class="minus">Kosten: drei feste Punkte, an einem ändert sich langsam die Deckkraft. Kein Effekt über das Fenster, mit „Bewegung reduzieren“ steht er still.</p>
+    </div>
+  </div>
+  <div class="label">Die sechs Zustände, Text in Originalgröße. Unter jeder Karte die englische Fassung.</div>
+  <div class="grid">
+    <sc-for list="{{states}}" as="s" hint-placeholder-count="6">
+      <div class="state">
+        <div class="card">
+          <div class="status">{{s.de}}</div>
+          <div class="trail">
+            <span class="step {{s.c1}}"><span class="dot"></span>{{s.s1}}</span>
+            <span class="bar"></span>
+            <span class="step {{s.c2}}"><span class="dot"></span>{{s.s2}}</span>
+            <span class="bar"></span>
+            <span class="step {{s.c3}}"><span class="dot"></span>{{s.s3}}</span>
+          </div>
+          <div class="detail">{{s.deDetail}}</div>
+        </div>
+        <div class="cap"><b>{{s.name}}</b><span>{{s.en}} · {{s.enSteps}} · {{s.enDetail}}</span></div>
+      </div>
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1480,"height":1260}}'>
+class Component extends DCLogic {
+renderVals() {
+return { states: [
+{ name: "Ursache wird gesucht", de: "Einen Moment …", s1: "Gestartet", c1: "done", s2: "Sieht nach", c2: "now", s3: "Neuer Versuch", c3: "next", deDetail: "Das Spiel ist gleich wieder zugegangen.", en: "One moment …", enSteps: "Started – Looking into it – New try", enDetail: "The game closed right away." },
+{ name: "Abhilfe gefunden", de: "Noch ein Versuch …", s1: "Gestartet", c1: "done", s2: "Ursache gefunden", c2: "done", s3: "Startet noch einmal", c3: "now", deDetail: "Nightforge hat die Ursache gefunden und startet das Spiel noch einmal.", en: "One more try …", enSteps: "Started – Cause found – Starting again", enDetail: "Nightforge found the cause and starts the game once more." },
+{ name: "Anderer Weg", de: "Noch ein Versuch, auf anderem Weg …", s1: "Gestartet", c1: "done", s2: "Nachgesehen", c2: "done", s3: "Anderer Weg", c3: "now", deDetail: "Nightforge merkt sich, was läuft.", en: "One more try, another way …", enSteps: "Started – Looked into it – Another way", enDetail: "Nightforge remembers what runs." },
+{ name: "Laufzeit wird eingerichtet", de: "Richtet das Spiel ein …", s1: "Gestartet", c1: "done", s2: "Ein Baustein fehlte", c2: "done", s3: "Wird geholt", c3: "now", deDetail: "Ein Baustein von Windows, nur dieses eine Mal.", en: "Setting up the game …", enSteps: "Started – A piece was missing – Getting it", enDetail: "A piece of Windows, only this once." },
+{ name: "Genauerer Blick", de: "Noch ein Versuch …", s1: "Gestartet", c1: "done", s2: "Nachgesehen", c2: "done", s3: "Sieht genauer hin", c3: "now", deDetail: "Nightforge sieht genauer hin und startet das Spiel noch einmal.", en: "One more try …", enSteps: "Started – Looked into it – Taking a closer look", enDetail: "Nightforge takes a closer look and starts the game once more." },
+{ name: "Ehrliches Ende", de: "Das hat nicht geklappt.", s1: "Gestartet", c1: "done", s2: "Nachgesehen", c2: "done", s3: "Anders versucht", c3: "done", deDetail: "Nightforge hat alles versucht, was es kennt. Gleich bist du zurück in der Bibliothek.", en: "That didn’t work.", enSteps: "Started – Looked into it – Tried another way", enDetail: "Nightforge tried everything it knows. You’ll be back in the library in a moment." }
+] };
+}
+}
+</script>
+</body>
+</html>

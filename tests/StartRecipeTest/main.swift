@@ -530,12 +530,46 @@ struct StartRecipeTest {
               && NextStart.rootToAskAbout([found("signature", nil), found("crash", nil)], known: { _ in true }) == nil,
               "an unknown root, a chain that named none, another finding: only said, as before")
         check(NextStart.rootToAskAbout(rootFound, known: { $0 == verisign }, askedBefore: [verisign]) == nil, "asked once per Play")
+        check(NextStart.rootToAskAbout([found("said", nil)], known: { $0 == verisign }, needed: verisign) == verisign,
+              "a root the game needed before: asked at a failed start without a closer look")
+        check(NextStart.rootToAskAbout([found("said", nil)], known: { _ in false }, needed: verisign) == nil
+              && NextStart.rootToAskAbout([found("said", nil)], known: { $0 == verisign }, askedBefore: [verisign], needed: verisign) == nil,
+              "… unless it's in the prefix since, or asked in this Play")
         check(NextStart.after(rootTrusted: true, againSoFar: 0) == .again(why: ["untrusted-root"])
               && NextStart.after(rootTrusted: true, againSoFar: NextStart.againLimit) == .ends, "yes: the same way once more, within the cap")
         check(NextStart.after(rootTrusted: false, againSoFar: 0) == .ends, "no: the start ends here, the other ways aren't gone through")
         // Until the question is built, a root changes nothing by itself: the decision goes on as without it.
         check(NextStart.after(NextStart.Failed(ladder: hogwarts, found: rootFound)) == .way(1, why: nil), "the finding alone moves nothing")
         check(WindowsRoots.all.contains { $0.name == verisign }, "the one root Nightforge knows is in every prefix already: nothing waits for a yes today")
+
+        // MARK: The test switch's finding (step E3, live)
+
+        let switchOff = TestDefaults.suite("test-finding")
+        let dxmtStart = StartRecipe.of(way: hogwarts[0], learned: none, profile: nil, d3dMetalEngine: true)
+        check(StartDiagnosis.testFinding(defaults: switchOff) == nil && StartDiagnosis.withTestFinding(physx, defaults: switchOff) == physx,
+              "no switch: no finding, the table's as it is")
+        switchOff.set("nvidia-interface", forKey: StartDiagnosis.testFindingKey)
+        let given = StartDiagnosis.withTestFinding([found("crash", nil)], defaults: switchOff)
+        check(given.map(\.id) == ["crash", "nvidia-interface"] && given.last?.remedy == .dllsOff(["nvapi64", "nvngx"])
+              && given.last?.because.contains("switch") == true, "on: NVIDIA's interface, said as the switch's (\(given.map(\.line)))")
+        // What follows it is what follows a real one: the same way, the DLLs off in the recipe, the rule in its steps.
+        let afterSwitch = NextStart.after(NextStart.Failed(ladder: hogwarts, index: 0, recipe: dxmtStart, found: given))
+        check(afterSwitch == .again(nvidiaOff, why: ["nvidia-interface"]), "… the same way once more without them (\(afterSwitch))")
+        let switched = StartRecipe.of(way: hogwarts[0], learned: nvidiaOff, profile: nil, d3dMetalEngine: true)
+        check(switched.dllOverrides["nvapi64"] == "" && switched.dllOverrides["nvngx"] == "" && switched.steps == ["nvidia-interface"],
+              "… which the next start's recipe carries into the prefix")
+        let nvidiaCrash = CrashDump(code: CrashDump.accessViolation, address: 0, module: nil,
+                                    stack: [CrashDump.Frame(module: "nvapi64.dll", offset: 0x10)], modules: ["game.exe", "nvapi64.dll"])
+        check(StartDiagnosis.withTestFinding(StartDiagnosis.diagnose(StartFinding(dumps: [nvidiaCrash])), defaults: switchOff)
+              .filter { $0.id == "nvidia-interface" }.count == 1, "the table found it already: not twice")
+        check(NextStart.after(NextStart.Failed(ladder: hogwarts, index: 0, learned: nvidiaOff, recipe: switched, found: given)) == .way(1, why: nil),
+              "the DLLs off already: nothing more to change, on as without the switch")
+        check(NextStart.after(NextStart.Failed(ladder: hogwarts, index: 0, recipe: dxmtStart, found: given, antiCheat: true)) == .way(1, why: nil),
+              "a game with an anti-cheat: never a DLL off, switch or not")
+        switchOff.set("physx-update-loader", forKey: StartDiagnosis.testFindingKey)
+        check(StartDiagnosis.testFinding(defaults: switchOff)?.remedy == .dllsOff(loader), "the other value: the PhysX update loader")
+        switchOff.set("graphics-failed", forKey: StartDiagnosis.testFindingKey)
+        check(StartDiagnosis.testFinding(defaults: switchOff) == nil, "any other value: nothing")
 
         // MARK: Proofs hold for a recipe
 

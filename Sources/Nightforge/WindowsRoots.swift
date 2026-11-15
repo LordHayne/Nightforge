@@ -53,6 +53,56 @@ enum WindowsRoots {
 
     static let all = [verisignClass3G5]
 
+    // MARK: - Roots the player is asked about
+
+    /// Roots that go into the prefix only on the player's yes: the question on the curtain when a game's
+    /// signature check stops at one (step E6 of docs/ENTWURF-STARTREZEPT.md 3.3, the player's decision of
+    /// 15.11.2026). Each needs the user's OK to be here, as every root does. None so far: VeriSign's went into
+    /// every prefix with the user's OK of 11.11.2026, before there was a question.
+    static let onRequest: [Root] = []
+
+    /// The roots the player said yes to, by their SHA-1: for every Windows game, as the prefix is shared.
+    static let trustedKey = "windowsRoots.trusted"
+
+    static func trusted(defaults: UserDefaults = .standard) -> Set<String> {
+        Set(defaults.stringArray(forKey: trustedKey) ?? [])
+    }
+
+    static func trust(_ root: Root, defaults: UserDefaults = .standard) {
+        defaults.set(Array(trusted(defaults: defaults).union([root.sha1])).sorted(), forKey: trustedKey)
+    }
+
+    /// The roots in every prefix, and those the player is asked about – with the test switch, all of them asked.
+    static func always(defaults: UserDefaults = .standard) -> [Root] { testsQuestion(defaults: defaults) ? [] : all }
+    static func askable(defaults: UserDefaults = .standard) -> [Root] {
+        onRequest + (testsQuestion(defaults: defaults) ? all : [])
+    }
+
+    /// A root the player can be asked about, by the name a signature check's chain gives it ("VeriSign Class 3
+    /// Public Primary Certification Authority - G5", CloserLook.Signature.root): one on request, not said yes to yet.
+    static func toAsk(named name: String, defaults: UserDefaults = .standard) -> Root? {
+        let yes = trusted(defaults: defaults)
+        return askable(defaults: defaults).first { $0.name == name && !yes.contains($0.sha1) && $0.verified != nil }
+    }
+
+    /// The root a game's check stopped at, kept with the game: its next Play can ask without a closer look,
+    /// which comes once per game and engine build (CloserLook.taken).
+    private static func neededKey(_ game: GameID) -> String { "windowsRoots.needed.\(game.key)" }
+    static func needed(by game: GameID, defaults: UserDefaults = .standard) -> String? { defaults.string(forKey: neededKey(game)) }
+    static func noteNeeded(_ root: String, by game: GameID, defaults: UserDefaults = .standard) { defaults.set(root, forKey: neededKey(game)) }
+
+    /// Nightforge's own test switch for the question (`defaults write io.github.lordhayne.nightforge testRootQuestion
+    /// -bool true`): the roots in every prefix are asked about instead, and while the player hasn't said yes their key
+    /// is taken out of the prefix – Metal Gear Solid V then fails as on 11.11.2026, and the question can be seen. No
+    /// entry in the interface; `defaults delete … testRootQuestion` and `… windowsRoots.trusted` end it. A build made
+    /// with NIGHTFORGE_RELEASE has no such switch at all (as GameTest.measuresPlay).
+    #if NIGHTFORGE_RELEASE
+    static func testsQuestion(defaults: UserDefaults = .standard) -> Bool { false }
+    #else
+    static let testRootQuestionKey = "testRootQuestion"
+    static func testsQuestion(defaults: UserDefaults = .standard) -> Bool { defaults.bool(forKey: testRootQuestionKey) }
+    #endif
+
     static func hex<D: Sequence>(_ digest: D) -> String where D.Element == UInt8 {
         digest.map { String(format: "%02X", $0) }.joined()
     }
@@ -66,8 +116,18 @@ enum WindowsRoots {
 
     /// The .reg text that puts the roots into the current user's Root store – which Wine reads beside the
     /// machine's, and doesn't rewrite when it takes the Mac's roots again. The key is the SHA-1, which Wine
-    /// compares with the certificate's own.
-    static let registrySection: String = registry(all)
+    /// compares with the certificate's own. Those in every prefix and those the player said yes to; the key of a
+    /// root on request without a yes is taken out, so the prefix holds what the player said.
+    static func registrySection(defaults: UserDefaults = .standard) -> String {
+        let yes = trusted(defaults: defaults)
+        let asked = askable(defaults: defaults)
+        let removed = asked.filter { !yes.contains($0.sha1) }
+            .map { "[-HKEY_CURRENT_USER\\Software\\Microsoft\\SystemCertificates\\Root\\Certificates\\\($0.sha1)]" }
+        return ([registry(always(defaults: defaults) + asked.filter { yes.contains($0.sha1) })].filter { !$0.isEmpty } + removed)
+            .joined(separator: "\n\n")
+    }
+
+    static var registrySection: String { registrySection() }
 
     static func registry(_ roots: [Root]) -> String {
         roots.compactMap { root in

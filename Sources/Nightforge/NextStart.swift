@@ -143,19 +143,23 @@ enum NextStart {
     // MARK: - A root the player is asked about
 
     // Step E6, the player's decision of 14.11.2026: "untrusted-root" becomes a question, for a root
-    // WindowsRoots knows by fixed fingerprints; any other is only said, as before. The decision is here; the
-    // question itself isn't built – its board comes first – so nothing asks yet, and WindowsRoots has no root
-    // that waits for a yes (all it knows go into every prefix, each with the user's OK).
+    // WindowsRoots knows by fixed fingerprints; any other is only said, as before. Asked on the curtain since
+    // 15.11.2026 (LibraryModel.askToTrust, board "Vorhang bei Fehlstart"), for the roots WindowsRoots holds
+    // only on a yes (`onRequest`) – none so far: all it knows go into every prefix, each with the user's OK.
 
     static let untrustedRoot = "untrusted-root"
 
     /// The root a failed start's signature check stopped at, when the player can be asked about it: the
     /// finding names it, `known` says it can be put into the prefix (by fingerprint, and it isn't there yet),
-    /// and this Play hasn't asked about it. A game with an anti-cheat has no such finding: its files aren't read.
-    static func rootToAskAbout(_ found: [StartDiagnosis], known: (String) -> Bool, askedBefore: Set<String> = []) -> String? {
+    /// and this Play hasn't asked about it. `needed`: the root an earlier start of the game stopped at
+    /// (WindowsRoots.needed) – asked about at a failed start without a closer look, which came once already.
+    /// A game with an anti-cheat has no such finding: its files aren't read, and nothing is asked for it.
+    static func rootToAskAbout(_ found: [StartDiagnosis], known: (String) -> Bool, askedBefore: Set<String> = [],
+                               needed: String? = nil) -> String? {
         for finding in found where finding.id == untrustedRoot {
             if case .trustRoot(let name?) = finding.remedy, known(name), !askedBefore.contains(name) { return name }
         }
+        if let needed, known(needed), !askedBefore.contains(needed) { return needed }
         return nil
     }
 

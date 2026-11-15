@@ -621,10 +621,13 @@ Grund: Von vier neuen Spielen am Testabend kam keines beim ersten Mal ins Spiel.
     - **Zu wissen:** Nach einem Update, das die DLL-Schalter eines Layers oder ein Profil ändert, wird der nächste
       Start jedes betroffenen Spiels wie ein erster beobachtet (E4). ABZUs stilles zweites Mal trägt die Kanäle
       des genaueren Blicks bewusst nicht.
-  - **Offen in Teil 2:** die zwei Oberflächen als Board, deutsch und englisch – die Vorhangzeile beim Start auf
-    demselben Weg (der Satz „hat die Ursache gefunden“ stimmt beim genaueren Blick nicht) und die Frage zur Wurzel.
-    Vorlagen im Entwurf 3.3. Für die Wurzel-Frage fehlt außerdem eine Liste von Wurzeln, die nur auf Ja in den
-    Prefix kommen: `WindowsRoots.all` trägt heute jede bekannte für alle ein.
+  - **Board entschieden und gebaut (15.11., derselbe Zweig, nicht eingespielt, nichts live gesehen):** Vorhang B,
+    das Fehlerfenster „einordnen“ und die Frage zur Wurzel auf dem Vorhang; dazu die E4-Übernahme eines Rezepts und
+    die versteckten Schalter `testFinding` und `testRootQuestion`. Einzelheiten im Entwurf 3.3, Live-Anleitung im
+    Notizordner (`closer-look/live-pruefung-schritt-e.md`).
+    - **Offen:** der Knopf auf der Seite des Spiels, mit dem ein Nein zur Wurzel zurückgenommen wird (bis dahin wird
+      ein Nein nicht gemerkt); die Wege 2 und 3 für das Fehlerfenster; eine Wurzel in `WindowsRoots.onRequest`
+      (jede braucht das OK des Nutzers).
   - **Entscheidungen des Nutzers (14.11., alle wie empfohlen):** genauerer Blick für einen bewährten Weg ja;
     `untrusted-root` als Frage, nur für eine Wurzel, die `WindowsRoots` kennt; die drei Kanäle bei jedem Start;
     Vorhang beim Start auf demselben Weg nach Vorlage A, Board zuerst.
