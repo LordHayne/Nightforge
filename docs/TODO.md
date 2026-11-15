@@ -307,7 +307,7 @@ scheitert und sich nicht schnell beheben lässt, wird ausgeschaltet oder herausg
   Hinweis jedes Mal, obwohl die Shader dieses Wegs schon einmal gebaut wurden. Heute bei MGS V (D3DMetal ↔ DXMT in den
   Tests, dreimal) und ABZU. Es wurden keine Shader gelöscht, die Komponentenliste ist seit dem 5.11. dieselbe.
   Vorschlag: je Spiel alle gesehenen Kombinationen merken; der Hinweis kommt dann nur beim wirklich ersten Start einer
-  Kombination. Die Testskripte stellten `shaders.*` nicht mit zurück: für ABZU (dxmt) und Alan Wake (wined3d) von
+  Kombination. **Entschieden vom Nutzer (15.11.): „Ja, beheben“** – bei der Diagnose-Session. Die Testskripte stellten `shaders.*` nicht mit zurück: für ABZU (dxmt) und Alan Wake (wined3d) von
   Hand nachgeholt, 16:49.
 
 **Vorhang nach der Regel, eingespielt und erster Live-Fall (15.11., Testbuild `9bda7de`, 16:36; ABZU 16:40 mit
