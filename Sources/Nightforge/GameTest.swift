@@ -43,7 +43,7 @@ enum GameTest {
     }
 
     /// The hidden switch for measuring while a game is played, for Nightforge's own tests: no entry in the
-    /// interface, off unless someone sets it (`defaults write io.github.lordhayne.nightforge measurePlay -bool true`).
+    /// interface, off unless someone sets it (`defaults write io.github.lordhayne.nightforge gameTest.measurePlay -bool true`).
     /// A menu or an intro says nothing of how a game runs (the user, 15.11.2026), so a frame rate for the list
     /// comes from play. With the switch a start by Play has Apple's Metal HUD log its frames as a game test's
     /// has – invisible where the performance display is off. Nothing leaves the Mac and nothing is kept but
@@ -54,7 +54,7 @@ enum GameTest {
     #if NIGHTFORGE_RELEASE
     static func measuresPlay(defaults: UserDefaults = .standard) -> Bool { false }
     #else
-    static let measurePlayKey = "measurePlay"
+    static let measurePlayKey = "gameTest.measurePlay"
 
     static func measuresPlay(defaults: UserDefaults = .standard) -> Bool {
         defaults.bool(forKey: measurePlayKey)

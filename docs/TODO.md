@@ -381,7 +381,7 @@ greift nicht, kein Limit auf diesem Weg, frei), führt D3DMetal-Zahlen als frei 
 
 **Seit dem 15.11.: Ein Leistungswert ist nur, was beim Spielen gemessen wurde** (der Nutzer: Das Menü sagt nichts
 über die Leistung im Spiel; mitschreiben nur für unsere Tests, im fertigen Build kein Tracking). Gebaut: der
-versteckte Schalter `measurePlay` (ein Start über „Spielen“ schreibt dann das HUD-Protokoll mit, sonst nie), der
+versteckte Schalter `gameTest.measurePlay` (ein Start über „Spielen“ schreibt dann das HUD-Protokoll mit, sonst nie), der
 Leser für eine Spielsitzung im Generator (ohne die ersten 5 Minuten und die letzte, mindestens 10 Minuten; auf dem
 Protokoll des Messlaufs dieselben Zahlen wie der Bericht), und Liste wie Abhakliste mit zwei getrennten Aussagen:
 „Start geprüft“ (mit dem Wert des Spieletests als Nebenangabe „in den ersten Minuten“) und „im Spiel gemessen“.

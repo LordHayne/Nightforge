@@ -14,8 +14,9 @@ APP="Nightforge"
 OUT="build/$APP.app"
 
 echo "▸ Compiling (release, Apple Silicon) …"
-swift build -c release --arch arm64
-BIN_DIR="$(swift build -c release --arch arm64 --show-bin-path)"
+# NIGHTFORGE_RELEASE=1 builds what goes out: without the test switches that record play (GameTest.measuresPlay).
+swift build -c release --arch arm64 ${NIGHTFORGE_RELEASE:+-Xswiftc -DNIGHTFORGE_RELEASE}
+BIN_DIR="$(swift build -c release --arch arm64 ${NIGHTFORGE_RELEASE:+-Xswiftc -DNIGHTFORGE_RELEASE} --show-bin-path)"
 
 echo "▸ Building app bundle …"
 rm -rf "$OUT"

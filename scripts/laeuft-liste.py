@@ -8,7 +8,7 @@ game test's reports (GameTest, report.json, formats 1 and 2) and Nightforge's ow
 what no record holds is null in the JSON and "nicht gemessen" in the table. The inputs are only read.
 The same inputs give the same files, byte for byte: nothing in them depends on when or where this ran.
 
-A frame rate of the game is one measured while it was played: sessions with the hidden switch measurePlay, read
+A frame rate of the game is one measured while it was played: sessions with the hidden switch gameTest.measurePlay, read
 from Nightforge's wine.log (play_sessions). What a game test measures in a game's first minutes proves its start.
 
 With the stores' own lists of what is installed (Steam, Epic, GOG – read only, never changed) it also writes
@@ -424,7 +424,7 @@ def measured(run):
 # MARK: - Play, measured from the log
 
 # A menu or an intro says nothing of how a game runs: a frame rate for the list comes from play. With the
-# hidden switch `measurePlay` (GameTest.measuresPlay) a start by Play has Apple's Metal HUD log its frames, and
+# hidden switch `gameTest.measurePlay` (GameTest.measuresPlay) a start by Play has Apple's Metal HUD log its frames, and
 # those lines are in Nightforge's wine.log and nowhere else. What counts of a session: not its first PLAY_SKIP
 # seconds from the first frame on (films, menus, loading – all a game test's three minutes ever saw), not its
 # last PLAY_TAIL (the way out through a menu), and PLAY_MIN seconds or more between the two.
@@ -1578,7 +1578,7 @@ def main(argv=None):
     parser.add_argument("--stock", default=str(SUPPORT), help="Nightforge's folder with the stores' lists of installed games")
     parser.add_argument("--mac-steam", help="Steam for Mac's folder (default: the one in Application Support)")
     parser.add_argument("--no-stock", action="store_true", help="don't read what is installed: no checklist")
-    parser.add_argument("--log", action="append", help="a wine.log with sessions of play measured (the switch measurePlay); may be given more "
+    parser.add_argument("--log", action="append", help="a wine.log with sessions of play measured (the switch gameTest.measurePlay); may be given more "
                                                        "than once, oldest first (default: this Mac's wine.previous.log and wine.log)")
     parser.add_argument("--no-log", action="store_true", help="don't read any log: nothing measured in play")
     options = parser.parse_args(argv)

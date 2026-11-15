@@ -22,7 +22,7 @@ Nur Nightforges eigene Aufzeichnungen. Nichts aus AppleGamingWiki, PCGamingWiki,
 | Spieletest (`GameTests/<Datum>/report.json`, `GameTest*.swift`) | je Spiel: Bild ja/nein, Sekunden bis zum Bild, Wege, Messwerte im Spielfenster; je Lauf: Nightforge-Version, alle Engine-Teile, Last | bestätigt keinen Weg (siehe Stufen) |
 
 `wine.log` und `wine.previous.log` liest der Generator seit dem 15.11. für eines: die Spielsitzungen, die mit dem
-Testschalter `measurePlay` mitgeschrieben wurden (Abschnitt 3, „Messen beim Spielen“). Das Protokoll rotiert bei 8 MB
+Testschalter `gameTest.measurePlay` mitgeschrieben wurden (Abschnitt 3, „Messen beim Spielen“). Das Protokoll rotiert bei 8 MB
 und ist keine dauerhafte Quelle; was daraus zählt, steht nach dem Lauf des Generators in `laeuft.json`. Der Spieletest
 liest seinen Abschnitt daraus, solange er frisch ist. Nicht benutzt: die bestätigten Wege in den Einstellungen der App (`LaunchHealth.confirmedWays`: ohne Datum
 und Engine-Stand; die Evidenz hält dasselbe als `known` fest).
@@ -246,7 +246,7 @@ Spiels; das belegt den Start.
 - **Was der Messlauf dazu zeigt:** Alle zehn Spiele mit HUD-Protokoll liefen ab etwa Sekunde 30 bis zum Ende der 190 s
   gleichförmig (Guardians: 30, 30, 40, dann durchgehend 53 bis 54 je zehn Sekunden; Control: 31, 71, dann 98; Wukong
   durchgehend 98 je Zeile). Das ist ein Menü oder ein Vorspann, kein Spiel. Left 4 Dead 2s Vorspann allein dauert 187 s.
-- **Der Schalter:** `measurePlay` in den Defaults, kein Eintrag in der Oberfläche, aus, solange ihn niemand setzt
+- **Der Schalter:** `gameTest.measurePlay` in den Defaults, kein Eintrag in der Oberfläche, aus, solange ihn niemand setzt
   (`GameTest.measuresPlay`). Ist er an, schreibt bei einem ganz normalen Start über „Spielen“ Apples Metal-HUD die
   Frames mit wie im Spieletest – unsichtbar, wo die Leistungsanzeige aus ist. `LibraryModel.launch` fragt dafür schon
   `GameTest.logsFrames()`; Steam startet beim ersten solchen Start einmal neu und beim ersten Start nach dem
@@ -557,7 +557,7 @@ Der Messlauf oben prüft den Start. Ein Leistungswert entsteht so:
 1. Vor dem Start von Nightforge, am Netzteil, ohne Stromsparmodus:
 
    ```bash
-   defaults write io.github.lordhayne.nightforge measurePlay -bool true
+   defaults write io.github.lordhayne.nightforge gameTest.measurePlay -bool true
    ```
 
    Für Spiele auf WineD3D zusätzlich (einmal je Programmlauf gelesen, gilt für alle Starts):
@@ -578,7 +578,7 @@ Der Messlauf oben prüft den Start. Ein Leistungswert entsteht so:
 4. Zurücknehmen (Nightforge beendet; beim nächsten Start eines Spiels startet Steam noch einmal neu):
 
    ```bash
-   defaults delete io.github.lordhayne.nightforge measurePlay
+   defaults delete io.github.lordhayne.nightforge gameTest.measurePlay
    ```
 
    ```bash
@@ -733,7 +733,7 @@ Die Punkte 1 bis 3 sind seit dem 14.11. gebaut; offen ist, was nur ein Lauf zeig
                     GameLog.note(GameTest.limitNote(game: game.name, GameTest.Held(
                         frameLimit: layer == .wined3d ? 0 : frameLimit, refreshRate: refreshRate,
                         metalFX: layer.upscales && options.effectiveUpscaling(profile: profile), throttled: throttled)))
-    +               // Measuring play (the hidden switch measurePlay): when the session began and under what.
+    +               // Measuring play (the hidden switch gameTest.measurePlay): when the session began and under what.
     +               if GameTest.measuresPlay(), !GameTest.active {
     +                   GameLog.note(GameTest.playNote(game: game.name, onBattery: power.onBattery,
     +                                                  lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled, load: GameTest.Load.now))
@@ -741,7 +741,7 @@ Die Punkte 1 bis 3 sind seit dem 14.11. gebaut; offen ist, was nur ein Lauf zeig
     ```
 
     `Engine.swift`, der Kommentar an `frameLog` („… starts (GameTest.logsFrames), never a start by Play“) stimmt nicht
-    mehr: „… and a start by Play only with the hidden switch measurePlay“. Am Code ändert sich dort nichts. Dieselbe
+    mehr: „… and a start by Play only with the hidden switch gameTest.measurePlay“. Am Code ändert sich dort nichts. Dieselbe
     Stelle in `LibraryModel.swift` ist die für „none possible on D3DMetal“ aus Punkt 10.
 15. **WineD3D beim Spielen – Vorschlag:** heute von Hand wie im Messlauf (`wineDebug`, Abschnitt 6). Empfohlen danach:
     Der Schalter setzt den Kanal selbst, aber nur für Starts auf WineD3D, mit `+pid,+timestamp` dazu – derselbe Bau wie
@@ -751,7 +751,7 @@ Die Punkte 1 bis 3 sind seit dem 14.11. gebaut; offen ist, was nur ein Lauf zeig
     Steams Fenster. Dateien: `Engine.swift`, `LibraryModel.swift`.
 16. **Release-Build – Empfehlung: Er kennt den Schalter gar nicht.** Heute lässt sich ein Testbuild nicht sicher von
     einem Release unterscheiden: Beide baut `build.sh` mit `swift build -c release`; das Release-Workflow setzt nur
-    Version und `CFBundleVersion`. Ein Release-Build von heute würde `measurePlay` also beachten, wie er `wineDebug`
+    Version und `CFBundleVersion`. Ein Release-Build von heute würde `gameTest.measurePlay` also beachten, wie er `wineDebug`
     und `gameTest` beachtet – aus, solange niemand ihn mit `defaults write` setzt, aber vorhanden. Sicher wird es nur
     beim Bauen: `GameTest.measuresPlay` steht in `#if NIGHTFORGE_RELEASE` und ist mit der Flagge immer „nein“; der
     Name des Schalters kommt dann im Programm nicht vor. Mit der Flagge übersetzt der Code (am 15.11. mit
@@ -767,9 +767,11 @@ Die Punkte 1 bis 3 sind seit dem 14.11. gebaut; offen ist, was nur ein Lauf zeig
     # .github/workflows/release.yml, Schritt „Build“
         run: NIGHTFORGE_RELEASE=1 ./build.sh
     # danach, als Beleg im Workflow:
-        run: '! strings build/Nightforge.app/Contents/MacOS/Nightforge | grep -q measurePlay'
+        run: '! strings -a build/Nightforge.app/Contents/MacOS/Nightforge | grep -q gameTest.measurePlay'
     ```
 
-    Woran ein Release dann sicher zu erkennen ist: Im Programm steht `measurePlay` nicht (an einem so gebauten
-    Programm noch nicht nachgesehen; der Schritt im Workflow täte es bei jedem Release). Die Zeile „Play measuring
+    Woran ein Release dann sicher zu erkennen ist: Im Programm steht `gameTest.measurePlay` nicht (15.11. nachgesehen:
+    `strings -a` findet den Namen im Testbuild einmal, im Release-Build nie). Der Schalter hieß zuerst `measurePlay`:
+    Swift legt Texte bis 15 Byte in den Befehlen selbst ab, `strings` fand ihn dann auch im Testbuild nicht, und die
+    Prüfung hätte nichts bewiesen. Der längere Name liegt als Text im Programm. Die Zeile „Play measuring
     of …“ und der Leser im Skript bleiben ohne Wirkung, weil nichts mitschreibt.

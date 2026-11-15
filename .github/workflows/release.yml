@@ -58,7 +58,10 @@ jobs:
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $GITHUB_RUN_NUMBER" Resources/Info.plist
 
       - name: Build
-        run: ./build.sh
+        run: NIGHTFORGE_RELEASE=1 ./build.sh
+
+      - name: No play measuring in a release
+        run: '! strings -a build/Nightforge.app/Contents/MacOS/Nightforge | grep -q gameTest.measurePlay'
 
       - name: Package
         run: |

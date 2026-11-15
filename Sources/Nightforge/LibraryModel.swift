@@ -4775,6 +4775,11 @@ final class LibraryModel: ObservableObject {
                     GameLog.note(GameTest.limitNote(game: game.name, GameTest.Held(
                         frameLimit: layer == .wined3d ? 0 : frameLimit, refreshRate: refreshRate,
                         metalFX: layer.upscales && options.effectiveUpscaling(profile: profile), throttled: throttled)))
+                    // Measuring play (the hidden switch gameTest.measurePlay): when the session began and under what.
+                    if GameTest.measuresPlay(), !GameTest.active {
+                        GameLog.note(GameTest.playNote(game: game.name, onBattery: power.onBattery,
+                                                       lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled, load: GameTest.Load.now))
+                    }
                 }
                 // Past the game's own launcher window where its program knows the switch: straight into the
                 // game, as on a console (Guardians of the Galaxy, 9.11.2026). Not part of the way; the recipe has it.
