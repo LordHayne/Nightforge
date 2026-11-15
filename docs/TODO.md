@@ -310,8 +310,10 @@ und überholt (kennt Schritt E, den Vorhang nach der Regel und das Laufwerk nich
 `docs/AUDIT-0.3.3.md` ist vom 8.11. (`365f393`), vor Start-Rezept, Laufwerk und Vorhang.
 
 **1. Noch zu bauen (klein):**
-- [ ] Shader-Hinweis nur beim ersten Mal (`60d18a7`, im Testzweig, Kette läuft) – einspielen.
-- [ ] Laufwerk: Board → Wahl des Nutzers → Oberfläche.
+- [ ] Laufwerk: Board https://claude.ai/artifact/TyJ67wguhLXYyxdNBtNccJ, **der Nutzer wählte A („A, eine Zeile“, 15.11.)**:
+  ein Hinweis je Laufwerk, dazu die Zeile mit Knopf für Läden, die auf Anmeldung oder Steam für Mac warten. Bau bei der
+  Laufwerk-Session.
+- [x] Shader-Hinweis nur beim ersten Mal: Kette auf `bb80f7f` grün (121 Reihen, 281 pytest), noch nicht eingespielt.
 - [ ] Erlebnis-Audit E9, E10 (Board), E11: Entscheidungen des Nutzers.
 - [ ] Ehrliche Zeile für D3DMetal („none possible on D3DMetal“) in `LibraryModel.swift`/`GameLog`/Kommentar `Engine.swift`.
 
