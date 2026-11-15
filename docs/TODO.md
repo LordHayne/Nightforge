@@ -141,6 +141,17 @@ Befunde aus dem Lauf:
 - [x] **Die Listen sagen dazu „hält das Limit: Ø 201“.** (Behoben 14.11., `ce7647c`, im Testzweig `4c8c392`: Feld
   `limitState`, D3DMetal-Zahlen gelten als frei, „Limit greift nicht“ über 105 % des Limits.) Gemeint ist „erreicht es“, es liest sich aber, als
   griffe die Sperre. Über dem Limit muss es „Limit greift nicht“ heißen, bevor die Landingpage die Daten nimmt.
+**Vorhang B live gesehen (15.11., 12:09, Testbuild `c2da535`, ABZU über „Spielen“, `testFinding=nvidia-interface`,
+erster Start nach 3 s beendet):** „Diagnosis for ABZU: nvidia-interface: set by the engine test's switch …“, dann
+„ABZU starts once more on the same way: nvidia-interface“, zweiter Start mit Bild; Evidenz `started` → `failed` →
+`started` (Rezept `nvapi64`/`nvngx` leer, `steps` nvidia-interface) → `worked`; gelernt `learned.dllsOff` =
+nvapi64, nvngx. Der Nutzer: „sah gut aus man sieht die neue Anzeige nur kurz aber passt“. Damit sind E2/E3 (eine
+Entscheidung, DLL-Abhilfe) und Vorhang B live belegt. Nebenwirkung: Mit gelöschter Leiter wählte der Startplan
+D3DMetal („2 games of its sort (unreal4) run on it“) statt DXMT; ABZU ist danach aus der Sicherung von 00:36
+zurückgestellt, die vier Testzeilen der Evidenz liegen im Notizordner.
+- Fehler des Koordinators: Das Testskript gab mit `pgrep -fl` die Befehlszeile von ABZU aus, darin Epics
+  Einmal-Anmeldecode. Aus der Ausgabe entfernt, nirgends weitergegeben; die Skripte geben keine Befehlszeilen mehr aus.
+
 **Vorhang B, Fehlerfenster, Wurzel-Frage im Testzweig (15.11., Zusammenführung `5c428ac`):** Kette grün, 121
 Testreihen, 281 pytest. Nicht eingespielt, live nichts gesehen; Anleitung `closer-look/live-pruefung-schritt-e.md`.
 - [ ] Die Release-Prüfung im Release-Ablauf sucht nur `gameTest.measurePlay`. Die Schalter `testFinding` (11 Byte,
