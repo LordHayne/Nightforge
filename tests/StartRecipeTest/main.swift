@@ -674,6 +674,42 @@ struct StartRecipeTest {
               "The Forest, 3.11.: Unity's window, Quit – no message box, a window it's known to show: the player's choice as before")
         check(!LaunchHealth.ownQuestionWasAChoice(explained: false, endedAtBox: nil, knownWindow: false),
               "Metal Gear Solid V, 15.11.: a window of its own, no message box, no window of its own known – a failed start")
+        // The same window twice in one Play, and still nothing that speaks of a failure: the player's choice. Such a
+        // window can be the game's word that it won't go on or a small window of its own closed on purpose; a game
+        // closed that way came back once per way of its ladder up to 17.11.2026.
+        check(LaunchHealth.endedAtUnreadableWindow(explained: false, endedAtBox: nil, knownWindow: false)
+              && !LaunchHealth.endedAtUnreadableWindow(explained: true, endedAtBox: nil, knownWindow: false)
+              && !LaunchHealth.endedAtUnreadableWindow(explained: false, endedAtBox: "Failed to load SteamAPI", knownWindow: false)
+              && !LaunchHealth.endedAtUnreadableWindow(explained: false, endedAtBox: nil, knownWindow: true),
+              "a window that says nothing: no failure seen, no message box, no window of its own known")
+        check(!LaunchHealth.ownQuestionWasAChoice(explained: false, endedAtBox: nil, knownWindow: false, unreadableBefore: 0, somethingFound: false),
+              "the first such end in a Play is a failed start, as before")
+        check(LaunchHealth.ownQuestionWasAChoice(explained: false, endedAtBox: nil, knownWindow: false, unreadableBefore: 1, somethingFound: false)
+              && LaunchHealth.ownQuestionWasAChoice(explained: false, endedAtBox: nil, knownWindow: false, unreadableBefore: 2, somethingFound: false),
+              "the second is the player's choice: the game doesn't come back once per way")
+        check(!LaunchHealth.ownQuestionWasAChoice(explained: false, endedAtBox: nil, knownWindow: false, unreadableBefore: 1, somethingFound: true),
+              "… unless something was found that speaks against it")
+        check(!LaunchHealth.ownQuestionWasAChoice(explained: true, endedAtBox: nil, knownWindow: false, unreadableBefore: 3, somethingFound: false)
+              && !LaunchHealth.ownQuestionWasAChoice(explained: false, endedAtBox: "Failed to load SteamAPI", knownWindow: false, unreadableBefore: 3),
+              "a failure the table saw and a message box that only says something stay failed starts, however often")
+        // What speaks against a choice: Metal Gear Solid V's second start with the closer look found the root its
+        // check stopped at (15.11.2026) – that start goes on to the question about the root, not back to the library.
+        check(!StartDiagnosis.speaksAgainstAChoice([]) && !StartDiagnosis.speaksAgainstAChoice([found("debug-said", nil)]),
+              "nothing found, or only what the game put out for a debugger: nothing against a choice")
+        check(StartDiagnosis.speaksAgainstAChoice([found("untrusted-root", .trustRoot("VeriSign Class 3 Public Primary Certification Authority - G5"))])
+              && StartDiagnosis.speaksAgainstAChoice([found("signature", nil)]) && StartDiagnosis.speaksAgainstAChoice([found("crash", nil)])
+              && StartDiagnosis.speaksAgainstAChoice([found("debug-said", nil), found("loads-direct3d9", .layer(.wined3d))]),
+              "a root, a failed signature check, a crash dump, what it draws with: a failed start")
+        // A Play as the loop counts it: the window, another way, the window again.
+        var unreadableEnds = 0
+        var choices: [Bool] = []
+        for foundNow in [[StartDiagnosis](), [found("debug-said", nil)], []] {
+            let unreadable = LaunchHealth.endedAtUnreadableWindow(explained: StartDiagnosis.sawFailure(foundNow), endedAtBox: nil, knownWindow: false)
+            choices.append(LaunchHealth.ownQuestionWasAChoice(explained: StartDiagnosis.sawFailure(foundNow), endedAtBox: nil, knownWindow: false,
+                                                              unreadableBefore: unreadableEnds, somethingFound: StartDiagnosis.speaksAgainstAChoice(foundNow)))
+            if unreadable { unreadableEnds += 1 }
+        }
+        check(choices == [false, true, true], "one start more after the first such end, then the library: \(choices)")
         check(LaunchHealth.showsOwnWindow(GameAnalysis(engine: .unity)) && LaunchHealth.showsOwnWindow({ var a = GameAnalysis(); a.launcherSwitch = "-nolauncher"; return a }())
               && LaunchHealth.showsOwnWindow({ var a = GameAnalysis(); a.launcher = "Ubisoft Connect"; return a }()),
               "Unity's configuration window, its own launcher window, another store's launcher: windows it's known to show")

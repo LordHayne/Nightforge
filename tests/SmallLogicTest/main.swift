@@ -108,6 +108,16 @@ struct SmallLogicTest {
             }
         }
         UserDefaults.standard.set("english", forKey: AppLanguage.storageKey)
+        // "One more try …" right at the end of a start, before Nightforge has read why: only where a try can come.
+        // An end that may be the player's own had the line too, up to 17.11.2026, and then the page.
+        check(LaunchRepair.saysLooking(provenFirstShortEnd: false, endedAtOwnQuestion: false), "a start that failed: Nightforge looks into it, and says so")
+        check(!LaunchRepair.saysLooking(provenFirstShortEnd: true, endedAtOwnQuestion: false),
+              "a proven way's first short end is the player's by the look of it: no promise (its quiet start more says its own)")
+        check(!LaunchRepair.saysLooking(provenFirstShortEnd: false, endedAtOwnQuestion: true)
+              && !LaunchRepair.saysLooking(provenFirstShortEnd: true, endedAtOwnQuestion: true),
+              "an end at the game's own question may be the player's choice: no promise before that's known")
+        check(LaunchRepair.onceMore.title == LaunchRepair.looking.title && !LaunchRepair.onceMore.endsStart,
+              "the quiet start more says the try once it comes")
         // What the decision after a failed start puts on the curtain.
         let learned = StartRecipe.Learned()
         check(LaunchRepair.after(.again(learned, why: ["nvidia-interface"])) == .again
