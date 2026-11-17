@@ -78,6 +78,17 @@ enum LaunchRepair: Equatable {
         }
     }
 
+    /// Whether the curtain says "One more try …" as soon as a start has ended without a picture, before Nightforge
+    /// has read why (`looking`). Not where the end may turn out to be the player's own, with no start after it: a
+    /// way that had worked ending early for the first time (`provenFirstShortEnd` – quit early, by the look of it;
+    /// its one quiet start more says `onceMore` once it's sure the game is gone), and an end at a question of the
+    /// game's own that the player answered (`endedAtOwnQuestion`). Up to 17.11.2026 the line stood there too, for
+    /// as long as Nightforge read, and then the page came. Where such an end is a failed start after all, the try
+    /// is said once it's decided (`after`).
+    static func saysLooking(provenFirstShortEnd: Bool, endedAtOwnQuestion: Bool) -> Bool {
+        !provenFirstShortEnd && !endedAtOwnQuestion
+    }
+
     /// What the curtain says for the decision after a failed start. nil: it says nothing of its own – the
     /// engine before has its own line (LaunchPhase.rollingBack). A proven way keeping its place and a way
     /// chosen by hand ended the start without a word up to 15.11.2026, right after "One more try …"

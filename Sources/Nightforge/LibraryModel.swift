@@ -5026,8 +5026,12 @@ final class LibraryModel: ObservableObject {
                     return
                 }
                 // It ended without a picture: the curtain says Nightforge looks into it while it does
-                // (LaunchRepair, board B of 15.11.2026). An end that turns out to be the player's goes back as before.
-                if !Task.isCancelled { sayRepair(.looking) }
+                // (LaunchRepair, board B of 15.11.2026) – "One more try …", so not where the end may be the player's
+                // own and no start follows (LaunchRepair.saysLooking): that one goes back as before, without the line.
+                if !Task.isCancelled, LaunchRepair.saysLooking(provenFirstShortEnd: wayConfirmed && outcome == .keep,
+                                                               endedAtOwnQuestion: LaunchHealth.endedAtOwnQuestion(game.gameID, since: startedAt)) {
+                    sayRepair(.looking)
+                }
                 // What the start left behind, read through the table (StartDiagnosis): said in the log, kept for
                 // the record and the problem report, and what the decision below goes by (step E3). Never for a
                 // game with an anti-cheat or a cheat protection of its own (NextStart.handsOff): its dumps aren't
