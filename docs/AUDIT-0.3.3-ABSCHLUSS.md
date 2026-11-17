@@ -403,7 +403,15 @@ ich nur die Stellen gelesen, an denen sie die Startschleife oder das Pad berühr
 
 ### Tests der zweiten Runde
 
-Die ganze Kette läuft noch; das Ergebnis folgt in diesem Abschnitt.
+Auf dem Endstand der Quellen (`e1f79e6`), nach den `.rc`-Dateien in `build/test-logs`:
+
+- `scripts/run-tests.sh -P 2`, die ganze Kette: **121 Reihen, alle 0** (3 min 16 s).
+- `python3 -m unittest discover -s tests -p 'test_*.py'`: **286 Tests, OK** (24 Dateien, 75 s).
+- `swiftc -typecheck -D NIGHTFORGE_RELEASE` über alle Quelldateien: keine Fehler.
+- Vor den Commits einzeln: `SmallLogicTest` (N2) und `StartRecipeTest` (W3), beide 0. Beide Tests prüfen neue Regeln
+  (`LaunchRepair.saysLooking`, die zwei neuen Angaben von `LaunchHealth.ownQuestionWasAChoice`); vor der Änderung
+  bauen sie nicht, ein „vorher rot“ im engeren Sinn gibt es deshalb nicht.
+- Nichts live: keine Nightforge-Fenster, keine Spiele.
 
 ## Live prüfen
 
