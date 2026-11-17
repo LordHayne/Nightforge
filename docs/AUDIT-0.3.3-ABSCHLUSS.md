@@ -271,6 +271,140 @@ Ein Fehler von mir unterwegs, behoben: Der Ordner heißt in git `tests/`, ich ha
 drei Commits enthielten ihre Testdateien nicht. Ich habe die drei lokalen, nicht gepushten Commits neu gebaut, jeder
 jetzt mit seinem Test; der Baum ist derselbe wie davor plus die Tests.
 
+## Zweite Runde (17.11.)
+
+Geprüft: `claude/staging-033` bei `376f0ea` (darin B1 bis B8), mit dem Blick auf das, was die Live-Runde anfasst und
+noch nie live lief, und quer über den ganzen Unterschied `origin/main..376f0ea`. Regeln wie in der ersten Runde,
+Zeilennummern in diesem Abschnitt gelten für `376f0ea`. Die
+zwei Commits liegen auf `claude/audit-033-abschluss-d51880`, je mit Test. Gelesen habe ich die riskanten Stellen jedes
+Teils (Netz, Warteschleifen, Fortsetzungen, Zustand nach Abbruch, Pad-Wege), nicht jede Zeile der rund 3.800 Zeilen;
+was ich nicht gelesen habe, steht unter „Nicht vertieft“.
+
+### Ergebnis
+
+- **Kein neuer Fehler** in den durchgesehenen Teilen. Nichts blockiert die Live-Runde.
+- **N2 und W3 gebaut**, je ein eigener Commit (B9, B10). W3 hat einen Preis, der unten steht; es lässt sich einzeln
+  zurücknehmen (`git revert e1f79e6`), N2 hängt nicht daran.
+- `swiftc -typecheck -D NIGHTFORGE_RELEASE` über alle Quellen auf dem Endstand (`e1f79e6`): keine Fehler.
+
+### Behoben
+
+| Nr. | Schwere | Was | Datei | Commit |
+|---|---|---|---|---|
+| B9 | niedrig | N2: „Noch ein Versuch …“ stand auch dort kurz, wo das Ende das des Spielers sein kann und kein Start folgt | `LibraryModel.swift:5030`, `LaunchRepair.swift` | `3afd0b1` |
+| B10 | mittel | W3: Ein Spiel, das der Spieler an einem kleinen eigenen Fenster schließt, kam je Weg der Leiter wieder | `LaunchHealth.swift:504`, `LibraryModel.swift:5068` | `e1f79e6` |
+
+**B9 · N2.** `LaunchRepair.saysLooking` entscheidet, ob die Zeile gleich am Ende eines Starts kommt. Nicht mehr,
+wenn ein bewährter Weg zum ersten Mal früh endet (`.keep`: „früh beendet, dem Anschein nach“) und nicht, wenn das
+Spiel an seiner eigenen Frage endete und der Spieler geantwortet hat. Der leise zweite Start sagt seine Zeile weiter
+selbst (`onceMore`), sobald sicher ist, dass das Spiel weg ist; wird ein Ende an der Frage doch ein Fehlstart, sagt
+die Entscheidung danach den Versuch oder das Ende. Damit sind alle drei Enden aus N2 abgedeckt.
+
+**B10 · W3.** Das erste Ende eines „Spielen“ an einem Fenster, das nichts sagt (keine Meldungsbox, kein bekanntes
+eigenes Fenster, kein Fehler in der Tabelle), bleibt ein Fehlstart wie seit Schritt E5. Das zweite im selben
+„Spielen“ gilt als Wahl des Spielers, wenn nichts gefunden wurde, das dagegen spricht
+(`StartDiagnosis.speaksAgainstAChoice`: jede Diagnose außer bloßer Debug-Ausgabe). Der Spieler bekommt also einen
+Neustart zu viel statt einem je Weg.
+
+- Die live gesehene Kette von Metal Gear Solid V bleibt: Der zweite Start (mit genauerem Blick) findet
+  `untrusted-root`, das spricht dagegen, es geht weiter zur Frage nach der Wurzel. Im Test nachgestellt.
+- **Preis:** Die Leiter bleibt, wo das erste Ende sie hinstellte. Bei einem Spiel, das wirklich auf den ersten zwei
+  Wegen mit einem eigenen Fenster scheitert und auf dem dritten liefe, kommt der dritte erst mit dem nächsten
+  „Spielen“. Umgekehrt steht ein Spiel, dessen Fenster der Spieler zweimal absichtlich geschlossen hat, danach auf
+  dem zweiten Weg statt auf dem ersten; läuft es dort, bleibt es dort. Zurückstellen wollte ich die Leiter nicht:
+  dann käme ein wirklich scheiterndes Spiel nie über den zweiten Weg hinaus.
+- **Zweiter Preis:** Ist das Fenster doch die Fehlermeldung des Spiels und findet sich auch beim zweiten Mal nichts,
+  endet der Start nach dem zweiten Fenster still auf der Seite: ohne „Das hat nicht geklappt.“ und ohne den Dialog
+  mit „Am verträglichsten“ und „Nochmal mit dem ersten Weg“, die bisher nach dem letzten Weg kamen. Der Spieler hat
+  dann nur gesehen, was das Fenster des Spiels selbst sagte.
+- Gilt auch für Spiele mit Anti-Cheat oder eigenem Cheat-Schutz (dort wird nichts gefunden, also nie etwas dagegen).
+
+### Sollte vor dem Release
+
+Nichts Neues. Offen bleibt aus dem Nachtrag N1 (der Anti-Cheat-Weg liest die Absturzberichte des Spiels), als
+Entscheidung des Nutzers.
+
+### Kann warten
+
+- **Z1 · Anmelden vom Sofa läuft über einfaches HTTP im eigenen Netz** (bekannt, `docs/ENTWURF-ANMELDEN.md:8`, `:138`).
+  Token und GOGs Einmal-Code gehen unverschlüsselt vom Handy zum Mac; wer im selben WLAN mitlesen kann, sieht beide.
+  Sonst hält die Seite, was sie verspricht: an die Adresse des Macs im Netz gebunden, nur dessen Teilnetz, 256 Bit
+  Zufall im Pfad, Vergleich ohne Zeitspur, höchstens 8 Verbindungen und 16 KB, nichts vom Besucher kommt in einer
+  Antwort zurück, zu nach dem ersten Code oder nach zehn Minuten (`PhoneSignInServer.swift`, `PhoneSignIn.swift`).
+- **Z2 · Die Übernahme für Steam für Mac steht in keiner Warteschlange** (**Vermutung**).
+  `takeOverMacSteamLibrary` (`DriveTakeover.swift:436`) beendet ein von Nightforge gestartetes Steam für Mac, schreibt
+  die Liste und startet es wieder; anders als beim Windows-Steam (`:398`, über `steamStartup`) wartet ein Start eines
+  Mac-Spiels in genau dieser Sekunde nicht darauf. Startet Steam für Mac, während die Liste geschrieben wird, kann es
+  sie beim Beenden überschreiben; die Spiele des Laufwerks fehlen dann bis zum nächsten Anstecken oder Start.
+- **Z3 · Laufwerk weg mitten im Start.** Die Schleife prüft nur am Anfang, ob das Spiel installiert ist. Fehlt der
+  Ordner danach, geht der nächste Versuch an Steam und endet nach dessen zwei Minuten ohne Lebenszeichen; B führt
+  vorher heraus (`CurtainEscape`). Kein Hänger, aber ein langer Vorhang.
+- **Z4 · Bei Spielen mit Cheat-Schutz fällt auch weg, was allein aus Wines Protokoll käme** (der Text einer
+  Meldungsbox, `CloserLook.read`): Er wird mit den Dumps zusammen gelesen (`StartDiagnosis.finding`) und deshalb mit
+  ihnen ausgelassen. Eine Fehlermeldung solcher Spiele gilt damit nur nach der Fenster-Regel.
+
+### Geprüft, in Ordnung
+
+- **Anmelden vom Sofa:** Bühne und Seite schließen zusammen (`signingIn`-Wechsel schließt die Tür, `LibraryModel.swift:285`;
+  `onDisappear`). A holt nach Ablauf einen neuen Code, X wechselt zur Tastatur und zurück, B bricht ab, auch wenn ein
+  fremdes Fenster vorn ist. Ohne Heimnetz sagt die Bühne es und nennt den Weg mit der Tastatur.
+- **Pad-Wege:** Solange die Bildschirmtastatur offen ist, hält jede andere Taste still (A, B, X, Y, ☰, L1/R1, Sticks,
+  Scrollen); sie schließt, wenn der Controller geht oder Nightforge nicht mehr vorn ist (`InputRouter.swift:723`), und
+  ihr Takt läuft nur, solange sie offen ist. „Neu starten“ wirkt einmal: der Hinweis ist nach dem ersten A weg.
+- **Lizenz beim ersten Start:** Nightforge beantwortet sie nie und schreibt nichts davon; die Regeln stehen auf
+  Messungen (`SteamLicence.swift`). Mit dem Pad lässt sie sich nur beantworten, wenn der Zeiger an ist und macOS
+  die Bedienungshilfen freigegeben hat; sonst sagt die Leiste „mit der Maus“.
+- **Battle.net-Start:** Jede Schleife hat eine Frist (90 s bis bereit, 10 min fürs Anmelden, 5 min nach der Frage),
+  jeder Abbruch setzt `awaitingSteam` und `launchPhase` zurück, jedes Ende hat seinen Satz.
+- **Zwei Controller, Startseite, neue Einstellungen:** Platz 5 bekommt keine Nummer statt eines Absturzes; alle neuen
+  Einstellungen haben einen Wert ohne Eintrag (`padPointer`, `padHaptics`, `parkPointerOverGames` an, `keepAwakeMinutes`
+  0, Quellen der Startseite), der Zeiger fragt nur aus den Einstellungen nach der Freigabe.
+- **Nebenläufigkeit:** Zwei schnelle Drücke starten nicht zweimal (`mayStart`). Ein Start wartet auf eine laufende
+  Übernahme des Windows-Steam (`steamStartup`), die Übernahme prüft `takeoverBusy` vor jedem Schritt. Die Frage zur
+  Wurzel antwortet genau einmal. Der Zustand der Startschleife gehört dem einen Task auf dem Hauptakteur.
+- **Lebenszyklus:** Ein genauerer Blick steht in Steams Kennung (`steamConfigSignature` über `launchEnvironment`):
+  Nach einem Neustart von Nightforge startet ein Steam, das noch die Kanäle trägt, neu. Der Updater wartet, solange
+  ein Spiel läuft oder eines verschoben wird. Controller weg mitten in einer Frage: Tastatur und Maus antworten weiter.
+- **Aufstieg von 0.3.2:** `steamConfigVersion` 11 startet Steam einmal neu; ein bestätigter Weg ohne Rezept bleibt
+  bestätigt; alte `shaders.*`-Einträge werden übernommen; der Stempel der Profilliste liegt nicht in der Zukunft.
+  Die signierte Liste bleibt Sache des Nutzers.
+- **Protokoll-Leser und `+pid`:** Außer `GameLog.errors` (B4) hängt keiner am Zeilenanfang: Bildraten kommen aus
+  DXMTs eigenen Zeilen oder über `CloserLook.Line`, fehlende Laufzeiten und Grafikfehler über den Text.
+- **Texte:** Alle 1.313 Texte aus `L10n.t` haben ihre deutsche Fassung, auch auf dem Endstand.
+- **Meine acht Behebungen und `3c4981c`, `9bda7de`** noch einmal gelesen: ohne Befund.
+
+### Nicht vertieft
+
+`PadKeyboard.swift` (die Tastatur selbst, 414 Zeilen), `TouchpadPointer.swift` (Gesten), `GameBackdrop.swift`
+(Bilder des Ladebildschirms), `TVLayout`/`TVRules`, `IdleRest`, `SteamOnDemand`, Ruhezustand und Aufwachen. Dort habe
+ich nur die Stellen gelesen, an denen sie die Startschleife oder das Pad berühren.
+
+### Für die Live-Runde
+
+- **Anmelden am Sofa (GOG, QR):** Ist die macOS-Firewall an, kann macOS beim Öffnen der Seite fragen, ob Nightforge
+  eingehende Verbindungen annehmen darf (**Vermutung**, im Entwurf als „live prüfen“ vermerkt). Die Frage nimmt nur
+  die Maus. Handy im Gast-WLAN: Die Seite lädt nicht, der Code läuft nach zehn Minuten ab; dann A für einen neuen.
+- **Lizenz (GTA V):** Was die Leiste sagt (Touchpad, Stick oder Maus) und ob der Klick ankommt. Ohne Freigabe der
+  Bedienungshilfen ist „mit der Maus“ richtig, kein Fehler.
+- **Tastatur für den Controller:** Y in der Bibliothek; ☰, A oder R2 auf „Fertig“ und B schließen, ohne dass die Seite
+  dahinter den Druck noch bekommt. Controller ausschalten, während sie offen ist: Sie muss zugehen.
+- **Zwei Controller:** Der zweite hält beide Sticks nicht: Das Overlay muss beim ersten trotzdem aufgehen (B1 vom 8.11.).
+- **Battle.net:** Abbrechen mit B, während der Client sich anmelden will: zurück zur Seite, kein stehender Vorhang.
+- **Overwatch im Vollbild:** der Hinweis, ein ⌘⇥, „Neu starten“ per Pad; im Protokoll „the player restarts … with the
+  pad“, danach kein „Noch ein Versuch …“ und kein Fehlstart.
+- **Ein bewährtes Spiel in den ersten Sekunden beenden** (ohne Launcher): Der Vorhang darf nicht mehr „Noch ein
+  Versuch …“ zeigen, bevor der leise zweite Start wirklich kommt (N2).
+- **Ein Spiel mit kleinem eigenem Startfenster, dort „Beenden“:** einmal kommt es wieder, beim zweiten Schließen ist
+  Schluss; im Protokoll „a window that says nothing, for the second time in this Play … the player's choice“ (W3).
+- **Metal Gear Solid V mit `testRootQuestion`** (nur Testbuild): Die Kette bis zur Frage muss wie am 15.11. laufen;
+  W3 darf sie nicht nach dem zweiten Fenster beenden.
+- **Laufwerk Teil B:** Steam für Mac: nicht in derselben Sekunde ein Mac-Spiel starten (Z2). Epic: der Spielordner
+  nach `legendary import` unverändert. Die eine Zeile „… sind wieder da“ zählt bei Steam auch halbe Downloads (W5).
+
+### Tests der zweiten Runde
+
+Die ganze Kette läuft noch; das Ergebnis folgt in diesem Abschnitt.
+
 ## Live prüfen
 
 - Overwatch im Vollbild: ein ⌘⇥ reicht, „Neu starten“ per Pad, und was das A im unsichtbaren Spiel auslöst (W8).
