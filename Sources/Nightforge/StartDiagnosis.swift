@@ -197,6 +197,14 @@ struct StartDiagnosis: Equatable {
         found.contains { failuresSeen.contains($0.id) }
     }
 
+    /// Something in `found` speaks against an end at a window being the player's own (LaunchHealth.
+    /// ownQuestionWasAChoice): any finding but what a program merely put out for a debugger – a start with the
+    /// closer look's channels has such lines from most games, and they say nothing of how it ended. A crash dump no
+    /// rule knows does speak, and so does a signature check that failed or a root the game stopped at.
+    static func speaksAgainstAChoice(_ found: [StartDiagnosis]) -> Bool {
+        found.contains { $0.id != "debug-said" }
+    }
+
     /// The graphics layer itself said it can't draw (GameLog.graphicsFailed): the one finding that moves a
     /// way on that had worked before. Anything else leaves a proven way its place (LaunchHealth.earlyEnd).
     static func layerRefused(_ found: [StartDiagnosis]) -> Bool {

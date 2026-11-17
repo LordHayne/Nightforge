@@ -4739,6 +4739,9 @@ final class LibraryModel: ObservableObject {
             // Step E6: the way that had worked before and got a closer look in this Play. It keeps its place after
             // the one start more the look takes on it, which runs as a way not confirmed.
             var lookedAtProven: String?
+            // Starts of this Play that ended at a window of the game's own that says nothing Nightforge can read
+            // (LaunchHealth.endedAtUnreadableWindow): the second such end is the player's choice.
+            var unreadableEnds = 0
             starts: while true {
                 // Another way after one that didn't take: the curtain stays up through all the next
                 // one needs first (an engine, runtimes, Steam restarted for its settings), saying so.
@@ -5069,7 +5072,11 @@ final class LibraryModel: ObservableObject {
                                                            graphicsFailed: graphicsFailed || cannotDraw || direct3D9Failed, crashed: crashedAtAll)
                     let failureSeen = StartDiagnosis.sawFailure(found ?? [])
                     let knownWindow = LaunchHealth.showsOwnWindow(analysis)
-                    let choice = LaunchHealth.ownQuestionWasAChoice(explained: failureSeen, endedAtBox: endedAtBox, knownWindow: knownWindow)
+                    let unreadable = LaunchHealth.endedAtUnreadableWindow(explained: failureSeen, endedAtBox: endedAtBox, knownWindow: knownWindow)
+                    let choice = LaunchHealth.ownQuestionWasAChoice(explained: failureSeen, endedAtBox: endedAtBox, knownWindow: knownWindow,
+                                                                    unreadableBefore: unreadableEnds,
+                                                                    somethingFound: StartDiagnosis.speaksAgainstAChoice(found ?? []))
+                    if stands, unreadable { unreadableEnds += 1 }
                     if stands, !choice {
                         let why = failureSeen ? "the diagnosis says why it ended"
                             : endedAtBox.map { "a message box that only says \"\(GameLog.redacted(String($0.prefix(120))))\"" }
@@ -5077,7 +5084,9 @@ final class LibraryModel: ObservableObject {
                         GameLog.note("Start of \(game.name): the window it ended at was no question – \(why): a failed start")
                     }
                     if stands, choice {
-                        GameLog.note("Start of \(game.name): it ended at a question of its own – the player's choice, no other way")
+                        GameLog.note("Start of \(game.name): it ended at a question of its own – "
+                            + (unreadable ? "a window that says nothing, for the second time in this Play and with nothing found against it: " : "")
+                            + "the player's choice, no other way")
                         noteEnded("closed at a question of its own", diagnosis: diagnosis)
                         return
                     }

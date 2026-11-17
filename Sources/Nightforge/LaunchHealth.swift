@@ -501,10 +501,27 @@ enum LaunchHealth {
     /// SteamAPI" on 15.11.2026 was a window of its own, no message box (no msgbox line with every start carrying
     /// the channel), and went down as the player's choice where the start had failed. The start flow asks this
     /// since step E5 (LibraryModel.launch, docs/ENTWURF-STARTREZEPT.md 3.3).
-    static func ownQuestionWasAChoice(explained: Bool, endedAtBox: String?, knownWindow: Bool) -> Bool {
+    /// `unreadableBefore`, `somethingFound`: such a window can be the game's word that it won't go on, or a small
+    /// window of its own that nothing tells of – a language picker, a settings dialog, an older game's launcher –
+    /// which the player closed on purpose; from outside the two look alike. The first such end in a Play is taken
+    /// for a failed start, as since step E5. The second in the same Play (`unreadableBefore` > 0), with nothing
+    /// found that speaks of a failure (`somethingFound`, StartDiagnosis.speaksAgainstAChoice), is the player's:
+    /// the same window twice and still no reason is more likely a window closed twice than a failure with no
+    /// trace. Up to 17.11.2026 a game closed that way came back once per way of its ladder, with a closer look in
+    /// between. The ladder stays where the first end moved it, so a game that really fails on its first ways gets
+    /// to the next one with the next Play.
+    static func ownQuestionWasAChoice(explained: Bool, endedAtBox: String?, knownWindow: Bool,
+                                      unreadableBefore: Int = 0, somethingFound: Bool = false) -> Bool {
         if explained { return false }
         if let endedAtBox { return CloserLook.box(endedAtBox) == .question }
-        return knownWindow
+        if knownWindow { return true }
+        return unreadableBefore > 0 && !somethingFound
+    }
+
+    /// The window a start ended at says nothing Nightforge can read: the table saw no failure, it was no message
+    /// box, and the game isn't known to show a window of its own.
+    static func endedAtUnreadableWindow(explained: Bool, endedAtBox: String?, knownWindow: Bool) -> Bool {
+        !explained && endedAtBox == nil && !knownWindow
     }
 
     /// Whether a game shows a window of its own before it plays, one the player may close on purpose: Unity's
