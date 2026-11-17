@@ -2,6 +2,11 @@
 
 Against a stand-in compiler that writes down every call, so no Swift is compiled here:
 python3 -m unittest tests/test_testbuild.py
+
+The SDK here is a name only ("/sdk"). With Xcode selected, /usr/bin/python3 is a stub that asks xcrun, and xcrun
+gives up on an SDK that isn't there (exit 72): on GitHub's runner every call of the script ended that way before it
+ran (17.11.2026: 21 failures, 5 errors, and the steps after it skipped). So the script and the stand-in's own
+Python run with the interpreter of this test, never through the stub.
 """
 from __future__ import annotations
 
@@ -10,6 +15,7 @@ import os
 import pathlib
 import stat
 import subprocess
+import sys
 import tempfile
 import textwrap
 import unittest
@@ -36,7 +42,7 @@ COMPILER = textwrap.dedent("""\
       if [ -n "${FAKE_APP_BROKEN:-}" ]; then echo "x.swift:1:1: error: the app is broken"; exit 7; fi
       previous=""
       for word in "$@"; do [ "$previous" = "-output-file-map" ] && map="$word"; previous="$word"; done
-      /usr/bin/python3 -I -c 'import json,sys
+      "$FAKE_PYTHON" -I -c 'import json,sys
     for entry in json.load(open(sys.argv[1])).values(): open(entry["object"], "w").close()' "$map"
       exit 0
     fi
@@ -68,7 +74,7 @@ class World(unittest.TestCase):
         self.log = self.home / "log"
         self.log.touch()
         self.env = {**os.environ, "NIGHTFORGE_REAL_SWIFTC": str(self.real), "FAKE_LOG": str(self.log),
-                    "FAKE_FRONTEND": str(self.frontend), "SDKROOT": "/sdk"}
+                    "FAKE_FRONTEND": str(self.frontend), "FAKE_PYTHON": sys.executable, "SDKROOT": "/sdk"}
         self.env.pop("NIGHTFORGE_TEST_OBJECTS", None)
         self.app = ["Sources/Nightforge/A.swift", "Sources/Nightforge/B.swift"]
         self.series = ["-parse-as-library", "-o", "out", *self.app, "tests/OneTest/main.swift"]
@@ -79,7 +85,7 @@ class World(unittest.TestCase):
         path.write_text(text)
 
     def shim(self, *arguments: str, **extra: str) -> subprocess.CompletedProcess[str]:
-        return subprocess.run([str(SHIM), *arguments], cwd=self.repo, env={**self.env, **extra}, text=True,
+        return subprocess.run([sys.executable, "-I", str(SHIM), *arguments], cwd=self.repo, env={**self.env, **extra}, text=True,
                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     def prepare(self, *flags: str, **extra: str) -> subprocess.CompletedProcess[str]:
