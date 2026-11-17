@@ -49,6 +49,11 @@ struct TouchpadPointer {
     /// Wider screens get more points per finger's travel (a 4K TV as much as a 1080p one gets by eye).
     var screenScale: CGFloat = 1
 
+    /// Written out: with private properties beside it, the initializer Swift makes by itself is private for the
+    /// Swift of Xcode 26.6, so `TouchpadPointer(screenScale:)` from another file built with this Mac's Swift 6.4
+    /// and not on GitHub's runner (17.11.2026: TouchpadPointerTest, the one series of 121 that didn't build there).
+    init(screenScale: CGFloat = 1) { self.screenScale = screenScale }
+
     private var fingers = 0
     private var base: Finger?
     private var baseTime: TimeInterval = 0
