@@ -424,3 +424,53 @@ Auf dem Endstand der Quellen (`e1f79e6`), nach den `.rc`-Dateien in `build/test-
   der nächste Weg wie vor Schritt E (S1).
 - Nach „Das hat nicht geklappt“ auf „Nochmal mit dem ersten Weg versuchen“: im Protokoll „… starts over: what earlier
   starts taught is forgotten – …“, wenn das Spiel etwas gelernt hatte (W1).
+
+## Nachlese des Koordinators (17.11.)
+
+Neben der zweiten Runde, auf demselben Stand (`376f0ea`), ohne Nightforge-Fenster und ohne Spiele.
+
+### Behoben
+
+| Nr. | Schwere | Was | Datei |
+|---|---|---|---|
+| B11 | hoch für das Release | Die Prüfkette auf GitHub scheiterte am Test der Bau-Abkürzung; alle Schritte danach liefen nicht | `tests/test_testbuild.py` |
+
+**B11 · Die Prüfkette auf GitHub.** `ci.yml` läuft nur bei `main`, einem PR oder von Hand; für den am 15.11. gesicherten
+Zweig (`78ac7d0`) war sie nie gelaufen. Von Hand angestoßen (Lauf 44177202673): Der Bau der App ist grün, der Schritt
+„Test build shortcut“ rot (21 Fehlschläge, 5 Abbrüche, jeder Aufruf des Skripts endet mit 72), und damit wurden die
+Swift-Tests und alle weiteren Schritte übersprungen. Ursache: Der Test gibt dem Skript einen erfundenen SDK-Pfad
+(`SDKROOT=/sdk`) und ruft es über dessen erste Zeile auf, `/usr/bin/python3`. Mit einem ausgewählten Xcode ist das ein
+Stub, der `xcrun` fragt, und `xcrun` gibt bei einem SDK auf, das es nicht gibt. Nur mit den Command Line Tools (dieser
+Mac) stört der Pfad nicht, deshalb war der Test lokal immer grün. Die acht Tests derselben Datei, die den Pfad
+entfernen („git asks the real SDK“), waren auch auf GitHub grün. Nachgestellt mit `DEVELOPER_DIR=/nonexistent` (stellt
+die Stubs kalt): dasselbe Bild, 21 Fehlschläge und 5 Abbrüche. Behoben: Das Skript und das Python des Compiler-Ersatzes
+laufen im Test mit dem Interpreter des Tests, nie über den Stub. Danach mit kaltgestellten Stubs 16 von 16 (die übrigen
+acht brauchen `git`), normal 24 von 24, auch mit Python 3.14. Die Testkette selbst (`scripts/run-tests.sh`) ist nicht
+betroffen: Sie setzt auf einem Mac mit Xcode keinen SDK-Pfad. **Offen:** Was die Schritte hinter diesem auf GitHub
+sagen, weiß erst ein neuer Lauf; dafür muss der Zweig neu gepusht werden (OK des Nutzers).
+
+### Geprüft, in Ordnung
+
+- **Mechanische Durchsicht des ganzen Unterschieds `origin/main..376f0ea`** (14.072 neue Zeilen in `Sources`): jede
+  neue Stelle, die löscht, verschiebt oder überschreibt (13: Bausteine, Shader-Übersetzungen, Updater, eigene
+  Merkdateien; nichts im Spielordner oder auf einem Laufwerk), erzwungenes Auspacken und harte Abbrüche (6, alle
+  durch die Zeile davor gedeckt), Zugriffe mit festem Index (rund 40, alle hinter einer Längenprüfung), Warteschleifen
+  (33, jede mit Frist oder Abbruch), neue Unterprozesse (5). Ohne Befund.
+- **Ganz gelesen, weil die zweite Runde sie nicht vertieft hat:** `PadKeyboard.swift`, `PadKeyboardView.swift` mit dem
+  Öffnen, Füttern und Schließen in `InputRouter.swift` und `LibraryModel.swift` (Y öffnet nicht zweimal; ein Schließen
+  mit der Maus räumt der nächste Takt auf), `IdleRest.swift`, `PhoneSignIn.swift`, `PhoneSignInServer.swift`; dazu die
+  Änderungen seit `365f393` an `SteamOnDemand.swift`, `TouchpadPointer.swift`, `PadPointer.swift` und
+  `GameBackdrop.swift`. Ohne Befund. `TVLayout.swift` und `TVRules.swift` sind seit dem Audit vom 8.11. unverändert.
+- **Compiler-Warnungen** eines frischen Baus (26): Hinweise zu `Sendable` und zu schwachen Bezügen, nichts Inhaltliches.
+- **Einstellungen des Nutzers vor der Live-Runde:** kein Testschalter gesetzt (nur `battleNetStore` und der Pfad des
+  Testkorbs), kein Spiel hat etwas gelernt (`learned.dllsOff`, `learned.steps` leer).
+- **Bundle:** keine Daten von AppleGamingWiki oder PCGamingWiki darin (`agw.json`, `pcgw.json`, `agw-notes.json`
+  bleiben im Repository und werden nachgeladen).
+
+### Für das Release gemerkt
+
+- Der Testbuild hat `pad-answer.exe` (auf diesem Mac mit mingw gebaut), ein Release erst, wenn der Bot-PR von
+  `pad-answer.yml` nach dem Merge auf `main` angenommen ist. Was die Live-Runde zu A und B in Windows-Fragen zeigt,
+  gilt für das Release nur dann.
+- Anmelden vom Sofa: Der Server hält sich über die beiden Abschluss-Funktionen selbst fest und wird nach dem Schließen
+  nicht freigegeben (wenige Kilobyte je Anmeldung, die Tür ist dann zu). Kein Fehler, den jemand bemerkt.

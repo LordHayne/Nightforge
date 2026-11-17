@@ -339,15 +339,40 @@ nichts blockiert, sobald B1 eingespielt ist. Behoben und im Testzweig (vom Koord
 lauter Klammern auf einem angesteckten Laufwerk beendete Nightforge bei jedem Start (`6e0784a`), B2 `installdir` konnte
 aus der Bibliothek herausführen (`ca716ab`), B3 jede Datei einer Bibliothek wurde ganz gelesen (`8c19745`), B4 mit `+pid`
 füllte ein Fehler die Liste des Problemberichts (`963f526`), B5 Test hält die Testschalter aus dem Release (`c2d4950`).
-- [ ] S1 `ownAntiCheat` zählt in der Startschleife nicht als Anti-Cheat – wird nach der stehenden Regel des Nutzers
-  behoben (Audit-Session). S2 „Noch ein Versuch …“ ohne Versuch – wird behoben. W1 Gelerntes lässt sich nicht
-  zurücknehmen – beim vorhandenen Zurücksetzen mit erledigen, wenn klein.
+- [x] S1 `ownAntiCheat` zählt in der Startschleife wie Anti-Cheat (`80a236b`), S2 der Vorhang sagt das Ende, wo kein
+  Versuch mehr kommt (`148a67c`), W1 „Noch einmal von vorn“ vergisst das Gelernte (`9522227`): im Testzweig seit `389cb19`.
 - [ ] Entscheidungen des Nutzers: W3 (ein kleines eigenes Startfenster, das der Spieler schließt, gilt seit dem 15.11.
-  als Fehlstart und kommt bis zu zweimal wieder; Empfehlung: das zweite solche Ende als Wahl des Spielers nehmen),
+  als Fehlstart und kommt bis zu zweimal wieder; **am 17.11. nach der Empfehlung gebaut, `e1f79e6`, siehe 3b – der
+  Nutzer kann es einzeln ablehnen**),
   W4/W5 (übernommene Spiele vom Laufwerk prüft kein Laden; Steam zählt vor dem Besitz – für 0.3.4), W7
   (`start-evidence.jsonl` ist immer an, bleibt auf dem Mac, wird nie gekürzt – in die Release-Notizen, Kürzen für
   0.3.4), W8 (A für „Neu starten“ kommt im unsichtbaren Spiel an – live an Overwatch ansehen), W9 („Hinzufügen und
   starten“ ist vorgewählt, zählt erst, wenn eine Wurzel in der Liste steht).
+
+**3b. Zweiter Audit vor der Live-Runde (17.11., der Nutzer: „kannst du vorm live prüfen nochmal einen kompletten audit
+machen und bugs suchen und beheben“; Bericht: Abschnitte „Zweite Runde“ und „Nachlese des Koordinators“ in
+`docs/AUDIT-0.3.3-ABSCHLUSS.md`):**
+- Audit-Session, zweite Runde auf `376f0ea`: **kein neuer Fehler** in dem, was die Live-Runde anfasst (Anmelden vom Sofa,
+  Pad-Wege, Lizenz, Battle.net-Start, zwei Controller, Startseite) und quer über den ganzen Unterschied zu 0.3.2
+  (Nebenläufigkeit, Lebenszyklus, Aufstieg von 0.3.2, Release-Build, Fehlerpfade). Gebaut, je ein Commit mit Test:
+  **N2** kein „Noch ein Versuch …“, wo das Ende das des Spielers sein kann (`3afd0b1`); **W3** dasselbe Fenster, das
+  nichts sagt, zweimal im selben „Spielen“ und nichts gefunden, das dagegen spricht: Wahl des Spielers (`e1f79e6`).
+  Preis von W3: Scheitert ein Spiel wirklich zweimal an einem eigenen Fenster ohne Spur, endet der Start still auf der
+  Seite, und der nächste Weg kommt erst mit dem nächsten „Spielen“. Zurück mit `git revert e1f79e6`.
+- Koordinator: mechanische Durchsicht aller 14.072 neuen Zeilen (löschen/überschreiben, erzwungenes Auspacken, feste
+  Indexzugriffe, Warteschleifen, Unterprozesse) und die Teile, die die zweite Runde nicht vertieft hat
+  (Bildschirmtastatur ganz, Ruhe im Leerlauf, Server fürs Anmelden vom Sofa, Änderungen an Steam bei Bedarf,
+  Touchpad-Zeiger, Ladebildschirm): ohne Befund.
+- **B11, gefunden über GitHub:** Die Prüfkette (`ci.yml`) war für den gesicherten Zweig nie gelaufen. Von Hand
+  angestoßen (Lauf 44177202673 auf `78ac7d0`): Bau grün, „Test build shortcut“ rot, alles danach übersprungen. Der Test
+  rief sein Skript mit einem erfundenen SDK-Pfad über Apples Python-Stub auf, der mit einem vollen Xcode daran
+  scheitert. Lokal nachgestellt, behoben in `tests/test_testbuild.py`. **Offen: Was die Schritte danach auf GitHub
+  sagen, zeigt erst ein neuer Lauf, und der braucht einen neuen Push (OK des Nutzers).** Vor dem PR nach `main`
+  unbedingt abwarten.
+- Für die Live-Runde: in den echten Einstellungen steht kein Testschalter, kein Spiel hat etwas gelernt. Die Liste,
+  worauf bei welchem Punkt zu achten ist, steht im Bericht unter „Für die Live-Runde“.
+- Weiter offen (nur beschrieben): Z2 Übernahme für Steam für Mac ohne Warteschlange (Vermutung), Z3 Laufwerk weg mitten
+  im Start (langer Vorhang, B führt heraus), N1 (Entscheidung des Nutzers).
 
 **3a. Frühere Fassung dieses Punktes:** Audit- und Testrunde über alles seit dem 8.11.: Start-Rezept und Schritt E, Laufwerk-Übernahme (fasst Steams
 Listen, legendary und GOGs Liste an), Vorhang, Frage zur Wurzel, Testschalter. Eigene Session; Befunde prüft der Koordinator.
