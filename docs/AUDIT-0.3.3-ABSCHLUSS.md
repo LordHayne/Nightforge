@@ -431,9 +431,10 @@ Neben der zweiten Runde, auf demselben Stand (`376f0ea`), ohne Nightforge-Fenste
 
 ### Behoben
 
-| Nr. | Schwere | Was | Datei |
-|---|---|---|---|
-| B11 | hoch für das Release | Die Prüfkette auf GitHub scheiterte am Test der Bau-Abkürzung; alle Schritte danach liefen nicht | `tests/test_testbuild.py` |
+| Nr. | Schwere | Was | Datei | Commit |
+|---|---|---|---|---|
+| B11 | hoch für das Release | Die Prüfkette auf GitHub scheiterte am Test der Bau-Abkürzung; alle Schritte danach liefen nicht | `tests/test_testbuild.py` | `b61b765` |
+| B12 | hoch für das Release | Eine von 121 Testreihen baute auf GitHub nicht: der von Swift erzeugte Initialisierer ist dort privat | `TouchpadPointer.swift:52` | `be14133` |
 
 **B11 · Die Prüfkette auf GitHub.** `ci.yml` läuft nur bei `main`, einem PR oder von Hand; für den am 15.11. gesicherten
 Zweig (`78ac7d0`) war sie nie gelaufen. Von Hand angestoßen (Lauf 44177202673): Der Bau der App ist grün, der Schritt
@@ -446,8 +447,19 @@ entfernen („git asks the real SDK“), waren auch auf GitHub grün. Nachgestel
 die Stubs kalt): dasselbe Bild, 21 Fehlschläge und 5 Abbrüche. Behoben: Das Skript und das Python des Compiler-Ersatzes
 laufen im Test mit dem Interpreter des Tests, nie über den Stub. Danach mit kaltgestellten Stubs 16 von 16 (die übrigen
 acht brauchen `git`), normal 24 von 24, auch mit Python 3.14. Die Testkette selbst (`scripts/run-tests.sh`) ist nicht
-betroffen: Sie setzt auf einem Mac mit Xcode keinen SDK-Pfad. **Offen:** Was die Schritte hinter diesem auf GitHub
-sagen, weiß erst ein neuer Lauf; dafür muss der Zweig neu gepusht werden (OK des Nutzers).
+betroffen: Sie setzt auf einem Mac mit Xcode keinen SDK-Pfad.
+
+**B12 · Eine Testreihe baute nur hier.** Nach B11 gepusht (mit OK des Nutzers) und neu gestartet (Lauf 44181523836
+auf `c7397f2`): der Test der Abkürzung grün, 120 von 121 Reihen grün, `TouchpadPointerTest` rot beim Bauen
+(„argument passed to call that takes no arguments“), die neun Schritte danach übersprungen. `TouchpadPointer` hat
+neben `screenScale` nur private Eigenschaften; den Initialisierer, den Swift selbst erzeugt, macht das Swift von
+Xcode 26.6 (GitHubs Runner) deshalb privat, das Swift 6.4 dieses Macs nicht. Die App ruft ihn nur im Typ selbst
+auf, die Testreihe aus ihrer eigenen Datei. Behoben: der Initialisierer steht ausgeschrieben da.
+
+**Ergebnis auf GitHub:** dritter Lauf (44186316561 auf `be14133`) **ganz grün**, alle 14 Schritte, zum ersten Mal
+seit 0.3.2. Lokal davor: ganze Kette grün (121 Reihen, 286 Python-Tests), die neun Schritte hinter den Swift-Tests
+einzeln mit Python 3.14 grün. Gemerkt für später: `ci.yml` läuft nur bei `main`, einem PR oder von Hand; nach
+jedem Push eines Testzweigs von Hand anstoßen (`gh workflow run ci.yml --ref <Zweig>`).
 
 ### Geprüft, in Ordnung
 

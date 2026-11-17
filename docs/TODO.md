@@ -366,9 +366,13 @@ machen und bugs suchen und beheben“; Bericht: Abschnitte „Zweite Runde“ un
 - **B11, gefunden über GitHub:** Die Prüfkette (`ci.yml`) war für den gesicherten Zweig nie gelaufen. Von Hand
   angestoßen (Lauf 44177202673 auf `78ac7d0`): Bau grün, „Test build shortcut“ rot, alles danach übersprungen. Der Test
   rief sein Skript mit einem erfundenen SDK-Pfad über Apples Python-Stub auf, der mit einem vollen Xcode daran
-  scheitert. Lokal nachgestellt, behoben in `tests/test_testbuild.py`. **Offen: Was die Schritte danach auf GitHub
-  sagen, zeigt erst ein neuer Lauf, und der braucht einen neuen Push (OK des Nutzers).** Vor dem PR nach `main`
-  unbedingt abwarten.
+  scheitert. Lokal nachgestellt, behoben in `tests/test_testbuild.py` (`b61b765`).
+- **B12:** Nach dem Push (OK des Nutzers „Ja, pushen“, 17.11.) zweiter Lauf auf `c7397f2`: 120 von 121 Reihen grün,
+  `TouchpadPointerTest` baute mit dem Swift von Xcode 26.6 nicht (der von Swift erzeugte Initialisierer ist dort
+  privat, mit dem Swift 6.4 dieses Macs nicht). Initialisierer ausgeschrieben (`be14133`), wieder mit OK gepusht.
+- [x] **Prüfkette auf GitHub ganz grün** (Lauf 44186316561 auf `be14133`, alle 14 Schritte), zum ersten Mal seit
+  0.3.2. `origin/claude/staging-033` = `be14133`. Merksatz: `ci.yml` läuft nur bei `main`, PR oder von Hand – nach
+  jedem Push eines Testzweigs `gh workflow run ci.yml --ref <Zweig>`.
 - Für die Live-Runde: in den echten Einstellungen steht kein Testschalter, kein Spiel hat etwas gelernt. Die Liste,
   worauf bei welchem Punkt zu achten ist, steht im Bericht unter „Für die Live-Runde“.
 - Weiter offen (nur beschrieben): Z2 Übernahme für Steam für Mac ohne Warteschlange (Vermutung), Z3 Laufwerk weg mitten
