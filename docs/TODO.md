@@ -373,6 +373,9 @@ machen und bugs suchen und beheben“; Bericht: Abschnitte „Zweite Runde“ un
 - [x] **Prüfkette auf GitHub ganz grün** (Lauf 44186316561 auf `be14133`, alle 14 Schritte), zum ersten Mal seit
   0.3.2. `origin/claude/staging-033` = `be14133`. Merksatz: `ci.yml` läuft nur bei `main`, PR oder von Hand – nach
   jedem Push eines Testzweigs `gh workflow run ci.yml --ref <Zweig>`.
+- [x] **Eingespielt am 18.11., 17:03, mit „Ja, einspielen“: Testbuild = `201c63a`** (Code wie `be14133`: zweite
+  Audit-Runde mit N2 und W3, B11, B12). Kette davor grün (121 Reihen, 286 Python-Tests), Signatur OK, die
+  eingespielte Datei ist die gebaute. Damit ist der Stand für die Live-Runde auf dem Mac.
 - Für die Live-Runde: in den echten Einstellungen steht kein Testschalter, kein Spiel hat etwas gelernt. Die Liste,
   worauf bei welchem Punkt zu achten ist, steht im Bericht unter „Für die Live-Runde“.
 - Weiter offen (nur beschrieben): Z2 Übernahme für Steam für Mac ohne Warteschlange (Vermutung), Z3 Laufwerk weg mitten
