@@ -215,6 +215,21 @@ enum PadPointerRules {
         case explain
     }
 
+    /// The permission to click in other apps' windows, as Settings shows it.
+    enum Access: Equatable {
+        case granted
+        /// Turned on while Nightforge runs: it counts from the next start.
+        case afterRestart
+        case missing
+    }
+
+    /// `preflight`: what macOS says works now, which is what held when Nightforge started – turned on in System
+    /// Settings while it runs, that stays false until the next start (seen live on 21.11.2026). `trusted`: the
+    /// switch itself, as it stands now.
+    static func access(preflight: Bool, trusted: Bool) -> Access {
+        preflight ? .granted : trusted ? .afterRestart : .missing
+    }
+
     static func clickRoute(hasAccess: Bool, overOwnWindow: Bool) -> ClickRoute {
         if hasAccess { return .post }
         return overOwnWindow ? .ownWindow : .explain

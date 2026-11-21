@@ -390,10 +390,18 @@ private struct ControllerSettings: View {
     @AppStorage(Prefs.Keys.padHaptics) private var padHaptics = true
     @AppStorage(Prefs.Keys.padPointer) private var padPointer = true
     /// Looked up again whenever Nightforge comes back, from System Settings for example.
-    @State private var pointerAllowed = PadPointerAccess.granted
+    @State private var pointerAccess = PadPointerAccess.state
     /// Bumped when a controller comes or goes, or its battery may have changed.
     @State private var refresh = 0
     @State private var pairing = false
+
+    private var pointerAccessText: String {
+        switch pointerAccess {
+        case .granted: return L10n.t("Allowed. The controller reaches Steam's windows and questions from macOS.")
+        case .afterRestart: return L10n.t("Allowed. It works once Nightforge has restarted.")
+        case .missing: return L10n.t("Steam's windows and questions from macOS need the Accessibility permission. Turn it on once with a mouse or trackpad; after that it works from the sofa.")
+        }
+    }
     @State private var homeButton = HomeButtonSetup.State.unavailable
     @State private var homeButtonIsOurs = false
 
@@ -494,18 +502,21 @@ private struct ControllerSettings: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(L10n.t("Clicks in other windows"))
                             .font(size: 12)
-                        Text(pointerAllowed
-                             ? L10n.t("Allowed. The controller reaches Steam's windows and questions from macOS.")
-                             : L10n.t("Steam's windows and questions from macOS need the Accessibility permission. Turn it on once with a mouse or trackpad; after that it works from the sofa."))
+                        Text(pointerAccessText)
                             .font(size: 10)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     Spacer(minLength: 0)
-                    if pointerAllowed {
+                    switch pointerAccess {
+                    case .granted:
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundStyle(Theme.sodium)
-                    } else {
+                    case .afterRestart:
+                        // The switch is on, and macOS lets it count from Nightforge's next start: the way there, in one press.
+                        Button(L10n.t("Restart")) { model.restartNightforge() }
+                            .padFocus("settings.padPointerRestart", cornerRadius: 15, activate: { model.restartNightforge() })
+                    case .missing:
                         Button(L10n.t("Allow …"), action: PadPointerAccess.ask)
                             .padFocus("settings.padPointerAllow", cornerRadius: 15, activate: PadPointerAccess.ask)
                     }
@@ -564,7 +575,7 @@ private struct ControllerSettings: View {
         .onReceive(NotificationCenter.default.publisher(for: .GCControllerDidConnect)) { _ in refresh += 1; pairing = false }
         .onReceive(NotificationCenter.default.publisher(for: .GCControllerDidDisconnect)) { _ in refresh += 1 }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            pointerAllowed = PadPointerAccess.granted
+            pointerAccess = PadPointerAccess.state
         }
         .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { _ in refresh += 1 }
     }

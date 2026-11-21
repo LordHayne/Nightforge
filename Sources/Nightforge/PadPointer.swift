@@ -187,7 +187,22 @@ struct Touchpad {
 enum PadPointerAccess {
     private static let pane = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
 
+    /// What works now. macOS answers this with what held when Nightforge started: turned on in System Settings
+    /// while it runs, it stays false until the next start (seen live on 21.11.2026, and as others report it).
     static var granted: Bool { CGPreflightPostEventAccess() }
+
+    private static var saidAfterRestart = false
+
+    /// As Settings shows it (PadPointerRules.access): beside what works now, the switch in System Settings as
+    /// it stands (AXIsProcessTrusted follows it while Nightforge runs).
+    static var state: PadPointerRules.Access {
+        let now = PadPointerRules.access(preflight: CGPreflightPostEventAccess(), trusted: AXIsProcessTrusted())
+        if now == .afterRestart, !saidAfterRestart {
+            saidAfterRestart = true
+            GameLog.note("Controller as a mouse: allowed in System Settings while Nightforge runs – macOS lets it count from the next start")
+        }
+        return now
+    }
 
     /// macOS asks by itself the first time, and that also lists Nightforge there. It never asks
     /// twice, and then the switch itself is the way.

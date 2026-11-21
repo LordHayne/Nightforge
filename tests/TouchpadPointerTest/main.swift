@@ -212,6 +212,13 @@ struct TouchpadPointerTest {
         check(!PadPointerRules.stickIsPointer(works: false, hasTouchpad: false, inFront: false, overlay: false, curtain: false), "not in a game")
 
         check(PadPointerRules.clickRoute(hasAccess: true, overOwnWindow: false) == .post, "allowed: every window")
+        // The permission as Settings shows it. macOS tells a running app what held at its start (21.11.2026: the
+        // switch on in System Settings, and Settings still asked for it), so the switch itself is read beside it.
+        check(PadPointerRules.access(preflight: true, trusted: true) == .granted && PadPointerRules.access(preflight: true, trusted: false) == .granted,
+              "what works now is allowed, whatever the switch says")
+        check(PadPointerRules.access(preflight: false, trusted: true) == .afterRestart,
+              "turned on while Nightforge runs: allowed, from the next start")
+        check(PadPointerRules.access(preflight: false, trusted: false) == .missing, "not turned on: Settings asks for it")
         check(PadPointerRules.clickRoute(hasAccess: false, overOwnWindow: true) == .ownWindow, "not allowed: Nightforge's own windows still work")
         check(PadPointerRules.clickRoute(hasAccess: false, overOwnWindow: false) == .explain, "another app's window: say how")
 

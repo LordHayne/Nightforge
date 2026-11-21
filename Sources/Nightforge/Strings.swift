@@ -1545,6 +1545,7 @@ enum L10n {
         "Allowed. The controller reaches Steam's windows and questions from macOS.": "Erlaubt. Der Controller erreicht Steams Fenster und Fragen von macOS.",
         "Steam's windows and questions from macOS need the Accessibility permission. Turn it on once with a mouse or trackpad; after that it works from the sofa.": "Steams Fenster und Fragen von macOS brauchen das Recht „Bedienungshilfen“. Schalte es einmal mit Maus oder Trackpad ein, danach geht es vom Sofa aus.",
         "Allow …": "Erlauben …",
+        "Allowed. It works once Nightforge has restarted.": "Erlaubt. Es wirkt, sobald Nightforge neu gestartet ist.",
         "Paused while Steam waits for you to sign in": "Pausiert, solange Steam auf deine Anmeldung wartet",
 
         // First start: the tips while Steam installs
