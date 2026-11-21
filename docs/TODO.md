@@ -343,6 +343,22 @@ oder ein Bildschirmfoto.
   Hintergrund melden ein fehlendes Rosetta nur im Protokoll. Entscheidung des Nutzers offen: Die Frage kommt einmal je
   Sitzung auch bei Spielern, die nur Mac-Spiele haben (Empfehlung der Session: so lassen).
 
+- [ ] **F1 gebaut (21.11. nachts, `claude/mac-vollbild-034` c881d15, im Arbeitszweig seit 10e0bd0, Kette grün):** Eine
+  Unity-Mac-Version ohne eigenen gespeicherten Bildschirmmodus startet mit `-screen-fullscreen 1` (`MacUnityScreen.swift`);
+  danach gilt, was das Spiel speichert. Belegt: Valheims Vorgabe ist ein Fenster von 1366×768
+  (`com.coffeestain.valheim-steam`, „Screenmanager Fullscreen mode Default“ = 3). Nicht Unity und unverändert: Asphalt
+  Legends, Drawful 2, Dying Light, No Man's Sky, Tomb Raider. Einen echten Start hat noch niemand gesehen; zum
+  Nachstellen am neuen MacBook: `defaults delete com.coffeestain.valheim-steam "Screenmanager Fullscreen mode"`.
+- [ ] **F3 – zu wenig Geduld mit dem Windows-Steam auf einem frischen Mac** (Protokoll des Nutzers, 21.11. 23:24–23:43,
+  Testbuild e06db69): OxyRail (DXMT) startete in 53 s. Black Myth: Wukong Benchmark Tool (D3DMetal) fünfmal nicht: Steam
+  braucht dort vom Start bis „Logged On“ 40–45 s; `LibraryModel` (~4798) wartet 45 s und ruft dann
+  `restartStuckSteam`, startet also ein Steam neu, das gerade fertig wurde; je Versuch steht „The Windows Steam starts in
+  the background“ zweimal im Protokoll. Nach rund 30 s kommt „Hängt es? Zurück zu Nightforge“ (storeQuiet, Overlay
+  „stuck“), obwohl die Phase „Anmeldung bei Steam …“ noch läuft; der Nutzer ging jedes Mal Sekunden vor dem Start
+  zurück – die Zeile „starts on D3DMetal“ steht jeweils direkt danach. Auftrag an diagnose-start
+  (`claude/steam-geduld-034`): ein Steam, das vorankommt, nicht neu starten; kein doppelter Neustart; „Hängt es?“ erst
+  nach der erklärenden Phase; klären, ob „Zurück“ den Start beendet.
+
 ## 0.3.3: Release (21.11., der Nutzer: „bringen wir das release online dann kann ich update und alles prüfen und etwaige bugs bügeln wir in .4 aus“)
 
 **Stand:** Testzweig `08ec62c` plus dieser Commit (Version 0.3.3, Release-Notizen ohne Arbeitskommentare). Die Live-Runde
