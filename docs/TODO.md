@@ -319,6 +319,19 @@ oder ein Bildschirmfoto.
   Controller-Schlüssel tut); was der Spieler später im Spiel wählt, bleibt. Zu klären: Schlüssel und Domäne je
   Unity-Fassung, Erkennen von Unity an der App, andere Engines (Feral, Unreal). Bis dahin hilft im Spiel einmal
   „Vollbild“ in den Grafikeinstellungen.
+- [ ] **F2 – Windows-Steam startet auf dem neuen MacBook gar nicht; „Ungültiger CPU-Typ im startfähigen Programm“**
+  (21.11., 20:35, Bildschirmfoto: Meldung „Etwas ist schiefgelaufen“ in „Deine Launcher“, GOG-Karte gewählt; Steam für
+  Mac läuft). Der Wortlaut ist die Systemmeldung für ein Programm, dessen Prozessortyp der Mac nicht ausführen kann.
+  Nachgesehen: Intel-Programme (x86_64) sind Wine und wineserver aus den Bausteinen und `nightforge-sandbox` im Bundle;
+  Nightforge selbst, sein Helfer, legendary und gogdl sind arm64. Das veröffentlichte 0.3.3 hat dieselben Architekturen
+  wie 0.3.2 – am Release liegt es nicht. **Vermutung, vom neuen Mac noch nicht bestätigt:** Dort läuft kein Intel-Code,
+  weil Rosetta fehlt oder nach einem macOS-Update neu installiert werden muss. Probe dort:
+  `arch -x86_64 /usr/bin/true`; Abhilfe: `softwareupdate --install-rosetta` (Lizenz bestätigt der Nutzer), sonst Neustart.
+  **Lücke in Nightforge, unabhängig von der Ursache:** Nach Rosetta fragt nur die erste Einrichtung (`Setup.swift`, erster
+  Schritt, `Engine.isRosettaInstalled`). Danach prüft es niemand mehr: Ein Start von Wine, Steam oder der Sandbox
+  scheitert dann still oder mit der rohen Systemmeldung. Abhilfe: vor jedem Start von Intel-Code einmal je Sitzung
+  prüfen (und bei „Bad CPU type“ erneut), denselben Schritt „Rosetta installieren“ zeigen wie die Einrichtung, die rohe
+  Meldung nie durchreichen.
 
 ## 0.3.3: Release (21.11., der Nutzer: „bringen wir das release online dann kann ich update und alles prüfen und etwaige bugs bügeln wir in .4 aus“)
 
@@ -352,7 +365,7 @@ daraus kommen in 0.3.4.
   Anforderung wie 0.3.2), keine Testschalter, kein `pad-answer.exe`. Ausgangswert der Downloads direkt danach: 0.3.3 = 0;
   0.3.2 DMG 2 / Zip 3; 0.3.1 DMG 2 / Zip 2; 1 Stern.
 - **Offen nach dem Release:**
-  - [x] Landingpage und README: #46 und #47 gemergt und live angesehen; #48 „Geprüft auf dem Mac“ als eigene Seite mit Tab, ohne die „ehrlich“-Überschriften (main da92cae). Offen: Textdurchgang der Seite (Zweig `claude/site-texte`, Vorher/Nachher an den Nutzer).
+  - [x] Landingpage und README: #46 und #47 gemergt und live angesehen; #48 „Geprüft auf dem Mac“ als eigene Seite mit Tab, ohne die „ehrlich“-Überschriften (main da92cae). Der Textdurchgang ist als #49 online (main 3bbadd0), live bei 1440, 900 und 390 px angesehen.
   - [ ] Der Nutzer prüft nach dem Update auf dem neuen MacBook Pro (Liste oben); Fehler → 0.3.4.
   - [ ] `scripts/fetch-geforce-now.py` bekommt auf GitHub seit dem 20.11. HTTP 403, „Update game profiles“ ist rot,
     nächtlich und auf `main`. Ursache ansehen; kein Umgehen über einen fremden User-Agent.
