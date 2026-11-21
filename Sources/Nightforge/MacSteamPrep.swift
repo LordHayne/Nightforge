@@ -92,7 +92,7 @@ final class MacSteamPrep: ObservableObject {
                 return
             } catch {
                 MacSteam.hold(false)
-                state = .failed(error.localizedDescription)
+                state = .failed(RosettaSupport.playerText(error))
             }
         }
     }

@@ -1917,7 +1917,7 @@ enum Engine {
             process.environment = env
             process.standardOutput = FileHandle.nullDevice
             process.standardError = FileHandle.nullDevice
-            guard (try? process.run()) != nil else { return }
+            guard (try? RosettaSupport.run(process)) != nil else { return }
             process.waitUntilExit()
         }.value
     }
@@ -1999,7 +1999,7 @@ enum Engine {
                 try? log?.close()
                 continuation.resume(returning: finished.terminationStatus == 0)
             }
-            if (try? process.run()) == nil {
+            if (try? RosettaSupport.run(process)) == nil {
                 try? log?.close()
                 continuation.resume(returning: false)
             }
@@ -2299,7 +2299,7 @@ enum Engine {
         regedit.environment = environment(wine: wine)
         regedit.standardOutput = FileHandle.nullDevice
         regedit.standardError = FileHandle.nullDevice
-        guard (try? regedit.run()) != nil else { return false }
+        guard (try? RosettaSupport.run(regedit)) != nil else { return false }
         // A regedit takes seconds, the first of a session a few more (it starts the wineserver). One
         // that is still at it after half a minute is stuck in a session that doesn't answer: ended,
         // so the game start that asked for the import goes on – or fails – instead of waiting for good.
@@ -2350,7 +2350,7 @@ enum Engine {
             let unregister = Process()
             unregister.executableURL = lsregister
             unregister.arguments = ["-u", legacy.path]
-            if (try? unregister.run()) != nil { unregister.waitUntilExit() }
+            if (try? RosettaSupport.run(unregister)) != nil { unregister.waitUntilExit() }
             try? fm.removeItem(at: legacy)
         }
 
@@ -2416,7 +2416,7 @@ enum Engine {
         let register = Process()
         register.executableURL = lsregister
         register.arguments = ["-f", bundle.path]
-        if (try? register.run()) != nil { register.waitUntilExit() }
+        if (try? RosettaSupport.run(register)) != nil { register.waitUntilExit() }
         return macOS.appendingPathComponent("wine")
     }
 
@@ -2569,14 +2569,14 @@ enum Engine {
             process.standardInput = FileHandle.nullDevice
             process.standardOutput = FileHandle.nullDevice
             process.standardError = FileHandle.nullDevice
-            try process.run()
+            try RosettaSupport.run(process)
             process.waitUntilExit()
 
             let server = Process()
             server.executableURL = wine.deletingLastPathComponent().appendingPathComponent("wineserver")
             server.arguments = ["-w"]
             server.environment = environment(wine: wine)
-            try? server.run()
+            try? RosettaSupport.run(server)
             server.waitUntilExit()
             return process.terminationStatus
         }.value
@@ -3156,7 +3156,7 @@ enum Engine {
             let log = GameLog.handleForSteam()
             process.standardOutput = log ?? FileHandle.nullDevice
             process.standardError = log ?? FileHandle.nullDevice
-            try process.run()
+            try RosettaSupport.run(process)
         } catch {
             // A start that never happened isn't judged as the engine's failure (SteamStartCheck, review B5).
             if fresh { lastSteamStart = nil }

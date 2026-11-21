@@ -196,7 +196,7 @@ extension LibraryModel {
             setUpD3DMetal()
         } catch {
             guard !Task.isCancelled else { return }
-            d3dMetalDialog?.step = .failed(error.localizedDescription)
+            d3dMetalDialog?.step = .failed(RosettaSupport.playerText(error))
         }
     }
 
