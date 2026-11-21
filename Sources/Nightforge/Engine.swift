@@ -399,6 +399,15 @@ enum Engine {
         prefix.appendingPathComponent("drive_c/Program Files (x86)/Steam", isDirectory: true)
     }
 
+    /// How long nothing in Windows Steam's logs has changed: a Steam that starts, updates or signs in writes there as it
+    /// goes (connection_log, console_log, bootstrap_log …). Infinite without a log.
+    static func steamLogsQuiet(steamRoot: URL = steamRoot, now: Date = Date()) -> TimeInterval {
+        let logs = steamRoot.appendingPathComponent("logs", isDirectory: true)
+        let files = (try? FileManager.default.contentsOfDirectory(at: logs, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
+        let newest = files.compactMap { try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate }.max()
+        return newest.map { max(0, now.timeIntervalSince($0)) } ?? .infinity
+    }
+
     static var isSteamInstalled: Bool {
         FileManager.default.fileExists(atPath: steamRoot.appendingPathComponent("steam.exe").path)
     }

@@ -29,6 +29,7 @@ struct GameOverlayTest {
         wayBack()
         wayOut()
         curtainLines()
+        steamPatience()
         brandArt()
         blocks()
         stillness()
@@ -952,6 +953,55 @@ struct GameOverlayTest {
     }
 
     /// The curtain's line follows the start: its own step while it has one, then the game's.
+    /// Steam's patience before a start (F3, 21.11.2026): a new Mac's Steam took 40–45 s to sign in, was restarted at
+    /// 45 s, then again for D3DMetal's settings, and "Stuck?" came while Nightforge itself still waited.
+    static func steamPatience() {
+        typealias M = LibraryModel
+        func step(_ signedIn: Bool = false, running: Bool = true, waited: TimeInterval, quiet: TimeInterval = 2) -> M.SteamSignInStep {
+            M.steamSignInStep(signedIn: signedIn, running: running, waited: waited, quietFor: quiet)
+        }
+        check(step(true, waited: 3) == .signedIn, "signed in: on")
+        check(step(waited: 46) == .wait && step(waited: 90) == .wait && step(waited: M.steamSignInPatience - 1) == .wait,
+              "still coming along at 46 s and at 90 s (the new Mac's 40–45 s): no restart")
+        check(step(waited: M.steamSignInPatience) == .stuck, "two minutes without signing in: stuck")
+        check(step(running: false, waited: M.steamGonePatience) == .stuck && step(running: false, waited: 5) == .wait,
+              "no Steam process after a few seconds: stuck")
+        check(step(waited: 50, quiet: M.steamQuietPatience) == .stuck && step(waited: 30, quiet: 60) == .wait,
+              "nothing in its logs for 45 s, once it had 45 s: stuck; earlier not yet")
+        check(M.steamSignInPatience >= 120, "two minutes on a new Mac")
+        // One restart per start.
+        check(M.restartsSteamForStart(environmentChanged: true, stuck: false, running: true, gamesRunning: false),
+              "the game's settings need Steam's environment: one restart")
+        check(M.restartsSteamForStart(environmentChanged: true, stuck: true, running: true, gamesRunning: false)
+              && M.restartsSteamForStart(environmentChanged: false, stuck: true, running: false, gamesRunning: false),
+              "stuck, with or without new settings: one restart, the same")
+        check(!M.restartsSteamForStart(environmentChanged: false, stuck: false, running: true, gamesRunning: false),
+              "a Steam that came along, nothing new: none")
+        check(!M.restartsSteamForStart(environmentChanged: true, stuck: false, running: true, gamesRunning: true)
+              && !M.restartsSteamForStart(environmentChanged: true, stuck: false, running: false, gamesRunning: false),
+              "settings only: not with a Windows game in its session, nor with no Steam running")
+        // "Stuck?" counts from the end of Nightforge's own work.
+        for phase in [LaunchPhase.signingIn, .restartingSteam, .startingSteam, .savingToCloud, .settingUp, .settingUpDotNet, .steamNotResponding] {
+            check(M.phaseExplainsWait(phase), "\(phase) explains the wait: no \"Stuck?\" meanwhile")
+        }
+        check(!M.phaseExplainsWait(nil) && !M.phaseExplainsWait(.updating(0.4)) && !M.phaseExplainsWait(.syncingSaves)
+              && !M.phaseExplainsWait(.signInInSteamWindow), "none, an update, Epic's or GOG's saves, the player's sign-in: counted as before")
+        // What "comes along" is read from: the newest change in Steam's logs.
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent("steam-quiet-\(UUID().uuidString)", isDirectory: true)
+        defer { try? fm.removeItem(at: root) }
+        check(Engine.steamLogsQuiet(steamRoot: root) == .infinity, "no logs: quiet")
+        let logs = root.appendingPathComponent("logs", isDirectory: true)
+        try? fm.createDirectory(at: logs, withIntermediateDirectories: true)
+        let now = Date()
+        for (name, ago) in [("connection_log.txt", 70.0), ("console_log.txt", 8.0)] {
+            let file = logs.appendingPathComponent(name)
+            fm.createFile(atPath: file.path, contents: Data("x".utf8))
+            try? fm.setAttributes([.modificationDate: now.addingTimeInterval(-ago)], ofItemAtPath: file.path)
+        }
+        check(abs(Engine.steamLogsQuiet(steamRoot: root, now: now) - 8) < 0.5, "the newest of its logs counts")
+    }
+
     static func curtainLines() {
         func line(_ phase: String? = nil, shaders: Bool = false, runs: Bool = false) -> String? {
             LibraryModel.curtainStatus(phase: phase, shaders: shaders, gameRuns: runs)
