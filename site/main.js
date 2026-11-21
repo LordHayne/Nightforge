@@ -14,13 +14,14 @@
     }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
     document.querySelectorAll('.reveal').forEach(function (el) { observer.observe(el); });
   }
+  // A page may name its own (data-title-de/-en, data-description-de/-en on <html>), else the landing page's.
   var titles = {
-    de: 'Nightforge – Deine Spiele auf dem Mac',
-    en: 'Nightforge – Your games on your Mac'
+    de: root.getAttribute('data-title-de') || 'Nightforge – Deine Spiele auf dem Mac',
+    en: root.getAttribute('data-title-en') || 'Nightforge – Your games on your Mac'
   };
   var descriptions = {
-    de: 'Nightforge ist ein kostenloser Spiele-Launcher für Macs mit Apple-Chip: Spiele von Steam, Epic und GOG an einem Ort, Mac-Versionen zuerst, Windows-Spiele scharf und flüssig, ganz von selbst.',
-    en: 'Nightforge is a free game launcher for Apple silicon Macs: Steam, Epic and GOG games in one place, Mac versions first, Windows games sharp and smooth by themselves.'
+    de: root.getAttribute('data-description-de') || 'Nightforge ist ein kostenloser Spiele-Launcher für Macs mit Apple-Chip: Spiele von Steam, Epic und GOG an einem Ort, Mac-Versionen zuerst, Windows-Spiele scharf und flüssig, ganz von selbst.',
+    en: root.getAttribute('data-description-en') || 'Nightforge is a free game launcher for Apple silicon Macs: Steam, Epic and GOG games in one place, Mac versions first, Windows games sharp and smooth by themselves.'
   };
 
   function apply(lang) {
