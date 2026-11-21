@@ -3604,6 +3604,7 @@ final class LibraryModel: ObservableObject {
         managedLauncher = nil
         if macSetup != nil { closeMacSetup() }
         errorMessage = nil
+        rosettaQuestion = nil
         sessionSummary = nil
         failedLaunch = nil
         if saveChoice != nil { answerSaveChoice(takeNewer: false) }
@@ -3623,7 +3624,7 @@ final class LibraryModel: ObservableObject {
     var openSheets: [String] {
         [("showingOptions", showingOptions), ("showingSettings", showingSettings), ("pendingSpace", pendingSpace != nil),
          ("pendingMove", pendingMove != nil), ("managedLauncher", managedLauncher != nil), ("macSetup", macSetup != nil),
-         ("errorMessage", errorMessage != nil), ("sessionSummary", sessionSummary != nil), ("failedLaunch", failedLaunch != nil),
+         ("errorMessage", errorMessage != nil), ("rosettaQuestion", rosettaQuestion != nil), ("sessionSummary", sessionSummary != nil), ("failedLaunch", failedLaunch != nil),
          ("saveChoice", saveChoice != nil), ("pendingDemoLicense", pendingDemoLicense != nil), ("d3dMetalDialog", d3dMetalDialog != nil),
          ("pendingCloudGame", pendingCloudGame != nil), ("pendingUninstall", pendingUninstall != nil),
          ("pendingLeftoverRemoval", pendingLeftoverRemoval != nil), ("pendingPower", pendingPower != nil),
