@@ -319,7 +319,7 @@ oder ein Bildschirmfoto.
   Controller-Schlüssel tut); was der Spieler später im Spiel wählt, bleibt. Zu klären: Schlüssel und Domäne je
   Unity-Fassung, Erkennen von Unity an der App, andere Engines (Feral, Unreal). Bis dahin hilft im Spiel einmal
   „Vollbild“ in den Grafikeinstellungen.
-- [ ] **F2 – Windows-Steam startet auf dem neuen MacBook gar nicht; „Ungültiger CPU-Typ im startfähigen Programm“**
+- [ ] **F2 (gebaut 21.11., `claude/rosetta-034` 5d2bc5c/94fbdd0/464b6aa, im Arbeitszweig seit e06db69, Kette grün; live mit dem Testschalter `gameTest.missingRosetta` noch zu sehen) – Windows-Steam startet auf dem neuen MacBook gar nicht; „Ungültiger CPU-Typ im startfähigen Programm“**
   (21.11., 20:35, Bildschirmfoto: Meldung „Etwas ist schiefgelaufen“ in „Deine Launcher“, GOG-Karte gewählt; Steam für
   Mac läuft). Der Wortlaut ist die Systemmeldung für ein Programm, dessen Prozessortyp der Mac nicht ausführen kann.
   Nachgesehen: Intel-Programme (x86_64) sind Wine und wineserver aus den Bausteinen und `nightforge-sandbox` im Bundle;
@@ -332,6 +332,16 @@ oder ein Bildschirmfoto.
   scheitert dann still oder mit der rohen Systemmeldung. Abhilfe: vor jedem Start von Intel-Code einmal je Sitzung
   prüfen (und bei „Bad CPU type“ erneut), denselben Schritt „Rosetta installieren“ zeigen wie die Einrichtung, die rohe
   Meldung nie durchreichen.
+  **Bestätigt und gebaut (21.11.):** Auf dem neuen MacBook fehlte Rosetta (Probe des Nutzers). Der Weg an der Prüfung
+  vorbei, belegt im Code: Das Zahnrad steht auch während der Ersteinrichtung in der Kopfleiste; Einstellungen › Launcher ›
+  „Verwalten“ öffnet die Karten; die Anmeldung bei Epic, GOG oder Steam für Mac berührt die Einrichtung nicht; mit Spielen
+  in der Liste ist `needsSetup` falsch, und der Rosetta-Schritt kommt nie. Jetzt: `RosettaSupport.stateHere` vor jedem
+  Start von x86_64-Code (Windows-Spiel, Mac-Fassung für Intel, Steam-Download, Steams Fenster) und einmal je Sitzung,
+  sobald die Bibliothek Spiele hat; Frage „Rosetta fehlt“ mit „Rosetta installieren“, danach geht weiter, was der Spieler
+  wollte; Fehler 86 wird überall zu „Auf diesem Mac fehlt Rosetta von Apple. Windows-Spiele brauchen es.“ Offen, nur am
+  echten Ablauf zu sehen: Passwortabfrage und Rückweg; die Frage, während ein anderes Blatt offen ist; Steam-Starts im
+  Hintergrund melden ein fehlendes Rosetta nur im Protokoll. Entscheidung des Nutzers offen: Die Frage kommt einmal je
+  Sitzung auch bei Spielern, die nur Mac-Spiele haben (Empfehlung der Session: so lassen).
 
 ## 0.3.3: Release (21.11., der Nutzer: „bringen wir das release online dann kann ich update und alles prüfen und etwaige bugs bügeln wir in .4 aus“)
 
