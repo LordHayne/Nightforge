@@ -1694,7 +1694,8 @@ final class LibraryModel: ObservableObject {
             // Under all of them, the backmost lowest; again at each look: nothing gets between.
             if loweredAt == nil, let lowest = macOSQuestions.last { GameBackdrop.makeWay(under: lowest) }
             let macOSAsks = turn == .makeWay
-            noProcessSince = pids.isEmpty && loweredAt == nil ? (noProcessSince ?? Date()) : nil
+            // Nightforge's own work explains the wait (Steam signing in or restarting, setting up): "Stuck?" counts from its end.
+            noProcessSince = pids.isEmpty && loweredAt == nil && !Self.phaseExplainsWait(launchPhase) ? (noProcessSince ?? Date()) : nil
             if case .updating(let fraction)? = launchPhase {
                 if updateProgress == nil || updateProgress?.fraction != fraction { updateProgress = (fraction, Date()) }
             } else {
@@ -3071,6 +3072,47 @@ final class LibraryModel: ObservableObject {
             GameLog.note("Steam didn't come up on engine \(build.engineVersion)")
         }
         return false
+    }
+
+    // MARK: - Steam's patience (F3)
+
+    enum SteamSignInStep: Equatable { case signedIn, wait, stuck }
+
+    /// How long a Windows Steam may take to sign in before a start. A new Mac's Rosetta translates all of it at its
+    /// first starts: the user's MacBook Pro took 40–45 s to "Logged On" (21.11.2026), and the 45 s here restarted a
+    /// Steam that had just got there – which then took as long again.
+    nonisolated static let steamSignInPatience: TimeInterval = 120
+    /// Nothing in its logs for this long: it doesn't come along.
+    nonisolated static let steamQuietPatience: TimeInterval = 45
+    /// No Steam process for this long after the wait began: none is coming.
+    nonisolated static let steamGonePatience: TimeInterval = 10
+
+    /// The wait for a Steam that signs in: on while it comes along – its process there, something in its logs
+    /// lately – up to two minutes; stuck without a process, with its logs quiet, or after that.
+    nonisolated static func steamSignInStep(signedIn: Bool, running: Bool, waited: TimeInterval, quietFor: TimeInterval) -> SteamSignInStep {
+        if signedIn { return .signedIn }
+        if waited >= steamSignInPatience { return .stuck }
+        if !running, waited >= steamGonePatience { return .stuck }
+        if waited >= steamQuietPatience, quietFor >= steamQuietPatience { return .stuck }
+        return .wait
+    }
+
+    /// One Steam restart for a start: the game's settings that come with Steam's environment (only while no Windows
+    /// game runs in it), or a Steam stuck signing in – both at once in one.
+    nonisolated static func restartsSteamForStart(environmentChanged: Bool, stuck: Bool, running: Bool, gamesRunning: Bool) -> Bool {
+        stuck || (environmentChanged && running && !gamesRunning)
+    }
+
+    /// Nightforge's own work that explains a wait with no process of the game's yet: "Stuck?" counts from its end. Not an
+    /// update, which has its own way out, nor Epic's and GOG's saves, which B stops at once (CurtainEscape).
+    nonisolated static func phaseExplainsWait(_ phase: LaunchPhase?) -> Bool {
+        switch phase {
+        case .startingSteam?, .startingSteamForMac?, .signingIn?, .savingToCloud?, .settingUp?, .settingUpDotNet?, .restartingSteam?,
+             .steamNotResponding?, .signingInEpic?, .settingUpWindowsParts?, .startingBattleNet?:
+            return true
+        default:
+            return false
+        }
     }
 
     /// Restarts a hung Steam, queued like any other Steam start so a launch waits for it.
@@ -4809,15 +4851,29 @@ final class LibraryModel: ObservableObject {
                 launchPhase = nil
             }
             // A Steam that is still signing in starts the game offline ("Steam is currently in
-            // Offline Mode"): wait for it, and start it afresh if it doesn't get there.
-            if viaSteam, game.bottle.isBuiltIn, Engine.isSteamSignedIn, !Engine.steamSignedIn, let wine = await Engine.installedWine() {
+            // Offline Mode"): wait for it while it comes along (steamSignInStep). One that is stuck is
+            // restarted once, together with a restart the game's settings need anyway (restartsSteamForStart).
+            var steamStuck = false
+            if viaSteam, game.bottle.isBuiltIn, Engine.isSteamSignedIn, !Engine.steamSignedIn {
                 launchPhase = .signingIn
-                var waited = 0
-                while !Engine.steamSignedIn, waited < 45 {
-                    try? await Task.sleep(for: .seconds(1))
-                    waited += 1
+                let began = Date()
+                waiting: while true {
+                    let quiet = await Engine.offMain { Engine.steamLogsQuiet() }
+                    switch Self.steamSignInStep(signedIn: Engine.steamSignedIn, running: Engine.isSteamRunning,
+                                                waited: Date().timeIntervalSince(began), quietFor: quiet) {
+                    case .signedIn:
+                        break waiting
+                    case .stuck:
+                        steamStuck = true
+                        GameLog.note("Steam isn't signed in after \(Int(Date().timeIntervalSince(began))) s"
+                                     + (Engine.isSteamRunning ? ", nothing in its logs for \(Int(min(quiet, 9999))) s" : ", and it isn't running")
+                                     + ": it's restarted once, before the game")
+                        break waiting
+                    case .wait:
+                        try? await Task.sleep(for: .seconds(1))
+                        if Task.isCancelled { return }
+                    }
                 }
-                if !Engine.steamSignedIn { _ = await restartStuckSteam(wine) }
                 launchPhase = nil
             }
             if viaSteam, game.bottle.isBuiltIn { await waitForSteamCloud(Engine.steamRoot) }
@@ -5027,20 +5083,28 @@ final class LibraryModel: ObservableObject {
                                                  kosmicKrisp: Engine.kosmicKrispReady ? Engine.kosmicKrispNow : nil)
                 // A session has msync or doesn't: a game joining one that runs takes it as it is.
                 let msyncWanted = anyRunning(.windows) ? nil : Engine.msyncWanted(profile: profile)
-                if viaSteam, game.bottle.isBuiltIn,
-                   Engine.prepareLaunchEnvironment(avx: recipe.avx, d3dMetal: layer == .d3dmetal,
+                let environmentChanged = viaSteam && game.bottle.isBuiltIn &&
+                   (Engine.prepareLaunchEnvironment(avx: recipe.avx, d3dMetal: layer == .d3dmetal,
                                                    frameLimit: frameLimit, upscaling: options.effectiveUpscaling(profile: profile),
                                                    retina: options.retina(profile: profile, layer: layer, analysis: analysis),
                                                    environment: GameEnvironment.wanted(for: game.gameID, profile: profile),
                                                    vulkan: vulkan,
                                                    vulkanLoader: Engine.vulkanLoaderEnvironment(layer: layer, d3d9: analysis?.usesD3D9 == true,
                                                                                                 wine: runner.map(URL.init(fileURLWithPath:))),
-                                                   msyncWanted: msyncWanted) || programChanged || debugChanged || frameLogChanged,
-                   Engine.isSteamRunning, !anyRunning(.windows), let runner {
-                    launchPhase = .signingIn
+                                                   msyncWanted: msyncWanted) || programChanged || debugChanged || frameLogChanged)
+                // One restart at most: the settings the game takes from Steam's environment, and a Steam that got stuck
+                // signing in, together (F3, 21.11.2026: the stuck one's restart and the settings' made two in a row).
+                if viaSteam, game.bottle.isBuiltIn, let runner,
+                   Self.restartsSteamForStart(environmentChanged: environmentChanged, stuck: steamStuck,
+                                              running: Engine.isSteamRunning, gamesRunning: anyRunning(.windows)) {
+                    launchPhase = .restartingSteam
+                    GameLog.note("Steam restarts for \(game.name)" + (steamStuck ? ": it got stuck signing in" : "")
+                                 + (environmentChanged ? (steamStuck ? ", and " : ": ") + "the game's settings come with its environment" : ""))
                     _ = await restartStuckSteam(URL(fileURLWithPath: runner))
+                    steamStuck = false  // restarted: the next way of this start finds it fresh
                     launchPhase = nil
                 }
+                if Task.isCancelled { return }
                 if viaSteam, game.bottle.isBuiltIn, layer == .d3dmetal {
                     GameLog.note(GameLog.d3dMetalStart(game.name, environment: Engine.steamEnvironment, retina: Engine.launchRetina))
                 }
@@ -5096,6 +5160,9 @@ final class LibraryModel: ObservableObject {
                     let capture = await Engine.offMain { GameProcesses.captureNote() }
                     GameLog.note("Displays at the start of \(game.name): \(capture)")
                 }
+                // "Back to Nightforge" while Steam came up ends the start here: nothing goes to Steam after it. Up to
+                // 21.11.2026 the game started seconds after the player had gone back (F3).
+                if Task.isCancelled { return }
                 raiseCurtain(for: game)
                 let started = viaSteam
                     ? await start(game, runner: runner, options: options, profile: profile, recipe: recipe, frameLimit: frameLimit)
