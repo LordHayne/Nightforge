@@ -58,7 +58,20 @@ jobs:
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $GITHUB_RUN_NUMBER" Resources/Info.plist
 
       - name: Build
-        run: ./build.sh
+        run: NIGHTFORGE_RELEASE=1 ./build.sh
+
+      # The hidden switches for Nightforge's own tests are compiled out with NIGHTFORGE_RELEASE: measuring play
+      # (GameTest.measuresPlay), a finding given to a failed start (StartDiagnosis.testFinding), the root question on
+      # the roots every prefix has (WindowsRoots.testsQuestion). Their keys are longer than 15 bytes, so an optimized
+      # build that has one keeps it as text.
+      - name: No test switches in a release
+        run: |
+          for key in gameTest.measurePlay gameTest.testFinding testRootQuestion; do
+            if strings -a build/Nightforge.app/Contents/MacOS/Nightforge | grep -q "$key"; then
+              echo "::error::The release build has the test switch $key"
+              exit 1
+            fi
+          done
 
       - name: Package
         run: |

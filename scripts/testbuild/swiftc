@@ -1,0 +1,220 @@
+#!/usr/bin/python3 -I
+"""A swiftc for the test series, in front of the real one on PATH: the app is compiled once, a series only its own files.
+
+Most series build every file of the app next to their own, because they use its internal names. Plain swiftc starts one
+compiler per file for that, 176 for each series, while the app's objects come out the same every time. So:
+
+    swiftc --prepare build/test-objects 2 [flags]   compiles the app once, in batch mode, and says where the objects are
+    swiftc -parse-as-library -o X $APP tests/…      compiles just the tests/… files, against the app's sources, and links
+
+The series' run.sh files don't change. A call only takes the short way when it asks for exactly what was prepared: the very
+same app files with the very same contents, the same flags, the same SDK, from the same folder. Contents are compared on every
+call, so a changed file can't meet an old object. Anything else goes to the real swiftc untouched (subsets of the app, -D, -framework, …), and so does a short way
+that fails: the real swiftc's answer is then the one that counts, so a broken test reads as it always has.
+"""
+import glob
+import hashlib
+import json
+import os
+import shlex
+import shutil
+import subprocess
+import sys
+import tempfile
+
+APP_FOLDER = "Sources/Nightforge/"
+LEFT_OUT = APP_FOLDER + "App.swift"  # the real app's @main; a series has its own
+MODULE = "main"  # what swiftc names a program whose -o isn't an identifier, as with most series
+PLAN = "plan.json"
+FORMAT = "1"
+
+READY, DOES_NOT_COMPILE, NOT_USABLE = 0, 1, 3
+
+
+def real_swiftc():
+    return os.environ.get("NIGHTFORGE_REAL_SWIFTC") or "/usr/bin/swiftc"
+
+
+def contents_digest(files):
+    digest = hashlib.sha256()
+    for name in sorted(files):
+        with open(name, "rb") as handle:
+            data = handle.read()
+        digest.update(f"{name}\0{len(data)}\0".encode())
+        digest.update(data)
+    return digest.hexdigest()
+
+
+def run(command):
+    return subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace")
+
+
+def frontend_command(real, flags, sample):
+    """The driver's own words for compiling one file, without that file: the flags stay what swiftc would have chosen."""
+    answer = subprocess.run(
+        [real, "-###", "-parse-as-library", "-module-name", MODULE, "-c", *flags, sample],
+        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, check=True)
+    lines = [line for line in answer.stdout.splitlines() if " -frontend " in line]
+    if len(lines) != 1:
+        raise ValueError(f"expected one compile step, got {len(lines)}")
+    words = shlex.split(lines[0])
+    if words[1:3] != ["-frontend", "-c"] or words.count(sample) != 1 or words[3:5] != ["-primary-file", sample]:
+        raise ValueError("the compile step doesn't look as expected")
+    rest = words[5:]
+    if rest[-2] != "-o":
+        raise ValueError("the compile step doesn't end in its output")
+    return words[:3], rest[:-2]
+
+
+def app_files():
+    return sorted(name for name in glob.glob(APP_FOLDER + "*.swift") if name != LEFT_OUT)
+
+
+def prepare(arguments):
+    """Prints the folder of the objects. Exit 0: ready. 1: the app doesn't compile, and the folder says why. 3: not usable."""
+    root, jobs, flags = arguments[0], arguments[1], arguments[2:]
+    real = real_swiftc()
+    files = app_files()
+    if not files:
+        raise ValueError("no app sources here")
+    before = contents_digest(files)
+    version = subprocess.run([real, "--version"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, check=True).stdout
+    sdk = os.environ.get("SDKROOT", "")
+    here = os.getcwd()
+    identity = json.dumps([FORMAT, real, version, sdk, here, flags, before])
+    variant = "coverage" if any("profile" in flag for flag in flags) else "plain"
+    final = os.path.join(root, f"{variant}-{hashlib.sha256(identity.encode()).hexdigest()[:24]}")
+    os.makedirs(root, exist_ok=True)
+    if os.path.exists(os.path.join(final, PLAN)) and not os.path.exists(os.path.join(final, "errors.log")):
+        print(os.path.abspath(final))
+        return READY
+
+    work = tempfile.mkdtemp(prefix=".building-", dir=root)
+    plan = {"format": FORMAT, "sources": files, "digest": before, "flags": flags, "sdk": sdk, "cwd": here}
+    objects = {name: os.path.abspath(os.path.join(work, os.path.basename(name)[:-len(".swift")] + ".o")) for name in files}
+    if len(set(objects.values())) != len(files):
+        raise ValueError("two app files share a name")
+    map_file = os.path.join(work, "outputs.json")
+    with open(map_file, "w") as handle:
+        json.dump({name: {"object": path} for name, path in objects.items()}, handle)
+    build = run([real, "-c", "-parse-as-library", "-module-name", MODULE, "-enable-batch-mode", "-j", jobs,
+                 "-output-file-map", map_file, *flags, *files])
+    if build.returncode != 0:
+        plan["failed"] = build.returncode
+        with open(os.path.join(work, "errors.log"), "w") as handle:
+            handle.write(build.stdout)
+        sys.stderr.write(build.stdout)
+    else:
+        missing = [name for name, path in objects.items() if not os.path.isfile(path)]
+        if missing:
+            raise ValueError(f"no object for {missing[0]}")
+        if contents_digest(files) != before:
+            raise ValueError("the app's files changed while they compiled")
+        plan["frontend"], plan["frontend_flags"] = frontend_command(real, flags, files[0])
+        plan["objects"] = [os.path.basename(objects[name]) for name in files]
+    with open(os.path.join(work, PLAN), "w") as handle:
+        json.dump(plan, handle)
+
+    shutil.rmtree(final, ignore_errors=True)
+    os.rename(work, final)
+    # The last run's objects, and anything an interrupted build left: only the newest of a kind is ever of use.
+    for other in glob.glob(os.path.join(root, f"{variant}-*")) + glob.glob(os.path.join(root, ".building-*")):
+        if os.path.abspath(other) != os.path.abspath(final):
+            shutil.rmtree(other, ignore_errors=True)
+    print(os.path.abspath(final))
+    return DOES_NOT_COMPILE if "failed" in plan else READY
+
+
+def shape(arguments):
+    """(output, swift files, flags) of a plain program build, None for anything else, like a flag with a value of its own."""
+    output, swift, flags = None, [], []
+    words = iter(arguments)
+    for word in words:
+        if word == "-o":
+            if output is not None:
+                return None
+            output = next(words, None)
+            if output is None:
+                return None
+        elif word.startswith("-"):
+            flags.append(word)
+        elif word.endswith(".swift"):
+            swift.append(word)
+        else:
+            return None
+    return None if output is None else (output, swift, flags)
+
+
+def load_plan():
+    folder = os.environ.get("NIGHTFORGE_TEST_OBJECTS")
+    if not folder:
+        return None, None
+    with open(os.path.join(folder, PLAN)) as handle:
+        return folder, json.load(handle)
+
+
+def fits(plan, swift, flags):
+    """The series' own files if this call asks for exactly what was prepared, otherwise None."""
+    if plan.get("format") != FORMAT:
+        return None
+    if sorted(flags) != sorted(["-parse-as-library", *plan["flags"]]):
+        return None
+    if os.environ.get("SDKROOT", "") != plan["sdk"] or os.getcwd() != plan["cwd"]:
+        return None
+    app = sorted(name for name in swift if name.startswith(APP_FOLDER))
+    own = [name for name in swift if not name.startswith(APP_FOLDER)]
+    names = [os.path.basename(name) for name in app + own]
+    if not own or app != plan["sources"] or len(set(names)) != len(names):
+        return None
+    if contents_digest(app) != plan["digest"]:
+        return None
+    return own
+
+
+def short_way(folder, plan, output, own):
+    with tempfile.TemporaryDirectory(prefix="nightforge-series-") as work:
+        made = [os.path.join(work, os.path.basename(name)[:-len(".swift")] + ".o") for name in own]
+        compile_step = [*plan["frontend"], *plan["sources"]]
+        for name in own:
+            compile_step += ["-primary-file", name]
+        compile_step += plan["frontend_flags"]
+        for path in made:
+            compile_step += ["-o", path]
+        result = run(compile_step)
+        if result.returncode != 0:
+            return False
+        sys.stderr.write(result.stdout)  # its warnings
+        link = run([real_swiftc(), "-o", output, *plan["flags"], *made,
+                    *(os.path.join(folder, name) for name in plan["objects"])])
+        return link.returncode == 0 and os.path.isfile(output)
+
+
+def main():
+    arguments = sys.argv[1:]
+    if arguments[:1] == ["--prepare"]:
+        try:
+            return prepare(arguments[1:])
+        except Exception as problem:  # the series then build the way they always have
+            print(f"Can't compile the app ahead: {problem}", file=sys.stderr)
+            return NOT_USABLE
+    try:
+        folder, plan = load_plan()
+        built = shape(arguments) if plan else None
+        own = fits(plan, built[1], built[2]) if built else None
+        if own:
+            if "failed" in plan:
+                with open(os.path.join(folder, "errors.log")) as handle:
+                    errors = [line.rstrip() for line in handle if " error: " in line or line.startswith("error:")]
+                print("The app doesn't compile, so this series can't either:", *errors[:20], sep="\n", file=sys.stderr)
+                return plan["failed"] or 1
+            if short_way(folder, plan, built[0], own):
+                return 0
+            print("The short way failed; compiling as swiftc alone would:", file=sys.stderr)
+    except Exception as problem:
+        print(f"The short way failed ({problem}); compiling as swiftc alone would:", file=sys.stderr)
+    real = real_swiftc()
+    os.execv(real, [real, *arguments])
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -7,6 +7,929 @@ Umstieg auf winecx 4.7.3 mit D3DMetal (PR #7), dem Controller-Paket (PR #8) und 
 Neue Punkte unten in den passenden Abschnitt, Erledigtes löschen (die Geschichte steht im Git-Log).
 Jeder Punkt nennt, wo man anfängt.
 
+## Sessions aufgeräumt (14.11.)
+
+Sechs Sessions sind archiviert, ihre Zweige stecken alle in `claude/staging-033` (Testbuild 4d7806c): Audit
+(`claude/audit-033-rest`), Konsolen-Gefühl (`claude/lizenz-randfaelle-033`), Engine/Leerlauf-Ruhe
+(`claude/ruhe-im-leerlauf-033`), Ladescreen-Audit (`claude/ruhiger-ladescreen-033`), Overlay (`claude/overlay-entwurf`),
+Shader (`claude/recursing-kapitsa-658edc`). Offen bleibt nur die Landingpage-Session. Was sie offen ließen und sonst
+nirgends stand:
+
+- **Länder-Lizenz (Konsolen-Gefühl):** Hat ein Spiel eine normale und eine Länder-Lizenz und Steam fragt beide, zählt
+  das Speichern der ersten schon als Ja; der eine Neustart geht dann zu früh raus, Steam fragt die zweite noch einmal.
+  GTA betrifft es nicht. Anfang: `SteamLicenceFiles`, `SteamLicenceTest`.
+- **Leistungsanzeige unter der Overlay-Karte (Overlay):** zwei ungetestete Wege – `MTL_HUD_ALIGNMENT=topleft` (ab dem
+  nächsten Spielstart, nur wo Nightforge die Umgebung setzt) oder die Karte rechts senkrecht mittig (weicht vom Board ab).
+  Empfehlung der Session: lassen, solange das Spiel bei offenem Overlay steht.
+- **Audit:** Entscheidung N2 (Pad ohne Touchpad erreicht ein kleines Fenster über dem Spiel nur mit der Maus), N1 offen,
+  vier Live-Tests – alles im Nachtrag von `docs/AUDIT-0.3.3.md`.
+- **Leerlauf-Ruhe, Vorhang-Fix, Overlay-Größen, Shader-Kurztest:** nur noch Live-Prüfungen mit dem Nutzer (Abendliste
+  W1–W2, R1, R6/T3, S1–S3; Leerlauf-Punkte weiter unten in dieser Datei).
+
+Abgegeben am 14.11.: Schritt C des Startrezepts (Diagnose-Start, mit dem Text der Fehlerfenster als erster Form von D)
+an eine eigene Session, Zweig von `claude/start-logik-033`. Schritt E wartet darauf (gleiche Startschleife).
+
+**Läuft-Liste (Idee des Nutzers, 14.11.):** eine Liste der Spiele, die eindeutig starten und laufen, mit Messwerten,
+als Referenz für Community und Landingpage. Ebenfalls an eine eigene Session abgegeben (Definition, Generator aus
+Evidenz und Spieletest-Berichten, Messwerte im Spieletest; `site/` bleibt bei der Landingpage-Session, Design zuerst).
+Danach: ein Messabend mit dem Nutzer (Spieletest mit `gameTest.playSeconds` 200 über die geladenen Spiele).
+Zweck (der Nutzer, 14.11.): Spiele, die er nicht braucht, will er erst deinstallieren, wenn ein 100%iger Start gesehen
+ist und ein FPS-Wert in der Benchmark-Liste steht; die Werte sollen offen auf die Landingpage (mit ihren Bedingungen,
+„hält 60 FPS“ getrennt von Messungen ohne Limit). FPS misst heute nur der DXMT-Weg.
+
+**Erlebnis-Audit (der Nutzer, 14.11.):** eine Session sucht Fehler in Oberfläche und Logik entlang der Wege des Spielers,
+belegt sie mit Tests, behebt die klaren und listet den Rest in `docs/AUDIT-ERLEBNIS-0.3.3.md`. Die Dateien der beiden
+anderen Sessions fasst sie nicht an, Fehler dort beschreibt sie nur.
+
+**Eingespielt 14.11., 15:40 (`ed9b785`), mit OK des Nutzers:** Die drei Zweige (Diagnose-Start, Läuft-Liste,
+Erlebnis-Audit) stecken im Testzweig (`claude/staging-033` = `claude/start-logik-033`). Kette grün: 118 Testreihen,
+264 pytest, Signatur in Ordnung. Live noch nicht gesehen: Schritt C/D (Prüfschritte in der Übergabe der Session,
+Testschalter `closerLook`), die sechs Korrekturen des Erlebnis-Audits, das HUD-Protokoll auf D3DMetal, MoltenVK und
+WineD3D. Der Reihe nach, weil dieselben Dateien: Läuft-Liste (HUD-Protokoll im Spieletest, `started` mit Version und
+Engine-Teilen), dann Erlebnis-Audit E4 und E8, dann Schritt E.
+
+- **Eine Testreihe schreibt ins echte Protokoll (gefunden 14.11.):** `tests/SteamSwitchTest/main.swift:438` ruft
+  `Engine.startSteam(…, ["-silent"])` bei zurückgehaltenem Windows-Steam; `GameLog.note` schreibt dabei die Zeile
+  „Steam switch: the Windows Steam waits, Steam for Mac has the account, at …“ ins echte `Logs/wine.log`
+  (`Engine.supportDir` folgt `HOME` nicht). Gesehen um 15:38:40, als kein Nightforge lief. Harmlos (eine Zeile je Lauf,
+  kein Start), aber sie sieht aus wie von Nightforge. Anfang: nur `Engine.holdsBack` prüfen oder der Reihe ein eigenes
+  Zuhause geben. Am 14.11. um 15:59:30 stand sie mitten in einem echten Start. Abgegeben an die Erlebnis-Audit-Session.
+
+**Live-Prüfung von Schritt C/D am 14.11. (Testbuild `ed9b785`, Testschalter `closerLook`, Starts über den Spieletest):**
+
+- **Gesehen, Steam-Spiel (Batman, WineD3D):** Steam startet genau einmal neu (15:47:09 Hintergrund, 15:47:50 mit
+  Kanälen), im Protokoll `pid:tid:trace:loaddll:…`, die Evidenz schreibt `started` mit `"closerLook":true`, das Spiel
+  läuft mit den Kanälen normal (Bild, 190 s; sechs Signaturprüfungen, alle 0). Der Start samt Steam-Neustart ließ das
+  Protokoll um 339 KB wachsen (4.423 Zeilen, davon 3.204 `+chain`).
+- **Gesehen, Direktstart mit Fehlerfenster (Alan Wake von Hand auf D3DMetal, Epic):** Kanäle im Protokoll, kein
+  Steam-Neustart. `+msgbox` druckt wie aus der Quelle geschlossen:
+  `0308:030c:trace:msgbox:MSGBOX_OnInit L"Alan Wake could not initialize your 3D graphics card. … Technical: DEVICE_CREATE_ERROR - Not available"`.
+  Die Diagnose nennt `direct3d9 … → start on wined3d`; `loads-direct3d9` schweigt dann mit Absicht, der Fenstertext
+  wird nicht gesagt (er zählt nur als Wort des Spiels, wenn sonst nichts erklärt). Das Protokoll des Starts liegt im
+  Notizordner des Koordinators (`closer-look/live-2026-11-14-alanwake-d3dmetal.log`), als Vorlage für eine Testdatei.
+- **Gesehen, ohne Schalter:** Steam startet ohne Kanäle.
+- **Nicht gesehen:** der echte Ablauf ohne Schalter (unerklärter Fehlstart, danach „nothing explains why it ended“ und
+  ein Start mit Kanälen, `closerLook.<Spiel>` in den Defaults); `untrusted-root` und `signature` an einem echten Fall.
+- Alan Wakes Einstellungen und Startgedächtnis sind aus der Sicherung zurück; ein von Hand gewählter Weg schreibt
+  keine Evidenz, also blieb dort nichts vom Test.
+
+Funde dabei:
+
+- **Beenden scheitert bei offenem Blatt.** Kurz nach dem Ende eines Spieletests: „Quit by an Apple Event from
+  osascript didn't go through: a sheet is still open (SheetPresentationWindow)“ (15:55:00 nach Batman; nach Alan
+  Wakes Fehlstart 16:01:16 und 16:01:28, der dritte Versuch schrieb nur „Quit by …“, der vierte ging durch).
+  Nightforge bleibt danach einfach stehen. Offen: welches Blatt, und ob es den Spieler mit Cmd+Q genauso trifft.
+  Anfang: `Quit.swift` (`Quit.now`, `closeModelSheets`). Abgegeben an die Erlebnis-Audit-Session.
+- **Ein Fehlerfenster zählt als Wahl des Spielers.** Alan Wakes Meldung stand unter dem Vorhang („it asks
+  something“), das Spiel endete an ihr, und der Start wertete das als „ended right at a question of its own, answered
+  by the player“ – kein Fehlstart, kein nächster Weg (hier ohnehin keiner, der Weg war von Hand gewählt). Gedacht war
+  das für Unitys Startfenster (The Forest). Mit `+msgbox` ließe sich ein Meldungsfenster mit Fehlertext von einer
+  Frage unterscheiden; dazu müsste der Kanal aber bei jedem Start mitlaufen, nicht erst beim genaueren Blick. Für
+  Schritt E. Anfang: `LaunchHealth.endedAtOwnQuestion`, `LibraryModel.swift` um Zeile 1620 und 3509.
+
+**Nachzug der Läuft-Liste eingespielt (14.11., 18:41, `548a4eb`, mit OK des Nutzers):** Kette des Koordinators grün
+(118 Testreihen, 267 pytest), Signatur in Ordnung. Erlebnis-Audit baut darauf E4, E8, das Beenden und die Testreihe.
+Entscheidung des Nutzers (14.11.): Ein Spiel mit sauberem Start und sauberem FPS-Wert bleibt abgehakt, auch wenn
+später ein neuer Testbuild kommt; der Build steht am Wert. Die Läuft-Liste-Session baut die Regel um.
+
+**Probelauf des HUD-Protokolls (14.11., 18:43–18:56, Testbuild `548a4eb`, Bericht `GameTests/2026-11-14-1843`):**
+drei Spiele, alle mit Bild und FPS-Wert. The Forest (DXVK) Ø 60 / tiefste Periode 55, ABZU (DXMT) Ø 58 / 52,
+Control (D3DMetal) Ø 109 / 30. Damit live gesehen: `metal-HUD:`-Zeilen unter Wine auf DXVK/MoltenVK und auf D3DMetal
+(600 Zeilen in drei Spielen), die Zeile „Frame limit of …“ je Start, Steam startet für das erste Steam-Spiel einmal
+neu und nach dem Lauf zurück, `started` trägt `nightforge`, `built`, `parts`, `name`, das 1-%-Tief steht im Bericht.
+Die Werte zählen nicht: Der Mac lief auf Akku, und nebenbei liefen Tests der Sessions. Nicht gesehen: die Anzeige
+bei Deckkraft 0 (die Leistungsanzeige des Nutzers ist an).
+
+- **D3DMetal hält das Limit nicht (Control, gefunden im Probelauf):** „Frame limit of Control: 60 FPS at 120 Hz“,
+  `D3DM_MAX_FPS` war gesetzt, gemessen sind Ø 109 FPS mit Frames im 8,33-ms-Takt. Erste Messung auf D3DMetal
+  überhaupt; der alte Punkt „prüfen, ob die Bildratengrenze auch für D3DMetal-Spiele greift“ hat damit eine Zahl.
+  Offen: gilt es nur für den Direktstart (Epic) oder auch über Steam, nur für Control (DX12) oder für alle? Anfang:
+  `Engine.swift` (`D3DM_MAX_FPS` in `prepareLaunchEnvironment` und `directLaunchEnvironment`), Gegenprobe mit dem
+  Wukong-Benchmark über Steam.
+- **Ohne FPS-Wert bleiben** die Spiele auf WineD3D (Batman, Alan Wake, Dishonored, Mafia II, Left 4 Dead 2) und die
+  Mac-Fassungen (Dying Light, Tomb Raider, Asphalt Legends, Valheim, Drawful 2): zehn der 23 geladenen Spiele. Für
+  die Abhakliste braucht es dort einen eigenen Messweg oder eine Entscheidung des Nutzers.
+- **Messabend:** am Netzteil, ohne laufende Sessions (Last), Befehle in `docs/LAEUFT-LISTE.md` Abschnitt 6.
+
+**Messlauf fertig, 14.11., 19:41–21:02 (Testbuild `c453e40`, Bericht `GameTests/2026-11-14-1941`):** die ganze
+Zeit am Netzteil, Last zu Beginn 4,6 bei 10 Kernen, keine Session arbeitete. 19 gestartet, 18 mit Bild, 1 „hängt“
+(Overwatch), 1 abgebrochen (REANIMAL), 4 ausgelassen. Danach die Schalter weg, Nightforge normal neu gestartet
+(21:03). Listen neu erzeugt: **14 fertig (417,2 GB), 8 offen, 1 von Hand.**
+
+- **Fertig:** Guardians of the Galaxy, Hogwarts Legacy, Just Cause 4, It Takes Two, Control, MGS V, Dishonored,
+  Left 4 Dead 2, Alan Wake, Frostpunk, Batman: Arkham Asylum, Mafia II, Wukong Benchmark, The Forest.
+- **Offen:** Overwatch (Start), REANIMAL (Steams Lizenz ist noch offen: die nimmt nur der Spieler an), ABZU
+  (zweiter Anlauf nötig), OxyRail und Drawful 2 (ein Update stünde an), Tomb Raider, Asphalt Legends, Valheim
+  (Start gesehen, Mac-Fassung ohne FPS). Von Hand: Dying Light (erster Start der anderen Fassung), Hearthstone.
+- **Gesehen: Wines fps-Kanal liefert.** 1285 Zeilen, zwei Arten:
+  `06e4:0030:trace:fps:wined3d_cs_exec_present 0A8D1530 @ approx 49.97fps` und
+  `06e4:0030:trace:fps:wglSwapBuffers @ approx 23.76fps, total 23.64fps`. Alle fünf WineD3D-Spiele haben Werte
+  (Batman Ø 48, Alan Wake Ø 210, Dishonored Ø 105, Mafia II Ø 120, Left 4 Dead 2 Ø 24).
+- **Gesehen: das Beenden geht nach E12 jedes Mal beim ersten Anlauf durch** (viermal an diesem Abend).
+
+Befunde aus dem Lauf:
+
+- [ ] **D3DMetal hält das Frame-Limit nicht, in vier Spielen.** Limit 60 aufgezeichnet, gemessen Wukong Ø 201,
+  Control Ø 113, Hogwarts Ø 102, It Takes Two Ø 74 (üblicher Frame bei Control 8 ms = 120 Hz). **Ursache
+  gefunden: Apples D3DMetal in winecx 4.7.3 kennt `D3DM_MAX_FPS` gar nicht.** `strings` auf
+  `lib/external/D3DMetal.framework/Versions/A/D3DMetal` zeigt 27 `D3DM_`-Schalter (darunter
+  `D3DM_ENABLE_METALFX`, `D3DM_SUPPORT_DXR`), keinen für die Bildrate; einzig `setDisplaySyncEnabled:`. Das Limit
+  hat auf D3DMetal mit diesem Stand also nie gegriffen, die Zeile „Frame limit of …: 60 FPS“ und der Kommentar in
+  `Engine.prepareLaunchEnvironment` („Apple's readme“) stimmen dafür nicht. DXMT und DXVK halten es (MGS V 60,
+  Frostpunk 60, The Forest 60). Der Nutzer mag gerade die Sperre auf 60. An die Läuft-Liste-Session gegeben
+  (Wege suchen, wie sich D3DMetal begrenzen lässt; erst ein Vorschlag, kein Bau).
+- [x] **Die Listen sagen dazu „hält das Limit: Ø 201“.** (Behoben 14.11., `ce7647c`, im Testzweig `4c8c392`: Feld
+  `limitState`, D3DMetal-Zahlen gelten als frei, „Limit greift nicht“ über 105 % des Limits.) Gemeint ist „erreicht es“, es liest sich aber, als
+  griffe die Sperre. Über dem Limit muss es „Limit greift nicht“ heißen, bevor die Landingpage die Daten nimmt.
+- [x] **Fehlerfenster, genauerer Blick und Wurzel-Frage live gelungen (15.11., 15:54–15:56, Testbuild `306c29f`,
+  MGS V mit `testRootQuestion`):** D3DMetal, Fenster „Failed to load SteamAPI“, OK → „the window it ended at was no
+  question – a window of its own that isn't one of Windows' message boxes … : a failed start“ → „nothing explains why it
+  ended – the next start carries Wine's debug channels“ (Steam einmal neu) → DXMT, Fenster, OK → Diagnose
+  „untrusted-root: steam_api64.dll's signature (Valve) leads to the root VeriSign … G5“ → die Frage auf dem Vorhang →
+  der Nutzer trug ein → Start auf DXMT → Bild. Damit sind E5 (Fenster als Fehlstart), E6 (genauerer Blick, Wurzel-Frage)
+  und Vorhang B live belegt. Auf dem Vorhang bei MGS V weiter die alte Zeile „The game is asking something …“, weil
+  das Fenster keinen lesbaren Text hat.
+- [ ] **Wurzel-Frage mit MGS V live nicht gelungen (15.11., 12:18, `testRootQuestion`):** Die Box kam, Nightforge
+  las sie als Frage des Spiels („it asks something“) und beendete den Start als Wahl des Spielers, obwohl die Diagnose
+  „hung → the next way“ sagte. Keine `trace:msgbox`-Zeile im Protokoll (aber `+pid,+loaddll` liefen); auch am 11.11.
+  stand keine. Ob `+msgbox` fehlt oder MGS Vs Box keine user32-MessageBox ist, klärt die Diagnose-Session. Alles
+  zurückgestellt; VeriSign kommt mit dem nächsten Spielstart wieder in den Prefix.
+
+**Vorhang B live gesehen (15.11., 12:09, Testbuild `c2da535`, ABZU über „Spielen“, `testFinding=nvidia-interface`,
+erster Start nach 3 s beendet):** „Diagnosis for ABZU: nvidia-interface: set by the engine test's switch …“, dann
+„ABZU starts once more on the same way: nvidia-interface“, zweiter Start mit Bild; Evidenz `started` → `failed` →
+`started` (Rezept `nvapi64`/`nvngx` leer, `steps` nvidia-interface) → `worked`; gelernt `learned.dllsOff` =
+nvapi64, nvngx. Der Nutzer: „sah gut aus man sieht die neue Anzeige nur kurz aber passt“. Damit sind E2/E3 (eine
+Entscheidung, DLL-Abhilfe) und Vorhang B live belegt. Nebenwirkung: Mit gelöschter Leiter wählte der Startplan
+D3DMetal („2 games of its sort (unreal4) run on it“) statt DXMT; ABZU ist danach aus der Sicherung von 00:36
+zurückgestellt, die vier Testzeilen der Evidenz liegen im Notizordner.
+- Fehler des Koordinators: Das Testskript gab mit `pgrep -fl` die Befehlszeile von ABZU aus, darin Epics
+  Einmal-Anmeldecode. Aus der Ausgabe entfernt, nirgends weitergegeben; die Skripte geben keine Befehlszeilen mehr aus.
+
+**Vorhang B, Fehlerfenster, Wurzel-Frage im Testzweig (15.11., Zusammenführung `5c428ac`):** Kette grün, 121
+Testreihen, 281 pytest. Nicht eingespielt, live nichts gesehen; Anleitung `closer-look/live-pruefung-schritt-e.md`.
+- [x] Die Release-Prüfung im Release-Ablauf sucht nur `gameTest.measurePlay`. Die Schalter `testFinding` (11 Byte,
+  steht in einem optimierten Build nicht als Text) und `testRootQuestion` gehören mit hinein; `testFinding` dafür
+  auf einen Namen über 15 Byte umstellen. (Erledigt 15.11. auf `claude/diagnose-start-033-92f729`: der Schalter heißt
+  `gameTest.testFinding`, der Schritt „No test switches in a release“ prüft alle drei Schlüssel.)
+
+- [ ] **Overwatch mit „Randloses Fenster“ im Spiel (vom Nutzer eingestellt, 15.11., 15:36–15:45, Testbuild `306c29f`,
+  `overwatch-5/`): 3 von 3 mit Bild** (68, 82, 98 s), kein „Setting display mode“, keine Abschirmung („Displays at
+  the start of Overwatch®: no shield, display 1 1512×982 at 120 Hz“), Limit 40 gehalten (40 / 39). Vorher mit
+  exklusivem Vollbild etwa jeder zweite Start ohne Bild. Damit ist die Ursache bestätigt: der Wechsel auf 60 Hz mit
+  der Übernahme des Bildschirms. **Offen:** Ein neuer Spieler weiß das nicht, und Nightforge ändert bei Overwatch
+  keine Datei (eigener Cheat-Schutz). Wege: (a) ein Hinweis auf dem Vorhang, wenn genau dieser Fall eintritt
+  (Fenster ausgeblendet unter übernommenem Bildschirm): „Stell im Spiel Randloses Fenster ein“; (b) Nightforge stellt
+  den Bildschirm vor dem Start auf den Modus, den das Spiel will (60 Hz). **Entschieden vom Nutzer (15.11.):
+  „Hinweis auf dem Vorhang“.** Board „Vollbild verdeckt das Spiel“ (https://claude.ai/artifact/AKjxeNvdNbzo3HYjEStb7F):
+  **der Nutzer wählte B** („B, wie empfohlen“, 15.11.): zwei Schritte (⌘⇥ zu Nightforge und zurück; Randloses Fenster),
+  leise Zeile für nur Controller mit „Neu starten“, Profilfeld `fullscreenHint`. C (Nightforge schickt ⌘-Tab selbst,
+  braucht Bedienungshilfen) später. Bau bei der Diagnose-Session.
+  Erkennen gebaut (`a759361`, `claude/diagnose-start-033-92f729`): die Abschirmung gehört dem Spiel, sein großes
+  Fenster ist nicht auf dem Schirm, nach zwei Versuchen, es zurückzuholen, und 10 s so. Quellen des Boards
+  `docs/entwuerfe/vollbild/`. Mit dem Controller gibt es heute keinen Weg ins Spiel, nur einen neuen Start.
+  **Bau von B angehalten (15.11.):** Der Nutzer will den Vorhang schlicht halten. Seine Regel: eine Zeile, höchstens
+  ein kurzer Satz; mehr nur, wenn der Spieler handeln muss, dann mit Knopf; alles andere ins Protokoll. Von B ist
+  nichts im Code. Bestandsaufnahme aller Vorhang-Zustände, heute und nach der Regel:
+  https://claude.ai/artifact/SMv7bMwpPLTukHK4UwqexA, Quellen `docs/entwuerfe/vorhang-regel/`. **Der Nutzer: „Ja, so
+  umbauen“ (15.11.).** Gebaut auf `claude/diagnose-start-033-92f729`, `2ef082a` … `eea064a`: Vorhang B eine Zeile;
+  Zusammenlegen; Kürzungen; Knöpfe statt Satz bei „Das Spiel fragt etwas“; Vollbild-Hinweis mit Pad-Knopf „Neu
+  starten“ und Profilfeld `fullscreenHint` (Overwatch); L3+R3-Tipp nur beim ersten Start. Live-Anleitung
+  `closer-look/live-pruefung-regel.md`. Live nichts gesehen.
+- [ ] **Vorhang nach der Regel live prüfen:** (a) Ein einziges ⌘⇥ reicht beim Vollbild-Hinweis (die Vorhang-Wache gibt dem
+  Spiel die Front selbst zurück) – ungeprüft; (b) „Neu starten“ mit A über die Pad-Zeile, A kommt dabei auch im Spiel
+  an – ungeprüft; (c) **Overwatchs deutschen Menüwortlaut im Spiel nachsehen**: „Optionen › Video › Randloses Fenster“
+  ist ein Arbeitswort (`profiles/mac.json`, `fullscreenHint.de`). Die Profilliste trägt das Feld mit neuem Stempel und
+  wird beim Release signiert.
+- [ ] **Overwatch: Zurückholen durch Ausblenden live gescheitert (15.11., 12:43–13:21, Builds `3254e96` und
+  `19d7879`, Verläufe `overwatch-3/`, `overwatch-4/`):** Erst eine Zehntelsekunde, dann bis zu zwei Sekunden
+  ausgeblendet: „the game was hidden, kept the front, the screen still captured, shown again“ – macOS lässt einem
+  Spiel, das den Bildschirm übernommen hat, die Front, auch ausgeblendet; Wine gibt den Bildschirm nicht frei, das
+  Fenster kommt nicht. Beide Umbauten sind wieder heraus. Das Umschalten des Nutzers wirkte, weil Wines eigenes ⌘-Tab
+  (`handleCommandTab`) zuerst den Bildschirm freigibt; ein ⌘-Tab an das Spiel zu senden bräuchte „Bedienungshilfen“.
+  **Was bleibt:** (a) In Overwatch selbst „Randloses Fenster“ oder 120 Hz einstellen (macht der Spieler; dann kein
+  Moduswechsel, keine Übernahme) – zu prüfen; (b) Nightforge stellt den Bildschirm vor dem Start auf 60 Hz, dann ist
+  der Modus schon da und Wine übernimmt nichts (`setMode`: „Already there!“), deckt sich mit Weg B fürs D3DMetal-Limit;
+  Entscheidung des Nutzers. Zwei Läufe gingen verloren, weil der Bildschirm gesperrt war („the screen is locked“).
+- [ ] **Overwatch, zweite Runde mit Position und Space (15.11., 12:23–12:34, Testbuild `c2da535`, Verläufe im
+  Notizordner `overwatch-2/`):** Lauf 1 und 2 ohne Bild, Lauf 3 mit Bild. **Das Spielfenster bleibt auf Space 1, ist
+  aber ausgeblendet** (1516×891 „off sp1“, dann shield+2 „off sp1“) – es wandert nicht auf einen anderen Space. Im
+  guten Lauf ist es einmal kurz „off“ und kommt sofort wieder „on“; im schlechten kommt es nicht wieder. In Lauf 1
+  schaltete der Nutzer selbst auf Overwatch um (er hörte den Ton, der Vorhang blieb vorn): Danach war das Fenster
+  sofort „on“ über der Abschirmung, das Spiel lief. Die Spiel-App war beim Ausblenden vorn. Ob macOS die App als
+  „hidden“ führte, ist nur im guten Lauf 3 mitgeschrieben (nein).
+  **Vorschlag:** Nightforges Zurückholen (`handFocus(again:)`, `LibraryModel.swift`) scheitert unter dem übernommenen
+  Bildschirm, weil es zuerst selbst nach vorn will. Stattdessen nachmachen, was das Umschalten des Nutzers tat: die
+  Spiel-App kurz ausblenden (`NSRunningApplication.hide()`, wie Wines eigenes ⌘-Tab in `handleCommandTab`), dann
+  einblenden und aktivieren – Wine zeigt seine Fenster wieder, wenn die App aktiv wird. Ungeprüft.
+- [ ] **Overwatch live mit Fensterblick (15.11., 11:44–11:55, Testbuild `99405ee`, dreimal über den Spieletest,
+  `scratchpad/fensterblick` alle 200 ms, Verläufe im Notizordner `overwatch/`):** Lauf 1 Bild nach 66 s, Läufe 2 und
+  3 „hängt ohne Bild“ (DXMT zählte 48 FPS). **Kein `sample` genommen** – die Regel `ownAntiCheat` greift live.
+  Der Unterschied liegt Sekunden vor dem Umschalten auf 60 Hz: Das Spielfenster wechselt beim Start mehrmals die
+  Größe. Im guten Lauf bleibt es dabei auf dem Schirm (1516×924, 1516×853, 1516×821 „on“), dann L27, dann über der
+  Abschirmung (shield+2 „on“). **In beiden schlechten Läufen geht es bei der Größe 1516×891 vom Schirm („off“)** und
+  bleibt dort, auch auf shield+2; macOS zeigt nur die Abschirmung. „Off“ heißt ausgeblendet oder auf einem anderen
+  Space. Nächster Schritt: Position und Space des Fensters mitschreiben (CGS, nur lesen), um das zu unterscheiden.
+  Der Vorhang lag in allen drei Läufen gleich (shield+3), er ist nicht der Unterschied.
+- [ ] **Overwatch ohne sichtbares Fenster, aus den Protokollen untersucht (15.11., Koordinator; nichts gestartet,
+  kein sample):** Das tritt bei **3 von 6 Starts** seit dem 8.11. auf (8.11. 14:53, 10.11. 00:02, 14.11. 20:10;
+  gut: 8.11. zweimal, 10.11. 00:49). Overwatch stellt beim Start den Bildschirm von 120 auf **60 Hz** um
+  („Setting display mode: 1512x982@60“, exklusiver Vollbildmodus). Dafür übernimmt Wines Mac-Treiber den Bildschirm
+  (`CGCaptureAllDisplays` in `-[WineApplicationController setMode:forDisplay:]`, `dlls/winemac.drv/cocoa_app.m`),
+  macOS legt die schwarze Abschirmung (L2147483628) darüber, und Wine hebt die Spielfenster darüber (L2147483630).
+  **Bei den guten Starts liegt das Spielfenster danach über der Abschirmung; bei den schlechten ist es schon kurz vor
+  dem Umschalten versteckt** („windows 6 hidden, picture elsewhere“) und kommt nicht wieder: Auf dem Schirm ist nur
+  die Abschirmung, das Spiel zeichnet unsichtbar (DXMT zählt 50 FPS). Nightforges Zurückholen scheitert, weil es
+  unter einem übernommenen Bildschirm die Front nicht bekommt. Der Vorhang ist nicht die Ursache. Ungeklärt, warum
+  das Fenster versteckt bleibt. Nächster Schritt: Live-Start mit einem Blick auf die Fensterliste alle 200 ms um
+  das Umschalten (ohne sample, ohne winedbg). Mögliche Abhilfen, ungeprüft: Overwatch im Spiel auf „Randloses
+  Fenster“ stellen (macht der Spieler im Spielmenü, Nightforge ändert keine Datei des Spiels); Nightforges
+  Zurückholen für den übernommenen Bildschirm anders lösen.
+- [ ] **Overwatch: der Spieletest sagt „hängt ohne Bild“, das Spiel zeichnete aber** (DXMT-Protokoll Ø 49 über
+  170 s, Limit 40). Vorhang: erst „picture here“ (1512×853 L0), dann das Fenster auf der Abschirmungsebene
+  (L2147483628) und „picture elsewhere“; „its window isn't on the screen: fetching it back (1)/(2)“, beide Male
+  „Nightforge didn't get the front to hand it over“, dann das Overlay „startet nicht?“. Am 7.11. lief es. Ob auf
+  dem Bildschirm ein Bild war, hat niemand gesehen. Zu klären: Vorhang oder Spiel.
+- [ ] **Der Spieletest nahm dabei ein `sample` von Overwatch** (steam.2357570.sample.txt). Overwatch bringt einen
+  eigenen Cheat-Schutz mit; für solche Spiele gilt sonst „kein sample“. Frage an den Nutzer: der Spieletest lässt
+  das `sample` bei Online-Spielen mit Cheat-Schutz weg (Feld im Profil).
+- [x] **Left 4 Dead 2: 122 von 123 Werten zwischen 22 und 26 FPS, drei Minuten lang.** (Geklärt 14.11. von der
+  Läuft-Liste-Session: Das Messfenster war der Vorspann, `valve.bik` 13 s und `l4d2_intro.bik` 174 s mit 23,98
+  Bildern je Sekunde. Die Liste markiert so einen Wert jetzt als „starr, kein Leistungswert“; er zählt nicht.
+  Offen: ein Lauf, der am Vorspann vorbeikommt.) Das sieht nach einem Film
+  oder einer Begrenzung aus, nicht nach der Leistung des Spiels; der Bericht meldet „wenig FPS“. Ungeprüft. Der
+  Wert taugt nicht für die Landingpage.
+- [ ] **ABZU endete beim ersten Anlauf nach Sekunden ohne Fenster, der zweite auf demselben Weg zeigte nach 11 s
+  ein Bild.** Die Liste zählt das als „brauchte mehrere Wege“. Im Probelauf um 18:43 kam es beim ersten Anlauf.
+  Für Schritt E (derselbe Weg noch einmal) ein echter Fall.
+- [ ] **Batman: 156 s bis zum Bild**, davor zwei Fenster des Spiels mit einer Frage (492×506, dann 541×480), der
+  erste Prozess endete, ein zweiter kam. Zählt als sauberer Start. Für den Spieler sind das zweieinhalb Minuten
+  Vorhang.
+- Die Werte sind die ersten drei Minuten (Vorspann, Menü, erste Sekunden), keine feste Szene: steht im Bericht.
+
+**Laufwerk wiedererkennen, Teil A live geprüft (15.11., 11:21–11:22, Testbuild `3c4981c` in leerem HOME
+`build/fh`, Disk-Image „NF Test“, nichts angeklickt; Skript `scratchpad/live-laufwerk.sh`):** bestanden.
+
+- A1: Mafia II (GOG) stand **5 s nach dem Start** in `GOG/installed.json`, Ordner
+  `/Volumes/NF Test/Nightforge Games/GOG Games/Mafia II/`, `build` 1, `language` de-DE, `platform` windows.
+- A2: Epic abgemeldet, legendary nicht gerufen (`installed.json` fehlt). A3: Steam nicht eingerichtet, keine Liste.
+- A4: Auf dem Image keine Datei geändert (Prüfsummen gleich). Die echte Anmeldung von Steam für Mac blieb unberührt.
+- Der Testbuild zeigte gleich die Startseite („Alle 3 Spiele“), keine Einrichtung; ob Mafia II in der Bibliothek als
+  installiert erscheint (A5), ist nicht angesehen. Bildschirmfoto im Notizordner `laufwerk/live-a-bildschirm.png`.
+- Aufgeräumt: Image ausgeworfen, Testordner gelöscht, Nightforge wieder offen.
+- Offen: Teil B (Steam, Steam für Mac, Epic wirklich zurückholen) – der Nutzer auf dem Mac mini.
+
+**Liste für 0.3.3 (Vorschlag des Koordinators, 15.11. vormittags, dem Nutzer vorgelegt):**
+
+Regel: Was schon im Testzweig liegt, geht mit, wenn es in einer Live-Runde vor dem Release besteht. Was dort
+scheitert und sich nicht schnell beheben lässt, wird ausgeschaltet oder herausgenommen, nicht in 0.3.3 repariert.
+
+- **Neu zu bauen für 0.3.3:** Vorhang B (vom Nutzer gewählt), Fehlerfenster des Spiels „einordnen“ und die Frage
+  zur Wurzel auf dem Vorhang (beides „Ja, wie empfohlen“, 15.11.), E4 schneller (Rezept sofort übernehmen), ein
+  versteckter Testschalter für E3 (nicht im Release). Bei der Diagnose-Session.
+- **Im Testzweig, Live-Runde nötig:** Schritt E; Laufwerk wiedererkennen (erst mit nachgebautem Laufwerk, dann der
+  Nutzer auf dem Mac mini); ruhiger Ladescreen (13 Punkte oben); Lizenz beim ersten Start; Download-Hinweise; Ruhe
+  im Leerlauf; Steam nur bei Bedarf; Battle.net-Start; Einstellungen › Startseite; Anmelden am Sofa; kein `sample`
+  bei Cheat-Schutz. Touchpad als Zeiger und Spieler 1/2 nur, wenn ihr Live-Test (DualSense, zwei Pads) besteht.
+- **Fehler, die in 0.3.3 geklärt werden:** Overwatch zeichnet ohne sichtbares Fenster (lief am 7.11.); ABZU braucht
+  zwei Anläufe (passt zu „Start repariert sich selbst“).
+- **Nur für unsere Tests, im Release nicht vorhanden:** Messen beim Spielen (`gameTest.measurePlay`, seit `3c4981c`
+  mit Release-Flagge und Prüfung im Release-Ablauf).
+- **Auf 0.3.4:** Limit auf D3DMetal (Weg A); Bildschirmtastatur (Board fehlt); Create-Taste im Spiel; Klänge und
+  TV-Stufe G2 (Boards fehlen); Konsolen-Modus; HUD im Spiel umschalten; Shader-Vorbereitung; Overlay-Variante B;
+  Mac-Fassungen messen; FPS auf der Landingpage (erst nach Messungen beim Spielen).
+- **Abschluss wie 0.3.2:** Audit- und Testrunde, Profilliste signieren (Nutzer), Zusammenführen auf `main` (OK des
+  Nutzers), Release-Notizen, Bot-PRs #39–#41 entscheiden.
+
+## 0.3.3: Release (21.11., der Nutzer: „bringen wir das release online dann kann ich update und alles prüfen und etwaige bugs bügeln wir in .4 aus“)
+
+**Stand:** Testzweig `08ec62c` plus dieser Commit (Version 0.3.3, Release-Notizen ohne Arbeitskommentare). Die Live-Runde
+vom 21.11. endet hier. Was sie nicht mehr gesehen hat, prüft der Nutzer nach dem Update von 0.3.2 auf 0.3.3; Fehler
+daraus kommen in 0.3.4.
+
+- **Live bestanden am 21.11.** (Testbuilds `201c63a` bis `08ec62c`): Spieler 1 und 2; Tastatur für den Controller;
+  Einstellungen › Startseite; Touchpad als Maus (nach `f9a6042`: „Erlaubt. Es wirkt, sobald Nightforge neu gestartet
+  ist.“); ABZU (Vorhang nach 18 s unten, kein Shader-Hinweis, Menü als Leiste rechts, Beenden ohne Flackern); N2 (ein
+  frühes Ende von außen: erst der zweite Start, dann „Noch ein Versuch …“); Drawful 2; Hearthstone über Battle.net;
+  Ruhe im Leerlauf und Steam bei Bedarf am Protokoll vom 18.–21.11.
+- **Aus der Runde gebaut, nicht mehr live gesehen:** der Vollbild-Hinweis, wenn Overwatch sein Bild erst nach dem
+  Vorhang verliert (`8aa955a`, Kette grün).
+- **Nach dem Release zu prüfen (Fehler → 0.3.4):** Laufwerk am zweiten Mac (Teil B, B1–B11; seit dem 21.11. auf dem
+  neuen MacBook Pro M5 Pro statt auf dem Mac mini – mit 0.3.2 passiert dort beim Anstecken nichts, wie erwartet);
+  Overwatch im Vollbild (Hinweis, ⌘⇥, „Neu starten“ per Pad); Lizenz beim ersten Start (GTA V); Updates auf dem
+  Ladescreen; „Hängt es?“ nach 30 s; Steams Fragen auf dem Ladescreen; B während der Battle.net-Anmeldung; W3; Anmelden
+  am Sofa (GOG per QR); Fernseher (T1–T5); Mac bleibt wach beim Laden; Shader-Hinweis nur beim ersten Start. Neu als
+  Frage: eine Platte abwechselnd an zwei Macs (Epic und GOG führen ihre Liste je Mac).
+- **Der Merge nach `main` stößt an** (nichts davon erreicht Spieler ohne signiertes Manifest): `graphics.yml` baut und
+  veröffentlicht einen Grafik-Baustein mit `dxmt-0.80-prepare-shaders.patch` (LGPL, Ja des Nutzers vom 8.11.; der kurze
+  Test `ablauf.sh test` ist nicht gelaufen – vor einem Manifest-Eintrag nachholen), `gamepad.yml` (winebus-Stille),
+  `profiles.yml`, `pad-answer.yml` (Bot-PR mit `pad-answer.exe`), `signatures.yml` (rot, bis die Listen signiert sind).
+- **Schritte:** Kette lokal → Push → PR nach `main` → `ci.yml` grün → Merge (wie #43 als Merge-Commit) →
+  `scripts/sign-lists.sh main` (Nutzer) → Tag `v0.3.3` → `release.yml` legt den Entwurf an →
+  `scripts/sign-release.sh v0.3.3 --publish` (Nutzer) → Landingpage, Download-Zahlen, `main` zurück in den Arbeitszweig.
+
+## 0.3.3: Abschlussliste (15.11., auf Wunsch des Nutzers: „schau mal das wir alles zusammenhaben für den 0.3.3 release“)
+
+**Stand:** Testzweig `claude/staging-033` liegt 397 Commits vor `origin/main` (`2276ccb`, 0.3.2 mit Landingpage) und ist
+seit dem 15.11., 17:20 **als Sicherung gepusht** (`origin/claude/staging-033` = `78ac7d0`, mit OK des Nutzers „Ja, pushen“;
+kein PR). Vor dem Push geprüft: keine echten Anmeldedaten oder Token im Zweig, nur Testwerte; die echte Steam-ID des
+Nutzers steht in fünf Testdateien, die schon auf `origin/main` liegen (nichts Neues durch den Push – ob sie dort
+bleiben soll, entscheidet der Nutzer). Kette zuletzt grün (121 Testreihen, 281 pytest). Version in
+`Resources/Info.plist` noch 0.3.2. `docs/release-notes/v0.3.3.md` fehlt; `docs/RELEASE-0.3.3-ENTWURF.md` ist vom 9.11.
+und überholt (kennt Schritt E, den Vorhang nach der Regel und das Laufwerk nicht, verspricht Ungeprüftes).
+`docs/AUDIT-0.3.3.md` ist vom 8.11. (`365f393`), vor Start-Rezept, Laufwerk und Vorhang.
+
+**1. Noch zu bauen (klein):**
+- [x] Laufwerk: Board https://claude.ai/artifact/TyJ67wguhLXYyxdNBtNccJ, **der Nutzer wählte A („A, eine Zeile“, 15.11.)**:
+  ein Hinweis je Laufwerk, dazu die Zeile mit Knopf für Läden, die auf Anmeldung oder Steam für Mac warten. Gebaut auf
+  `claude/sad-nightingale-196da3`, Tests grün, nicht live gesehen (Live-Anleitung Teil B, B9–B11).
+- [x] Shader-Hinweis nur beim ersten Mal: Kette auf `bb80f7f` grün (121 Reihen, 281 pytest), noch nicht eingespielt.
+- [ ] Erlebnis-Audit E9, E10 (Board), E11: Entscheidungen des Nutzers.
+- [ ] Ehrliche Zeile für D3DMetal („none possible on D3DMetal“) in `LibraryModel.swift`/`GameLog`/Kommentar `Engine.swift`.
+
+**2. Live-Runde auf dem Endstand:**
+- Schon live gesehen: Fehlstart → Abhilfe → Bild (ABZU), Fenster des Spiels als Fehlstart, genauerer Blick, Zertifikat-Frage
+  (MGS V), Vorhang nach der Regel, Laufwerk Teil A (GOG), kein `sample` bei Overwatch, Overwatch randlos 3 von 3.
+- [x] **Start-Runde auf dem Endstand (15.11., 21:03–21:34, Testbuild `389cb19`, Bericht `GameTests/2026-11-15-2103`):
+  21 von 21 gestarteten Spielen mit Bild,** auf jedem Weg (D3DMetal 6, DXMT 6, WineD3D 5, DXVK 1, Mac 3), keine
+  Reparatur nötig, kein zweiter Anlauf (auch ABZU nicht), Overwatch randlos nach 12 s mit 40 / 40. Nicht gestartet:
+  Hearthstone (Battle.net), Drawful 2 (Update stünde an), Dying Light (erster Start der anderen Fassung). Listen neu
+  erzeugt: 21 „Start geprüft“ (593,5 GB), 0 im Spiel gemessen.
+- [ ] Koordinator allein: Ruhe im Leerlauf und Steam bei Bedarf am Protokoll einer Nacht.
+- [ ] Mit dem Nutzer: Overwatch im Vollbild (Hinweis, ein ⌘⇥, „Neu starten“ per Pad); Laufwerk Teil B auf dem Mac mini;
+  ruhiger Ladescreen (13 Punkte); Lizenz beim ersten Start (GTA V); Touchpad als Zeiger; Spieler 1 und 2 (zwei Pads);
+  Tastatur für den Controller (`PadKeyboardView` ist im Zweig – prüfen, ob sie an ist); Anmelden am Sofa (GOG per QR);
+  Battle.net-Start; Einstellungen › Startseite; Fernseher. Was scheitert, wird ausgeschaltet oder wandert auf 0.3.4.
+
+**3. Audit-Runde gelaufen (15.11., Session „Audit 0.3.3: Abschlussrunde“, Bericht `docs/AUDIT-0.3.3-ABSCHLUSS.md`):**
+nichts blockiert, sobald B1 eingespielt ist. Behoben und im Testzweig (vom Koordinator nachgelesen): B1 ein Manifest aus
+lauter Klammern auf einem angesteckten Laufwerk beendete Nightforge bei jedem Start (`6e0784a`), B2 `installdir` konnte
+aus der Bibliothek herausführen (`ca716ab`), B3 jede Datei einer Bibliothek wurde ganz gelesen (`8c19745`), B4 mit `+pid`
+füllte ein Fehler die Liste des Problemberichts (`963f526`), B5 Test hält die Testschalter aus dem Release (`c2d4950`).
+- [x] S1 `ownAntiCheat` zählt in der Startschleife wie Anti-Cheat (`80a236b`), S2 der Vorhang sagt das Ende, wo kein
+  Versuch mehr kommt (`148a67c`), W1 „Noch einmal von vorn“ vergisst das Gelernte (`9522227`): im Testzweig seit `389cb19`.
+- [ ] Entscheidungen des Nutzers: W3 (ein kleines eigenes Startfenster, das der Spieler schließt, gilt seit dem 15.11.
+  als Fehlstart und kommt bis zu zweimal wieder; **am 17.11. nach der Empfehlung gebaut, `e1f79e6`, siehe 3b – der
+  Nutzer kann es einzeln ablehnen**),
+  W4/W5 (übernommene Spiele vom Laufwerk prüft kein Laden; Steam zählt vor dem Besitz – für 0.3.4), W7
+  (`start-evidence.jsonl` ist immer an, bleibt auf dem Mac, wird nie gekürzt – in die Release-Notizen, Kürzen für
+  0.3.4), W8 (A für „Neu starten“ kommt im unsichtbaren Spiel an – live an Overwatch ansehen), W9 („Hinzufügen und
+  starten“ ist vorgewählt, zählt erst, wenn eine Wurzel in der Liste steht).
+
+**3b. Zweiter Audit vor der Live-Runde (17.11., der Nutzer: „kannst du vorm live prüfen nochmal einen kompletten audit
+machen und bugs suchen und beheben“; Bericht: Abschnitte „Zweite Runde“ und „Nachlese des Koordinators“ in
+`docs/AUDIT-0.3.3-ABSCHLUSS.md`):**
+- Audit-Session, zweite Runde auf `376f0ea`: **kein neuer Fehler** in dem, was die Live-Runde anfasst (Anmelden vom Sofa,
+  Pad-Wege, Lizenz, Battle.net-Start, zwei Controller, Startseite) und quer über den ganzen Unterschied zu 0.3.2
+  (Nebenläufigkeit, Lebenszyklus, Aufstieg von 0.3.2, Release-Build, Fehlerpfade). Gebaut, je ein Commit mit Test:
+  **N2** kein „Noch ein Versuch …“, wo das Ende das des Spielers sein kann (`3afd0b1`); **W3** dasselbe Fenster, das
+  nichts sagt, zweimal im selben „Spielen“ und nichts gefunden, das dagegen spricht: Wahl des Spielers (`e1f79e6`).
+  Preis von W3: Scheitert ein Spiel wirklich zweimal an einem eigenen Fenster ohne Spur, endet der Start still auf der
+  Seite, und der nächste Weg kommt erst mit dem nächsten „Spielen“. Zurück mit `git revert e1f79e6`.
+- Koordinator: mechanische Durchsicht aller 14.072 neuen Zeilen (löschen/überschreiben, erzwungenes Auspacken, feste
+  Indexzugriffe, Warteschleifen, Unterprozesse) und die Teile, die die zweite Runde nicht vertieft hat
+  (Bildschirmtastatur ganz, Ruhe im Leerlauf, Server fürs Anmelden vom Sofa, Änderungen an Steam bei Bedarf,
+  Touchpad-Zeiger, Ladebildschirm): ohne Befund.
+- **B11, gefunden über GitHub:** Die Prüfkette (`ci.yml`) war für den gesicherten Zweig nie gelaufen. Von Hand
+  angestoßen (Lauf 44177202673 auf `78ac7d0`): Bau grün, „Test build shortcut“ rot, alles danach übersprungen. Der Test
+  rief sein Skript mit einem erfundenen SDK-Pfad über Apples Python-Stub auf, der mit einem vollen Xcode daran
+  scheitert. Lokal nachgestellt, behoben in `tests/test_testbuild.py` (`b61b765`).
+- **B12:** Nach dem Push (OK des Nutzers „Ja, pushen“, 17.11.) zweiter Lauf auf `c7397f2`: 120 von 121 Reihen grün,
+  `TouchpadPointerTest` baute mit dem Swift von Xcode 26.6 nicht (der von Swift erzeugte Initialisierer ist dort
+  privat, mit dem Swift 6.4 dieses Macs nicht). Initialisierer ausgeschrieben (`be14133`), wieder mit OK gepusht.
+- [x] **Prüfkette auf GitHub ganz grün** (Lauf 44186316561 auf `be14133`, alle 14 Schritte), zum ersten Mal seit
+  0.3.2. `origin/claude/staging-033` = `be14133`. Merksatz: `ci.yml` läuft nur bei `main`, PR oder von Hand – nach
+  jedem Push eines Testzweigs `gh workflow run ci.yml --ref <Zweig>`.
+- [x] **Eingespielt am 18.11., 17:03, mit „Ja, einspielen“: Testbuild = `201c63a`** (Code wie `be14133`: zweite
+  Audit-Runde mit N2 und W3, B11, B12). Kette davor grün (121 Reihen, 286 Python-Tests), Signatur OK, die
+  eingespielte Datei ist die gebaute. Damit ist der Stand für die Live-Runde auf dem Mac.
+- Für die Live-Runde: in den echten Einstellungen steht kein Testschalter, kein Spiel hat etwas gelernt. Die Liste,
+  worauf bei welchem Punkt zu achten ist, steht im Bericht unter „Für die Live-Runde“.
+- Weiter offen (nur beschrieben): Z2 Übernahme für Steam für Mac ohne Warteschlange (Vermutung), Z3 Laufwerk weg mitten
+  im Start (langer Vorhang, B führt heraus), N1 (Entscheidung des Nutzers).
+
+**3a. Frühere Fassung dieses Punktes:** Audit- und Testrunde über alles seit dem 8.11.: Start-Rezept und Schritt E, Laufwerk-Übernahme (fasst Steams
+Listen, legendary und GOGs Liste an), Vorhang, Frage zur Wurzel, Testschalter. Eigene Session; Befunde prüft der Koordinator.
+
+**4a. Release-Notizen neu geschrieben (15.11., Landingpage-Session, `8db7d86`/`4e42876`, im Testzweig):**
+`docs/release-notes/v0.3.3.md` deutsch und englisch; jeder Punkt, der noch nicht live bestanden hat, trägt einen
+HTML-Kommentar; `docs/RELEASE-0.3.3-ENTWURF.md` ist die Statusliste dazu. Gestrichen: Zertifikat-Frage (Liste leer),
+A/B in Windows-Fragen (kein `pad-answer.exe` im Release), frühe Shader-Übersetzung (braucht den Grafik-Baustein aus
+Bot-PR #41). **Offen: die Tastatur für den Controller ist im Build an (Y öffnet sie), steht aber auf der 0.3.4-Liste –
+live prüfen oder ausschalten (Entscheidung des Nutzers).**
+
+**4. Texte und Version:** Release-Notizen neu gegen den Endstand (deutsch/englisch, `docs/release-notes/v0.3.3.md`,
+Landingpage-Session), Version 0.3.3 in `Info.plist`, `docs/TESTABDECKUNG.md` nachziehen (zuletzt 37 % Zeilen).
+
+**5. Nur der Nutzer:**
+- [ ] OK zum Pushen des Zweigs (Sicherung, CI auf GitHub), zum PR nach `main` und zum Merge.
+- [ ] `scripts/sign-lists.sh main`: Die Profilliste hat neue Felder (`ownAntiCheat`, `fullscreenHint`).
+- [ ] Bot-PRs: #41 (graphics `-17` → `-18`: Inhalt klären, hängt an der DXMT-LGPL-Entscheidung), #40 Profile, #39
+  unity-play. Dependabot #21–#26 bleiben liegen.
+- [ ] Overwatchs deutschen Menüwortlaut für „Randloses Fenster“ im Spiel nachsehen.
+- [ ] Release signieren, Tag `v0.3.3`.
+
+**6. Danach:** Landingpage, Zahlen-Basis, `main` zurück in den Arbeitszweig, Sessions archivieren.
+
+**Risiken:** 397 Commits ohne Sicherung außerhalb dieses Macs; die Startschleife ist umgebaut und nur an drei Spielen
+gezielt geprüft; die Laufwerk-Übernahme ist nur für GOG live gesehen; vieles vom 8./9.11. ist nie live gelaufen.
+
+- [ ] **„Shader werden vorbereitet …“ kommt zu oft (Frage des Nutzers, 15.11.).** Der Hinweis kommt, wenn die gemerkte
+  Kombination (`shaders.<Spiel>` in den defaults: Engine | Grafikweg | Grafik-Bausteine, `LaunchPhase.graphicsSignature`)
+  von der des Starts abweicht – gemerkt wird nur die **letzte**. Wechselt ein Spiel den Weg und kehrt zurück, kommt der
+  Hinweis jedes Mal, obwohl die Shader dieses Wegs schon einmal gebaut wurden. Heute bei MGS V (D3DMetal ↔ DXMT in den
+  Tests, dreimal) und ABZU. Es wurden keine Shader gelöscht, die Komponentenliste ist seit dem 5.11. dieselbe.
+  Vorschlag: je Spiel alle gesehenen Kombinationen merken; der Hinweis kommt dann nur beim wirklich ersten Start einer
+  Kombination. **Entschieden vom Nutzer (15.11.): „Ja, beheben“** – bei der Diagnose-Session. Die Testskripte stellten `shaders.*` nicht mit zurück: für ABZU (dxmt) und Alan Wake (wined3d) von
+  Hand nachgeholt, 16:49.
+
+**Vorhang nach der Regel, eingespielt und erster Live-Fall (15.11., Testbuild `9bda7de`, 16:36; ABZU 16:40 mit
+`gameTest.testFinding`):** „Curtain: "Noch ein Versuch …" – the game closed right away, Nightforge looks into it“,
+Diagnose vom Schalter, „Curtain: "Noch ein Versuch …" – the cause found, the same way once more“, zweiter Start mit
+Bild; „Start phase: signingInEpic – …“ steht nur noch im Protokoll. **MGS V 16:45–16:47 mit `testRootQuestion`:** die
+ganze Kette mit dem neuen Vorhang – Fenster → „Curtain: "Noch ein Versuch …" – the game closed right away“ → „on to
+another way“ → genauerer Blick → DXMT, Fenster → `untrusted-root` → Frage → „the player added the root“ → „Curtain:
+"Noch ein Versuch …" – the certificate is added, the game starts once more“ → Bild. (Bei der Frage war die Claude-App
+vorn: „Overlay up (trustRoot) …: Claude in front“; sie ließ sich trotzdem beantworten.) Offen live: Overwatch im
+Vollbild (Hinweis, ein ⌘⇥, „Neu starten“ per Pad). Der Stempel der Profilliste lag in der Zukunft
+(17:40Z um 15:30Z) und ließ drei Signatur-Tests scheitern; korrigiert in `9bda7de`.
+
+**Vorhang nach der Regel (entschieden vom Nutzer, 15.11.: „Ja, so umbauen“; Board
+https://claude.ai/artifact/SMv7bMwpPLTukHK4UwqexA, Quellen `docs/entwuerfe/vorhang-regel/` im Zweig der Diagnose-Session):**
+Regel: eine Zeile, was passiert, höchstens ein kurzer Satz; mehr nur, wenn der Spieler etwas tun muss, mit einem Knopf;
+alles andere ins Protokoll. 23 Zustände: Vorhang B ohne Schritte (7 → 3 Zeilen), Start- und Einrichtzeilen
+zusammengelegt, erklärende Sätze ins Protokoll, Knöpfe statt Satz bei „Das Spiel fragt etwas“, Vollbild-Hinweis als
+Zeile + Satz + „Neu starten“, L3+R3-Tipp nur beim ersten Start. Der Vollbild-Hinweis nach Vorlage B (zwei Schritte)
+ist damit ersetzt. Bau bei der Diagnose-Session; live zu prüfen: ein ⌘⇥ reicht, „Neu starten“ über die Pad-Zeile.
+
+**Zuschnitt von 0.3.3 (entschieden vom Nutzer, 15.11.: „ja machen wir 0.3.3 so zugeschnitten. sonst kommen wir
+langsamer voran“):** 0.3.3 = „Der Start repariert sich selbst, sichtbar“ (Schritt E live, Vorhang nach dem Board)
+und „Laufwerk wiedererkennen“, dazu was schon fertig im Testzweig liegt und geprüft ist. Auf 0.3.4: das Limit auf
+D3DMetal (Weg A) und die älteren Punkte des 0.3.3-Plans, die noch ein Board oder einen Live-Test brauchen. Die
+genaue Liste (hinein / auf 0.3.4) legt der Koordinator dem Nutzer vor. Der Nutzer will die Laufwerks-Übernahme
+selbst auf dem Mac mini testen (frische Installation, Platte anstecken); vorher hier mit nachgebautem Laufwerk.
+
+**Ziel für den Start (der Nutzer, 15.11.):** Nightforge reagiert smart, behebt Fehlstarts selbst und vermittelt
+dem Spieler dabei, dass es aktiv an der Lösung arbeitet – „voller Problembehebung bei Fehlern automatisiert“.
+
+- [ ] Jede Abhilfe aus Schritt E braucht einen verlässlichen Weg, sie live auszulösen (Fehler gezielt einbauen),
+  damit sie nicht nur durch Tests gedeckt ist.
+- [ ] Der Vorhang zeigt die Arbeit (Board in Auftrag); Fehlerfenster des Spiels kommen nicht vor den Spieler.
+- [ ] Fehlstarts, die keine Regel kennt, sammeln und daraus Regeln machen (Diagnosetabelle wächst mit jedem Fall).
+
+**Gezielte Live-Prüfung von Schritt E, 15.11., 00:36–00:43 (Bericht `GameTests/2026-11-15-0037`, Protokoll im
+Notizordner `closer-look/live-2026-11-15-schritt-e-gezielt.log`): die neuen Wirkungen waren nicht zu sehen.**
+
+- [ ] **E3 nicht gesehen:** It Takes Two mit dem Testprofil (`physxupdateloader`, `physxupdateloader64` =
+  `native,builtin`, so auch im Rezept der Evidenz) stürzte nicht ab: Bild nach 61 s. Der Absturz vom 10.11. lässt
+  sich so nicht mehr auslösen (Vermutung: nvapi64 ist seit dem 7.11. aus). Es braucht einen anderen Auslöser.
+- [ ] **E4 nicht gesehen:** trotz anderem Rezept stand `known` an der `started`-Zeile, die Zeile „its way was proven
+  with another recipe“ kam nicht (der Zustand trug wohl noch kein Rezept: der Start davor lief nur 40 s).
+- [ ] **E5, Fehlerfenster, nicht gesehen:** Alan Wake von Hand auf D3DMetal zeigte die Box (`trace:msgbox` mit dem
+  Text steht im Protokoll), der Spieletest brach aber mit „dialog on d3dmetal“ ab, bevor der Start endete: keine
+  Diagnosezeile, keine Evidenz. Der Nutzer sah die Box. Zu prüfen ist das mit einem normalen Start über „Spielen“.
+- Zurückgestellt: Profil (git), Zustand beider Spiele aus der Sicherung, 2 Evidenzzeilen herausgenommen, sauberer
+  Build `ded1d83` wieder eingespielt (00:43, Signatur OK). Nichts ging kaputt.
+- **Idee des Nutzers (15.11.):** Der Vorhang soll zeigen, dass Nightforge aktiv an der Fehlerbehebung arbeitet.
+  Board bei der Diagnose-Session in Auftrag (Zustände des Vorhangs, Umgang mit dem Fehlerfenster, Frage zur Wurzel).
+
+**Teil 2 eingespielt und erster Probelauf, 15.11., 00:19–00:30 (Testbuild `af20360`, mit „Ja, einspielen“ des
+Nutzers; Bericht `GameTests/2026-11-15-0020`, je 40 s):** 6 von 6 mit Bild – MGS V (Steam, dxmt, Ø 59),
+It Takes Two (Steam, d3dmetal), ABZU (Epic, dxmt -dx11), Mafia II (GOG, wined3d), Valheim (Mac), Rise of the
+Tomb Raider (Epic, erster Start überhaupt: Startplan „d3dmetal, dxmt, dxvk; now d3dmetal, its files show
+DirectX 12 …“, am Launcher-Fenster vorbei mit `-nolauncher`, Bild nach 19 s).
+
+- **Gesehen, E1:** Jede `started`-Zeile der Evidenz trägt `recipe` (arguments, avx, dllOverrides, graphics,
+  runtimes); die Starts gehen wie vorher, „Game settings as the prefix has them: no regedit“.
+- **Gesehen, E5:** Jeder Start trägt die Kanäle (3842 `trace:loaddll`-Zeilen in 6 Starts, +608 KB); Steam
+  startete für MGS V einmal neu. Ein Fehlerfenster kam nicht vor.
+- **Nicht gesehen:** E2 (fehlende Laufzeit, Hogwarts ohne Profil), E3 (It Takes Two mit Testprofil), E4 (anderes
+  Rezept), E6 (Blick für den bewährten Weg), ein Start auf DXVK (The Forest ist gelöscht, OxyRail bräuchte ein
+  Update). Anleitung: Notizordner `closer-look/live-pruefung-schritt-e.md`.
+- [ ] **ABZU braucht zum dritten Mal in Folge zwei Anläufe** (14.11. 20:14, 15.11. 00:24; am 14.11. 18:43 nicht).
+  Mit den Kanälen jetzt lesbar: Der erste Anlauf endet still, ohne Fehlerzeile, nach dem Laden von
+  `explorerframe.dll` (101 Bibliotheken); der zweite lädt danach `cryptnet.dll`, `rtworkq`, `mfplat`,
+  `mfreadwrite`, `XAudio2_7`, `mmdevapi` und die Vorbis-Bibliotheken (112). Es greift der alte Zweig „ended in
+  its first seconds … started once more on it“, ohne Diagnose. Beide Anläufe liegen im Notizordner
+  (`closer-look/live-2026-11-15-abzu-anlauf-1.log`, `-2.log`). Für die Diagnose-Session.
+- Während des Laufs kam einmal Google Chrome nach vorn (der Nutzer war am Mac); der Vorhang ging hoch und
+  wieder herunter, der Test lief weiter.
+
+**Schritt E, Teil 2 ist im Testzweig (15.11., 00:14, Zusammenführung `7d12b51`):** E1 bis E5 und die Logik von E6
+in neun Commits der Diagnose-Session. Kette des Koordinators grün: 119 Testreihen, 273 pytest. **Nicht
+eingespielt, live nichts gesehen.** Nach dem Einspielen (OK des Nutzers) live: E2 mit einem Spiel mit fehlender
+Laufzeit und Hogwarts ohne Profil, E3 mit It Takes Two und einem Testprofil, dazu ein gewöhnlicher Start je Weg.
+Die zwei Oberflächen von E6 (Frage zur Wurzel, Vorhangzeile) warten auf ihr Board.
+
+**Neuinstallation und ein Laufwerk mit Spielen (Frage des Nutzers, 15.11.; aus dem Code gelesen, nicht live
+probiert):** Nightforge übernimmt die Spiele auf dem Laufwerk nicht von selbst.
+
+- [ ] **Steam (Windows):** Installiert ist, was in Steams `libraryfolders.vdf` steht (`LibraryScanner.libraryFolders`,
+  `Library.swift`). Die Liste einer frischen Installation kennt die Bibliothek auf dem Laufwerk nicht.
+  `SteamLibraries.ensure` trägt sie mit den Spielen ein, die schon dort liegen – wird aber nur beim Laden oder
+  Verschieben auf das Laufwerk gerufen (`DriveMoves.swift`). `watchDrives` lädt beim Anstecken nur neu. Folge:
+  Alle Steam-Spiele des Laufwerks stehen als „nicht installiert“ da, bis der Spieler irgendein Steam-Spiel auf
+  dieses Laufwerk lädt; dann kommen alle zurück, ohne neu zu laden (`requestDownload` lässt ein vorhandenes
+  Manifest stehen). Steam für Mac ebenso über seine eigene Liste.
+- [ ] **Epic:** Installiert ist, was in legendarys `installed.json` in Nightforges Daten steht; nach der
+  Neuinstallation leer. Nichts ruft `legendary import`. Lädt der Spieler das Spiel erneut auf das Laufwerk,
+  geht `legendary install --base-path` in den vorhandenen Ordner (ungeprüft: vermutlich lädt es alles neu).
+- [ ] **GOG:** Nightforges eigene `GOG/installed.json`; nach der Neuinstallation leer, nichts liest die Ordner.
+- In Einstellungen › Speicher steht das Laufwerk mit seinem Balken, aber ohne Spiele.
+- Vorschlag (eigene Session, Karte gestellt): ein Laufwerk mit „Nightforge Games“ beim Anstecken und beim Start
+  wiedererkennen und übernehmen, je Laden, ohne neu zu laden; Hinweis an den Spieler erst als Board.
+**Neuinstallation und ein Laufwerk mit Spielen (Frage des Nutzers, 15.11.):** gebaut auf
+`claude/sad-nightingale-196da3` (Commits ab `ff7c884`), mit Tests, **nicht live gelaufen und nicht eingespielt**.
+Anleitung für die Live-Prüfung: `docs/LIVETEST-LAUFWERK.md`. Board: https://claude.ai/artifact/TyJ67wguhLXYyxdNBtNccJ
+(Quelle `docs/entwuerfe/LaufwerkUebernahme.dc.html`).
+
+- [x] **Befund nachgelesen, zwei Korrekturen.** Steam und GOG wie notiert. Epic: legendary legt im Spielordner nichts
+  Eigenes ab – ein `.egstore` gibt es nur, wo die Spieldateien eines mitbringen (auf „Games“ bei einem von neun) –,
+  welcher Ordner welches Spiel ist, sagt erst die Liste des Kontos (Epics Ordnername je Spiel). gogdls `import`
+  trägt nichts ein, es liest nur die `goggame-<id>.info` und fragt GOG nach dem Versionsnamen.
+- [x] **Erkennen** (`DriveFinds.swift`, rein): was auf dem Laufwerk liegt, aus dessen Dateien allein, und was davon
+  Nightforge nicht kennt – zu übernehmen oder wartend, mit Grund. `tests/DriveFindsTest`.
+- [x] **Übernehmen** (`DriveTakeover.swift`, dazu je ein Abschnitt in `EpicStore.swift`, `GOGStore.swift`), ohne
+  Download, ohne etwas auf dem Laufwerk zu ändern: Steam und Steam für Mac über `SteamLibraries.ensure` bei gestopptem
+  Steam, eingereiht wie jeder Steam-Start; Epic über `legendary import` (aus der mitgelieferten 0.21.1 gelesen: braucht
+  Anmeldung und Netz, holt das Manifest, prüft Programmdatei und Dateien, endet auch nach einer Weigerung mit 0 –
+  darum entscheidet legendarys Liste); GOG als Eintrag in Nightforges `GOG/installed.json`. Nur Spiele des
+  angemeldeten Kontos; ein Epic-Download, der abbrach (legendarys `tmp/<App>.resume`), und ein GOG-Download mit
+  `.gogdl-resume` bleiben dem Download. `tests/DriveTakeoverTest` (leeres HOME, Ersatz-legendary).
+- [x] **Wann:** einmal nach dem Start, nach dem Anstecken, und sobald etwas Wartendes dran sein könnte (Spiel,
+  Download oder Umzug vorbei; Steam eingerichtet; Laden angemeldet; Liste des Ladens da). Eine Zeile in
+  `LibraryModel.swift` (`lookAtDrives()` in der Schleife, die die laufenden Spiele beobachtet).
+- **Was der Testbau auf „Games“ fände (15.11., nur gelesen):** 8 Steam-Spiele (eines halb geladen), 5 für Steam für
+  Mac, 9 Epic-Ordner, 1 GOG-Spiel – alle bekannt, also nichts zu tun und nichts wartend. Derselbe Stand ohne Nightforges
+  Listen, alle Läden angemeldet: alle 23 werden erkannt, kein Ordner bleibt übrig.
+- [x] **Der Nutzer wählte A („A, eine Zeile“, 15.11.), gebaut:** nach einer Übernahme einmal je Laufwerk die Zeile
+  „14 Spiele auf „Games“ sind wieder da“ (Toast, nicht über dem ersten Start); in Einstellungen › Speicher beim
+  Laufwerk und unter Läden je Laden eine Zeile mit „Anmelden“ (Epic, GOG) oder „Einrichten“ (Steam für Mac, ohne
+  Spiel: der Dialog nennt das erste Mac-Spiel des Laufwerks), mit Pad-Fokus. Der Dialog „Laufwerk vergessen“ sagt nicht
+  mehr „gilt als neues Laufwerk“, sondern dass die Spiele ohne Download wiederkommen. Nicht live: ob das Blatt von
+  Steam für Mac nach dem Schließen der Einstellungen (400 ms) sicher erscheint.
+- [ ] **Live prüfen** nach `docs/LIVETEST-LAUFWERK.md`: Teil A im leeren HOME mit einem Disk-Image (dort sieht die
+  Übernahme nur Disk-Images an, nie ein echtes Laufwerk); Teil B der echte Fall über „Laufwerk vergessen“ – ändert
+  Nightforges echte Listen, also die Entscheidung des Nutzers.
+- [ ] **Offen, gelesen und nicht belegt:** (1) Epic trägt nach dem Import den neuesten Stand ein, auch wenn die
+  Dateien älter sind, und merkt das Spiel zur Prüfung vor; ob Nightforges „Aktualisieren & Spielen“ damit richtig
+  umgeht, ist nicht gelaufen. (2) Ein Epic-Download, dem unter 5 % fehlen, gilt nach dem Import als installiert.
+  (3) GOG: gogdl fehlt nach der Übernahme das gespeicherte Manifest; das nächste Update lädt vermutlich alles.
+  (4) Ob die auslösende Schleife schon während der ersten Einrichtung läuft.
+- Vorschlag für später: Beim Laden auf ein Laufwerk einen Merkzettel dazulegen (Epic: App-Name und Stand, GOG: gogdls
+  Manifest). Dann wäre die Übernahme genau und ginge für Epic auch ohne Netz. Nicht gebaut – es schreibt bei jedem
+  Download auf das Laufwerk und will eine eigene Entscheidung.
+- In Einstellungen › Speicher steht das Laufwerk nach der Übernahme wieder mit seinen Spielen.
+
+**Entschieden vom Nutzer, 15.11. kurz nach Mitternacht:** „aber das menü sagt halt echt nichts aus über die
+leistung im spiel“ – die FPS-Werte des Spieletests (Vorspann, Menü) belegen den Start, nicht die Leistung. Ein
+Leistungswert ist nur einer, der beim Spielen gemessen wurde. Zum Mitschreiben beim normalen Spielen: „ja aber
+nur für unsere tests. im fertigen build soll kein tracking laufen“.
+
+- [ ] **Messen beim Spielen, nur als Testschalter** (Auftrag an die Läuft-Liste-Session, nach der sample-Regel):
+  versteckter Schalter in den Defaults, ohne ihn schreibt kein Start etwas mit (Test), nichts verlässt den Mac;
+  Leser für eine normale Spielsitzung, der Anfang bleibt weg (Regel als Vorschlag); WineD3D über Wines
+  fps-Kanal. Zeilen in `LibraryModel.swift`/`Engine.swift` kommen als Patch nach Teil 2 von Schritt E.
+- [ ] **Listen umstellen:** Werte des Spieletests unter „Start geprüft“, nicht öffentlich als FPS; Abhakliste mit
+  zwei getrennten Aussagen („Start geprüft“, „im Spiel gemessen“). Die Landingpage bekommt FPS nur aus Messungen
+  beim Spielen.
+- Der Nutzer löscht acht Spiele schon jetzt, wenn ihm „startet sauber“ genügt (Guardians, Just Cause 4, Control,
+  Dishonored, Alan Wake, Frostpunk, Batman, The Forest). Behalten für Prüfungen: Hogwarts und It Takes Two
+  (Schritt E live), MGS V (Frage zur Wurzel), Wukong Benchmark (Limit auf D3DMetal), Mafia II (Ruckeln, Ton).
+
+**Stand 14.11., 23:50:** Der zweite Commit der Läuft-Liste-Session (`15bc24a`: der Bericht des Spieletests nennt
+für D3DMetal „keins möglich (verlangt: 60 FPS)“; Regeln und drei Vorschläge in `docs/LAEUFT-LISTE.md` Abschnitt 9,
+Punkte 10 bis 12) ist geprüft (GameTestTest grün) und im Testzweig (`35e3c1b`).
+
+- **Entschieden vom Nutzer („Ja, weglassen“):** Der Spieletest nimmt bei Spielen mit eigenem Cheat-Schutz kein
+  `sample` mehr. In Arbeit bei der Läuft-Liste-Session: Feld im Profil, gesetzt für Overwatch; die einzige
+  Stelle, die `sample` aufruft, ist `GameTestRun.swift:655`.
+- **Overwatch, genauer:** Das HUD-Protokoll fehlte, weil das Fenster des Spiels nie auf dem Bildschirm war (von
+  der Session mit einem eigenen Metal-Programm belegt: nie gezeigtes Fenster, 360 Frames, 0 Zeilen). Der Vorhang
+  hatte also recht: Das Spiel zeichnete, aber ohne sichtbares Fenster. Verlangt waren 40 FPS, DXMT zählte 50.
+  Am 7.11. lief es. Offen, wer das klärt (nach Schritt E; kein sample, kein winedbg).
+- **D3DMetal auf 60 halten, drei Wege, nichts gebaut:** A Takt in `-[WineMetalLayer nextDrawable]` im
+  Mac-Treiber von Wine (Patch für `enginefix`, etwa ein Tag mit Engine-Build und Probe; empfohlen), B Bildschirm
+  für die Dauer des Spiels auf 60 Hz (hält nur Spiele mit VSync: Control ja, Wukong nicht), C DXMT statt
+  D3DMetal, wo ein Spiel dort läuft.
+  **Entschieden vom Nutzer, 14.11. („Ja, nach Schritt E“): Weg A wird gebaut, nach Schritt E.** Zuerst eine
+  Stunde den Quelltext von `WineMetalLayer` lesen (noch ungelesen), dann der Patch für `enginefix`, Engine-Build
+  und Probe mit dem Wukong-Benchmark (Ø 201 ohne Sperre). Der Engine-Build braucht das OK des Nutzers für den
+  Workflow; der Quelltext des Patches wird wie bei `enginefix` offen gelegt (LGPL).
+- Danach an die Reihe: die Protokollzeile „none possible on D3DMetal (asked 60 FPS)“ in `LibraryModel.swift`,
+  `GameLog.d3dMetalStart` und der Kommentar in `Engine.swift` (erst nach Teil 2 von Schritt E, dieselben Dateien);
+  Left 4 Dead 2 mit `-novid` über das Profil neu messen.
+
+**Stand 14.11., 23:30:** Um etwa 21:20 traf das Nutzungslimit beide Sessions, seit 23:20 arbeiten sie wieder
+(Diagnose-Start an Teil 2 von Schritt E, bisher kein Code; Läuft-Liste am Rest ihrer vier Punkte: Abschnitt 9,
+Vorschlag für ein Limit auf D3DMetal, die Anzeige bei Overwatch). Die Listen-Korrektur `ce7647c` ist geprüft
+(pytest 273) und im Testzweig (`4c8c392`), die Listen neu erzeugt: **13 fertig (402,2 GB), 10 offen, 1 von Hand.**
+Left 4 Dead 2 ist wieder offen (starrer Wert). Neu geladen und offen: Rise of the Tomb Raider (Epic, 38,6 GB),
+noch nie gestartet. Eingespielt bleibt `c453e40`; der Mac läuft seit dem Abend auf Akku (Messungen zählen so
+nicht). Offen beim Nutzer: `sample` bei Spielen mit Cheat-Schutz, Mac-Fassungen (Probe mit Valheim).
+
+**Schritt E, Teil 1 ist im Testzweig (14.11., 21:13, Zusammenführung `dd99a43`):** Kette grün, 119 Testreihen
+(neu: StartRecipeTest), 271 pytest. Nichts außerhalb der eigenen Dateien ruft `NextStart`,
+`StartRecipe.Learned` oder `LaunchHealth.ownQuestionWasAChoice` auf (nachgesehen). Nicht eingespielt: Der
+Testbuild auf dem Mac bleibt `c453e40`, weil sich am Verhalten nichts ändert. Teil 2 (die Startschleife
+verdrahten) wartet auf die vier Entscheidungen des Nutzers (Entwurf 3.3).
+
+**Entschieden vom Nutzer, 14.11. abends („Ja, wie empfohlen“), Entwurf 3.3 › Entscheidungen:**
+1. Ein bewährter Weg, der wieder scheitert, bekommt den genaueren Blick: ein stiller Start mehr im selben
+   „Spielen“, einmal je Spiel und Engine-Stand.
+2. `untrusted-root` wird eine Frage an den Spieler, nur für eine Wurzel, die `WindowsRoots` mit festem
+   Fingerabdruck kennt. Board zuerst. Jede weitere Wurzel in `WindowsRoots` braucht weiter das OK des Nutzers.
+3. Alle Starts tragen `+pid,+loaddll,+msgbox`.
+4. Vorhang beim Start auf demselben Weg: Vorlage A („Noch ein Versuch …“). Board zuerst.
+Teil 2 (E1 bis E5 verdrahten, E6 mit Boards) ist an die Diagnose-Session gegeben.
+
+**Messlauf gestartet, 14.11., 19:41 (Testbuild `c453e40`, Bericht `GameTests/2026-11-14-1941`):** 20 von 24
+geladenen Spielen, 190 s je Spiel, am Netzteil, mit `wineDebug` `+fps,+pid,+loaddll,+timestamp` für die
+WineD3D-Spiele. Im Build: die Abendrunde des Erlebnis-Audits (E4, E8, Beenden an jedem Blatt vorbei, Testreihen
+schreiben nicht mehr ins echte Protokoll) und der Leser für Wines fps-Kanal; Kette 118 Testreihen, 271 pytest.
+Danach: Bericht lesen, `python3 scripts/laeuft-liste.py`, die erste echte fps-Zeile an die Läuft-Liste-Session.
+Schritt E, Teil 1 (`claude/diagnose-start-033-92f729`, `d0d6e22`) ist gebaut und wartet auf Prüfung und
+Zusammenführen nach dem Lauf; dazu vier Entscheidungen des Nutzers (Entwurf 3.3) und die Frage, wie Mac-Fassungen
+gemessen werden (Probe mit Valheim oder „nur der Start zählt“).
+
+**Stand 14.11., 19:15:** Die Abhak-Regel („einmal sauber gemessen bleibt abgehakt“) ist im Testzweig (`70b38c1`,
+pytest 270). Der Messlauf startet, wenn der Nutzer schlafen geht (er sagt Bescheid; Bildschirm entsperrt, Netzteil).
+Drei Sessions arbeiten, jede in ihren Dateien:
+
+- **Läuft-Liste:** FPS für WineD3D über Wines Debug-Kanal `fps` (in winecx 4.7.3 vorhanden: `wined3d.dll` trägt
+  `%p @ approx %.2ffps`), eingeschaltet über den vorhandenen Schalter `wineDebug` (`+fps,+pid`); Leser, Bericht,
+  Regeln. Muss vor dem Messlauf eingespielt sein. Dazu eine Einschätzung, ob die Mac-Fassungen messbar sind.
+- **Erlebnis-Audit:** E4, E8, Beenden bei offenem Blatt, Testreihe im echten Protokoll (`Engine.swift`,
+  `LibraryModel.swift` außerhalb der Startschleife, `Quit.swift`).
+- **Diagnose-Start, Schritt E Teil 1:** Plan (Entwurf 3.3) und die reine Logik (Abhilfe auf ein Rezept anwenden,
+  Entscheidung nach einem Fehlstart, Beweise je Rezept, Fehlerfenster gegen Frage), noch ohne die Startschleife.
+  Teil 2 (Verdrahten) nach dem Zusammenführen des Erlebnis-Audits.
+
+## Läuft-Liste und Abhakliste (14.11., Zweig `claude/laeuft-liste-033-c4dd4a`)
+
+Zweck (der Nutzer, 14.11.): geladene Spiele abhaken und deinstallieren können, sobald ein 100%iger Start und ein
+FPS-Wert vorliegen; die FPS-Werte offen auf der Landingpage. Gebaut: `docs/LAEUFT-LISTE.md` (Regeln),
+`scripts/laeuft-liste.py` → `docs/laeuft/` (`laeuft.json`, `LAEUFT.md`, `abhakliste.json`, `ABHAKLISTE.md`,
+`namen.json`), Spieletest-Bericht im Format 2 (`GameTestMeasure.swift`: Messwerte, Prüfung je Spiel, Größe, Baudatum,
+Leseseite für Apples Metal-HUD-Protokoll).
+
+Nachzug am 14.11. (derselbe Zweig): Jeder Start eines Spieletests lässt Apples Metal-HUD die Frames mitschreiben
+(`Engine.setFrameLog`, unsichtbar bei ausgeschalteter Leistungsanzeige), `started` nennt Version, Baudatum,
+Engine-Teile und Namen, jeder Start schreibt sein Limit und MetalFX als Zeile ins Protokoll, WineD3D meldet seine
+Bildrate über Wines fps-Kanal, und der Generator zählt Starts nach ihrem Build. **Messlauf am 14.11.** (Bericht
+`2026-11-14-1941`): HUD-Werte für alle zehn Spiele mit Bild auf D3DMetal, DXMT und DXVK, fps-Kanal-Werte für alle fünf
+WineD3D-Spiele. Seitdem sagt die Liste, was das Limit mit einer Zahl gemacht hat (`limitState`: hält, erreicht nicht,
+greift nicht, kein Limit auf diesem Weg, frei), führt D3DMetal-Zahlen als frei und markiert starre Werte
+(Left 4 Dead 2: Ø 24 war der Vorspann) – die zählen auf der Abhakliste nicht. Stand: 13 fertig, 10 offen, 1 von Hand.
+
+**Seit dem 15.11.: Ein Leistungswert ist nur, was beim Spielen gemessen wurde** (der Nutzer: Das Menü sagt nichts
+über die Leistung im Spiel; mitschreiben nur für unsere Tests, im fertigen Build kein Tracking). Gebaut: der
+versteckte Schalter `gameTest.measurePlay` (ein Start über „Spielen“ schreibt dann das HUD-Protokoll mit, sonst nie), der
+Leser für eine Spielsitzung im Generator (ohne die ersten 5 Minuten und die letzte, mindestens 10 Minuten; auf dem
+Protokoll des Messlaufs dieselben Zahlen wie der Bericht), und Liste wie Abhakliste mit zwei getrennten Aussagen:
+„Start geprüft“ (mit dem Wert des Spieletests als Nebenangabe „in den ersten Minuten“) und „im Spiel gemessen“.
+Stand: 0 im Spiel gemessen, 19 Start geprüft (547,6 GB), 3 Start offen, 1 von Hand.
+
+Als Nächstes (Anfang jeweils `docs/LAEUFT-LISTE.md`):
+
+- **Play-Zeile in `LibraryModel.swift`** (Abschnitt 9, Punkt 14, Patch steht dort): Ohne sie fehlen Netzteil und Last
+  im Protokoll, und ein beim Spielen gemessener Wert zählt nicht; WineD3D-Sitzungen lassen sich nicht zuordnen.
+  Danach eine erste Sitzung von 16 Minuten und mehr live (Abschnitt 6, „Beim Spielen messen“).
+- **Release-Build ohne den Schalter** (Punkt 16): `NIGHTFORGE_RELEASE` in `build.sh` und `release.yml` setzen – der
+  Code ist vorbereitet, gesetzt ist die Flagge noch nirgends.
+- **WineD3D beim Spielen** (Punkt 15): heute `wineDebug` von Hand; empfohlen ist, dass der Schalter den fps-Kanal für
+  WineD3D-Starts selbst setzt (`Engine.swift`, `LibraryModel.swift`, derselbe Bau wie für den Spieletest).
+- **D3DMetal auf 60 halten** (Abschnitt 9, Punkt 10; der Nutzer legt Wert auf die Sperre): Apples D3DMetal 3.0 hat
+  keinen Schalter für die Bildrate. Empfohlen: Takt in `-[WineMetalLayer nextDrawable]` des Mac-Treibers
+  (`winemac.so` aus dem winecx-Quelltext, in den Teil `enginefix`), vorher den Quelltext der Klasse lesen; daneben
+  DXMT für Spiele, die dort belegt sind. Bis dahin: Protokollzeile in `LibraryModel.swift` und `GameLog.d3dMetalStart`
+  ehrlich machen, den Kommentar in `Engine.swift` berichtigen (Liste und Bericht sind es schon).
+- **Kein `sample` bei Spielen mit Cheat-Schutz** (Punkt 13, gebaut am 15.11. nach der Entscheidung des Nutzers):
+  Profilfeld `ownAntiCheat` (gesetzt für Overwatch), der Spieletest hängt dann nichts an den Prozess und sagt es im
+  Bericht (`noSample`). Die Profilliste (`profiles/profiles.json`) ist von Hand ergänzt und trägt einen neuen
+  Stempel; **signiert wird sie beim Release** (der Nutzer). Vorgeschlagen, nicht gesetzt: Left 4 Dead 2,
+  Counter-Strike 2, Team Fortress 2, Dota 2 (VAC), Diablo IV – der Nutzer entscheidet, mit Beleg.
+- **Offen aus dem Messlauf:** `-novid` für Source-Spiele über das Profil prüfen; der Spieletest setzt den fps-Kanal
+  selbst, nur für WineD3D-Starts.
+
+Zu entscheiden (der Nutzer):
+
+- **Stufen:** Zählt „vor der Aufzeichnung bestätigt“ (`known`, 8 der 15) als „läuft“, oder erst ein `worked` mit Datum?
+  Und: ABZU steht unter „startet“, weil Nightforge die Bestätigung am 10.11. zurückzog – so lassen?
+- **100%iger Start:** Reicht die Regel aus Abschnitt 4 (jüngster Start, erster Weg, bestätigt)? Zählt ein Start von
+  Hand aus der Evidenz, obwohl Handgriffe dort nicht aufgezeichnet sind?
+- **Freie Zahlen:** Zusätzlich zu „hält 60 FPS“ ein Durchgang ohne Limit („Scharf & flüssig“ aus) für die Seite?
+- **Seite:** Board für die Landingpage (Vorschlag Abschnitt 7): unter Limit „hält 60 FPS“ plus langsamstes Bild, frei
+  gemessen als eigene Zahl, nur Werte mit vollständigen Bedingungen.
+- **Schwellen:** „Limit greift nicht“ ab Ø über 105 % des Limits, „starr“ ab tiefsten zehn Sekunden bei 95 % des
+  Schnitts über mindestens 60 s (Abschnitt 3) – beides Vorschläge.
+- **Regel fürs Messen beim Spielen:** erste 5 Minuten und letzte Minute weg, mindestens 10 Minuten dazwischen – so
+  lassen? Und der Wortlaut der Abhakliste („Start geprüft“, „Start geprüft und im Spiel gemessen“, „Start offen“,
+  „nein: …“ statt „fehlt“).
+- **Abhakliste im Repository?** Sie nennt alle geladenen Spiele dieses Macs mit Größe (keine Pfade, keine Laufwerks-
+  namen) und veraltet mit jedem Deinstallieren. Behalten, oder nur lokal erzeugen?
+- **Overwatch:** steht unter „läuft“ (Weg vor der Aufzeichnung bestätigt, Bild in 1 von 5 Spieletests); ob es
+  Anti-Cheat hat, ist für es nicht aufgezeichnet. Braucht die Liste eine von Hand gepflegte Hinweis-Datei?
+- **Community-Beiträge:** Die Evidenz „bleibt auf dem Mac“. Ein Export, den der Spieler selbst auslöst – ja oder nein
+  (Abschnitt 8)?
+- **Engine-Build:** gezeichnete Auflösung unter DXMT und eine eigene Zählung für WineD3D (die Leistungsanzeige liefert
+  dort nichts) – lohnt das einen Build? Oder gelten WineD3D-Spiele ohne FPS-Wert als abhakbar?
+- **Stufe „startet“:** Seit dem 14.11. bleibt ein Bild ein Bild; spätere Starts ohne Bild stehen als Hinweis dabei
+  (wie bei der Abhakliste ein späterer Fehlstart). Vorher entschied der jüngste Lauf. So lassen?
+
+## Erlebnis-Audit (14.11., Zweig `claude/erlebnis-audit-033-0f5292`, `docs/AUDIT-ERLEBNIS-0.3.3.md`)
+
+Sechs Fehler behoben (im Testbuild `ed9b785`): Hinweisleiste nennt, was A tut (E1), Bildschirmtastatur schließt mit ihrem
+Controller (E2), Overlay geht mit dem Spiel (E3), Meldung bleibt nicht mehr stehen (E5), keine Battle.net-Speicherzeile in
+„Willkommen zurück“ (E6), offene Felder haben die Tasten (E7).
+
+**Nachtrag vom Abend (auf `5cf8e12`, noch nicht im Testbuild):**
+
+- **Komponenten nach dem Aufwachen (E4):** Die Liste wird nach dem Aufwachen wirklich neu gefragt, ihre Pakete warten in
+  `Components/.ahead` und gelten erst, wenn alle da sind (`ComponentStore.askAgain`, `fetchAhead`, `adoptWaiting`).
+  Live offen: der echte Wechsel einer Engine im laufenden Nightforge (Live-Prüfung 7 im Bericht).
+- **Update-Sperre unter einem Spiel oder Umzug (E8):** `Updater.hold`.
+- **Beenden bei offenem Blatt (E12):** `closeAllSheets` kannte die Vollbild-Frage und die Rückfrage des kleinen Menüs
+  nicht; das Beenden schloss nur einmal und gab nach zwei Sekunden auf. Jetzt: alle Blätter, erneut alle halbe Sekunde,
+  und Nightforge geht, sobald keins mehr steht (zehn Sekunden lang). Das Protokoll nennt das Blatt beim Namen. Welches
+  Blatt es am 14.11. war, ist nicht belegt (am ehesten die Vollbild-Frage); der hängende dritte Versuch auch nicht.
+- **Testreihen schreiben nicht mehr ins echte `wine.log` (E13):** `GameLog.writes`.
+- **`ModelFlowsTest`** wartet auf die Suchleiste statt 80 ms (war einmal grundlos rot).
+
+Offen:
+
+- **Fürs Board:** A auf dem Suchfeld öffnet die Bildschirmtastatur (E9); A auf einem laufenden Download auf der
+  Startseite zeigt die Downloads (E10).
+- **Frage:** `GlassSpinner` zeichnet mit Bildschirmfrequenz (`Glass.swift:473`): mit Instruments messen, bevor es jemand umbaut.
+- **Später:** die Hinweisleiste als Regel mit Matrix-Reihe; eine Regel für Tastatur und Pad („was offen ist, hat die
+  Eingabe“, heute zweimal von Hand: `PadRules.back` und `InputRouter.handleKey`); die Blätter aus einer Liste im Modell;
+  jede Testreihe in einem eigenen Zuhause (`CFFIXED_USER_HOME`), `SteamSwitchTest` ausgenommen.
+- **Zehn Live-Prüfungen** im Bericht, 7 bis 10 für den Nachtrag.
+
+## Smarte Startlogik (9.11., Zweig `claude/start-logik-033`)
+
+Grund: Von vier neuen Spielen am Testabend kam keines beim ersten Mal ins Spiel. Gebaut: `StartRules.swift`, `StartEvidence.swift`.
+
+- **Erste Wahl:** eigenes Profil, dann bewiesener Weg, dann Highball, dann AppleGamingWiki (auch unklare Fälle, der neueste gute Bericht zählt), dann die Dateien. DirectX 12 ohne bekannten Schalter und „Dateien sagen nichts“ starten zuerst auf D3DMetal. Bewiesene Wege bleiben.
+- **Dateien:** Zeigt die Importliste nichts, wird der Programmtext gelesen (`ProgramText`).
+- **Fehler lesen:** Unreals Absturzberichte auch aus `AppData/Local`, ein abgelehnter Schalter springt direkt zum Weg ohne ihn, der Crash-Reporter hält den nächsten Weg nicht mehr auf.
+- **Protokoll:** `start-evidence.jsonl` je Versuch; „First starts so far“ steht im Log. Bleibt auf dem Mac.
+- **Highball:** `reported` in `profiles.json` (CC0), nur Grafikweg; `profiles.yml` holt die Liste.
+
+- **Kein Bild heißt nicht gestartet:** Ein unbewiesener Weg wird bis zum ersten Bild beobachtet. Endet er ohne Bild oder hängt (90 s ohne Arbeit, höchstens 270 s), kommt der nächste (`PictureWatch`). Nicht bei fremden Launchern und Anti-Cheat; die Zeit offener Fragen zählt nicht.
+
+- **Testabend 9.11. spät (Build 4cea416), gebaut:**
+  - Guardians of the Galaxy: Das eigene Startfenster (Spielen/Optionen/YouTube, 790×445) zählte als Bild, der Vorhang
+    ging, das Pad erreichte es nicht. `gotg.exe` kennt `-nolauncher`: `ProgramText.launcherSwitch` liest den Schalter
+    aus dem Programm, er geht bei jedem Start mit (kein eigener Weg). Danach lief es im Fenster 1280×720: Das Spiel hatte
+    beim ersten Start selbst `Fullscreen=0` in `HKCU\Software\Eidos Montreal\Guardians of the Galaxy` geschrieben.
+    `GameResolution.screenKeys` macht solche Schlüssel (Eidos Montreal, Crystal Dynamics, Square Enix) beim ersten Mal
+    Vollbild in Bildschirmgröße; danach bleibt ein Fenster das des Spielers (`resolutionScreenKeysFitted`).
+  - Hogwarts Legacy: Unreals Treiber-Warnung kam trotz `r.WarnOfBadDrivers=0`: Das stand nur im Spielordner, Hogwarts
+    liest `AppData/Local/HogwartsLegacy/Saved/Config/WindowsNoEditor`, und sein Programm heißt nicht `-Shipping`.
+    `Engine.unrealUserConfigs` schreibt jetzt auch dorthin (vor dem ersten Start beide Ordner).
+  - Live bestätigt im Nachttest 10.11. (fd58000): Guardians ohne Startfenster, Vollbild 1512×982 (`Fullscreen=1` in user.reg);
+    Hogwarts ohne Warnung (`r.WarnOfBadDrivers=0` in AppData/…/WindowsNoEditor/Engine.ini).
+- **Offen vom selben Abend:**
+  - It Takes Two: ~~stiller Fehlstart~~ behoben in 0df3c58, live bestätigt 10.11. (Bild auf D3DMetal nach 84 s, beim
+    zweiten Mal 37 s, `worked` in der Startevidenz). Ursache: Alle acht Absturzberichte seit 9.11. zeigen
+    PhysXUpdateLoader64 → nvapi64 → Adresse 0, auf jedem Weg. Den Loader bringt die PhysX System Software mit, die seit
+    31.10. für Mafia II im Prefix liegt; `Engine.physXUpdateLoaderOff` schaltet ihn für Spielprogramme ab (Mafia II hat
+    weiter Bild). `ShowInterstitials` hing im Nachttest nicht mehr (Antwort in derselben Sekunde). daaf05f: Das `-dx12`
+    des Profils ging auf DXMT und DXVK mit („-dx12 -dx11“), jetzt nur auf dem Weg des Profils.
+  - „Composited“ in Rot bei D3DMetal (Hogwarts, Guardians): bekannt, D3DMetal zeichnet ohne Retina in halber
+    Pixelzahl (siehe Direct-Ziel).
+  - Pad im Spiel: Der Nutzer konnte „das Controller-Menü“ bei Hogwarts nur mit der Maus bedienen. Noch klären, ob
+    Nightforges Overlay oder das Menü des Spiels gemeint ist (Log: Overlay kam dreimal, `back` zweimal).
+- **Nachttest 10.11. (fd58000, dann 0df3c58), Bericht `docs/spieletest/2026-11-10.md`:** 15 von 18 mit Bild.
+  - ABZU: sporadisch ohne Fenster (2 von 7 Starts in der Nacht, beide in langen Läufen; nachgestellt mit Steam an/aus,
+    nach L4D2 und nach It Takes Two: immer Bild). DXMT meldet sich in den Fehlschlägen gar nicht, das Spiel endet vor
+    Direct3D und schreibt nur seine INIs. Der Nutzer, 10.11.: „Ja, wiederholen“ → 03f3c2a
+    (`LaunchHealth.startsAgainQuietly`): Ein bestätigter Weg, der früh ohne Bild, Absturz und Grafikfehler endet, startet
+    einmal still neu; nicht bei eigenem Launcher oder Anti-Cheat. Eingespielt 10.11. 20:00, live noch nicht gesehen
+    (Protokollzeile „started once more on it“).
+  - GTA V Enhanced (3240220) steht nicht als BattlEye-Spiel in profiles.json (nur 271590 und Epic); der Test startete
+    PlayGTAV.exe, ein 332×134-Fenster wartete 5 min. Der Nutzer, 10.11.: „Nein, so lassen“ – Enhanced bleibt ohne
+    Anti-Cheat-Eintrag (wie am 9.11. entschieden). Offen bleibt, was das Fenster sagt (Rockstar-Launcher).
+  - Hogwarts: Das Overlay „startet nicht?“ kam beim ersten D3DMetal-Start nach 60 s (`curtainPatience`), Bild kam
+    nach 80 s (Shader). Für die Ladescreen-Session: Geduld beim ersten Start eines Weges länger, oder an CPU-Last messen.
+  - Der Spieletest bestätigt nie einen Weg: `LaunchHealth` braucht FPS-Zeilen oder 180 s mit Bild, der Test spielt 60 s.
+    D3DMetal-Spiele bleiben so unbestätigt. `gameTest.playSeconds` ≥ 190 für Erststarts, oder der Test spielt bis zur
+    Bestätigung.
+  - `open -b` startete das Release aus /Applications statt des Testbuilds: Testläufe immer per Pfad starten.
+
+- **Startrezept und Lernkreislauf (Entwurf 10.11., `docs/ENTWURF-STARTREZEPT.md`):** ein Rezept statt Grafikweg-Leiter,
+  Diagnose-Tabelle mit Minidump-Leser, Lernen nach Steckbrief. 11.11.: A (jeder Start bekommt einen Ausgang) und Stufe 4 in erster Form (Leiter nach
+  Beweisen gleicher Sorte) gebaut und eingespielt (4d7806c, Entwurf 3.2); C (genauerer Blick) und D in erster Form
+  gebaut am 14.11., siehe den nächsten Punkt; E Rezept als Startgrundlage: Teil 1 (reine Logik) gebaut am 14.11., das Verdrahten ist offen, siehe den übernächsten Punkt. Stufe 1 und 2 gebaut am 10.11. (Steckbrief und Rezept in der Evidenz;
+  Minidump-Leser und Diagnose im Protokoll, noch ohne Wirkung auf den Start). Nächste Entscheidung: Stufe 3, die Diagnose
+  ändert das Rezept (Vorschlag: vorher ein paar Tage Evidenz sammeln). Eingespielt als 988e721, live gesehen: Evidenzzeile
+  von It Takes Two mit Steckbrief `unreal 4.26` und vollem Rezept.
+
+- **Genauerer Blick (Schritt C, 14.11., Zweig `claude/diagnose-start-033-92f729`, eingespielt als `ed9b785`, live geprüft am 14.11. – siehe „Live-Prüfung von Schritt C/D“ oben):** Nach einem
+  Fehlstart der Leiter, den die Diagnose nicht erklärt, tragen die folgenden Starts Wines Debug-Kanäle
+  (`+pid,+loaddll,warn+debugstr,+wintrust,+chain,+msgbox`); beim letzten Weg startet derselbe Weg einmal still noch
+  einmal. Gelesen werden nur die Prozesse des Spiels (`CloserLook.read`). Neue Regeln `untrusted-root`, `signature`,
+  `loads-direct3d9`, Auffangzeile `debug-said`; der Text von Meldungsfenstern zählt als Wort des Spiels (erste Form
+  von D). Einmal je Spiel und Engine-Stand, nie bei Anti-Cheat. Details im Entwurf 3.2.
+  - Gebaut und in Tests geprüft (`CloserLookTest` mit dem echten Protokoll vom 11.11., `StartDiagnosisTest`,
+    `EngineLayoutTest`): Leser, Regeln, Entscheidung, `Engine.setCloserLook`/`Engine.wineDebug`.
+  - **Live offen:** (1) ein unerklärter Fehlstart, danach die Zeile „nothing explains why it ended“ und ein Start mit
+    Kanälen; (2) Steam startet dafür neu, und beim nächsten normalen Start noch einmal ohne Kanäle; (3) Direktstart
+    eines Epic- oder GOG-Spiels mit Kanälen, ohne Steam-Neustart; (4) `+msgbox` druckt wirklich den Text eines
+    Fehlerfensters; (5) wie groß `wine.log` in einem solchen Start wird (gelesen werden die letzten 4 MB).
+    Schnellster Weg zu (1) bis (4): der Testschalter `closerLook` (unten bei Engine-Tests) und ein Spiel, das scheitert.
+  - Nicht gebaut: der Blick für einen bewährten Weg, der wieder scheitert (gehört zu E); Fehlerfenster, die kein
+    Windows-`MessageBox` sind; die Wurzel trägt niemand von selbst ein (`WindowsRoots`, je Wurzel das OK des Nutzers).
+- **Schritt E, Teil 1 (14.11., Zweig `claude/diagnose-start-033-92f729`, noch nicht eingespielt): die reine Logik,
+  nichts verdrahtet.** Kein Start läuft anders als vorher. Plan, Ausgänge der Schleife und Schritte E1 bis E6 stehen
+  im Entwurf 3.3.
+  - Gebaut und in Tests geprüft (`StartRecipeTest` neu, `CloserLookTest` mit Alan Wakes echtem Protokoll vom 14.11.):
+    Abhilfe ändert das Rezept (`StartRecipe.Learned`, `StartRecipe.of(way:learned:…)`); die Entscheidung nach einem
+    Fehlstart (`NextStart.after`: derselbe Weg mit geändertem Rezept, ein anderer Weg, Aufgeben; höchstens drei Starts
+    auf demselben Weg je „Spielen“); das Gelernte als ein Wert (`LearnedFixes.learned`/`keep`); Beweise je Rezept
+    (`StartEvidence.Proof.workedWith`, `failedWith`, `holds`; alte Zeilen gelten weiter für ihren Weg); die Regel
+    Fehlerfenster gegen Frage (`LaunchHealth.ownQuestionWasAChoice`, `CloserLook.box`, `Reading.endedAtBox`).
+  - Maßstab im Test: It Takes Two heilt beim ersten „Spielen“ – ein Fehlstart, derselbe Weg mit dem Loader aus, Bild.
+  - Zum Fund „Fehlerfenster zählt als Wahl des Spielers“: Am 14.11. schrieb die Vorhangwache die Zeile; der Start
+    selbst nahm das Ende nicht als Wahl, weil `direct3D9Failed` dagegen sprach. Die Lücke bleibt für Fenster ohne
+    anderen Befund (Metal Gear Solid V am 11.11.: „closed at a question of its own“ in der Evidenz).
+  - **Teil 2 (Verdrahten), E1 bis E3 gebaut (14.11., spät, derselbe Zweig, noch nicht eingespielt, nichts live
+    gesehen):** E1 – die Schleife baut je Start ein Rezept, und Prefix, Argumente und AVX lesen daraus; kein Start
+    ändert sich. E2 – `NextStart.after` ersetzt die Zweige der Schleife; anders sind nur „alles auf demselben Weg in
+    einem Start“ und der Deckel von drei; ein Test hält die Entscheidung gegen die alten Zweige (4.000 Fälle). E3 –
+    für Spiele ohne Anti-Cheat wirkt die ganze Tabelle: DLLs aus und derselbe Weg noch einmal, der Weg, auf den ein
+    Befund zeigt. Einzelheiten und Abweichungen im Entwurf 3.3 › „Teil 2: Was verdrahtet ist“.
+    - **Live zu prüfen** (Anleitung im Notizordner, `closer-look/live-pruefung-schritt-e.md`): E1 jeder Weg einmal;
+      E2 ein Spiel mit fehlender Laufzeit, Hogwarts Legacy ohne Profil; E3 It Takes Two mit einem Testprofil, das
+      den Loader zurückholt.
+    - **Zu wissen:** Die Erststart-Zählung zählt seit E3 Wege statt Starts, auch rückwirkend. Auf D3DMetal nimmt
+      `nvidia-interface` einem Spiel DLSS über MetalFX, dauerhaft, bis `learned.dllsOff.<Spiel>` gelöscht wird.
+  - **E4 bis E6 gebaut (14.11., nachts, derselbe Zweig, nicht eingespielt, nichts live gesehen):** E4 – ein Weg ist
+    für das Rezept bewährt, mit dem er lief; ein Start mit anderem Rezept wird wieder bis zum Bild beobachtet. E5 –
+    jeder Start trägt `+pid,+loaddll,+msgbox` (ein Steam-Neustart einmalig), und ein Fehlerfenster zählt als
+    Fehlstart. E6 – ein bewährter Weg, der ohne Erklärung wieder endet, startet einmal still mit den Kanälen und
+    behält seinen Platz; was auf ein Ja oder Nein zur Wurzel folgt, ist entschieden, aber niemand fragt.
+    - **Live zu prüfen:** E4 ein bewährtes Spiel nach einer Profiländerung; E5 der eine Steam-Neustart, Alan Wake
+      auf D3DMetal (Fehlerfenster → Fehlstart → Wines Direct3D), The Forest (Beenden in Unitys Fenster bleibt die
+      Wahl des Spielers); E6 ein bewährtes Spiel, das abstürzt.
+    - **Zu wissen:** Nach einem Update, das die DLL-Schalter eines Layers oder ein Profil ändert, wird der nächste
+      Start jedes betroffenen Spiels wie ein erster beobachtet (E4). ABZUs stilles zweites Mal trägt die Kanäle
+      des genaueren Blicks bewusst nicht.
+  - **Board entschieden und gebaut (15.11., derselbe Zweig, nicht eingespielt, nichts live gesehen):** Vorhang B,
+    das Fehlerfenster „einordnen“ und die Frage zur Wurzel auf dem Vorhang; dazu die E4-Übernahme eines Rezepts und
+    die versteckten Schalter `testFinding` und `testRootQuestion`. Einzelheiten im Entwurf 3.3, Live-Anleitung im
+    Notizordner (`closer-look/live-pruefung-schritt-e.md`).
+    - **Offen:** der Knopf auf der Seite des Spiels, mit dem ein Nein zur Wurzel zurückgenommen wird (bis dahin wird
+      ein Nein nicht gemerkt); die Wege 2 und 3 für das Fehlerfenster; eine Wurzel in `WindowsRoots.onRequest`
+      (jede braucht das OK des Nutzers).
+  - **Entscheidungen des Nutzers (14.11., alle wie empfohlen):** genauerer Blick für einen bewährten Weg ja;
+    `untrusted-root` als Frage, nur für eine Wurzel, die `WindowsRoots` kennt; die drei Kanäle bei jedem Start;
+    Vorhang beim Start auf demselben Weg nach Vorlage A, Board zuerst.
+  - Offen dabei: Eine gelernte Änderung bleibt beim Spiel, auch wenn sie nicht half. `physx-update-loader` greift nur
+    noch, wenn ein Profil den Loader zurückholt; als neue Wirkung bleibt zunächst `nvidia-interface`.
+- **Engine-Test 11.11. (988e721), vier Spiele mit Engines, die nie gestartet waren** (Bericht GameTests/2026-11-11-1925):
+  1 von 3 mit Bild, 1 nicht gestartet.
+  - Dishonored (Epic, Unreal 3, 64 Bit): Bild auf WineD3D nach 17 s, endete vor 200 s von selbst (unbestätigt).
+  - Alan Wake (Epic, MAX-FX, 32 Bit, DirectX 9): „could not initialize your 3D graphics card, DEVICE_CREATE_ERROR“.
+    **Behoben in fe1b8fa, live bestätigt 11.11. 20:06** (Startplan „wined3d, the usual first way for DirectX 9“, Bild nach
+    10 s, `worked`). Ursachen waren: `GameAnalysis` sah nur importierte Bibliotheken über 3 MB an (das Programm bindet
+    `d3dx9_43.dll` ein und lädt `d3d9.dll` per Namen aus `d3d_f_Win32.dll`); die Leiter für „nichts erkannt“ hatte kein
+    WineD3D; DXVKs „Failed to create device“ zählte nur auf dem DXVK-Weg; das Ende am Fehlerfenster galt als Wahl des
+    Spielers. Jetzt: D3DX nennt sein Direct3D, eigene kleine Bibliotheken werden gefragt, WineD3D ist letzter Weg für
+    Unerkanntes (bei 32 Bit erster), `GameLog.direct3D9Failed` → Diagnose `direct3d9` und Sprung zu WineD3D.
+    Dishonored: Bild nach 14 s, Steckbrief `unreal3` (Unreal 3 wird an den Ordnern erkannt).
+  - Metal Gear Solid V (Steam, Fox Engine, DirectX 11): „Failed to load SteamAPI“ bei jedem Start, auf D3DMetal und DXMT.
+    **Ursache bewiesen (11.11.):** Das Spiel prüft die Authenticode-Signatur seiner `steam_api64.dll` (Valve, 19.5.2015,
+    Kette VeriSign Class 3 Code Signing 2010 CA → Wurzel „VeriSign Class 3 Public Primary CA – G5“, SHA-1
+    4EB6D578499B1CCF5F581EAD56BE3D9B6744A5E5, gültig bis 2036). Wines Wurzelspeicher im Prefix hat 163 Wurzeln, alle aus
+    macOS übernommen; Apple führt keine VeriSign-Wurzel mehr, Windows schon. `+wintrust,+chain` zeigt
+    `CertGetCertificateChain error status 00000020` und `WinVerifyTrust returning 800b0109` (CERT_E_UNTRUSTEDROOT).
+    Mit Steam hat es nichts zu tun: `SteamAPI_Init` wird gar nicht erst aufgerufen. **Der Nutzer, 11.11.: „Ja,
+    eintragen“ → e9135bc** (`WindowsRoots`): Die Wurzel steht mit SHA-1 und SHA-256 fest im Code und geht mit den
+    Spieleinstellungen vor einem Start in den Root-Speicher des aktuellen Nutzers im Prefix (HKCU, überlebt Wines
+    Abgleich mit macOS). Am Mac und am Schlüsselbund ändert sich nichts. **Live bestätigt 11.11. 20:24:** Bild nach 57 s,
+    rund 60 FPS auf DXMT, `worked`. Betrifft vermutlich weitere Spiele aus 2010–2016 mit Signaturprüfung; weitere
+    Wurzeln nur nach demselben Muster (Windows führt sie, Fingerabdrücke fest) und mit dem OK des Nutzers.
+    D3DMetal bekam bei diesem Spiel nie einen fairen Versuch (es scheiterte dort an der Signatur): später vergleichen.
+    Nebenbefunde: `wineDebug` greift nur, wenn Nightforge nach dem Setzen frisch startet (einmal hatte das
+    Beenden-Skript Nightforge selbst wieder geöffnet); Alan Wake und Dishonored: siehe unten.
+  - Batman: Arkham Asylum (Steam, Unreal 3): vom Test ausgelassen (`versionSwitch`: Wechsel Mac↔Windows mit
+    Spielstand-Übertragung). **Erledigt 14.11.** mit einem normalen Start des Nutzers (Build 4d7806c, „guter Start“):
+    Startplan „wined3d, dxmt, dxvk, d3dmetal; now wined3d, a game of its sort (unreal3) runs on it on this Mac“ –
+    der erste echte Erststart, den der Beweis einer Sorte (Dishonored) geordnet hat. Bild nach 90 s (1800×1125),
+    `worked` auf wined3d nach 181 s, Erststart-Zählung 3 auf dem ersten Weg (vorher 2).
+    Der Nutzer dazu: „einmal die lizenz aber der rest lief super durch für einen erststart“ – die drei Fenster des
+    Spiels auf dem Weg (373×169, 492×506, 541×480; der Vorhang ging jeweils darunter) brauchten keinen Handgriff.
+  - Diagnose (Stufe 2) schwieg bei beiden Fehlstarts: kein Dump, keine Protokollzeile. Lücken: den Text im Fehlerfenster
+    des Spiels liest niemand; Steckbrief erkennt Unreal 3 nicht (`Engine/Config` + `Binaries` + `<Name>Game`, Engine „other“).
+Offen: Live-Test; `+loaddll` beim ersten Start (braucht bei Steam einen Neustart); Spiel-Build in der Evidenz; „Läuft“ und „Zuletzt gespielt“ erst nach Bild (Design); Rockstar- und EA-Launcher; Controller-Menü auf dem Ladescreen; Probelauf nach dem Download.
+
+## Rosetta und macOS 28
+
+Plan und Stand in `docs/ENTWURF-ARM64.md`. Vorbereitung auf `claude/arm64-vorbereitung` (Abschnitt 6). Offen sind die
+Entscheidungen in Abschnitt 7 und die monatliche Beobachtungsliste in Abschnitt 8.
+
 ## Nächster Release (0.3.0)
 
 Der Nutzer, 31.10.: „Wenn wir die großen Brocken abgearbeitet haben, brauchen wir einen Stand für einen Release.“
@@ -34,9 +957,9 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
   - **Nach 0.3.0** (Nutzer, 31.10.): Mafia II flüssig und ohne Knacken. Ursache ist OpenGL im WoW64 für 32-Bit-Spiele
     (zwei bis drei volle CPU-Threads). APEX, DirectSound, Schatten, Geometrie und AO helfen nicht. Der Weg ist DXVK
     auf KosmicKrisp (Session kosmickrisp-dx9), gilt auch für Left 4 Dead 2 und andere DX9-Spiele.
-    Gebaut und mit einem Testprogramm belegt (Zweig `claude/quirky-clarke-81fd65`, siehe „Vulkan-Layer und winecx“ ›
-    KosmicKrisp). Offen: Live-Test mit Mafia II, L4D2 und einem dritten DX9-Spiel, danach die Profile; zum Ausliefern
-    `kosmickrisp.yml` auf `main` laufen lassen. Plan dort unter „Live-Test“ (Stand 3.11., nach dem Rebase auf 29e458a).
+    Der Code ist seit 0.3.1 auf `main`, aber aus: `kosmickrisp` steht nicht in der Komponentenliste (9a6157e, am 4.11.
+    Stopps von 3–7,7 s und dunkle Rechtecke in Mafia II). Offen: Live-Test mit Mafia II, L4D2 und einem dritten DX9-Spiel,
+    Anleitung in `docs/LIVE-TEST-KOSMICKRISP.md`.
   - Landingpage und README.
   - **Kleine Anzeigefehler kommen in späteren Releases** (Nutzer, 1.11. abends: „diese kleinen anzeige bugs …
     können wir in weiteren releases dann auch beheben. der grundstein ist gelegt“). Damit gemeint sind:
@@ -89,15 +1012,74 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
 
 ## 0.3.3: ganz oben
 
-- **DualSense-Touchpad als Mauszeiger** (Wunsch des Nutzers, 8.11.: „das brauchen wir unbedingt“): für alles, was heute noch Maus braucht, etwa Fenster von Steam und macOS-Fragen. `GCDualSenseGamepad` liefert Touchpad und Klick. Muss auch über fremden Fenstern wirken; Bedienungshilfen-Recht prüfen.
-- **Bildschirmtastatur für die Suche** bei erkanntem Controller (Nutzer, 8.11.; siehe `docs/ENTWURF-KONSOLE.md` auf `claude/konsolen-gefuehl-835e2e`, „Pad-Tastatur“). Erst Boards auf der Zeichenfläche.
+- **Download-Hinweise (Board `DownloadHinweise`, A1 und C2; Zweig `claude/download-hinweise-033`, noch nicht live):** Wort am Ring und Satz im Feld folgen dem echten Zustand (`DownloadStanding`), die Zeile „Der Download lief weiter“ wartet beim Zurückkommen (`DarkWatch`). Regeln in `tests/DownloadHintsTest`. **Live prüfen:** (1) Bildschirm über 2 min aus, während etwas lädt, dann an: Zeile erscheint erst nach dem Entsperren, die Zahl passt zum Fortschritt; im `wine.log` steht `Screen back after … s`. (2) Erste Taste am Controller tut, was sie sonst tut, die Zeile geht 4 s später; ein Spielstart nimmt sie sofort weg. (3) Deckel: MacBook allein, mit Bildschirm am Netzteil (kein Satz) und mit Bildschirm am Akku (Satz bleibt: stimmt das?). (4) In Steam auf Pause drücken: Setzt der Knopf Bit 512, kommt „Mac darf schlafen“ (bisher nur bei voller Platte belegt). (5) Steam beenden: „Steam läuft nicht“ erst nach 5 min. (6) Am Fernseher: 24 pt aus drei Metern, Wort am Ring passt in die Leiste.
+- **Lizenz beim ersten Start** (Variante A vom Board `EulaErsterStart.dc.html`, vom Nutzer gewählt 9.11.; Befund im Notizordner `eula-befund.md`; Zweig `claude/eula-erster-start-033`, noch nicht live). `SteamLicence.swift`: Ansage auf dem Ladescreen, wenn die Lizenz laut `appinfo` und `localconfig` noch offen ist (nur ein Hinweis), Rahmen sofort bei `LaunchApp changed task to ShowEula` statt nach 8 s, Lichtnaht um Steams vorderstes Fenster, Leiste je nach Pad, Zeiger springt in die Fenstermitte. Nach dem echten Ja (`accepted eula` und `eulas complete` in `webhelper_js.txt`) kommt der Ladescreen zurück, und Windows-Steam bekommt nach 5 s den Start einmal neu, weil es von selbst nicht weitergeht. Nightforge drückt nie auf Zustimmen und schreibt nichts in Steams Dateien.
+  - **Live prüfen mit GTA V Enhanced** (Lizenz auf Windows-Steam noch offen, vorher nichts daran auslösen; danach ist sie weg, also Ablauf vorher durchlesen): (1) Ladescreen sagt die Lizenz an. (2) Rahmen kommt sofort, Lichtnaht sitzt genau um das Lizenzfenster, nicht um Steams Hauptfenster; `wine.log`: „Steam shows the licence“. (3) Zeiger steht im Fenster; Touchpad bewegt ihn, Drücken klickt, zwei Finger blättern; A tut nichts. (4) Nach dem Ja „Danke. Das Spiel startet …“, in `wine.log` „Steam has stored the answer …“, dann 5 s nach dem Ja (ohne diese Zeile erst nach 25 s) `… is sent to Steam once more`, im `console_log` genau ein neues `-applaunch`, das Spiel startet. Fragt Steam danach noch einmal, war der Neustart zu früh: `SteamLicence.startAgainAfter` anpassen. (5) Am Fernseher: Text oben und unten groß genug, nichts im Überscan.
+  - **Noch offen, braucht einen Live-Fall:** Steams „Abbrechen“ im Lizenzfenster hat in den Logs nie stattgefunden, ein Zeichen dafür ist unbekannt. Es gibt keinen Neustart, und B führt aus dem Rahmen; ob der Rahmen von selbst geht, zeigt der Test. Ob `webhelper_js.txt` zeilenweise geschrieben wird, zeigt die Zeit bis zum „Danke“.
+
+- **DualSense-Touchpad als Mauszeiger** (Wunsch des Nutzers, 8.11.: „das brauchen wir unbedingt“): für alles, was heute noch Maus braucht, etwa Fenster von Steam und macOS-Fragen. `GCDualSenseGamepad` liefert Touchpad und Klick. Muss auch über fremden Fenstern wirken.
+  - **Gebaut 8.11.** (`claude/touchpad-tastatur-033`, noch nicht live): `TouchpadPointer.swift` (Regeln, gegen einen Stand-in getestet), `PadPointer.swift` (Controller und Mac), Einstellungen › Controller › Als Maus. Ein Finger bewegt, Drücken klickt, zwei Finger scrollen, mit zwei Fingern drücken ist Rechtsklick. Pads ohne Touchpad: rechter Stick, R2 links, L2 rechts, solange ein anderes Programm vorn ist. Im laufenden Spiel bleibt alles beim Spiel, außer macOS fragt etwas.
+  - **Recht:** Bewegen (`CGWarpMouseCursorPosition`) und Klicks in Nightforges eigene Fenster brauchen keins. Klicks und Scrollen in fremden Fenstern brauchen „Bedienungshilfen“ (`CGPreflightPostEventAccess`, `CGRequestPostEventAccess`). Einschalten geht nur mit echter Maus oder Trackpad, das Pad kann ohne das Recht ja gerade nicht klicken. Deshalb fragt Nightforge in den Einstellungen, am Sofa kommt nur ein Hinweis (`GameHint`, höchstens alle 20 s). Das Recht hängt an der Signatur: mit Nightforges Zertifikat bleibt es über Updates, ein ad-hoc-Bau verliert es. **Vorschlag:** die Frage in den Erststart, wo Maus oder Trackpad sicher da sind (zusammen mit K7 aus `docs/ENTWURF-KONSOLE.md`), erst Board.
+  - **Live prüfen:** (1) Zeiger springt beim Aufsetzen nicht, Tempo oben/unten wie links/rechts, Klick ohne Zucken. (2) Steam-Fenster vorn, Nightforge hinten: Touchpad kommt an, Klick wirkt nach dem Erlauben. (3) „Erlauben …“: Frage von macOS erscheint, danach steht in Nightforge ohne Neustart „Erlaubt“; ein zweiter Druck öffnet die Bedienungshilfen. (4) Ohne Recht: Knöpfe in Nightforge klicken, über Steam kommt der Hinweis. (5) Versteckter Zeiger kommt mit dem Finger zurück, auch über dem Vorhang; der durchklickbare Vorhang zählt nicht als eigenes Fenster. (6) Im Spiel bewegt das Touchpad nichts, bei einer macOS-Frage (L4D2-Mikrofon) schon. (7) Xbox-Pad über Steam: rechter Stick und R2.
+- **Konsolen-Gefühl, Punkte aus `docs/ENTWURF-KONSOLE.md`** (`claude/touchpad-tastatur-033`, 8.11., noch nicht live): je Punkt ein Commit mit eigener Testreihe. Gebaut: K1 Beim Anmelden öffnen, K8 TV nach Größe, K3 TV-Schrift/Ränder/Rahmen (braucht K8), K2 erste Hälfte (Pad weckt das Bild), K4 Controller-Meldungen und Akku im Spiel, K7 Mitteilungs-Frage, K9 Home-Taste einrichten (langer Druck, dazu kurzer Druck zur Startseite, solange Nightforge vorn ist; Entscheidung vom 1.11. am 8.11. aufgehoben), K6 Ein/Aus im kleinen Menü (Board A), K5 Vollbild-Angebot am MacBook, K2 zweite Hälfte als Einstellung „Mac wach halten“ (Standard aus, nur am Netzteil), G1 Tastatur (Board A, „Lichtnaht“, Y öffnet), G4 A/B in Windows-Fragen (`wrapper/pad-answer.c`, das Binärprogramm kommt nach dem Merge aus `pad-answer.yml`; ohne es bleibt A/B beim Spiel, mit mingw-w64 baut `build.sh` es selbst), G3 nur die Motoren (Bestätigen, Spielstart, Overlay-Halten; ein Schalter unter Einstellungen › Controller). G2: Sonde zeigt, dass ganzes Skalieren den Text verwischt, die Stufe muss über `TextScale` und die Layouts gehen (`docs/ENTWURF-KONSOLE.md`, Abschnitt 3). Spielernummer und Lichtleiste liegen bei der Spieler-1/2-Session.
+  - **Warten auf den Nutzer:** Klänge (zurückgestellt), Board `TVStufe.dc.html` für G2.
+  - **Live prüfen:** K1: Schalter an, abmelden, anmelden; klappt es aus `~/Applications`, kommt die Mitteilung von macOS? K2: Xbox-Pad, Bildschirm aus (`pmset displaysleepnow`), Taste drücken. K3: am TV aus 3 m lesen, Leisten ganz im Bild, Wechsel TV ↔ MacBook baut die Seite ohne Hänger neu auf. K4: Pad im Spiel und in Nightforge aus- und einschalten, Akku unter 15 %. K7: Frage kommt nach dem Erststart, nicht am Sofa. K8: Fernseher ohne bekannten Namen meldet er seine Größe? K9: Auf macOS 27 steht die Zeile unter Einstellungen › Controller, der Knopf öffnet die richtige Seite, danach der Haken. G3: Meldet der DualSense über Bluetooth Motoren? A in Nightforge, Spielstart, L3+R3 halten und früh loslassen; läuft es in einem Windows-Spiel neben SDL? PS-Taste auf macOS 27 (Befund 8.11.: Die stehende Meldung ist macOS' eigene Frage „… möchte das Systemverhalten überschreiben“, ausgelöst durch unser `preferredSystemGestureState = .disabled`; Nightforge fragt jetzt nur nach dem Knopf in den Einstellungen und nie, solange ein Spiel läuft; ein schon erlaubter Mac bleibt erlaubt; prüfen, dass `appMayHaveButton` das „Erlauben“ liest, sonst verlangt die Zeile einmal „Einrichten …“; der lange Druck öffnet ohne Einstellung Apples „Spiele“-App, im Log 22:02:04 `gesture:2`): Einrichten drücken, macOS' Frage mit „Erlauben“ beantworten, kurzer Druck in Nightforge führt zur Startseite, langer Druck wirkt weiter wie eingestellt, im Spiel bleibt die Taste bei macOS; auf macOS 26 ändert sich nichts. Langer Druck während eines Spiels: prüft die Overlay-Session, manche Windows-Spiele können sich minimieren. Zeiger über dem Spiel (`PointerParking`): Pad benutzen über einem Spiel, das den Zeiger nicht selbst versteckt: Er wandert an den unteren Bildrand, nur die Pfeilspitze bleibt; kein Fokusverlust, Spiel minimiert nicht, kein Ruck der Kamera, das Dock kommt nicht hoch, keine aktive Ecke. Maus bewegen: Er ist wieder da. Spiel mit Scrollen am Bildrand (Strategie) beobachten, Ausweg `defaults write io.github.lordhayne.nightforge parkPointerOverGames -bool false`. Controller einschalten mit Nightforge vorn: Zeiger weg. Suchleiste über der Tastatur: Y wandert sie weich aus der Ecke in die Mitte und wird größer, B zurück, keine Lücke beim Übergang zum echten Feld, auch von der Startseite aus; die Treffer enden über ihr und verschwinden nicht unter der Tastatur; mit „Bewegung reduzieren“ springt sie; Tasten und ✕ gehen auch mit der Maus. Steam-Fenster über dem Spiel (Tomb Raider, Menü „Herunterladbare Inhalte“, 8.11.; wine.log: Tomb Raider blieb die App vorn, also hielt es Maus und Zeiger fest): Ein Fenster einer anderen App über dem Spielbild, ab 600×400 sofort, kleinere beim Fingeraufsetzen, bekommt die Front, Touchpad und echte Maus gehen. Prüfen: Maus und Touchpad bewegen, Klicken im Steam-Fenster (Mac und Windows-Steam, Klicks brauchen „Bedienungshilfen“, sie kommen wie eine echte Maus an, das ist noch nicht live belegt), Steam-Fenster schließen: Spiel kommt von selbst zurück, im Vollbild, Unity/Unreal nicht minimiert. Notiert, nicht gebaut: ob sich Steams Fenster selbst mit dem Controller steuern lässt. G1: Y öffnet, Daumen auf beiden Touchpad-Hälften, L2/R2 tippen, Haptik je Hand, Treffer sichtbar über der Tastatur; Xbox-Pad mit beiden Sticks; ☰ und ↵ gehen zu den Spielen, ohne dass A oder ☰ danach noch etwas auslösen. K6: Menü von ⧉, Schlafen und Beenden mit Rückfrage; schläft der Mac ohne Admin-Abfrage? K2: Einstellung auf 15 Min., Netzteil, `pmset -g assertions` zeigt die Sperre, nach 15 Min. ist sie weg. K5: Pad verbinden am MacBook im Fenster, die Frage kommt einmal. G4: Spiel mit einfachem Windows-Dialog vor dem Start (z. B. Wukong-Treiberwarnung): A drückt die Standardtaste, B bricht ab, bei anderen Fenstern kommt der Hinweis auf den Zeiger.
+- **Konsolen-Modus** (Idee des Nutzers, 8.11., nur notiert): ein aktivierbarer Modus in den Einstellungen, der den Mac mit Nightforge zur exklusiven Konsolen-Oberfläche macht (`NSApplication.PresentationOptions`, Kiosk).
+- **Mac mini als Konsole** (Idee des Nutzers, 8.11.): Nightforge geht bei Nichtnutzung in Ruhe und hält den Mac nie vom Schlafen ab. Updates laufen beim nächsten Aufwachen, ohne Admin-Rechte und ohne geplantes Wecken. Ein Spielstart hat Vorrang vor einem Update.
+  - **Gebaut 9.11. (Zweig `claude/ruhe-im-leerlauf-033`, `IdleRest.swift`, `tests/IdleRestTest`):** Niemand da heißt 5 min ohne Eingabe. Dann nur noch alle 30 s ein Blick auf laufende Spiele, auch mit Nightforge vorn. Pausierte Downloads werden nicht mehr alle 3 s gelesen. Die Suche nach Steam-für-Mac-Fenstern läuft ohne Steam für Mac nicht mehr jede Sekunde. Das Windows-Steam ruht nach 30 min auch am Netzteil. Nach einem Aufwachen (mindestens 6 h seit dem letzten Mal) sucht Nightforge nach Updates, Listen und Komponenten: nie während Spiel oder Start, und „Spielen“ bricht weiteres Laden ab.
+  - **Im Code belegt:** Schlaf-Sperren gibt es nur für einen laufenden Download (`KeepAwake`, pausiert nicht, 5 min Kulanz bei Store-Wechsel), für „Mac wach halten“ (`IdleAwake`, Standard aus, nur am Netzteil), im Beenden-Skript bei laufendem Download und im Spieletest. Kein geplantes Wecken, keine Admin-Rechte für Updates.
+  - **Live prüfen (Nutzer):**
+    1. Nightforge offen, Windows-Steam im Leerlauf, nichts lädt: `pmset -g assertions` zeigt nichts von Nightforge, wine oder Steam. Danach schläft der Mac wie eingestellt. Das Windows-Steam ist nie darauf geprüft.
+    2. Mit pausiertem Steam-Download dasselbe.
+    3. 35 min ohne Eingabe am Netzteil: `wine.log` „Steam sleeps: nobody there“. Taste oder Pad: „Steam wakes“, ein Spiel startet normal.
+    4. Mac über Nacht schlafen lassen, morgens wecken: `wine.log` „The Mac woke: Nightforge looks for updates“. Direkt danach „Spielen“: Der Start wartet nicht.
+  - **Nicht gebaut, Offen:** Ein App-Update bleibt ein Klick auf das Angebot: selbsttätig würde Nightforge sich neu starten, das braucht erst ein Board. Eine schon laufende Komponenten-Datei lädt nach „Spielen“ zu Ende, aber ohne dass der Start wartet. Beim Start von Nightforge selbst wartet „Spielen“ weiter auf die Komponenten (`startBackgroundSteam`).
+- **Bildschirmtastatur für die Suche** bei erkanntem Controller (Nutzer, 8.11.; siehe `docs/ENTWURF-KONSOLE.md`, „Pad-Tastatur“). **Stand 8.11.:** Eingabe ohne Oberfläche gebaut (`PadKeyboard.swift`, `tests/PadKeyboardTest`: Tastenraster, Zeiger je Hälfte, Trefferprüfung, L2/R2, L1/R1, Stick, Steuerkreuz). Das Board `Tastatur.dc.html` wartet auf die Wahl des Nutzers. Danach fehlen: Ansicht, Haptik (`.hover`/`.typed` je Hand, CoreHaptics), Y öffnet sie, `keyboardOpen` in `PadPointerRules.works`. Die Treffer liefert `model.searchText` schon ab dem ersten Buchstaben.
   - Vorbild Steam (Nutzer: „keine hakelige Tastatur“): Tippen mit zwei Daumen auf dem Trackpad, je Daumen ein Zeiger, Taste löst beim Herunterdrücken aus, Haptik je Taste, Schulter-Trigger als Klick (`TrackpadTypingTriggerAsClick`), Empfindlichkeit einstellbar. Auf dem DualSense: `touchpadPrimary`/`touchpadSecondary`, linke und rechte Hälfte je ein Zeiger, L2/R2 tippen. Löschen und Leerzeichen auf L1/R1, nicht auf X/Y (Steam-Nutzer klagen, dass der Daumen dafür das Trackpad verlässt). Stick und Steuerkreuz als Rückfall, QWERTZ, Treffer schon nach dem ersten Buchstaben.
   - Andere Controller (Nutzer, 8.11.): eine Tastatur, die Eingabe je nach Controller. Ohne Touchpad steuert jeder Stick einen Zeiger auf seiner Hälfte, L2/R2 tippen; als Maus dient der rechte Stick. DualShock 4 wie DualSense. Haptik, wo vorhanden.
+- **Spieler 1 und 2 unterscheiden** (Nutzer, 8.11.; Zweig `claude/spielernummern-033`): `PlayerSlots` vergibt 1–4 und hält den Platz eines ausgeschalteten Pads frei; `GameController` kennt keine bleibende Kennung, ein Pad kommt daher über seine Art zurück (zwei gleiche, beide aus: der zuerst eingeschaltete wird die kleinere Nummer). `playerIndex` und Lichtleiste (Blau, Rot, Grün, Pink) schreibt Nightforge nur bei einer Änderung und nicht, solange ein Spiel läuft. Die Kapseln unten stehen nach Spielernummer und zeigen „1 · DualSense · 80 %“.
+  - **Windows-Spiele: Reihenfolge nicht steuerbar** (winecx e0aa380, gelesen). XInput vergibt Plätze selbst: `xinput1_3/main.c`, `update_controller_list` geht die Geräte in SetupDi-Reihenfolge durch, `find_opened_device` nimmt den kleinsten freien Platz, ein Pad behält ihn, solange sein Gerät besteht. `winebus` ruft nie `SDL_JoystickSetPlayerIndex` auf und hat keinen Schalter dafür (nur `Enable SDL`, `DisableHidraw`, `DisableInput`, `DisableUdevd`, `Split Controllers`, `Map Controllers`). Die Nummern aus Nightforge kommen also im Spiel nicht an: Spieler 1 dort kann der andere Pad sein. Steuern ginge nur mit einem weiteren `winebus`-Patch für beide Engines; erst entscheiden, wenn Sonic Mania zeigt, dass es stört (viele Koop-Spiele lassen ohnehin per Tastendruck beitreten).
+  - **Live prüfen (zwei Pads):** Nummern und Lichtfarbe in Nightforge; einen ausschalten und wieder einschalten, er behält seine Nummer; Lichtleiste wirklich blau/rot am DualSense, und ob macOS die Spieler-LEDs mitsetzt; dasselbe mit Pad eingeschaltet, während ein Spiel läuft (Farbe erst zurück in Nightforge); Sonic Mania: bekommt jeder seinen Pad, und welcher ist Spieler 1?
+- **Anmelden am Sofa ohne Tastatur** (8.11., Zweig `claude/anmelden-033`, Grundlage `docs/ENTWURF-ANMELDEN.md`): GOG per QR und Handy-Seite im WLAN, Epic sagt ehrlich, dass es eine Tastatur braucht, Texte für Steam und Battle.net. Gebaut, live prüfen: GOG bis zum Ende mit dem Handy, macOS-Firewall und Port, Warnung im Handy-Browser, Epic und GOG auf dem Handy-Layout, Steam-QR vom Sofa, Passkey in Battle.net für Mac, X und A auf der Bühne. README und Release-Notizen sagen noch, dass Anmelden eine Tastatur braucht.
 - **Spieler 1 und 2 unterscheiden** (Nutzer, 8.11.): In Nightforge zeigen, welcher Controller welcher Spieler ist (`GCController.playerIndex`, Lichtleiste am DualSense, Kapseln unten mit Nummer). Für Windows-Spiele prüfen, ob die Reihenfolge in winebus/XInput steuerbar ist; bisher ungetestet, Test mit Sonic Mania.
+- **„Cloud Out of Date“ bei Valheim** (8.11., Zweig `claude/steam-held-back-033`): Um 16:08:52 meldete sich das Windows-Steam an, während Valheims Mac-Fassung lief. Steam für Mac flog raus („Session Replaced“), sein Abschluss der Sitzung schlug fehl (`Failed sync … AC Exit … login=false`), und die Sitzung blieb beim Steam-Dienst offen. Geändert war nichts: Die Dateien waren „un-modified“. Hintergrund-Starts des Windows-Steam warten jetzt, solange Steam für Mac das Konto hat (`SteamSwitch.macHasAccount`, `Engine.holdsBack`). Wer um 16:08:33 gestartet hat, sagt das Log nicht; jeder Hintergrund-Start schreibt jetzt eine Zeile.
+  - **Live prüfen:** Mac-Spiel beenden und binnen 20 s wieder starten. Kein „Session Replaced“ in `connection_log.txt` von Steam für Mac, im `wine.log` gegebenenfalls „the Windows Steam waits“.
+  - **Offen:** Bleibt die Frage nach „Cancel“ bestehen, zeigt der nächste Start von Valheims Mac-Fassung. „Play anyway“ ist hier unbedenklich.
 - **Live-Abschlusstests 8.11.:** Neues Spiel (REANIMAL), Overwatch, Steam ↔ Steam für Mac, Control/Wukong/OxyRail/ABZU und die Leistungsanzeige laufen.
-- **Beim Beenden von Overwatch und ABZU** kurz ein falsches Bild, der Vorhang kommt manchmal von der Seite herein, dabei ist der Desktop zu sehen (Nutzer: Ladescreen-Session).
 - **Create macht im Spiel keine Bildschirmfotos** (8.11.; das kleine Menü öffnet sie). Nightforge gibt die Taste frei, wenn es nicht vorn ist (`takeViewButton`). Verdacht: SDL in winebus sperrt die System-Gesten der Controller. Prüfen, ob das schon in 0.3.1 so war.
+- **Der Ladebildschirm muss wesentlich ruhiger werden** (Nutzer, 8.11.): gebaut auf `claude/ruhiger-ladescreen-033`, in Tests grün, am echten Spiel noch ungeprüft. Stand und Ursachen: `docs/AUDIT-LADESCREEN.md`, „Für 0.3.3“.
+  **Live prüfen** (nach jedem Punkt die Zeilen in `wine.log` ansehen):
+  1. **Overwatch starten und beenden, je einmal übers Overlay und übers Spielmenü.** Der Vorhang bleibt stehen, kein Schwarz dazwischen, kein Flackern. Im Log `The curtain goes over a captured display's shield` nur, wenn der Vorhang wechselt.
+  2. **ABZU im Spielmenü beenden.** Sofort der Vorhang, kein anderes Fenster davor. Im Log `The game's picture went` oder `A game's process ended`, kein `fetching ABZU back` sichtbar auf dem Schirm.
+  3. **Spiel, das die Auflösung wechselt (ABZU in 1920×1200, Control):** Der Vorhang deckt beim Start und beim Ende den ganzen Schirm, nichts kommt von der Seite, kein Desktop daneben. Im Log `The page follows the screen`.
+  4. **The Forest beenden, sofort Valheim starten.** Kein Desktop beim Wechsel in Valheims Vollbild.
+  5. **Valheim im Spielmenü beenden** (nicht übers Overlay). Der Vorhang steht, bevor die Spaces gleiten; danach kein Steam-Fenster.
+  6. **Gegenprobe:** In einem Vollbild-Spiel mit ⌘-Tab zu einer anderen App und zurück, und im Spiel die Grafikeinstellungen ändern. Kein Vorhang beim ⌘-Tab; bei den Einstellungen höchstens kurz der Vorhang, der von selbst wieder geht. Während das Spiel läuft, liegt die Seite nie über dem Bild (im Log kein `the page lay over`).
+  7. **„Startet nicht?“ über dem Vorhang** bei einem Windows-Spiel, das hängt: Das Overlay liegt oben und ist bedienbar. ⌘-Tab funktioniert, die Leiste selbst ist unter dem Vorhang nicht zu sehen.
+  8. **GOG-Spiel mit fehlendem Windows-Teil** (wenn es sich ergibt): Der Vorhang bleibt, der Hinweis wartet danach auf der Seite.
+  9. **Ausweg ohne Spielprozess (B2):** Bei einem Steam-Update oder hängendem Steam steht nach 30 s die Zeile „Hängt es? Zurück zu Nightforge“ auf dem Vorhang, B oder Esc fragt. „Weiter warten“ lässt alles laufen. „Zu Nightforge“ führt auf die Spielseite, Steam und sein Update laufen weiter, und ein Spiel, das Steam danach noch startet, wird bis zum Ende begleitet. Danach sofort wieder „Spielen“: Der neue Start läuft sauber unter seinem Vorhang.
+  10. **Epic oder GOG mit wartendem Update (B4):** Vorhang sofort beim Druck auf „Spielen“, darauf Prozent, Tempo und Restzeit. B oder Esc bricht sofort ab und führt auf die Spielseite; beim nächsten „Spielen“ läuft das Update weiter, wo es stand. B während „Spielstand holen“: Der Start ist weg, das Spiel startet nicht, und der Abgleich läuft unsichtbar zu Ende.
+  11. **Steams Frage auf dem Vorhang (B3, Wahl C):** Spiel mit eigenem Startparameter (Drawful 2 mit `-condebug`) oder Cloud-Konflikt. Der Vorhang bleibt stehen, die Nightforge-Seite blitzt nicht auf, Steams Fenster liegt darauf und lässt sich mit Maus oder Trackpad beantworten, unten die Leiste. Mit dem Controller geht das Antworten erst über den Touchpad-Zeiger. B führt sofort zu Nightforge, Steams Fenster verschwindet. Antworten: Vorhang wie vorher, Spiel startet. Abbrechen in Steams Fenster: zurück auf die Spielseite. Auch bei abgelaufener Steam-Anmeldung prüfen. Im Log kein `Steam's window isn't to be found`.
+  13. **Vorhang nach dem Spielende (Fehler vom Live-Test 8.11., 22:28):** Tomb Raider übers Overlay beenden, Steam wechselt danach im Hintergrund. Es kommt kein zweiter Vorhang nach „Willkommen zurück“. Bliebe doch einer stehen: Nach etwa 8 s geht er von selbst, B oder Esc führt sofort hinaus. Im Log dann `Curtain: nobody would take it away`.
+  12. **Fortschrittsbalken (Wahl B):** Bei einem Update (Epic, GOG, Steam) steht der dünne blaue Balken unter „Aktualisiert … %“, darunter Tempo und Restzeit, sobald sie bekannt sind.
+- **Beim Beenden von Overwatch und ABZU** kurz ein falsches Bild, der Vorhang kommt manchmal von der Seite herein, dabei ist der Desktop zu sehen (Nutzer: Ladescreen-Session).
+- **Create macht im Spiel keine Bildschirmfotos** (8.11.; das kleine Menü öffnet sie). Nightforge gibt die Taste frei, wenn es nicht vorn ist (`takeViewButton`).
+  - **Im Code geklärt (8.11.): SDL in winebus ist es nicht.** Unser `libSDL2-2.0.0.dylib` (Gcenx/MacPorts, 2.32.8) bindet `GameController.framework` nicht ein und enthält `preferredSystemGestureState` nicht. Nur der MFi-Treiber in SDLs Quelltext sperrt die Gesten (`SDL_mfijoystick.m:1039`), und der ist in diesem Build nicht drin. HIDAPI öffnet das Gerät ohne Exklusiv-Recht (`hid.c:842`, `kIOHIDOptionsTypeNone`). Auch `winebus.so`, `winemac.so`, `ntdll.so`, `libd3dshared.dylib`, D3DMetal und Steam für Mac enthalten nichts davon.
+  - **Der einzige Code in der Kette, der die Geste anfasst, ist unser eigener:** `InputRouter.takeViewButton`, neu seit 4744f22 (0.3.2). In v0.3.1 gibt es keinen Aufruf, und das Gamepad-Paket ist in beiden dasselbe (4.7.3-15). Die Home-Taste, die Nightforge nicht anfasst, öffnet im Windows-Spiel weiter Apples Overlay. Das spricht für uns als Ursache, ist aber nicht bewiesen.
+  - **Verdacht:** Nightforge setzt `.enabled` erst in `didResignActive`, also wenn es schon im Hintergrund ist. Vielleicht kommt das bei macOS nicht mehr an, und `.disabled` bleibt stehen.
+  - **Fix-Vorschlag (nur Nightforge, kein Grafik-Paket):** die Taste in `willResignActive` freigeben, solange Nightforge noch vorn ist, `didResignActive` bleibt als Absicherung. Erst nach dem Live-Test unten bauen.
+  - **Live prüfen, entscheidet die Frage:** (1) Nightforge läuft im Hintergrund, Finder vorn, Create drücken: Bildschirmfoto? (2) Nightforge beendet, ein Spiel aus Steam starten, Create drücken: Bildschirmfoto? Kommt es bei (2), aber nicht mit Nightforge im Hintergrund, liegt es an `takeViewButton`. Kommt es auch bei (2) nicht, ist es macOS oder Wine, und der Vorschlag hilft nicht. Apples Header nennt als Beispiel einen langen Druck, also jeweils kurz und lang drücken.
 - **Der Ladebildschirm muss wesentlich ruhiger werden** (Nutzer, 8.11.): Flackern beim Start und Beenden von Overwatch, beim erneuten Start von Valheim direkt nach The Forest war kurz der Desktop zu sehen. Für 0.3.2 reicht der jetzige Stand. Grundlage: `docs/AUDIT-LADESCREEN.md`.
+
+## 0.3.3: Regedit nur bei Änderung, msync je Spiel (Zweig `claude/engine-regedit-msync-033`)
+
+- **Regedit:** `applyGameSettings` ruft `regedit` nur noch, wenn sich etwas geändert hat (`GameRegistryRecord`, je Programmname, Stempel `.nightforge-game-registry` im Prefix). Der Stempel zählt erst, wenn `user.reg` mindestens so neu ist: Ein hart beendeter wineserver verliert sonst, was regedit gerade schrieb. Die vier Profile mit eigenem `registry` schreiben weiter bei jedem Start, weil ein Spiel diese Werte selbst ändern kann.
+- **msync:** Profilfeld `"msync": false` (`Engine.msyncWanted`). Standard bleibt an, noch kein Profil nutzt es. Wechselt der Wert, startet Steam mit neuer Wine-Sitzung. Ein Spiel neben einem laufenden Windows-Spiel nimmt die Sitzung, wie sie ist.
+- **Live prüfen:**
+  - Zweimal dasselbe Spiel starten, mindestens 30 s Abstand: beim zweiten Mal steht im `wine.log` „Game settings as the prefix has them: no regedit“, und das Spiel läuft wie vorher. Wie viele Sekunden das spart, ist nicht gemessen.
+  - In den Optionen die Grafik des Spiels wechseln: Die neue gilt beim nächsten Start.
+  - msync: `"msync": false` probeweise in einem Testprofil, Start: `wine.log` „msync off from this Wine session on“, Steam kommt neu hoch, Spiel läuft. Danach ein Spiel ohne das Feld: wieder „msync on“.
+  - Dasselbe mit einem Spiel aus Epic oder GOG.
 
 ## 8.11. mittags (staging-032, nicht gepusht)
 
@@ -117,10 +1099,15 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
   Namen). Warum Steams Frage-Fenster nicht nach vorn kam: Seine Fenster gehören „Steam Helper“ (`com.valvesoftware.steam.helper`, Agent-App), nicht `steam_osx`, und seit macOS 14 kommt eine App nur nach vorn, wenn die aktive ihr den Vortritt lässt. `MacSteam.show`/`ask` holen jetzt den Prozess mit Steams Fenster per `yieldActivation` + `activate` (wie bei Spielen). **Live 8.11.:** Drawful 2 startet ohne Frage (12:54, `steam://launch/442070/Option2`). Mit eigenen Startparametern (`steam://run`, Steam fragt) kam Steams Store nach vorn, aber keine Frage zu sehen: `open/main` legte den Store über das kleine Fenster. Jetzt bleibt `open/main` weg, wenn Steam auf die Startart wartet und ein kleines Steam-Fenster da ist; `show` schreibt Steams Fenster ins wine.log. **Für 0.3.3 prüfen:** Mac-Spiele mit mehreren Startarten vom Typ `none`/leer (Project Zomboid, Golf With Your Friends, Amnesia, Arma 3, 7 Days to Die) fragen weiter, `steam://launch` kennt dafür keinen Namen. Kandidat: `steam_osx -applaunch <id>`, das auch Argumente nimmt.
   **Live prüfen:** Drawful 2 startet ohne Frage.
 
+## 0.3.3: Steam nur bei Bedarf, Mac-Startarten (Zweig `claude/steam-on-demand-033`)
+
+- **Steam nur bei Bedarf (seit 9.11. auch am Netzteil, wenn niemand da ist; `SteamOnDemand.swift`):** Steam schläft, wenn Nightforge 30 min nicht vorne war und nichts es braucht: kein Spiel oder Start, kein Download bei Nightforges Steam, kein Spiel in den letzten 5 min (Cloud), kein Steam-Fenster, kein Client-Update, Anmeldung gemerkt. Es wacht auf, wenn Nightforge nach vorn kommt, Strom angesteckt wird oder „Spielen“ kommt. Warum 30 min: Ein Steam-Start kostet etwa so viel CPU wie 40 min Leerlauf (3,7 %). **Live prüfen:** Akku, Nightforge 30 min im Hintergrund: im `wine.log` „Steam sleeps“, keine Steam-Prozesse; zurück zu Nightforge: „Steam wakes“, angemeldet; danach Spiel starten; ein Spiel direkt aus dem Schlaf über eine Verknüpfung.
+- **Mac-Spiele mit Startarten `none` oder leer:** `steam_osx -applaunch <id>`, Argumente gehen mit (`MacSteam.applaunch`); zeigt das Log nach 15 s nichts, wieder `steam://run`. **Live prüfen:** Project Zomboid, Golf With Your Friends, Amnesia, Arma 3 oder 7 Days to Die: Spiel startet ohne Frage in Steam für Mac.
+
 ## Audit 0.3.2 (8.11., `docs/AUDIT-0.3.2.md`)
 
 Behoben auf `claude/audit-032-723be8`: Overwatch ohne D3DMetal (fragt jetzt vor dem Start), Neustart bei hängendem Steam, „Spiel neu starten“ gegen das Spielende, Controller-Hinweis beim nächsten Spiel, signierter Helper, GOG-Preise außerhalb des Euro-Raums, feste Schrift auf `TypoCover`.
-**Für 0.3.3:** Profilfeld statt `D3DMetalSupply.needsRosettaLibrary`; A8–A13 aus dem Audit.
+**0.3.3 (`claude/audit-033`):** Profilfeld `needsRosettaLibrary`, A9–A13 behoben, A8 bleibt bewusst so. Die Profiländerung braucht die signierte Liste (`scripts/sign-lists.sh`), sonst verliert 0.3.3 bei Overwatch die Frage nach D3DMetal.
 
 ## 0.3.1: Hänger-Fixes live prüfen (H1–H3 der Codeprüfung, Zweig `claude/h1-h3-031`)
 
@@ -528,6 +1515,10 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
 - `defaults write io.github.lordhayne.nightforge wineDebug -string "+loaddll,+timestamp,+pid,+tid"` hängt Wine-Kanäle an
   `WINEDEBUG` an. Erlaubt sind nur Buchstaben, Ziffern und `+ - , _`. Steam startet dafür neu. Das Log wächst damit schnell,
   danach `defaults delete io.github.lordhayne.nightforge wineDebug`.
+- `defaults write io.github.lordhayne.nightforge closerLook -bool true`: Jeder Start trägt die Kanäle des genaueren
+  Blicks (`+pid,+loaddll,warn+debugstr,+wintrust,+chain,+msgbox`, `CloserLook`), nicht erst der nach einem unerklärten
+  Fehlstart; die Diagnose liest sie nach jedem Fehlstart. Beim ersten Spielstart startet Steam dafür neu. Das Log
+  wächst schnell, danach `defaults delete io.github.lordhayne.nightforge closerLook`.
 - `defaults write io.github.lordhayne.nightforge wineSandbox -bool true`: Wine startet in einer macOS-Sandbox, die
   Anmeldedaten sperrt (unten bei „Aus dem Code-Audit“ › Wine-Sandbox). Steam startet dafür neu. Zurück mit
   `defaults delete io.github.lordhayne.nightforge wineSandbox`.
@@ -793,6 +1784,13 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
   - Auf dem MacBook (gelesen, nichts geändert) stimmte der Tag zufällig: Der gehaltene Build mit D3DMetal 4.0b3 kam
     erst am 1.11. um 21:40 zusammen (Stempel), die Marker der Teile sind vom 23., 26. und 27.10.
 
+## Einstellungen › Startseite (0.3.3, Zweig `claude/startseite-033`)
+
+- **Gebaut nach Variante C des Boards „Startseite“:** Quellen an/aus (`HomeSources`) und die Reihenfolge der angehefteten Spiele
+  (`HomePinOrder`), Seite in `HomeSettings.swift`, Tests in `tests/HomeSourcesTest`. Nur offscreen gerendert.
+- **Live prüfen:** Controller im Tab (Schalter, Pfeile, Markierung wandert mit dem Spiel), Startseite nach jedem Schalter, alle Quellen aus
+  (nur die Kachel „Alle Spiele“), „Später spielen“ mit einem noch nicht geladenen Spiel.
+
 ## Launcher-Menü (0.3.2, Zweig `claude/launcher-032`)
 
 - **Gebaut nach dem Canvas vom 7.11.:** `LauncherState` ist der eine Zustand für beide Menüs (`Launchers.swift`), vier Karten und
@@ -808,8 +1806,8 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
   er beim nächsten Start neu, die Karte zeigt dann „Abgemeldet“. Einen Kontonamen zeigt sie nicht: In den Dateien steht nur die Mail.
 - **Fenster in Nightforge (wartet aufs OK des Nutzers):** `CGWindowListCopyWindowInfo` liefert die Fensterrahmen von Battle.net ohne
   Bedienungshilfen- und Bildschirmaufnahme-Recht (geprüft 7.11.). Die Bühne könnte ihren Rahmen also dorthin legen, wo das Fenster ist.
-- **Battle.net-Karten starten noch nicht:** Ist der Mac-Client angemeldet, verknüpft Nightforge Battle.net von selbst (wie Steam), bis
-  der Spieler „Trennen“ wählt. Die Spiele stehen dann in der Bibliothek, „Spielen“ verweist auf den Client.
+- **Battle.net-Karten:** Ist der Mac-Client angemeldet, verknüpft Nightforge Battle.net von selbst (wie Steam), bis der Spieler
+  „Trennen“ wählt. „Spielen“ startet die Spiele des Mac-Clients (siehe „Battle.net-Start“ unten); die des Windows-Clients sagen weiter, dass das noch nicht geht.
 - **Beendigungen im wine.log:** Seit 7.11. steht jede Beendigung mit Auslöser dort (`[nightforge] Quit by …`, bei Apple Events mit
   dem Absender, etwa `osascript`). Das Beenden im Live-Test 7.11. 21:20:45 war sauber, aber ohne Spur: vorher wurde nur ein
   verweigertes Beenden geloggt.
@@ -841,6 +1839,29 @@ Gelesen einmal pro App-Start, also danach Nightforge neu starten. Nur setzen, we
   den wineserver von Battle.net beenden.
 - **DXMT-Lizenz:** Unser 0.80 (589adb7) steht unter MIT, die Angabe in `THIRD_PARTY_NOTICES.txt` stimmt. DXMTs `main` steht
   inzwischen unter LGPL-2.1-or-later: Beim nächsten DXMT-Update den Hinweis ändern und die Quellen wie bei Wine mitliefern.
+
+## Battle.net-Start (0.3.3, Zweig `claude/battlenet-start-033`)
+
+- **Gebaut:** `BattleNetStart.swift`, `LibraryModel.launchBattleNetMac`. Client versteckt hochfahren (`startHidden`), warten bis er
+  angemeldet und bereit ist (Log: Konto `Ready` und `GameController initialization complete`), dann ein zweiter Aufruf des
+  Programms mit dem einen Argument `--exec=launch <Startcode>`. Ab da wie jedes Spiel: Vorhang, Prozess im Spielordner, Bühne,
+  Beenden über das Overlay, Spielzeit in `Nightforge/BattleNet/playtime.json`. Keine neuen UI-Elemente, nur neue Texte in der
+  vorhandenen Startzeile. An Spieldateien ändert Nightforge nichts (auch kein `ControllerCompatibility.prepare`/HUD wie bei Steam).
+- **Belegt, nur statisch** (Client 2.53.8.17986, nicht ausgeführt): Die Optionsliste hat `exec,e` „Execute a command“; im Kern
+  stehen `launch_uid`, `handle_uri` und Log-Zeilen wie `Game launch options: programId=`. Der Loader reicht Argumente an den Kern
+  weiter. Ob `launch WTCG` in der zweiten Instanz greift, zeigt erst der Live-Test.
+- **Unsicher, Live-Test:** (a) `launch <Code>` auf dem heutigen Mac-Client; (b) `launch_uid wow_classic` für Classic (kein Startcode,
+  reine Ableitung); (c) die Logzeilen `Game launch options` als Zeichen „genommen“. Schlägt (a) fehl, kommt nach 30 s das
+  Client-Fenster mit „Battle.net wartet auf dich“, der Spieler drückt dort auf Spielen, und Nightforge folgt dem Spiel. Hat der
+  Client den Start laut Log angenommen, wartet Nightforge bis 120 s, damit sein Fenster einen normalen Start nicht unterbricht.
+- **Live prüfen (mit Hearthstone, `/Users/thomas/games/Hearthstone`):** 1. Client läuft, angemeldet: Spielen, Vorhang, Spiel startet ohne Klick.
+  2. Client aus: Spielen startet ihn versteckt, dann das Spiel. 3. Nach dem Spiel: zurück in Nightforge, „Willkommen zurück“, Spielzeit
+  auf der Karte (ab 1 Minute). 4. Beenden über das Overlay. 5. B/Esc während des Wartens bricht ab. 6. Keine zweite Battle.net-App bleibt
+  im Dock stehen (der Aufruf mit `--exec` soll sich beenden). 7. Abgemeldet: Fenster kommt, „Melde dich im Battle.net-Fenster an“,
+  danach startet das Spiel. 8. Update wartet: Client öffnet die Spielseite, Hinweis in Nightforge.
+- **Bewusst so:** Der Client bleibt nach dem Spiel versteckt offen (wie Steam für Mac). Ihn zu beenden wäre möglich, kann aber einen Download treffen.
+- **`battlenet://`:** `battlenet://<Startcode>` öffnet nur die Spielseite (Fallback-Weg). Der Client hat auch eine Launch-Aktion für URIs (`UriController`,
+  `launch`, `update`, `install`); die genaue Form ist nicht belegt und nicht eingebaut.
 
 ## Mac-Versionen
 
@@ -977,7 +1998,12 @@ Gebaut und getestet (`tests/GameMenuTest`), aber noch nie live gesehen. Die Akti
   oder dem Vulkan-Layer stehen) oder sein Fenster antwortet nicht. Dann bietet Nightforge das Overlay mit „Spiel
   beenden“ an, ohne zu raten, wenn ein Ladebildschirm nur lange dauert.
 - **Großes Nightforge-Overlay** (nach 0.3.0, der Nutzer will es „später schön ausarbeiten“): Uhrzeit, Controller-Akku,
-  laufende Downloads, Bildschirmfoto, Lautstärke, Leistungsanzeige, Bildratenbegrenzung.
+  laufende Downloads, Bildschirmfoto, Lautstärke, Leistungsanzeige, Bildratenbegrenzung. Entwurf: `docs/ENTWURF-OVERLAY.md`, drei Varianten auf dem Board `Overlay.dc.html`, die Wahl des Nutzers steht aus. **Anforderung des Nutzers (8.11.):** Solange das Overlay offen ist, bekommt das Spiel keine Controller-Eingaben; Windows über eine stille Eingabe in `winebus` (noch nicht gebaut), Mac-Versionen ohne sauberen Weg, siehe Entwurf. **Gewählt: Variante A** (B bleibt Kandidat für den Konsolen-Modus, C als Idee; Board `docs/entwuerfe/Overlay.dc.html`).
+  - **Gebaut, Stufe 1** (`claude/overlay-entwurf`, noch nicht live): Seitenleiste aus Bausteinen (`OverlayTiles.swift`, `OverlayView.swift`) mit Spielname, Sitzungszeit, Uhr, Akku je Controller, Weiterspielen, Spiel beenden, Zu Nightforge. Ein neuer Baustein ist ein neuer Typ und ein Eintrag in `OverlayTiles.all`. Das Panel nimmt nie Tasten, außer bei „Startet nicht?“ (`canBecomeKey` hängt jetzt daran). Das Spiel läuft erst weiter, wenn nichts mehr gedrückt ist, höchstens nach 1 s (`OverlayRules.mayRunOn`; vorher löste „Weiterspielen“ beim Drücken aus und das Spiel sah die Taste). Mac-Versionen stehen jetzt auch; reine Online-Spiele auf dem Mac laufen weiter, das Overlay sagt: „Dieses Spiel bekommt deine Eingaben weiter.“
+  - **Größe nach dem Live-Test (8.11., „ein wenig zu groß für Full HD und auf dem Mac dann sowieso“):** `OverlayMetrics` rechnet jetzt nach Sitzplatz (`OverlaySeat`, Fernseher aus `GameDisplay.isTV`) und nach Punkten; Regeln in `tests/GameOverlayTest`, Bilder im Notizordner. **Live prüfen:** MacBook und Full-HD-Fernseher, dazu der 4K-Fernseher, sobald er da ist: mit 1920×1080 Punkten wie Full HD, mit 3840×2160 Punkten gleicher Anteil am Bild. Ein Fernseher ohne bekannten Namen und ohne Größe zählt als Schreibtisch und bekäme die kleine Karte.
+  - **Stille Eingabe, gebaut, noch nicht bei Spielern** (Nutzer 8.11. „Ja, bauen“; `engine/patches/winebus-winecx-pad-silence.patch`, `PadSilence.swift`, `tests/PadSilenceTest`): Solange das Overlay offen ist, meldet unser Wine-Treiber dem Spiel einen ruhenden Pad. Nur in `winedevice.exe`, nichts im Spiel. Ohne Nightforges Bitte tut der Patch nichts. **Frist:** Nightforge schreibt eine Ablaufzeit (5 s) und erneuert sie alle 2 s auf dem Haupt-Thread; hängt oder stürzt es ab, hat der Spieler den Pad nach spätestens 5 s wieder. Der Treiber antwortet, nur dann läuft ein reines Online-Spiel weiter, sonst wird angehalten wie bisher. Lokal gebaut mit `scripts/build-winebus-local.sh <ref>`, Ergebnis in `~/Library/Caches/nightforge-winebus-build/out/<ref>/winebus.so`. Für Spieler fehlt noch ein Lauf von `gamepad.yml` und der neue Eintrag in `components/manifest.json`, **erst nach dem Live-Test**. Nur winecx, Wine 11.18 hat den Patch nicht (dort: keine Antwort, also Anhalten). Spielernummern und Stufe 2 folgen.
+  - **Live prüfen, stille Eingabe:** Vorbereiten: Spiele und Steam beenden, den gebauten `winebus.so` nach `~/Library/Application Support/Nightforge/Components/winecx/4.7.3/Libraries/Wine/lib/wine/x86_64-unix/winebus.so` kopieren (Rückweg: die Datei aus `Components/gamepad/4.7.3-15/…/x86_64-unix/`), Steam neu starten. (a) Windows-Spiel, Overlay offen: Figur reagiert nicht, nach dem Schließen keine Geisterdrücke, keine Meldung „Controller getrennt“. `notifyutil -g io.github.lordhayne.nightforge.pad-silence` zeigt eine Zahl, geschlossen 0. (b) Reines Online-Spiel (Overwatch): `wine.log` sagt „the pad driver answered: it runs on“, das Overlay „Läuft weiter“, die Figur bewegt sich nicht, die Verbindung bleibt. (c) Sicherung: Nightforge bei offenem Overlay mit `kill -9` beenden, der Pad geht nach höchstens 5 s wieder (ein angehaltenes Spiel läuft erst beim nächsten Nightforge-Start weiter, wie bisher); dasselbe mit `kill -STOP`, danach `kill -CONT`. (d) Rumble im Moment des Öffnens, Spiel mit Steam Input, zweiter Pad eingeschaltet während der Sperre. (e) Ohne den neuen `winebus.so`: Spiel wird angehalten wie vorher, kein Fehler. (f) Mac-Version: `notifyutil` bleibt bei 0.
+  - **Live prüfen:** (1) L3 + R3 am Fernseher und am MacBook: Leiste rechts, aus 3 m lesbar, Spiel links sichtbar, nicht abgedunkelt. (2) The Forest und ein Unreal-Spiel: minimieren sich beim Öffnen nicht. (3) A und B auf „Weiterspielen“ und erneutes Halten: Das Spiel sieht keine Taste; in `wine.log` steht „the fingers off the pad after … ms“; **immer 1000 ms** hieße, GameController meldet das Loslassen im Hintergrund nicht. (4) Windows-Spiel: Figur steht, Ton pausiert, nach dem Weiterspielen keine Geisterdrücke. (5) Eine Mac-Version (derzeit keine installiert): steht, und kommt nach dem Weiterspielen ein Stau an Eingaben? (6) Reine Online-Spiele: auf dem Mac läuft es weiter und der Satz steht da; unter Windows, wie lange trägt die Verbindung die Pause (Overwatch)? (7) Maus: Die Knöpfe lassen sich klicken, obwohl das Panel keine Tasten nimmt. (8) Zeiger verschwindet wie bisher. (9) Akku von DualSense und Xbox stimmt im Spiel. (10) Sitzungszeit passt auch bei Spielen mit eigenem Launcher. (11) „Startet nicht?“, der Ausweg vom Vorhang (`.stuck`) und Beenden wie bisher, auch Spiel neu starten bei später verbundenem Controller. (12) Spiel wechselt den Bildschirmmodus (ABZU): Leiste zieht mit.
 - **Zwei Controller, lokaler Koop mit Split-Screen** (Nutzer, 29.10.): ungeprüft. Erwartet wird:
   - Windows-Spiele: winebus/SDL gibt jeden Pad als eigenen Xbox-360-Pad weiter (XInput-Plätze 1–4).
   - Neuere Mac-Spiele mit dem GameController-Framework können mehrere Pads von sich aus.
@@ -1009,6 +2035,10 @@ Gebaut und getestet (`tests/GameMenuTest`), aber noch nie live gesehen. Die Akti
 
 ## Darstellung und Leistung
 
+- **Shader auf dem DXMT-Weg früher übersetzen** (Plan und Stand `docs/ENTWURF-SHADER.md`, für 0.3.3).
+  - Stufe 0 gemessen (7.11.): Die erste Runde ist die Lücke, die zweite fast sauber. Stufe 1 liegt als `engine/patches/dxmt-0.80-prepare-shaders.patch` auf dem Zweig, Standard aus, nicht gemessen.
+  - LGPL vom Nutzer freigegeben (8.11., `docs/ENTSCHEIDUNG-DXMT-LGPL.md`). App schreibt die Option für alle Spiele außer Overwatch und Spielen mit Anti-Cheat (`ShaderCaches.hasAntiCheat`). Offen: Kurztest vor dem Merge, Messung ABZU als späterer Beleg. Overwatch nur mit OK.
+  - `ShaderCaches.folders` kennt `C/dxmt/<exe>/com.apple.metal` nicht: „Shader löschen“ lässt Metals Cache stehen.
 - **Die Optionen eines Steam-Spiels lesen `appinfo.vdf` auf dem Main-Thread** (Release-Review C4, für 0.3.2).
   - **Teilweise erledigt (8.11., f0d1adc):** Die Datei wird nur noch einmal pro Änderung gelesen (bis 64 MB im
     Speicher), nicht mehr für jedes Spiel neu. Das Auswerten je Spiel läuft weiter auf dem Main-Thread.
@@ -1018,6 +2048,9 @@ Gebaut und getestet (`tests/GameMenuTest`), aber noch nie live gesehen. Die Akti
   - Hier ist sie 1,0 MB groß, das kostet Millisekunden. Eine Bibliothek mit Tausenden Spielen hat aber eine viel
     größere.
   - Abhilfe: das Programm in einem Task holen oder je Datei einmal einen Index App-ID → Stelle bauen.
+  - **Erledigt auf `claude/c4-033` (8.11., für 0.3.3):** Die Optionen holen Programm und Programmliste in einem
+    abgekoppelten Task, sobald sie offen sind. Ein Index je Datei lohnt nicht: Die Suche springt von App zu App über
+    die Größenangaben und liest nur den einen Eintrag.
 - **MetalFX im Vulkan-Layer** (Retina für Vulkan-Spiele, PR #1): Die Metal-Seite ist geprüft, in einem Spiel noch nicht.
 - **MoltenVK 1.4.2** (PR #1) ist in keinem Spiel getestet. 1.4.0 scheiterte an Shadern von No Man's Sky.
 - **D3DM_MAX_FPS** wirkt jetzt über Steams Start-Umgebung. Prüfen, ob die gelernte Bildratengrenze
@@ -2059,6 +3092,17 @@ pixelgleich mit vorher, außer den Korrekturen unten. In der echten App prüfen:
 
 ## Ideen für später
 
+- **Tastatur für den Controller auch außerhalb von Nightforge** (der Nutzer, 21.11.2026, in der Live-Runde, nachdem
+  „Touchpad als Maus“ den ganzen Mac bedienbar machte: „was echt cool wäre … bildschirmtastatur von nightforge
+  auserhalb von nightforge für eine schnelle browser suche oder so“). Was es schon gibt: die Tastatur ohne Ansicht
+  (`PadKeyboard`), das Lesen des Pads mit einem anderen Programm vorn (`shouldMonitorBackgroundEvents`), das Recht
+  „Bedienungshilfen“ für Klicks (dasselbe Recht deckt getippte Zeichen), Fenster über fremden Programmen (Vorhang,
+  Overlay). Was fehlt: ein schwebendes Fenster für die Tastatur, das dem Programm vorn den Fokus lässt; getippte
+  Zeichen als Tastendrücke an das Feld vorn schicken; ein Knopf, der sie außerhalb öffnet und schließt; Regeln, wann
+  sie nicht aufgeht (Spiel vorn, Overlay, Vorhang, Frage von macOS). Heute schließt sie, sobald Nightforge nicht vorn
+  ist (`PadRules.keyboardStays`). Erst ein Board (wie sie über einem fremden Programm aussieht, welcher Knopf),
+  dann bauen. Kandidat für 0.3.4.
+
 - **Mauszeiger blitzt beim Spielstart kurz auf** (Nutzer, 1.11.: „detailarbeit für irgendwann mal“): Mit dem
   Pad bleibt der Zeiger im Ladebildschirm, im Spiel, nach „Zum Spiel wechseln“ und beim Beenden weg (TV-Zweig
   72a8432, live bestätigt). Nur im Ladebildschirm ist er einen Moment zu sehen, bis `hidePointerOverGame` greift,
@@ -2630,21 +3674,10 @@ wird angepasst.
     - Die Lösung ist ausprobiert und typgeprüft: `kosmickrisp-staging-merge.diff` in den Session-Notizen.
     - Dabei aufgefallen: `CX_ACTIVE_GRAPHICS_BACKEND` ist auf Staging ein Schalter, den ein Spiel setzen darf
       (`GameEnvironment`). Auf MoltenVK bleibt der Wert des Spiels stehen. KosmicKrisp braucht „wined3d“ und setzt es.
-  - **Live-Test** (nach dem Neustart des Macs; Anleitung `kosmickrisp-dx9.md` in den Session-Notizen):
-    1. Komponenten bereitstellen: `tests/kosmickrisp/stage-live-test.sh` mit einem Testbau, der
-       `NightforgeManifestURL ""` hat. Am Ende `--undo`.
-    2. Mafia II (GOG), Grafik Automatisch, am MacBook-Display (das Vollbild am Fernseher ist eine eigene Baustelle).
-       Erwartet:
-       - DXVK auf KosmicKrisp: In `wine.log` steht das Gerät „KosmicKrisp“, und der Layer loggt FPS.
-       - Kein Rückfall auf WineD3D.
-       - Ruckler beim ersten Durchgang sind ohne Graphics Pipeline Library zu erwarten.
-       - `tests/kosmickrisp/thread-cpu.py <pid> 5` zeigt, welcher Thread voll läuft.
-    3. Left 4 Dead 2 (Steam): dasselbe. Auf WineD3D stürzte es nach etwa einer Minute ab.
-    4. Ein drittes DX9-Spiel, etwa Portal, Team Fortress 2 oder Garry's Mod.
-    5. Gegenprobe nach `--undo`: D3D9-Spiele starten nur mit WineD3D, ohne DXVK-Versuch.
-    6. Ruckelt Mafia II stark: A/B mit DXVK-macOS 1.10.3-async auf KosmicKrisp (zeichnet laut Probe).
-    7. Danach die Profile (50130, gog.1816059595, 550) auf `graphics: dxvk` stellen. Zum Ausliefern muss
-       `kosmickrisp.yml` auf `main` laufen; das braucht das OK des Nutzers.
+  - **Live-Test:** `docs/LIVE-TEST-KOSMICKRISP.md` (Mafia II, Left 4 Dead 2 nur Einzelspieler wegen VAC, The Stanley
+    Parable). `tests/kosmickrisp/stage-live-test.sh` nennt KosmicKrisp jetzt in der eigenen Liste eines Testbaus, weil eine
+    geänderte `Components/manifest.json` seit den signierten Listen nicht mehr zählt. Der erste Lauf vom 4.11. (Mafia II):
+    46–60 FPS, Stopps von 3–7,7 s, dunkle Rechtecke, GPU ~1 %, leerer Mesa-Cache.
 - **PR #13** (Entwurf): Layer-Fixes (freigegebene `CAMetalLayer`, Speicherleck pro Frame, Abbau, Retina pro Fenster).
   Kompiliert, aber ungetestet, weil der Layer unter winecx nicht läuft (siehe oben).
 - **MetalFX auf der exportierten Metal-Queue** verlässt sich darauf, dass MoltenVK synchron einreicht. Mit

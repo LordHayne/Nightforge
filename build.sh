@@ -14,8 +14,9 @@ APP="Nightforge"
 OUT="build/$APP.app"
 
 echo "▸ Compiling (release, Apple Silicon) …"
-swift build -c release --arch arm64
-BIN_DIR="$(swift build -c release --arch arm64 --show-bin-path)"
+# NIGHTFORGE_RELEASE=1 builds what goes out: without the test switches that record play (GameTest.measuresPlay).
+swift build -c release --arch arm64 ${NIGHTFORGE_RELEASE:+-Xswiftc -DNIGHTFORGE_RELEASE}
+BIN_DIR="$(swift build -c release --arch arm64 ${NIGHTFORGE_RELEASE:+-Xswiftc -DNIGHTFORGE_RELEASE} --show-bin-path)"
 
 echo "▸ Building app bundle …"
 rm -rf "$OUT"
@@ -75,6 +76,19 @@ else
   cp wrapper/unity-play.exe "$OUT/Contents/Resources/unity-play.exe"
 fi
 
+# Presses the button a Windows game's question means, for A and B on the pad (wrapper/pad-answer.c,
+# PadAnswerRun.swift). The same rule as above: only a build whose SHA-256 lies beside it. Until
+# pad-answer.yml has produced one, a Mac without mingw-w64 makes an app without it, and the pad's A and
+# B simply leave such a question to the touchpad.
+if [ -n "$MINGW" ]; then
+  "$MINGW" -O2 -Wall -Wextra -municode -mwindows -static \
+    -o "$OUT/Contents/Resources/pad-answer.exe" wrapper/pad-answer.c
+elif [ -f wrapper/pad-answer.exe ] && (cd wrapper && shasum -a 256 -c -s pad-answer.exe.sha256); then
+  cp wrapper/pad-answer.exe "$OUT/Contents/Resources/pad-answer.exe"
+else
+  echo "▸ No pad-answer.exe yet: A and B won't answer a game's questions in this build."
+fi
+
 # Keeps the background Steam out of the Dock (x86_64, loaded into Wine processes).
 clang -arch x86_64 -mmacosx-version-min=11.0 -dynamiclib -framework AppKit -Wall \
   -o "$OUT/Contents/Resources/hide-steam-dock.dylib" wrapper/hide-steam-dock.m
@@ -110,10 +124,10 @@ cat > "$HELPER_APP/Contents/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
-# Lets Windows games that render with Vulkan start on MoltenVK, and upscales them with MetalFX (x86_64,
-# loaded by Wine's Vulkan loader).
+# Lets Windows games that render with Vulkan start on MoltenVK, and upscales them with MetalFX. Only Wine's
+# Vulkan loader in the game bundle loads it, so x86_64 is the part that runs; the arm64 part is for later.
 # Its MetalFX upscaling is Objective-C (wrapper/nightforge-vulkan-metalfx.m); MetalFX is weak-linked for older Macs.
-clang -arch x86_64 -mmacosx-version-min=11.0 -dynamiclib -fvisibility=hidden -fobjc-arc -O2 -Wall \
+clang -arch x86_64 -arch arm64 -mmacosx-version-min=11.0 -dynamiclib -fvisibility=hidden -fobjc-arc -O2 -Wall \
   -I wrapper/vulkan-headers -I wrapper -framework Metal -framework QuartzCore -framework CoreGraphics -weak_framework MetalFX \
   -o "$OUT/Contents/Resources/nightforge-vulkan-layer.dylib" wrapper/nightforge-vulkan-layer.c wrapper/nightforge-vulkan-metalfx.m
 

@@ -57,7 +57,36 @@ Live-Prüfung dazu: The Forest, ABZU und Valheim: L3+R3 halten, Menü schließen
 im Menü geht; Maus-Klick auf „Weiterspielen“ geht und lässt das Spiel im Vollbild. Spiel ohne Controller starten, dann Controller
 einschalten: bei L4D2 Hinweis und Angebot, bei The Forest und Valheim keins.
 
-## Für 0.3.3
+## Für 0.3.3: Stand auf `claude/ruhiger-ladescreen-033`
+
+Alles ist mit Tests belegt, soweit es reine Regeln sind. Ob es am Bildschirm ruhig wird, zeigt erst der Live-Test (Liste in `docs/TODO.md`).
+Die Ursachen sind aus Log und Code geschlossen, keine ist am laufenden Spiel beobachtet.
+
+| Punkt | Stand | Commit |
+|---|---|---|
+| C2 Flackern: Vorhang unter dem Schutzfenster | behoben. Bei Windows-Spielen liegt der Vorhang vom ersten Prozess an darüber, ein Reagieren wäre selbst ein schwarzer Moment. Preis: Die ⌘-Tab-Leiste ist in der Zeit nicht zu sehen. | f371990 |
+| Von der Seite, Desktop daneben, Teil 1 | behoben. `NSScreen` erfährt einen neuen Modus erst spät, der Vorhang deckte so lange nur eine Ecke. Die Größe kommt jetzt vom Display selbst. | 2ab8c22 |
+| Von der Seite, Teil 2 (Mac-Spiel im eigenen Space) | behoben. Der Vorhang kommt beim Prozessende im selben Moment, nicht erst beim nächsten Blick. | f4386c4 |
+| Desktop bei Valheim nach The Forest | behoben, Ursache unbewiesen. Der Vorhang wird nach einer Aktivierung 4 s lang immer wieder nach vorn gelegt. | 0e8a2cd |
+| Falsches Bild beim Beenden | behoben. Der Vorhang kommt, sobald das Bild weg ist und ein anderes Programm vorn. Die Seite liegt direkt unter dem Vollbild-Spiel. | f4386c4, 4d158c7 |
+| B1 Spielende wird zurückgeholt | entschärft. Das Zurückholen läuft jetzt unter dem Vorhang und ist nicht mehr zu sehen. | f4386c4 |
+| B5 Hinweise nehmen den Vorhang weg | behoben („startet trotzdem“ wartet auf der Seite). | aa46157 |
+| B6 Text springt zurück | behoben. | aa46157 |
+| V1 Steam Helper behält die Front | behoben, Beleg Valheim 16:09: Nightforge fragt erneut, auch direkt bevor der Vorhang geht. | aa46157 |
+| V2 „Willkommen zurück“ geht verloren | kein Fehler. Es geht nur verloren, wenn ein neuer Start den Vorhang übernimmt, und dort gehört es nicht hin. | – |
+| V3 `hide` bei Steam Helper | unverändert, nur live prüfbar. | – |
+| B2 Ausweg ohne Spielprozess | Logik gebaut (`CurtainEscape`): nach 30 s wirken B und Esc, nach 90 s fragt ein stilles Steam von selbst, ein laufendes Update nie. Texte vorläufig. | fe39773, da7e91b |
+| B3 Steams Frage auf dem Vorhang | gebaut (Wahl C): Steams Fenster steht auf dem Vorhang, Leiste unten, B führt sofort zurück. Antworten nur mit Maus oder Trackpad, bis der Touchpad-Zeiger da ist. Nur die Spielstand-Wahl, ein Sheet in Nightforges Fenster, nimmt den Vorhang noch weg. | 6d8d789 |
+| B4 Epic und GOG früher unter den Vorhang | gebaut. B bricht das Update sofort ab (es läuft beim nächsten Mal weiter). Ein Spielstand-Abgleich wird nicht abgeschossen: Er läuft zu Ende, und das Spiel startet nicht. Fortschritt als dünner Balken (Wahl B, 6d8d789). Texte des Auswegs: Wahl A. | cb2223c |
+
+**Live-Fehler 8.11., 22:28 (aus f4386c4):** Nach dem Ende von Tomb Raider kam Steam Helper nach vorn, `frontMoved` kannte nur die alten Prozessnummern und hob den Vorhang für ein beendetes
+Spiel, und niemand nahm ihn wieder weg. Der Auslöser gilt jetzt nur noch für ein laufendes Spiel und nicht mehr auf dem Weg zurück. Dazu: `CurtainEscape.Owners` sagt, wer einen Vorhang wegnimmt
+(Start, Wache, laufendes Spiel, Weg zurück). Hat er 5 s keinen, geht er von selbst, und B oder Esc führen sofort hinaus. `tests/CurtainKeeperTest` wird ohne den Fix rot (9 Fehler).
+
+Ausgeräumt mit einer Probe (Stand-in abseits des Bildschirms): Ein direktes Setzen von `alphaValue` stoppt eine laufende Überblendung. Ein Vorhang, der mitten in
+seinem Ausblenden neu hochkommt, bleibt also sichtbar.
+
+Die Liste von 8.11. zum Vergleich:
 
 1. **Der Ladebildschirm muss wesentlich ruhiger werden** (der Nutzer, 8.11.). Das ist der oberste Punkt. Dazu gehören:
    - **Flackern bei Start und Ende von Overwatch.** Der Vorhang liegt unter Wines Schutzfenster (Ebene …628) und dem Spiel, also

@@ -24,6 +24,12 @@ enum Prefs {
         static let sharpAndSmooth = "sharpAndSmooth"
         static let geforceNowExplained = "geforceNowExplained"
         static let padGlyphs = "padGlyphs"
+        /// The player pressed Set Up for the short press of the PS or Xbox button (HomeButtonSetup).
+        static let homeButtonAsked = "homeButtonAsked"
+        static let parkPointer = "parkPointerOverGames"
+        static let keepAwakeMinutes = "keepAwakeMinutes"
+        static let padHaptics = "padHaptics"
+        static let padPointer = "padPointer"
         /// How many game starts showed the overlay's tip on the loading screen (LaunchTip).
         static let launchTipShown = "launchTipShown"
         static let notifyDownloads = "notifyDownloads"
@@ -49,6 +55,26 @@ enum Prefs {
     /// A macOS notification when a download finishes while Nightforge isn't in front. On by default.
     static var notifyDownloads: Bool {
         UserDefaults.standard.object(forKey: Keys.notifyDownloads) as? Bool ?? true
+    }
+
+    /// The pad as the Mac's pointer where a mouse is needed (PadPointer). On by default.
+    static var padPointer: Bool {
+        UserDefaults.standard.object(forKey: Keys.padPointer) as? Bool ?? true
+    }
+
+    /// The pad's motors answering in Nightforge (PadHapticRules). On by default.
+    static var padHaptics: Bool {
+        UserDefaults.standard.object(forKey: Keys.padHaptics) as? Bool ?? true
+    }
+
+    /// How long after the last input Nightforge keeps the Mac awake, plugged in. 0, the default: never (IdleAwake).
+    static var keepAwakeMinutes: Int { IdleAwake.minutes(stored: UserDefaults.standard.integer(forKey: Keys.keepAwakeMinutes)) }
+
+    /// The pointer moved out of a game's picture while the pad is used (PointerParking). On by default;
+    /// `defaults write io.github.lordhayne.nightforge parkPointerOverGames -bool false` turns it off,
+    /// for a game that scrolls when the pointer is at the screen's edge.
+    static var parkPointer: Bool {
+        UserDefaults.standard.object(forKey: Keys.parkPointer) as? Bool ?? true
     }
 
     /// Button labels in hints: the connected controller's own, or always Xbox's or PlayStation's.
@@ -367,6 +393,8 @@ enum LaunchError: LocalizedError {
 struct LaunchWatcher {
     enum Event {
         case needsConfirmation
+        /// Its licence: a question for the player from the first moment, no routine step (SteamLicence).
+        case licence
         /// Steam got its answer (or never needed one – it logs routine steps the same way).
         case continued
         case running
@@ -384,6 +412,15 @@ struct LaunchWatcher {
     /// Steam was already waiting on a question for this game before the launch (e.g. an earlier
     /// attempt); the new request just queues behind it.
     private var openQuestion = false
+    /// Steam asked this game's licence, in this start or as the question it was still waiting on.
+    private(set) var licenceAsked = false
+    /// It has moved on from the licence since: the Windows Steam doesn't, after a yes (SteamLicence).
+    private(set) var wentOnAfterLicence = false
+    /// Steam says so itself: "continues with user response" to the licence. Steam for Mac does.
+    private(set) var licenceContinued = false
+    /// Steam is on the game's install script: the game's own installers, which log nothing here and may
+    /// ask the player things (GTA V: Rockstar's launcher, its terms and folder).
+    private(set) var runningInstallScript = false
 
     /// Remembers where the log ends now, so only lines written after the launch count.
     init(steamRoot: URL, appID: Int) {
@@ -397,6 +434,8 @@ struct LaunchWatcher {
             try? handle.close()
             let last = tail.split(whereSeparator: \.isNewline).last { $0.contains("GameAction [AppID \(appID),") }
             openQuestion = last?.contains("waiting for user response") ?? false
+            // Not told apart in `poll`: the Windows Steam leaves this line last after a yes as well.
+            licenceAsked = openQuestion && last?.contains("to ShowEula") == true
         }
     }
 
@@ -425,8 +464,20 @@ struct LaunchWatcher {
             }
             guard mentionsApp(line) else { continue }
             if line.contains("GameAction") { steamReceivedLaunch = true }
+            if line.contains("GameAction"), line.contains("changed task to") {
+                runningInstallScript = line.contains("changed task to RunningInstallScript")
+            }
+            if licenceAsked, !wentOnAfterLicence, !Self.asksLicence(line), line.contains("GameAction"), line.contains("LaunchApp") {
+                wentOnAfterLicence = true
+                if event == nil { event = .continued }
+            }
+            if line.contains("continues with user response \"ShowEula\"") { licenceContinued = true }
             if line.contains("Game process added") || line.contains("changed task to Completed") {
                 event = .running
+            } else if Self.asksLicence(line) {
+                licenceAsked = true
+                wentOnAfterLicence = false
+                event = .licence
             } else if line.contains("waiting for user response") {
                 event = .needsConfirmation
             } else if line.contains("continues with user response") {
@@ -438,6 +489,11 @@ struct LaunchWatcher {
             }
         }
         return event
+    }
+
+    /// "LaunchApp changed task to ShowEula", and the line after it, "waiting for user response to ShowEula".
+    static func asksLicence(_ line: Substring) -> Bool {
+        line.contains("changed task to ShowEula") || line.contains("waiting for user response to ShowEula")
     }
 
     /// "AppID 10" must not match "AppID 1000": the ID has to end there.
@@ -491,11 +547,12 @@ enum Launcher {
     }
 
     /// `frameLimit`: what the game is held to (FramePacing.automaticLimit or the player's choice).
-    /// The client it starts: it ends once it has handed the command to the running Steam, or is
-    /// that Steam when none ran.
+    /// `recipe`: what the start is made of (StartRecipe) – its arguments go to the game, its DLL overrides
+    /// and Windows version into the prefix. The client it starts: it ends once it has handed the command
+    /// to the running Steam, or is that Steam when none ran.
     @discardableResult
     static func launch(_ game: Game, runnerPath: String, options: GameOptions, profile: GameProfile? = nil,
-                       frameLimit: Int = 0, extraArguments: [String] = []) throws -> DetachedProcess {
+                       frameLimit: Int = 0, recipe: StartRecipe) throws -> DetachedProcess {
         guard FileManager.default.isExecutableFile(atPath: runnerPath) else {
             throw LaunchError.runnerMissing(runnerPath)
         }
@@ -511,7 +568,7 @@ enum Launcher {
 
         if game.bottle.isBuiltIn {
             environment["WINEDLLOVERRIDES"] = Engine.steamDLLOverrides
-            environment["WINEDEBUG"] = GameLog.wineDebug
+            environment["WINEDEBUG"] = Engine.wineDebug
             Engine.installWebHelperWrapper()
         } else if runnerPath.contains("CrossOver.app") {
             arguments += ["--bottle", game.bottle.name]
@@ -523,13 +580,17 @@ enum Launcher {
         let layer = options.graphics == .automatic ? (profile?.graphics ?? Engine.defaultGraphics) : options.graphics
         let route = game.bottle.isBuiltIn ? SteamProgram.route(game, layer: layer, options: options, profile: profile) : .standard
         if game.bottle.isBuiltIn {
+            ShaderCaches.limitTranslationsBeforeStart()
             Engine.writeGameConfigs(installDir: game.installDir,
                                     frameLimit: frameLimit,
                                     upscaling: options.effectiveUpscaling(profile: profile),
+                                    antiCheat: ShaderCaches.hasAntiCheat(profile: profile, block: game.antiCheatBlock, installDir: game.installDir),
                                     vulkanSamplers: profile?.vulkanSamplers, hdr: options.hdr)
             Engine.applyFileEdits(profile?.fileEdits ?? [], installDir: game.installDir, game: game.gameID.key)
             Engine.applyIniSettings(profile?.iniSettings ?? [])
-            Engine.applyGameSettings(options.graphics, profile: profile, installDir: game.installDir, wine: runner)
+            // Before regedit: it would join what's left of a session with msync the other way.
+            if Engine.steamRunningKnown == false { Engine.applyMsyncMode(runner) }
+            Engine.applyGameSettings(options.graphics, profile: profile, installDir: game.installDir, wine: runner, recipe: recipe)
             GameResolution.fit(game, profile: profile, retina: Engine.launchRetina, wine: runner)
             // The game's Wine switches come with Steam's environment (Engine.prepareLaunchEnvironment).
             let switches = Engine.launchEnvironment.filter { GameEnvironment.allowed[$0.key] != nil && !$0.value.isEmpty }
@@ -559,8 +620,7 @@ enum Launcher {
         var gameArguments: [String] = []
         if game.bottle.isBuiltIn {
             gameArguments += SteamCatalog.antiCheatOffArguments(appID: game.appID, steamRoot: game.steamRoot)
-            gameArguments += profile?.arguments ?? []
-            gameArguments += extraArguments
+            gameArguments += recipe.arguments  // the profile's for this layer, the way's, the switch past its launcher window
         }
         gameArguments += splitArguments(options.extraArgs)
         let name = { (path: String) in (path.replacingOccurrences(of: "\\", with: "/") as NSString).lastPathComponent }
@@ -596,20 +656,23 @@ enum Launcher {
 
     /// A game from another store (Epic, GOG), started straight with Nightforge's engine: the game's
     /// settings and graphics layer as for Steam's games, the store's parameters, and its output into
-    /// the game log. `environment`: `Engine.directLaunchEnvironment`; `usesD3D9`: see `directEnvironment`.
+    /// the game log. `recipe`: as for `launch`. `environment`: `Engine.directLaunchEnvironment`; `usesD3D9`:
+    /// see `directEnvironment`.
     static func launchDirect(_ game: Game, command: StoreLaunchCommand, runnerPath: String, options: GameOptions,
-                             profile: GameProfile?, frameLimit: Int, extraArguments: [String],
+                             profile: GameProfile?, frameLimit: Int, recipe: StartRecipe,
                              environment gameEnvironment: [String: String], usesD3D9: Bool) throws -> DetachedProcess {
         guard FileManager.default.isExecutableFile(atPath: runnerPath) else {
             throw LaunchError.runnerMissing(runnerPath)
         }
         let runner = URL(fileURLWithPath: runnerPath)
+        ShaderCaches.limitTranslationsBeforeStart()
         Engine.writeGameConfigs(installDir: game.installDir, frameLimit: frameLimit,
                                 upscaling: options.effectiveUpscaling(profile: profile),
+                                antiCheat: ShaderCaches.hasAntiCheat(profile: profile, block: game.antiCheatBlock, installDir: game.installDir),
                                 vulkanSamplers: profile?.vulkanSamplers, hdr: options.hdr)
         Engine.applyFileEdits(profile?.fileEdits ?? [], installDir: game.installDir, game: game.gameID.key)
         Engine.applyIniSettings(profile?.iniSettings ?? [])
-        Engine.applyGameSettings(options.graphics, profile: profile, installDir: game.installDir, wine: runner)
+        Engine.applyGameSettings(options.graphics, profile: profile, installDir: game.installDir, wine: runner, recipe: recipe)
         // It joins the Wine session that runs, or starts one in the Retina mode the prefix has.
         GameResolution.fit(game, profile: profile, retina: Engine.retinaModeApplied, wine: runner)
 
@@ -627,8 +690,8 @@ enum Launcher {
         }
         let loader = Engine.loader(for: runner)
         if loader != runner { environment["WINELOADER"] = loader.path }
-        let process = try WineSandbox.process(loader, [Engine.windowsPath(of: program)] + command.arguments + (profile?.arguments ?? [])
-            + extraArguments + splitArguments(options.extraArgs))
+        let process = try WineSandbox.process(loader, [Engine.windowsPath(of: program)] + command.arguments + recipe.arguments
+            + splitArguments(options.extraArgs))
         process.currentDirectoryURL = otherProgram ? program.deletingLastPathComponent() : command.workingDirectory
         process.environment = environment
         process.standardInput = FileHandle.nullDevice
@@ -660,7 +723,8 @@ enum Launcher {
             environment.merge(vulkan) { _, loader in loader }
             GameLog.note("\(game.name) draws Direct3D 9 on DXVK through the Vulkan loader (engine test)")
         }
-        environment["WINEDEBUG"] = GameLog.wineDebug
+        // With a closer look's channels when this start carries them (Engine.setCloserLook).
+        environment["WINEDEBUG"] = Engine.wineDebug
         if options.metalHUD { environment["MTL_HUD_ENABLED"] = "1" }
         return environment
     }

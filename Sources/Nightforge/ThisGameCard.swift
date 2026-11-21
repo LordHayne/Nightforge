@@ -80,9 +80,14 @@ struct ThisGameCard: View {
         }
     }
 
-    /// No profile of its own, but the ways start with the one AppleGamingWiki's reports used.
+    /// No profile of its own, but the ways start with the one others' reports used.
     private var reported: String? {
-        model.insights[game.gameID]?.hint.map { L10n.t("No profile yet – %@ first, as AppleGamingWiki reports.", $0.shortLabel) }
+        guard let insight = model.insights[game.gameID], let hint = insight.hint else { return nil }
+        switch insight.hintSource {
+        case "highball": return L10n.t("No profile yet – %@ first, as Highball's database reports.", hint.shortLabel)
+        case "pcgw": return L10n.t("No profile yet – %@ first, as PCGamingWiki lists only DirectX 12.", hint.shortLabel)
+        default: return L10n.t("No profile yet – %@ first, as AppleGamingWiki reports.", hint.shortLabel)
+        }
     }
 
     private var origin: ProfileOrigin? { ProfileOrigin(profile) }
@@ -105,10 +110,11 @@ struct ThisGameCard: View {
         return options.preset.label + " · " + attempts[LaunchHealth.current(game.gameID, attempts).index].graphics.shortLabel
     }
 
-    /// Nightforge's own games get the HUD from Settings; CrossOver's from their options.
+    /// Nightforge's own games and the Mac versions it starts get the HUD from Settings; CrossOver's from
+    /// their options.
     private func hud(_ options: GameOptions) -> String {
-        guard game.platform == .windows else { return "–" }
-        return (game.bottle.isBuiltIn ? Prefs.performanceHUD : options.metalHUD) ? L10n.t("On") : L10n.t("Off")
+        guard game.platform == .windows || MacGameHUD.reaches(game) else { return "–" }
+        return (game.platform == .mac || game.bottle.isBuiltIn ? Prefs.performanceHUD : options.metalHUD) ? L10n.t("On") : L10n.t("Off")
     }
 
     private var engine: String {

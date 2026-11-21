@@ -1,0 +1,22 @@
+{
+  "v": 3,
+  "createdOnFiles": {"v": 1, "at": "2026-11-15T16:20:00Z"},
+  "title": "Vollbild verdeckt das Spiel",
+  "launch": {"view": "canvas"},
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {"x": 0, "y": 0, "w": 1480, "h": 1260, "title": "A · Nur der Satz"},
+    "VollbildB.dc.html": {"x": 1560, "y": 0, "w": 1480, "h": 1260, "title": "B · Zwei Schritte (Empfehlung)"},
+    "VollbildC.dc.html": {"x": 3120, "y": 0, "w": 1480, "h": 1260, "title": "C · Nightforge holt das Bild"}
+  },
+  "order": ["Main.dc.html", "VollbildB.dc.html", "VollbildC.dc.html"],
+  "notes": {
+    "t1": {"x": 0, "y": -300, "text": "Der Vorhang, wenn das Vollbild des Spiels sein Bild verdeckt", "kind": "title1", "maxW": 4600},
+    "n1": {"x": 0, "y": 1400, "w": 1000, "size": "m", "fill": "blue", "text": "Wann der Vorhang das sagt (gebaut, a759361)\n\nDas Spiel hat die Front und hat den Bildschirm selbst übernommen: Die schwarze Abschirmung auf dem Schirm gehört ihm. Sein großes Fenster ist da, aber nicht auf dem Schirm, und nichts von ihm ist zu sehen. Nightforge hat es zweimal zurückgeholt, und so steht es seit 10 Sekunden.\n\nBei Overwatch etwa jeder zweite Start im exklusiven Vollbild. In den guten Starts war das Fenster nur einen Augenblick weg. Der Satz kommt rund 20 Sekunden nach dem Fenster, lange vor „Startet nicht?“ (60 s). Gilt für jedes Spiel, nicht nur für Overwatch. Bis zur Wahl steht er nur im Protokoll."},
+    "n2": {"x": 1080, "y": 1400, "w": 1000, "size": "m", "fill": "orange", "text": "Mit Controller: was geprüft ist\n\nHeute gibt es keinen Weg ins Spiel. Nightforge kommt nicht nach vorn, solange das Spiel den Bildschirm hält. Ausblenden wirkt nicht (live gescheitert, overwatch-3/-4). Den Bildschirm gibt Wine nur bei seinem eigenen ⌘-Tab frei (handleCommandTab in cocoa_app.m). Die Home-Taste tut hinter dem Vorhang absichtlich nichts.\n\nZwei Wege bleiben:\n1. Neu starten über den Controller. Bei Overwatch kam das Bild in 3 von 6 Starts.\n2. Nightforge schickt dem Spiel das ⌘-Tab selbst (Vorlage C). Dazu braucht es die Erlaubnis für Klicks in anderen Apps, die es schon für den Pad-Zeiger gibt (Einstellungen › Controller, nur mit Maus einzuschalten). Das ist nur aus dem Quelltext gelesen und live noch nicht geprüft."},
+    "n3": {"x": 2160, "y": 1400, "w": 1000, "size": "m", "fill": "green", "text": "Profilfeld, Vorschlag: fullscreenHint\n\nFür Spiele, bei denen der Fall bekannt ist, steht im Profil, wo im Spiel die Einstellung liegt, je Sprache:\n\"fullscreenHint\": {\"de\": \"Optionen › Video › Randloses Fenster\", \"en\": \"Options › Video › Borderless Windowed\"}\n\nMit dem Feld wird der zweite Schritt konkret, ohne Feld bleibt er allgemein. Das Feld ändert nichts am Spiel und an seinen Dateien, auch nicht bei Overwatch mit eigenem Cheat-Schutz. Die genauen Wörter im deutschen Overwatch muss noch jemand im Spiel nachsehen. Profiländerungen brauchen die signierte Liste."}
+  },
+  "designSystems": [
+    {"title": "Nightforge", "namespace": "nightforge", "artifact": "https://claude.ai/artifact/Ga8ea7631PdaJKhcTmNMj2", "version": null, "copiedAt": "2026-11-15T16:20:00Z"}
+  ]
+}

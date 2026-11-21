@@ -192,6 +192,11 @@ struct LauncherMenu: View {
     var body: some View {
         VStack(spacing: 8) {
             ForEach(model.launchers) { LauncherRow(state: $0) }
+            let power = PowerMenu.entries(gameOn: model.gameOnScreen, downloading: model.downloadStanding.rulesOutSleep(listed: !model.downloads.isEmpty))
+            if !power.isEmpty {
+                Rectangle().fill(Theme.ink.opacity(0.1)).frame(height: 1).padding(.vertical, 2)
+                ForEach(power) { PowerRow(entry: $0) }
+            }
         }
         .padding(16)
         .frame(width: 400 * textScale)
@@ -203,6 +208,34 @@ struct LauncherMenu: View {
         .shadow(color: .black.opacity(0.55), radius: 22, y: 12)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(L10n.t("Launchers"))
+    }
+}
+
+/// The end of the evening with the pad, under the stores. It asks first.
+private struct PowerRow: View {
+    let entry: PowerMenu.Entry
+    @EnvironmentObject private var model: LibraryModel
+
+    private func act() { model.askPower(entry) }
+
+    var body: some View {
+        Button(action: act) {
+            HStack(spacing: 12) {
+                Image(systemName: entry == .sleepMac ? "moon" : "power")
+                    .font(size: 16, weight: .semibold, scales: false)
+                    .foregroundStyle(entry == .sleepMac ? Theme.sodium : Theme.ink)
+                    .frame(width: 44)
+                Text(entry == .sleepMac ? L10n.t("Put the Mac to sleep") : L10n.t("Quit Nightforge"))
+                    .font(size: 15, weight: .semibold)
+                    .foregroundStyle(Theme.ink)
+                Spacer(minLength: 0)
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .padFocus(entry == .sleepMac ? "menu.sleep" : "menu.quit", cornerRadius: 10, activate: act)
     }
 }
 

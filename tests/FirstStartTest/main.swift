@@ -19,6 +19,7 @@ struct FirstStartTest {
     @MainActor
     static func main() {
         actions()
+        rosetta()
         signInNote()
         signInWindow()
         libraryCheck()
@@ -28,6 +29,22 @@ struct FirstStartTest {
 
         print(failures == 0 ? "✓ FirstStart" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
+    }
+
+    /// Without Rosetta: through macOS 27 exactly as before, past it a plain notice that promises nothing.
+    static func rosetta() {
+        typealias S = SetupModel
+        for major in [14, 26, 27] {
+            check(S.phaseWithoutRosetta(macOSMajor: major) == .needsRosetta, "macOS \(major): Rosetta is offered for install")
+            check(!RosettaSupport.isGone(macOSMajor: major, translates: {
+                check(false, "macOS \(major): nothing is probed")
+                return false
+            }), "macOS \(major): Rosetta doesn't count as gone")
+        }
+        check(S.phaseWithoutRosetta(macOSMajor: 28) == .rosettaGone, "macOS 28 without Rosetta: the notice, no install")
+        check(S.confirmAction(stage: .checklist, phase: .rosettaGone) == nil, "the notice has nothing to press")
+        check(RosettaSupport.isGone(macOSMajor: 28, translates: { false }), "macOS 28, x86_64 doesn't run: gone")
+        check(!RosettaSupport.isGone(macOSMajor: 28, translates: { true }), "macOS 28, x86_64 runs: nothing changes")
     }
 
     /// Return/A and Esc/B on each page: the setup itself can't be skipped, the check and the replay can.

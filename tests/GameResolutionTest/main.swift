@@ -24,6 +24,7 @@ struct GameResolutionTest {
         registry()
         unity()
         unreal()
+        screenKeys()
         ownFormat()
         folders()
         if failures == 0 { print("✓ GameResolution: all checks passed") }
@@ -64,6 +65,54 @@ struct GameResolutionTest {
         check(GameResolution.dwordValues(inRegistry: reg, key: #"Software\Nobody\Nothing"#).isEmpty, "a missing key: nothing")
         let escaped = GameResolution.dwordValues(inRegistry: reg, key: "Software\\Studio [X]\\Caf\u{e9}")
         check(escaped == [#"Quoted "name"_h1"#: 42], "Wine's escapes in keys and names (\(escaped))")
+    }
+
+    /// Eidos-Montréal's and Crystal Dynamics' registry keys (Guardians of the Galaxy, 9.11.2026).
+    static func screenKeys() {
+        let reg = """
+        [Software\\\\Eidos Montreal\\\\Guardians of the Galaxy] 1794249171
+        #time=1dd7078ba34661a
+        "Adapter"=dword:00000000
+        "ExclusiveFullscreen"=dword:00000000
+        "Fullscreen"=dword:00000000
+        "FullscreenHeight"=dword:000002d0
+        "FullscreenWidth"=dword:00000500
+
+        [Software\\\\Crystal Dynamics\\\\Rise of the Tomb Raider\\\\Graphics] 1794249171
+        "FullScreen"=dword:00000001
+        "FullscreenWidth"=dword:00000780
+        "FullscreenHeight"=dword:00000438
+
+        [Software\\\\Eidos Montreal\\\\Guardians of the Galaxy\\\\Stats] 1
+        "Played"=dword:00000001
+
+        [Software\\\\Other\\\\Guardians of the Galaxy] 1
+        "Fullscreen"=dword:00000000
+        "FullscreenWidth"=dword:00000500
+
+        """
+        check(GameResolution.screenKeys(inRegistry: reg, gameName: "Marvel's Guardians of the Galaxy") == [#"Software\Eidos Montreal\Guardians of the Galaxy"#],
+              "the game's key by its title, not its other keys nor another publisher's: \(GameResolution.screenKeys(inRegistry: reg, gameName: "Marvel's Guardians of the Galaxy"))")
+        check(GameResolution.screenKeys(inRegistry: reg, gameName: "Rise of the Tomb Raider") == [#"Software\Crystal Dynamics\Rise of the Tomb Raider\Graphics"#],
+              "a key further down")
+        check(GameResolution.screenKeys(inRegistry: reg, gameName: "Hogwarts Legacy").isEmpty, "another game: none")
+        check(GameResolution.screenKeys(inRegistry: reg, gameName: "").isEmpty, "no name: none")
+
+        let guardians = GameResolution.dwordValues(inRegistry: reg, key: #"Software\Eidos Montreal\Guardians of the Galaxy"#)
+        check(GameResolution.screenKeyChanges(guardians, size: macBook, firstFit: true) == ["Fullscreen": 1, "FullscreenWidth": 1512, "FullscreenHeight": 982],
+              "the game's own first window becomes full screen, at the screen's size")
+        check(GameResolution.screenKeyChanges(guardians, size: macBook, firstFit: false).isEmpty, "a window after that is the player's")
+        let raider = GameResolution.dwordValues(inRegistry: reg, key: #"Software\Crystal Dynamics\Rise of the Tomb Raider\Graphics"#)
+        check(GameResolution.screenKeyChanges(raider, size: tv, firstFit: false).isEmpty, "full screen at the TV's size: nothing to do")
+        check(GameResolution.screenKeyChanges(raider, size: macBook, firstFit: false) == ["FullscreenWidth": 1512, "FullscreenHeight": 982],
+              "full screen at another size: the screen's, the names as the game has them")
+        check(GameResolution.screenKeyChanges(["Adapter": 0], size: macBook, firstFit: true).isEmpty, "no screen in the key: nothing")
+
+        let defaults = UserDefaults(suiteName: "GameResolutionTest.\(UUID().uuidString)")!
+        check(GameResolution.screenKeysFitted(defaults).isEmpty, "nothing fitted yet")
+        GameResolution.noteScreenKeyFitted("epic.Calluna|key", defaults)
+        GameResolution.noteScreenKeyFitted("epic.Calluna|key", defaults)
+        check(defaults.stringArray(forKey: "resolutionScreenKeysFitted") == ["epic.Calluna|key"], "noted once")
     }
 
     static func unity() {

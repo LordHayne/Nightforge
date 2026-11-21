@@ -164,6 +164,12 @@ final class SteamSwitch {
     private(set) var lastSession: [Platform: Session] = [:]
     /// Nightforge quit its Windows Steam for Steam for Mac; it starts again when that's done.
     private(set) var windowsStopped = false
+    /// A Mac version's start has the account, until it's handed back. A Windows Steam signing in now signs
+    /// Steam for Mac out under the game: its save can't go up, and the next start asks about a "PC" that
+    /// never uploaded (Valheim, 8.11. 16:08:52). So its background starts wait (Engine.holdsBack).
+    private(set) var macHasAccount = false {
+        didSet { Engine.windowsSteamHeldBack = macHasAccount }
+    }
     private var afterMac: Task<Void, Never>?
     /// The switch back has got to starting the Windows Steam: a start waits for that to finish
     /// rather than calling it off halfway (settle).
@@ -194,6 +200,51 @@ final class SteamSwitch {
     /// Steam for Mac signed it out.
     nonisolated static func restartsWindows(stoppedByNightforge: Bool, running: Bool, replaced: Bool) -> Bool {
         stoppedByNightforge ? !running : running && replaced
+    }
+
+    // MARK: - Whose downloads go on
+
+    /// What decides whose downloads go on (LibraryModel.takeTurnsDownloading), read fresh each time.
+    struct DownloadFacts: Equatable {
+        var macDownload = false
+        /// A Windows game downloads through Nightforge's Steam (not Epic's or GOG's: they need no Steam).
+        var windowsDownload = false
+        var macReady = false
+        var macSignedIn = false
+        var windowsSignedIn = false
+        var macStalled = false
+        var windowsRunning = false
+        /// Steam for Mac signed the Windows Steam out.
+        var windowsReplaced = false
+        /// Nightforge quit the Windows Steam for Steam for Mac.
+        var windowsStopped = false
+    }
+
+    enum DownloadTurn: Equatable { case mac, windows }
+
+    /// The game comes through Nightforge's Windows Steam. Epic's and GOG's games live in the same bottle, without it.
+    nonisolated static func usesWindowsSteam(_ game: Game) -> Bool {
+        game.provider == .steam && game.platform == .windows && game.bottle.isBuiltIn
+    }
+
+    /// Whose turn it is now, nil to leave things as they are: the signed-in Steam finishes first, then
+    /// the other is signed in.
+    nonisolated static func downloadTurn(_ facts: DownloadFacts) -> DownloadTurn? {
+        if facts.macDownload, facts.macReady, !facts.macSignedIn, !(facts.windowsDownload && facts.windowsSignedIn), !facts.macStalled {
+            return .mac
+        }
+        if facts.windowsDownload, facts.windowsRunning ? facts.windowsReplaced : facts.windowsStopped, !(facts.macDownload && facts.macSignedIn) {
+            return .windows
+        }
+        return nil
+    }
+
+    /// Whether the Mac downloads got nowhere since their last turn (`lastTurn`: each one's progress then). Each by
+    /// itself: a download that finished, or one that only just began, says nothing about the others. As a sum, the
+    /// one that finished took its share away, and whatever came after it counted as stuck for the rest of the session.
+    nonisolated static func macDownloadsStalled(_ progress: [String: Double], since lastTurn: [String: Double]?) -> Bool {
+        guard let lastTurn else { return false }
+        return progress.allSatisfy { id, fraction in lastTurn[id].map { fraction <= $0 } ?? false }
     }
 
     // MARK: - Saves on their way to the cloud
@@ -248,6 +299,7 @@ final class SteamSwitch {
     func makeWayForMac(facts: Facts, phase: (LaunchPhase) -> Void) async {
         if afterMac != nil { phase(.startingSteamForMac) }  // a switch back under way: no wait without a word
         await settle()
+        macTakesAccount()
         var facts = facts
         facts.windowsSteamRunning = Engine.isSteamRunning  // a switch back may have just started it
         if await savesPending(.windows) {
@@ -282,6 +334,7 @@ final class SteamSwitch {
     func makeWayForWindows(facts: Facts, phase: (LaunchPhase) -> Void, restartWindows: () async -> Void) async {
         if afterMac != nil { phase(.startingSteam) }  // a switch back under way: no wait without a word
         await settle()
+        macGivesAccountBack()
         if Self.quitsMacForWindows(facts) {
             GameLog.note("Steam switch: Steam for Mac makes way for the Windows Steam at \(GameLog.clock())")
             if await savesPending(.mac) {
@@ -309,7 +362,11 @@ final class SteamSwitch {
         afterMac = nil
     }
 
+    func macTakesAccount() { macHasAccount = true }
+    func macGivesAccountBack() { macHasAccount = false }
+
     private func restartWindowsIfNeeded(_ restart: () async -> Void) async {
+        macGivesAccountBack()
         guard Self.restartsWindows(stoppedByNightforge: windowsStopped, running: Engine.isSteamRunning,
                                    replaced: Engine.sessionReplaced())
         else { return }

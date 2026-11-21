@@ -56,7 +56,7 @@ struct LibraryView: View {
 
                 HintBar()
                     .padding(.horizontal, Theme.gutter)
-                    .padding(.bottom, 22)
+                    .padding(.bottom, Theme.margins.bottom)
             }
 
             if model.showingDownloads {
@@ -67,10 +67,21 @@ struct LibraryView: View {
                     .onTapGesture { model.showingDownloads = false }
                 DownloadsPanel()
                     .padZone(.panel)
-                    .padding(.top, 84)  // below the top bar (36 + 38), right under the downloads ring
+                    .padding(.top, Theme.margins.top + 48)  // below the top bar (its margin + 38), right under the downloads ring
                     .padding(.trailing, Theme.gutter)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                     .transition(.opacity.combined(with: .offset(y: -8)))
+            }
+
+            if let session = model.padKeyboard {
+                PadKeyboardPanel(session: session, layout: model.padSymbols.layout,
+                                 onBarFrame: { model.searchBarTarget = $0 }, onDone: { model.closePadKeyboard() })
+                    .transition(.opacity.combined(with: .offset(y: 16)))
+            }
+
+            if model.searchBarFloats, model.searchFieldFrame != .zero, model.searchBarTarget != .zero {
+                PadSearchBar(text: model.searchText, from: model.searchFieldFrame, to: model.searchBarTarget, raised: model.searchBarRaised,
+                             close: { model.closePadKeyboard() })
             }
 
             if model.launcherMenuOpen {
@@ -81,7 +92,7 @@ struct LibraryView: View {
                     .onTapGesture { model.closeLauncherMenu() }
                 LauncherMenu()
                     .padZone(.panel)
-                    .padding(.top, 82)  // right under its pill
+                    .padding(.top, Theme.margins.top + 46)  // right under its pill
                     .padding(.trailing, Theme.gutter)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                     .transition(.opacity.combined(with: .offset(y: -8)))
@@ -92,10 +103,13 @@ struct LibraryView: View {
                     .transition(.opacity)
             }
 
+            DarkProofLine()
+
             // Not for the pad: what a message offers is also where it belongs (Home, the library, the downloads).
             ToastHost()
                 .padReachable(false)
         }
+        .coordinateSpace(.named(PadSearchBar.space))  // the search field and its bar over the keyboard
         .animation(.easeOut(duration: 0.2), value: model.lightbox)
         // A list a chip of the library's row opened, under that chip and over the grid.
         .overlayPreferenceValue(LibraryMenuAnchors.self) { anchors in
@@ -190,6 +204,33 @@ struct LibraryView: View {
                     .buttonStyle(GlassTextButtonStyle(prominent: true))
                     .keyboardShortcut(.defaultAction)
                     .padFocus("cloud.continue", cornerRadius: 21, preferred: true, activate: { model.confirmCloud() })
+            }
+        }
+        .sheet(item: $model.pendingPower) { entry in
+            GlassQuestion(entry == .sleepMac ? L10n.t("Put the Mac to sleep?") : L10n.t("Quit Nightforge?"),
+                          message: entry == .sleepMac ? L10n.t("It wakes with a key, the lid or the trackpad.") : L10n.t("Steam shuts down as usual."),
+                          id: "power") {
+                // The safe answer has the highlight, as in every question.
+                Button(L10n.t("Cancel")) { model.pendingPower = nil }
+                    .buttonStyle(GlassTextButtonStyle())
+                    .keyboardShortcut(.defaultAction)
+                    .padFocus("power.cancel", cornerRadius: 21, preferred: true, activate: { model.pendingPower = nil })
+                Button(entry == .sleepMac ? L10n.t("Sleep") : L10n.t("Quit")) { model.confirmPower() }
+                    .buttonStyle(GlassTextButtonStyle(prominent: true))
+                    .padFocus("power.confirm", cornerRadius: 21, activate: { model.confirmPower() })
+            }
+        }
+        .sheet(isPresented: $model.offersFullScreen) {
+            GlassQuestion(L10n.t("Full screen for the controller?"),
+                          message: L10n.t("Nightforge fills the screen and the Mac's desktop goes out of the way. ⌃⌘F switches back."),
+                          id: "fullScreenOffer") {
+                Button(L10n.t("Not Now")) { model.offersFullScreen = false }
+                    .buttonStyle(GlassTextButtonStyle())
+                    .padFocus("fullScreenOffer.no", cornerRadius: 21, activate: { model.offersFullScreen = false })
+                Button(L10n.t("Full Screen")) { model.acceptFullScreen() }
+                    .buttonStyle(GlassTextButtonStyle(prominent: true))
+                    .keyboardShortcut(.defaultAction)
+                    .padFocus("fullScreenOffer.yes", cornerRadius: 21, preferred: true, activate: { model.acceptFullScreen() })
             }
         }
         .sheet(item: $model.pendingUninstall) { game in
@@ -1167,7 +1208,7 @@ private struct TopBar: View {
             .background(GlassBackground(glass: .regular, shape: Capsule()))
         }
         .padding(.horizontal, Theme.gutter)
-        .padding(.top, 36)
+        .padding(.top, Theme.margins.top)
     }
 
 }
@@ -1425,7 +1466,7 @@ private struct GameDetail: View {
             }
             if let needed = game.downloadNeedsSpace {
                 Label(L10n.t("Not enough space: Steam needs %@ to download this game, your Mac has %@ free. Make some room, then continue.",
-                             Format.bytes(needed), Format.bytes(LibraryModel.freeSpace(at: game.installDir.deletingLastPathComponent()))),
+                             Format.bytes(needed), Format.bytes(LibraryModel.freeSpace(at: SpaceCheck.existingFolder(for: game.installDir)))),
                       systemImage: "externaldrive.badge.exclamationmark")
                     .font(size: 13, weight: .medium)
                     .foregroundStyle(Theme.muted)
@@ -1580,7 +1621,7 @@ extension PlayButton {
                    isUninstalling: model.uninstallingID == game.id,
                    isRunning: model.isRunning(game),
                    needsConfirmation: model.launchNeedsConfirmation,
-                   status: model.sizingID == game.id ? L10n.t("Checking the size …") : model.launchPhase?.title,
+                   status: model.sizingID == game.id ? L10n.t("Checking the size …") : model.launchTitle,
                    unavailable: unavailable(game, model: model), cloud: game.playsInCloud,
                    noSpace: game.downloadNeedsSpace != nil,
                    demo: game.demoOf != nil,
@@ -2206,7 +2247,10 @@ private struct HintBar: View {
                     }
                 case .home:
                     if let game = model.heroGame {
-                        Hint(controller ? .pad(pad.confirm) : .key("↵"), text: L10n.t("Play"))
+                        // The big button's word, as on the game's page: a start to download isn't "Play".
+                        if let word = primaryWord(game) {
+                            Hint(controller ? .pad(pad.confirm) : .key("↵"), text: word)
+                        }
                         Hint(controller ? .pad(pad.details) : .key("I"), text: L10n.t("Details"))
                         if controller {
                             Hint(.pad(pad.menu), text: Self.menuHint(game))
@@ -2238,9 +2282,8 @@ private struct HintBar: View {
                 case .detail(_, let from):
                     if let game = model.selected, game.install != .inStore {
                         // What Return does here: the big button's word, short – nothing when it only says why not.
-                        if game.antiCheatBlock == nil || game.playsInCloud {
-                            Hint(controller ? .pad(pad.confirm) : .key("↵"),
-                                 text: game.install == .notInstalled && !game.playsInCloud ? L10n.t("Download") : L10n.t("Play"))
+                        if let word = primaryWord(game) {
+                            Hint(controller ? .pad(pad.confirm) : .key("↵"), text: word)
                         }
                         Hint(controller ? .pad(pad.menu) : .key("O"), text: L10n.t("Options"))
                         if !controller {
@@ -2259,6 +2302,12 @@ private struct HintBar: View {
         .opacity(model.games.isEmpty && !model.showsFirstStart && !model.showsLauncherCards ? 0 : 1)
     }
 
+    private func primaryWord(_ game: Game) -> String? {
+        PrimaryHint.word(for: game, running: model.isRunning(game),
+                         busy: model.launchingID == game.id || model.sizingID == game.id || model.uninstallingID == game.id
+                             || model.waitsForMove(game))
+    }
+
     /// Where B goes with a control highlighted: an open panel closes, a game's page goes back, Home
     /// and the library go back to their games.
     private var backWithHighlight: String {
@@ -2272,6 +2321,29 @@ private struct HintBar: View {
     /// What ☰ does on a selected card: a store hit has no options, only the menu.
     private static func menuHint(_ game: Game) -> String {
         game.install == .inStore ? L10n.t("Hold: Quick menu") : L10n.t("Options · Hold: Quick menu")
+    }
+}
+
+/// What Return and A do on the selected game, in a word for the hint bar: the big button's, short
+/// (LibraryModel.primaryAction). Nil where that button only says why not or how far something is – the
+/// hint names nothing the press wouldn't do. Home's stage holds games still to download (the first
+/// starts of a new library, the Play Later list) and ones downloading: "Play" stood under all of them.
+enum PrimaryHint {
+    /// `busy`: it's starting, being uninstalled or waits for a move – the press does nothing new.
+    static func word(for game: Game, running: Bool, busy: Bool = false) -> String? {
+        if busy { return nil }
+        if running { return L10n.t("Switch to Game") }
+        if game.playsInCloud { return L10n.t("Play") }
+        switch game.install {
+        case .installed:
+            return game.antiCheatBlock == nil ? L10n.t("Play") : nil
+        case .notInstalled:
+            return game.isVROnly || game.antiCheatBlock != nil || game.missingDrive != nil ? nil : L10n.t("Download")
+        case .downloading:
+            return game.downloadNeedsSpace != nil ? L10n.t("Continue Download") : nil
+        case .inStore:
+            return nil
+        }
     }
 }
 

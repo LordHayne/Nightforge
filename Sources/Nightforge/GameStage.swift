@@ -41,12 +41,56 @@ struct GameStage {
     /// How long it stays in front after being brought back before the tries count from zero.
     static let settled: TimeInterval = 10
 
+    /// How recent a ⌘ or a click must be to count as the player leaving when the picture goes. Leaving
+    /// is ⌘-Tab or a click on another window, and the front moves within a moment of it. A click on the
+    /// game's own Quit comes well before its window closes.
+    static let leftWithin: TimeInterval = 0.5
+    /// How long the curtain raised for a picture that went stays with the game's process still there.
+    /// A game ending takes a few seconds; one still there after this runs on, and the stage has it.
+    static let endingPatience: TimeInterval = 10
+
+    /// The game's picture went and another app has the front, nobody having asked for it: what a game
+    /// looks like as it ends, its process lingering (ABZU at 16:05 on 8.11.: Steam's Wine in front, the
+    /// window off the screen, three seconds until a fetch, then "Back to Nightforge"). The curtain comes
+    /// right then, not when the process has gone. What's shown is the curtain instead of whatever lay
+    /// under the game, so a game that's only rebuilding its window costs a moment of curtain.
+    func pictureWent(_ look: Look) -> Bool {
+        sawPicture && !left && !look.handsOff && !look.playerActed && !look.guarded && !look.gameFront && !look.windowHere
+    }
+
+    /// Whether that curtain goes again: the game is back in front with its picture, or it has had its time.
+    static func curtainEnds(cameBack: Bool, waited: TimeInterval) -> Bool {
+        cameBack || waited >= endingPatience
+    }
+
     private(set) var sawPicture = false
     /// The player went elsewhere, or the tries ran out: nothing until the game is in front again.
     private(set) var left = false
     private(set) var tries = 0
     private var awaySince: Date?
     private var lastTry: Date?
+    /// Since when the game has had the front with only its own capture's shield on the screen.
+    private var shieldOnlySince: Date?
+
+    /// How long only the game's own shield stands, the game in front, before the curtain says its full screen hides it.
+    static let hiddenPatience: TimeInterval = 10
+
+    /// The game's own full screen hides its picture after the curtain went down (`onlyOwnShield`: its capture's shield
+    /// on the screen and no window of its over it, GameProcesses.onlyShield). Overwatch on 21.11.2026 switched to
+    /// 60 Hz about 25 s after the curtain sank, and its picture never came; the curtain's watch had ended, and the
+    /// stage fetched it once and said nothing (LibraryModel.fullScreenWords then, as under the curtain).
+    /// Not a game in proper full screen: its window lies over its shield (windowHere). Not one the player sent away:
+    /// it isn't in front then, and a ⌘ or a click starts the count again. Not while the curtain's watch still
+    /// guards the front, which says it itself, nor under the overlay or a question.
+    mutating func hiddenByOwnFullScreen(_ look: Look, onlyOwnShield: Bool) -> Bool {
+        guard sawPicture, look.gameFront, !look.windowHere, onlyOwnShield, !look.handsOff, !look.playerActed, !look.guarded else {
+            shieldOnlySince = nil
+            return false
+        }
+        let since = shieldOnlySince ?? look.now
+        shieldOnlySince = since
+        return look.now.timeIntervalSince(since) >= Self.hiddenPatience
+    }
 
     /// The curtain sank over the game's picture.
     mutating func pictureSeen() { sawPicture = true }

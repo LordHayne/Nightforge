@@ -15,6 +15,10 @@
   },
   "mac": {
    "url": "https://github.com/LordHayne/Nightforge/blob/main/profiles/mac.json"
+  },
+  "highball": {
+   "url": "https://gethighball.com/database",
+   "license": "CC0-1.0"
   }
  },
  "games": {
@@ -385,7 +389,7 @@
   "50130": {
    "name": "Mafia II (Classic)",
    "graphics": "wined3d",
-   "note": "Tested 2026-10-31 on M5 with the GOG version (1816059595) on winecx 4.7.3. DXVK's Direct3D 9 gets no device on MoltenVK: it needs geometryShader and shaderCullDistance, which MoltenVK lacks (KosmicKrisp advertises both since Mesa 14f59d06). WineD3D plays, but in game two threads sit at ~95 % each (230-440 % CPU in all, the menu ~120 %) and the sound crackles and drops out. A 32-bit game on winecx's new WoW64: every OpenGL call is thunked, mapped buffers are copied, ARB_buffer_storage is off. APEX PhysX on or off, DirectSound instead of WASAPI (winxp) and low shadows, geometry and no AO made no difference (in game still 250-460 %, threads at 97/88/88/45 %). DXVK on a Vulkan driver with geometry shaders and placed memory mapping (KosmicKrisp) is the way out. Above ~100 FPS the game sticks in slow motion during police chases, so VSync stays on.",
+   "note": "Tested 2026-10-31 on M5 with the GOG version (1816059595) on winecx 4.7.3. DXVK's Direct3D 9 gets no device on MoltenVK: it needs geometryShader and shaderCullDistance, which MoltenVK lacks (KosmicKrisp advertises both since Mesa 14f59d06). WineD3D plays, but in game two threads sit at ~95 % each (230-440 % CPU in all, the menu ~120 %) and the sound crackles and drops out. A 32-bit game on winecx's new WoW64: every OpenGL call is thunked, mapped buffers are copied, ARB_buffer_storage is off. APEX PhysX on or off, DirectSound instead of WASAPI (winxp) and low shadows, geometry and no AO made no difference (in game still 250-460 %, threads at 97/88/88/45 %). DXVK on a Vulkan driver with geometry shaders and placed memory mapping (KosmicKrisp) is the way out. Above ~100 FPS the game sticks in slow motion during police chases, so VSync stays on. Its \"PhysX SDK not initialized\" box (31.10.2026) is NVIDIA's legacy PhysX missing: installed before the first start.",
    "resolution": {
     "root": "WinAppDataLocal",
     "path": "2K Games/Mafia II/Saves/videoconfig.cfg",
@@ -395,7 +399,10 @@
      "fullscreen": 4
     }
    },
-   "source": "mac"
+   "source": "mac+mac",
+   "winetricks": [
+    "physx"
+   ]
   },
   "50620": {
    "name": "Darksiders",
@@ -1048,7 +1055,7 @@
   "271590": {
    "name": "Grand Theft Auto V",
    "source": "anticheat",
-   "antiCheat": [
+   "antiCheatOnline": [
     "BattlEye"
    ]
   },
@@ -3668,6 +3675,15 @@
    "note": "Tested 2026-10-26 on M5: plays with DXVK at 60-120 FPS (the Vulkan layer's count). Steam may first ask about controller firmware; Nightforge shows that window.",
    "source": "mac"
   },
+  "1426210": {
+   "name": "It Takes Two",
+   "graphics": "d3dmetal",
+   "arguments": [
+    "-dx12"
+   ],
+   "note": "Tested 2026-11-09 on M5 with D3DMetal on winecx 4.7.3: it starts on D3DMetal with -dx12. With -dx11 on DXMT and DXVK it stays at a small window without a picture.",
+   "source": "mac"
+  },
   "1433140": {
    "name": "The Texas Chain Saw Massacre",
    "source": "anticheat",
@@ -4792,6 +4808,12 @@
   "2357570": {
    "name": "Overwatch",
    "graphics": "dxmt",
+   "needsRosettaLibrary": true,
+   "ownAntiCheat": true,
+   "fullscreenHint": {
+    "de": "Optionen › Video › Randloses Fenster",
+    "en": "Options › Video › Borderless Windowed"
+   },
    "dllOverrides": {
     "nvapi64": "",
     "nvngx": ""
@@ -5896,7 +5918,7 @@
   "gog.1816059595": {
    "name": "Mafia II (Classic)",
    "graphics": "wined3d",
-   "note": "Tested 2026-10-31 on M5 with the GOG version (1816059595) on winecx 4.7.3. DXVK's Direct3D 9 gets no device on MoltenVK: it needs geometryShader and shaderCullDistance, which MoltenVK lacks (KosmicKrisp advertises both since Mesa 14f59d06). WineD3D plays, but in game two threads sit at ~95 % each (230-440 % CPU in all, the menu ~120 %) and the sound crackles and drops out. A 32-bit game on winecx's new WoW64: every OpenGL call is thunked, mapped buffers are copied, ARB_buffer_storage is off. APEX PhysX on or off, DirectSound instead of WASAPI (winxp) and low shadows, geometry and no AO made no difference (in game still 250-460 %, threads at 97/88/88/45 %). DXVK on a Vulkan driver with geometry shaders and placed memory mapping (KosmicKrisp) is the way out. Above ~100 FPS the game sticks in slow motion during police chases, so VSync stays on.",
+   "note": "Tested 2026-10-31 on M5 with the GOG version (1816059595) on winecx 4.7.3. DXVK's Direct3D 9 gets no device on MoltenVK: it needs geometryShader and shaderCullDistance, which MoltenVK lacks (KosmicKrisp advertises both since Mesa 14f59d06). WineD3D plays, but in game two threads sit at ~95 % each (230-440 % CPU in all, the menu ~120 %) and the sound crackles and drops out. A 32-bit game on winecx's new WoW64: every OpenGL call is thunked, mapped buffers are copied, ARB_buffer_storage is off. APEX PhysX on or off, DirectSound instead of WASAPI (winxp) and low shadows, geometry and no AO made no difference (in game still 250-460 %, threads at 97/88/88/45 %). DXVK on a Vulkan driver with geometry shaders and placed memory mapping (KosmicKrisp) is the way out. Above ~100 FPS the game sticks in slow motion during police chases, so VSync stays on. Its \"PhysX SDK not initialized\" box (31.10.2026) is NVIDIA's legacy PhysX missing: installed before the first start.",
    "resolution": {
     "root": "WinAppDataLocal",
     "path": "2K Games/Mafia II/Saves/videoconfig.cfg",
@@ -5906,7 +5928,10 @@
      "fullscreen": 4
     }
    },
-   "source": "mac"
+   "source": "mac+mac",
+   "winetricks": [
+    "physx"
+   ]
   },
   "gog.2049187585": {
    "name": "Control",
@@ -5915,5 +5940,1620 @@
    "source": "mac"
   }
  },
- "generated": "2026-11-07T21:50:08Z"
+ "reported": {
+  "10": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "70": {
+   "graphics": "dxvk",
+   "status": "community"
+  },
+  "400": {
+   "graphics": "dxvk",
+   "status": "verified-local",
+   "date": "2026-10-07"
+  },
+  "440": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "550": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 3
+  },
+  "620": {
+   "graphics": "dxvk",
+   "status": "verified-local",
+   "date": "2026-10-07"
+  },
+  "730": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 2
+  },
+  "2320": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "3320": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "4000": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "10090": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "12210": {
+   "graphics": "dxvk",
+   "status": "community"
+  },
+  "15370": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "24010": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "24790": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "32470": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "203160": {
+   "graphics": "d3dmetal",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "203750": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "205100": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "211500": {
+   "graphics": "dxvk",
+   "status": "community"
+  },
+  "213670": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "214490": {
+   "graphics": "dxmt",
+   "status": "reported-upstream"
+  },
+  "225080": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "227300": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "230410": {
+   "graphics": "dxmt",
+   "status": "verified-local",
+   "date": "2026-09-10"
+  },
+  "231430": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "233450": {
+   "graphics": "dxvk",
+   "status": "community"
+  },
+  "234080": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "237310": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "244210": {
+   "graphics": "d3dmetal",
+   "status": "verified-local",
+   "date": "2026-10-05"
+  },
+  "246070": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "250320": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "250900": {
+   "graphics": "d3dmetal",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "253750": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "255710": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "261550": {
+   "graphics": "dxmt",
+   "status": "reported-upstream"
+  },
+  "262060": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "264710": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "270880": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "271590": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 4
+  },
+  "281990": {
+   "graphics": "dxmt",
+   "status": "reported-upstream"
+  },
+  "282070": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "284160": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "287390": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "289070": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "291550": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "292030": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "304240": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "304430": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "306910": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "307780": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "310560": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "310950": {
+   "graphics": "dxmt",
+   "status": "reported-upstream"
+  },
+  "312520": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "319510": {
+   "graphics": "dxvk",
+   "status": "verified-local",
+   "date": "2026-10-05"
+  },
+  "320140": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "323190": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "329050": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "332800": {
+   "graphics": "dxvk",
+   "status": "community"
+  },
+  "345390": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "349040": {
+   "graphics": "d3dmetal",
+   "status": "verified-local",
+   "date": "2026-09-10"
+  },
+  "356040": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "356190": {
+   "graphics": "dxmt",
+   "status": "reported-upstream"
+  },
+  "359320": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "365590": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "374320": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "376680": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "377160": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "377530": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "378540": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "383980": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "384190": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "387290": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "388090": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "389730": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "392260": {
+   "graphics": "dxvk",
+   "status": "community"
+  },
+  "403640": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "414340": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "414700": {
+   "graphics": "d3dmetal",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "418530": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "427410": {
+   "graphics": "d3dmetal",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "427520": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "447040": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "460920": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "461040": {
+   "graphics": "dxvk",
+   "status": "community"
+  },
+  "473950": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "480490": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "484900": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "489830": {
+   "graphics": "dxvk",
+   "status": "community"
+  },
+  "496300": {
+   "graphics": "dxvk",
+   "status": "community"
+  },
+  "502500": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "516750": {
+   "graphics": "d3dmetal",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "517630": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "521890": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "524220": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "526870": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "544810": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "548430": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "550320": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "553540": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "570940": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "579180": {
+   "graphics": "dxmt",
+   "status": "reported-upstream"
+  },
+  "582010": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "584400": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "585420": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "589360": {
+   "graphics": "dxmt",
+   "status": "reported-upstream"
+  },
+  "589370": {
+   "graphics": "dxmt",
+   "status": "reported-upstream"
+  },
+  "601150": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "601840": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "613830": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "622650": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "632300": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "632360": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 2
+  },
+  "632470": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "632950": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "636480": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "646570": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "668580": {
+   "graphics": "d3dmetal",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "675010": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "688420": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "690040": {
+   "graphics": "dxmt",
+   "status": "reported-upstream"
+  },
+  "690790": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "701160": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "710700": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "714010": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "739630": {
+   "graphics": "dxvk",
+   "status": "community"
+  },
+  "742520": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "743890": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "750920": {
+   "graphics": "dxmt",
+   "status": "reported-upstream"
+  },
+  "751780": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "753640": {
+   "graphics": "dxvk",
+   "status": "community"
+  },
+  "767560": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "774801": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "782330": {
+   "graphics": "dxvk",
+   "status": "community"
+  },
+  "784150": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "805550": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "813780": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "814380": {
+   "graphics": "dxmt",
+   "status": "reported-upstream"
+  },
+  "815370": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 2
+  },
+  "835960": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "870780": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "883710": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "894020": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "920210": {
+   "graphics": "dxvk",
+   "status": "community"
+  },
+  "934700": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "945360": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "949230": {
+   "graphics": "d3dmetal",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "952060": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "952860": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "960090": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "960170": {
+   "graphics": "dxvk",
+   "status": "community"
+  },
+  "960990": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "965680": {
+   "graphics": "d3dmetal",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "978780": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "979120": {
+   "graphics": "dxvk",
+   "status": "community"
+  },
+  "985890": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "990080": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "992300": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1016950": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1025600": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1044720": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1057090": {
+   "graphics": "dxmt",
+   "status": "reported-upstream"
+  },
+  "1071140": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1086940": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1088850": {
+   "graphics": "d3dmetal",
+   "status": "verified-local",
+   "date": "2026-09-13"
+  },
+  "1091500": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1101120": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1113560": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1115050": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1122720": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1139900": {
+   "graphics": "dxmt",
+   "status": "reported-upstream"
+  },
+  "1145350": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1148590": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1150690": {
+   "graphics": "dxvk",
+   "status": "community"
+  },
+  "1151340": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "1151640": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1158310": {
+   "graphics": "dxvk",
+   "status": "community"
+  },
+  "1159090": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1167630": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1174180": {
+   "graphics": "dxmt",
+   "status": "verified-local",
+   "date": "2026-10-05"
+  },
+  "1180660": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1189490": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "1190460": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1196590": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1201240": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1210320": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1211020": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1221540": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1222670": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "1229490": {
+   "graphics": "dxvk",
+   "status": "community"
+  },
+  "1237950": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "1237970": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "1240440": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1244460": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1245620": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1265920": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1265930": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1271700": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1282270": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1282590": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1286220": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "1286580": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1290000": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1293830": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1295500": {
+   "graphics": "d3dmetal",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "1295920": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1297900": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1332010": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1363080": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1374490": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1386780": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1412990": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1422450": {
+   "graphics": "dxmt",
+   "status": "reported-upstream"
+  },
+  "1422630": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1426210": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1446780": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1449850": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1462040": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1477590": {
+   "graphics": "dxvk",
+   "status": "community"
+  },
+  "1478500": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1486920": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1517180": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1520370": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1547000": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "1549970": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1551360": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1577120": {
+   "graphics": "dxvk",
+   "status": "community"
+  },
+  "1585220": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1588550": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1590910": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1593030": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1593500": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1602080": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1623730": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1645630": {
+   "graphics": "dxvk",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "1659420": {
+   "graphics": "d3dmetal",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "1671210": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1672970": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "1677280": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1687950": {
+   "graphics": "d3dmetal",
+   "status": "same-stack",
+   "reports": 2
+  },
+  "1710820": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1716740": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1732430": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1733240": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1766060": {
+   "graphics": "d3dmetal",
+   "status": "community",
+   "date": "2026-09-17"
+  },
+  "1778820": {
+   "graphics": "d3dmetal",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "1782120": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1782460": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1783560": {
+   "graphics": "d3dmetal",
+   "status": "community",
+   "date": "2026-09-19"
+  },
+  "1794680": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1805320": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1817190": {
+   "graphics": "d3dmetal",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "1823930": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "1827180": {
+   "graphics": "dxvk",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "1830970": {
+   "graphics": "dxmt",
+   "status": "verified-local",
+   "date": "2026-09-20"
+  },
+  "1850510": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "1850570": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1860510": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1876890": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1888160": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1902490": {
+   "graphics": "dxvk",
+   "status": "verified-local",
+   "date": "2026-09-10"
+  },
+  "1903340": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1912410": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "1933840": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1934680": {
+   "graphics": "d3dmetal",
+   "status": "same-stack",
+   "reports": 2
+  },
+  "1943950": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "1948980": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "1966720": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1966900": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "1973530": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "2005010": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "2019300": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "2021910": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "2050650": {
+   "graphics": "d3dmetal",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "2057760": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "2084000": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "2098790": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "2141730": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "2144740": {
+   "graphics": "dxvk",
+   "status": "community"
+  },
+  "2178480": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "2195910": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "2225070": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "2239710": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "2322010": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "2333000": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "2340650": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "2353250": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "2357570": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 2
+  },
+  "2379780": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "2402680": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "2406770": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "2416450": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "2420510": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "2437570": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "2439510": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "2475460": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "2483190": {
+   "graphics": "d3dmetal",
+   "status": "same-stack",
+   "reports": 3
+  },
+  "2499860": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "2521630": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "2524850": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "2525310": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "2536520": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "2553040": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "2567870": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "2622380": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "2634890": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "2634950": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "2638370": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "2643980": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "2668510": {
+   "graphics": "d3dmetal",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "2679460": {
+   "graphics": "dxmt",
+   "status": "verified-local",
+   "date": "2026-09-12"
+  },
+  "2688950": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "2693730": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "2694490": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "2697940": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "2698780": {
+   "graphics": "dxmt",
+   "status": "verified-local",
+   "date": "2026-10-05"
+  },
+  "2707930": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "2772750": {
+   "graphics": "dxvk",
+   "status": "community"
+  },
+  "2823140": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "2837600": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "2840000": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "2893570": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "2902720": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "2925280": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "2929250": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "2988580": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "2990600": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "3124540": {
+   "graphics": "d3dmetal",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "3164500": {
+   "graphics": "dxvk",
+   "status": "community"
+  },
+  "3191030": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "3191050": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "3224770": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "3240220": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "3241660": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "3259780": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "3279440": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "3314060": {
+   "graphics": "dxvk",
+   "status": "verified-local",
+   "date": "2026-10-05"
+  },
+  "3314790": {
+   "graphics": "dxmt",
+   "status": "verified-local",
+   "date": "2026-09-25"
+  },
+  "3357650": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "3358440": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "3450310": {
+   "graphics": "dxvk",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "3462260": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "3489700": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "3527290": {
+   "graphics": "dxvk",
+   "status": "verified-local",
+   "date": "2026-09-15"
+  },
+  "3564740": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 2
+  },
+  "3576350": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "3606890": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "3626940": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "3649940": {
+   "graphics": "dxmt",
+   "status": "community",
+   "date": "2026-10-06"
+  },
+  "3656800": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "3669870": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "3676940": {
+   "graphics": "d3dmetal",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "3690030": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "3699590": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "3722330": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "3751260": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "3812600": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "3949040": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "3974650": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "4001890": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "4003800": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "4072240": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "4126040": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "4196100": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "4317790": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "4358690": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "4399150": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "4465480": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "4474710": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "4479970": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "4557380": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "4623570": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "4659940": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "4704690": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "4758450": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "4894830": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "4995030": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "5000760": {
+   "graphics": "d3dmetal",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "5037510": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "5149020": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "5246950": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "5307540": {
+   "graphics": "dxmt",
+   "status": "community"
+  },
+  "5335510": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  }
+ },
+ "generated": "2026-11-15T15:31:24Z"
 }

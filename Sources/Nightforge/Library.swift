@@ -28,6 +28,9 @@ struct Game: Identifiable, Hashable {
     let steamExeWindowsPath: String
     let installDir: URL
     let sizeOnDisk: Int64
+    /// Far more than any game, and low enough that sizes can be added up: a damaged manifest's Int64.max took
+    /// Download (what the others still need is added up at each press) and Settings › Storage down with it.
+    static let largestSize: Int64 = 1 << 56
     var lastPlayed: Date?
     var playtimeMinutes: Int?
     var install: InstallState = .installed
@@ -36,6 +39,8 @@ struct Game: Identifiable, Hashable {
     /// Steam stopped its download for lack of disk space: the space it needs for it (download and
     /// unpacking). Steam leaves such a download paused for good, so it waits for the player.
     var downloadNeedsSpace: Int64?
+    /// Steam's download of it is paused (StateFlags 512), by the player or by Steam.
+    var downloadPaused = false
     /// Installed in a Steam library on a drive that isn't connected (its name, "T7"): plays once
     /// it's plugged in, and must not be downloaded again meanwhile.
     var missingDrive: String?
@@ -89,6 +94,8 @@ struct Game: Identifiable, Hashable {
     /// The Mac version Nightforge switches to once it's on the Mac, while the installed Windows
     /// version is still the one played: not downloaded yet, or downloading.
     var macPending: InstallState?
+    /// That download is paused or out of room (`downloadPaused`, `downloadNeedsSpace`): the Mac may sleep.
+    var macPendingStopped = false
     /// Keeps a game's place in the list when it changes version.
     var listID: String?
     /// Where another store keeps the game's art (Steam's comes from its own cache and CDN).
@@ -121,7 +128,7 @@ struct Game: Identifiable, Hashable {
         self.steamRoot = steamRoot
         self.steamExeWindowsPath = steamExeWindowsPath
         self.installDir = installDir
-        self.sizeOnDisk = sizeOnDisk
+        self.sizeOnDisk = min(max(sizeOnDisk, 0), Self.largestSize)
         self.lastPlayed = lastPlayed
         self.playtimeMinutes = playtimeMinutes
     }
@@ -435,6 +442,7 @@ enum LibraryScanner {
             // that way while its Mac version is fetched; it switches once that is installed.
             if game.isInstalled && !entry.isInstalled && reason != .chosen {
                 game.macPending = entry.install
+                game.macPendingStopped = entry.downloadPaused || entry.downloadNeedsSpace != nil
                 result.append(game)
                 continue
             }
@@ -499,8 +507,30 @@ enum LibraryScanner {
     // MARK: - Manifests
 
     private static func manifests(in steamapps: URL) -> [URL] {
-        let files = (try? FileManager.default.contentsOfDirectory(at: steamapps, includingPropertiesForKeys: nil)) ?? []
-        return files.filter { $0.lastPathComponent.hasPrefix("appmanifest_") && $0.pathExtension == "acf" }
+        let files = (try? FileManager.default.contentsOfDirectory(at: steamapps, includingPropertiesForKeys: listFileKeys)) ?? []
+        return files.filter { $0.lastPathComponent.hasPrefix("appmanifest_") && $0.pathExtension == "acf" && isListFile($0) }
+    }
+
+    /// The most a store's own small file in a library has: Steam's manifests, GOG's info files and an Epic
+    /// launcher's notes come to a few KB.
+    static let listFileLimit = 1 << 20
+    static let listFileKeys: [URLResourceKey] = [.isRegularFileKey, .fileSizeKey]
+
+    /// Whether `file` is such a file as it lies there: a file of its own – not a link, which leads wherever its
+    /// writer liked, nor a pipe or a device, which are read without end – and no larger than `limit`. Read whole
+    /// into memory otherwise, at every look at a drive and every scan (a library on a drive someone else prepared).
+    static func isListFile(_ file: URL, limit: Int = listFileLimit) -> Bool {
+        guard let values = try? file.resourceValues(forKeys: Set(listFileKeys)) else { return false }
+        return values.isRegularFile == true && (values.fileSize ?? 0) <= limit
+    }
+
+    /// Whether a manifest's "installdir" names a folder in steamapps/common: one name, not a path. A library on
+    /// a drive is in Steam's list once the drive is plugged in (DriveTakeover), whoever wrote its manifests, and
+    /// "../../…" there would make a folder outside the library the game's own: where a start writes its settings
+    /// and DXVK's DLLs, and what "Move to …" takes along. Steam itself names one folder, always.
+    static func staysInLibrary(_ installDir: String) -> Bool {
+        let name = installDir.trimmingCharacters(in: .whitespaces)
+        return name != "." && name != ".." && !name.contains("/") && !name.contains("\\")
     }
 
     /// `measureStaging`: the files a download has unpacked so far say how far it is – not with
@@ -513,7 +543,7 @@ enum LibraryScanner {
               let appID = state["appid"]?.string.flatMap({ Int($0) }),
               !ignoredAppIDs.contains(appID),
               let name = state["name"]?.string, !name.isEmpty,
-              let installDirName = state["installdir"]?.string
+              let installDirName = state["installdir"]?.string, staysInLibrary(installDirName)
         else { return nil }
 
         // StateFlags bit 4 = fully installed; anything else is a download in progress.
@@ -561,6 +591,7 @@ enum LibraryScanner {
             game.pendingUpdate = UpdateState(flags: flags, toDownload: toDownload, downloaded: downloaded,
                                              targetBuild: state["targetbuildid"]?.string, build: state["buildid"]?.string).pending
         }
+        game.downloadPaused = flags & 512 != 0
         // UpdateResult 12: Steam's "not enough disk space".
         if flags & 4 == 0, state["updateresult"]?.string == "12" {
             game.downloadNeedsSpace = max(toDownload, toStage).clampedBytes
@@ -633,10 +664,11 @@ enum LibraryScanner {
 
     /// A downloads' look at `old` with what its manifest says now (`fresh`): the new progress while
     /// it's still downloading the same; nil – a full scan – once anything else changed: done, gone,
-    /// its size worked out, out of room.
+    /// its size worked out, out of room, paused or going on (the full scan decides whether the Mac may sleep).
     static func takeLook(_ old: Game, fresh: Game?) -> Game? {
         guard let fresh, case .downloading = old.install, case .downloading = fresh.install,
-              fresh.sizeOnDisk == old.sizeOnDisk, fresh.downloadNeedsSpace == old.downloadNeedsSpace
+              fresh.sizeOnDisk == old.sizeOnDisk, fresh.downloadNeedsSpace == old.downloadNeedsSpace,
+              fresh.downloadPaused == old.downloadPaused
         else { return nil }
         var game = old
         game.install = fresh.install
@@ -823,8 +855,9 @@ struct UpdateState: Equatable {
 
     /// How far it is, by the download's bytes or the unpacked ones, whichever is further along.
     var fraction: Double? {
-        let shares = [toDownload > 0 ? downloaded / toDownload : nil, toStage > 0 ? staged / toStage : nil].compactMap { $0 }
-        return shares.max().map { min($0, 0.99) }
+        // "nan" and "inf" are numbers to Double(_:), and a damaged manifest's NaN would stop the percentage on the card.
+        let shares = [toDownload > 0 ? downloaded / toDownload : nil, toStage > 0 ? staged / toStage : nil].compactMap { $0 }.filter { !$0.isNaN }
+        return shares.max().map { min(max($0, 0), 0.99) }
     }
 
 }
@@ -878,10 +911,10 @@ enum StagingSizes {
 }
 
 extension Double {
-    /// A byte count from a manifest as a whole number: 0 up to Int64's largest. `Int64(_:)` traps past it,
+    /// A byte count from a manifest as a whole number: 0 up to `Game.largestSize`. `Int64(_:)` traps past Int64,
     /// and on nan and inf (Double("inf") parses), so one damaged file would crash every scan.
     var clampedBytes: Int64 {
         guard isFinite, self > 0 else { return 0 }
-        return self >= 9.2e18 ? .max : Int64(self)
+        return self >= Double(Game.largestSize) ? Game.largestSize : Int64(self)
     }
 }

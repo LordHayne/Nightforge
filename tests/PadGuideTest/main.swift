@@ -62,9 +62,9 @@ struct PadGuideTest {
 
         // The loading screen's tip: the first three starts with a controller, then never again.
         check(LaunchTip.pick(shown: 0, pad: ps)?.text.contains("L3 + R3") == true, "PlayStation: L3 + R3")
-        check(LaunchTip.pick(shown: 2, pad: xbox)?.text.contains("LS + RS") == true, "Xbox: LS + RS, on the third start too")
+        check(LaunchTip.pick(shown: 0, pad: xbox)?.text.contains("LS + RS") == true, "Xbox: LS + RS")
         check(LaunchTip.pick(shown: 0, pad: ps)?.symbols == ps.overlayChord, "it draws the overlay's buttons")
-        check(LaunchTip.pick(shown: LaunchTip.starts, pad: ps) == nil, "after three starts: no more")
+        check(LaunchTip.starts == 1 && LaunchTip.pick(shown: 1, pad: ps) == nil, "after the first start: no more")
         check(LaunchTip.pick(shown: 0, pad: nil) == nil, "no controller: no tip")
 
         print(failures == 0 ? "✓ PadGuide" : "\(failures) failed")

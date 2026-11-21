@@ -56,14 +56,14 @@ struct LaunchHealthTest {
         check(ids(GameAnalysis(apis: [.d3d9])) == ["dxvk", "wined3d"], "DirectX 9: DXVK, then WineD3D")
         check(ids(GameAnalysis(apis: [.vulkan])) == ["dxmt"], "Vulkan has one way")
         check(ids(GameAnalysis(apis: [.d3d12])) == ["dxmt"] && GameAnalysis(apis: [.d3d12]).onlyD3D12, "DirectX 12 only")
-        check(ids(GameAnalysis()) == ["dxmt", "dxvk"], "nothing detected: the DirectX 11 ladder")
+        check(ids(GameAnalysis()) == ["dxmt", "dxvk", "wined3d"], "nothing detected: the DirectX 11 ladder, and Wine's own Direct3D last")
 
         // With D3DMetal in the engine, DirectX 12 has a way to run; DirectX 11 keeps DXMT first.
         check(ids(GameAnalysis(apis: [.d3d12]), d3dMetal: true) == ["d3dmetal"], "DirectX 12 only: D3DMetal")
         check(ids(GameAnalysis(apis: [.d3d11, .d3d12], engine: .unreal), d3dMetal: true) == ["dxmt -dx11", "dxvk -dx11", "d3dmetal"],
               "Unreal: DirectX 11 on DXMT first, DirectX 12 on D3DMetal last")
-        check(ids(GameAnalysis(apis: [.d3d11, .d3d12]), d3dMetal: true) == ["dxmt", "dxvk", "d3dmetal"],
-              "unknown engine with DirectX 12: D3DMetal after the DirectX 11 ladder")
+        check(ids(GameAnalysis(apis: [.d3d11, .d3d12]), d3dMetal: true) == ["d3dmetal", "dxmt", "dxvk"],
+              "unknown engine with DirectX 12: it picks by itself, so D3DMetal first")
         check(ids(GameAnalysis(apis: [.d3d11]), d3dMetal: true) == ["dxmt", "dxvk", "d3dmetal"], "DirectX 11 only: D3DMetal's Direct3D 11 last")
         check(ids(GameAnalysis(apis: [.d3d11, .d3d12], engine: .unreal), #"{"graphics": "d3dmetal"}"#, d3dMetal: true)
               == ["d3dmetal", "dxmt -dx11", "dxvk -dx11"], "a profile that measured DirectX 12 better starts there, without -dx11")
@@ -71,7 +71,7 @@ struct LaunchHealthTest {
         let control = GameAnalysis(apis: [.d3d11, .d3d12], d3d12Program: "Control_DX12.exe")
         check(ids(control, #"{"graphics": "d3dmetal"}"#, d3dMetal: true) == ["d3dmetal", "dxmt", "dxvk"],
               "a game with a DirectX 12 program of its own and a profile for D3DMetal: D3DMetal first")
-        check(ids(control, d3dMetal: true) == ["dxmt", "dxvk", "d3dmetal"], "…without the profile, D3DMetal after DXMT and DXVK")
+        check(ids(control, d3dMetal: true) == ["d3dmetal", "dxmt", "dxvk"], "…and without the profile: no switch to hold it to DirectX 11")
         check(ids(GameAnalysis(apis: [.d3d11, .d3d12], engine: .unreal), #"{"graphics": "d3dmetal"}"#, d3dMetal: false).first == "dxmt -dx11",
               "…but not on an engine without D3DMetal")
         check(ids(GameAnalysis(apis: [.d3d9]), d3dMetal: true) == ["dxvk", "wined3d"], "DirectX 9: unchanged")
@@ -122,7 +122,7 @@ struct LaunchHealthTest {
         LaunchHealth.reset(fresh)
         let followed = LaunchHealth.attempts(for: both, profile: nil, hint: d3dMetalHint, game: fresh, preset: .automatic, d3dMetal: true, vulkanLayer: true)
         check(followed.attempts.map(\.id) == ["d3dmetal", "dxmt", "dxvk"] && followed.hint == .d3dmetal, "a game not started yet follows the hint")
-        let plain = LaunchHealth.attempts(for: both, profile: nil, d3dMetal: true, vulkanLayer: true)
+        let plain = LaunchHealth.attempts(for: both, profile: nil, d3dMetal: true, vulkanLayer: true, filesDecide: false)
         LaunchHealth.confirm(fresh, plain)
         let kept = LaunchHealth.attempts(for: both, profile: nil, hint: d3dMetalHint, game: fresh, preset: .automatic, d3dMetal: true, vulkanLayer: true)
         check(kept.attempts == plain && kept.hint == nil, "a way that works isn't given up for a report")
@@ -216,6 +216,33 @@ struct LaunchHealthTest {
         LearnedFixes.setLastLaunch(taught, logMark: 123_456_789_012)
         check(LearnedFixes.lastLaunchMark(taught) == 123_456_789_012, "where its last start begins in the log, past 32 bits too")
         for key in ["learned.winetricks.\(taught.key)", "learned.logMark.\(taught.key)"] { UserDefaults.standard.removeObject(forKey: key) }
+
+        // A start over forgets what was learned (LearnedFixes.forget): kept for good up to 15.11.2026, with no button
+        // that took a remedy back. What went is said; the other game's and where the last start begins stay.
+        let wrong = GameID.steam(990_004), other = GameID.epic("990005")
+        let lessons = StartRecipe.Learned(dllsOff: ["nvapi64", "nvngx"], runtimes: ["vcrun2019"], noAVX: true, steps: ["nvidia-interface", "missing-runtime"])
+        LearnedFixes.keep(lessons, for: wrong)
+        LearnedFixes.keep(StartRecipe.Learned(dllsOff: ["physxupdateloader"], steps: ["physx-update-loader"]), for: other)
+        LearnedFixes.setLastLaunch(wrong, logMark: 77)
+        check(LearnedFixes.learned(wrong) == lessons && LearnedFixes.noAVX(wrong) && LearnedFixes.winetricks(wrong) == ["vcrun2019"], "what a game learned is kept")
+        check(lessons.summary == "DLLs off nvapi64, nvngx; runtimes vcrun2019; without AVX (nvidia-interface, missing-runtime)"
+              && StartRecipe.Learned().summary.isEmpty, "… and can be said in a line: \(lessons.summary)")
+        LaunchHealth.reset(wrong)
+        check(LearnedFixes.learned(wrong) == lessons, "a layer chosen by hand resets the ways, not what was learned: its starts aren't watched")
+        check(LearnedFixes.forget(wrong) == lessons, "a start over says what it forgets")
+        check(LearnedFixes.learned(wrong) == StartRecipe.Learned() && !LearnedFixes.noAVX(wrong) && LearnedFixes.winetricks(wrong).isEmpty,
+              "… and all of it is gone: DLLs, runtimes, the AVX hint, the rules' names")
+        for part in ["dllsOff", "steps", "winetricks", "noAVX"] {
+            check(UserDefaults.standard.object(forKey: "learned.\(part).\(wrong.key)") == nil, "no entry is left for \(part)")
+        }
+        check(LearnedFixes.lastLaunchMark(wrong) == 77, "where its last start begins in the log stays")
+        check(LearnedFixes.learned(other).dllsOff == ["physxupdateloader"], "another game's lessons stay")
+        check(LearnedFixes.forget(wrong) == StartRecipe.Learned(), "nothing to forget the second time")
+        // The recipe of the next start is the way's and the profile's again.
+        let afresh = StartRecipe.of(way: LaunchAttempt(graphics: .d3dmetal), learned: LearnedFixes.learned(wrong), profile: nil, d3dMetalEngine: true)
+        check(afresh.dllOverrides["nvngx"] != "" && afresh.avx && afresh.steps == nil, "the next start has NVIDIA's interface and AVX back: \(afresh.dllOverrides)")
+        LearnedFixes.forget(other)
+        UserDefaults.standard.removeObject(forKey: "learned.logMark.\(wrong.key)")
         let dx11 = LaunchAttempt(graphics: .dxvk, arguments: ["-dx11"])
         check(dx11.label == GraphicsLayer.dxvk.label + " -dx11" && dx11.shortLabel == GraphicsLayer.dxvk.shortLabel + " -dx11"
               && LaunchAttempt(graphics: .dxmt).label == GraphicsLayer.dxmt.label, "a way's name says its layer and what's added")
@@ -312,6 +339,73 @@ struct LaunchHealthTest {
         check(LaunchHealth.advance(mafia, d3d9) && LaunchHealth.current(mafia, d3d9) == (1, false), "a graphics error: on to WineD3D")
         LaunchHealth.reset(mafia)
 
+        // MARK: A way is proven for what it was started with (step E4)
+        let twoGame = GameID.steam(1_426_210)
+        let twoWays = [LaunchAttempt(graphics: .d3dmetal), LaunchAttempt(graphics: .dxmt, arguments: ["-dx11"])]
+        let nothing = StartRecipe.Learned()
+        let loaderOn = try? JSONDecoder().decode(GameProfile.self, from: Data(#"{"dllOverrides": {"physxupdateloader64": "native,builtin"}}"#.utf8))
+        let plainStart = StartRecipe.of(way: twoWays[0], learned: nothing, profile: nil, d3dMetalEngine: true)
+        let withLoader = StartRecipe.of(way: twoWays[0], learned: nothing, profile: loaderOn, d3dMetalEngine: true)
+        LaunchHealth.reset(twoGame)
+        // Confirmed before recipes were kept here, or by Steam's log alone: it holds for whatever it is started with.
+        LaunchHealth.confirm(twoGame, twoWays)
+        check(LaunchHealth.current(twoGame, twoWays) == (0, true) && LaunchHealth.holds(twoGame, twoWays, for: plainStart)
+              && LaunchHealth.holds(twoGame, twoWays, for: withLoader), "a way confirmed without a recipe holds for any start")
+        UserDefaults.standard.set(Data(#"{"ladder":["d3dmetal","dxmt -dx11"],"confirmed":true,"proof":2,"index":0}"#.utf8), forKey: "launchHealth.steam.1426210")
+        check(LaunchHealth.current(twoGame, twoWays) == (0, true) && LaunchHealth.holds(twoGame, twoWays, for: withLoader),
+              "what was saved before 14.11. reads on and keeps its value")
+        // Its next good start puts the recipe on record: from then on the proof is that start's.
+        LaunchHealth.confirm(twoGame, twoWays, recipe: plainStart)
+        check(LaunchHealth.holds(twoGame, twoWays, for: plainStart) && !LaunchHealth.holds(twoGame, twoWays, for: withLoader),
+              "confirmed with a recipe: proven for that start, not for one with other DLLs")
+        var reordered = plainStart, renamed = plainStart
+        reordered.arguments = ["-b", "-a"]
+        renamed.steps = ["missing-runtime"]
+        var ordered = plainStart
+        ordered.arguments = ["-a", "-b"]
+        LaunchHealth.confirm(twoGame, twoWays, recipe: ordered)
+        check(LaunchHealth.holds(twoGame, twoWays, for: reordered) && !LaunchHealth.holds(twoGame, twoWays, for: plainStart),
+              "the same arguments in another order are the same start, other arguments aren't")
+        LaunchHealth.confirm(twoGame, twoWays, recipe: plainStart)
+        check(LaunchHealth.holds(twoGame, twoWays, for: renamed), "which rule asked for a start doesn't make it another")
+        // A confirmation without a recipe (Steam's log, `review`) leaves the one on record.
+        LaunchHealth.confirm(twoGame, twoWays)
+        check(!LaunchHealth.holds(twoGame, twoWays, for: withLoader), "a later confirmation without a recipe keeps what was proven")
+        // Losing the confirmation or moving on takes the recipe along: the next way starts clean.
+        LaunchHealth.unconfirm(twoGame, twoWays)
+        check(LaunchHealth.current(twoGame, twoWays) == (0, false) && LaunchHealth.holds(twoGame, twoWays, for: withLoader),
+              "unconfirmed: nothing proven, nothing to hold against a start")
+        LaunchHealth.confirm(twoGame, twoWays, recipe: plainStart)
+        LaunchHealth.advance(twoGame, twoWays, to: 1)
+        LaunchHealth.confirm(twoGame, twoWays)
+        check(LaunchHealth.current(twoGame, twoWays) == (1, true) && LaunchHealth.holds(twoGame, twoWays, for: withLoader),
+              "the way before's recipe doesn't stand for the next way")
+        LaunchHealth.confirm(twoGame, twoWays, recipe: plainStart)
+        _ = LaunchHealth.advance(twoGame, twoWays)
+        LaunchHealth.confirm(twoGame, twoWays)
+        check(LaunchHealth.holds(twoGame, twoWays, for: withLoader), "nor after the list started over")
+        LaunchHealth.reset(twoGame)
+
+        // A way confirmed without a recipe takes one at its next start: what the record says it worked with, else
+        // that start's own. It Takes Two, 15.11.: proven long before, started with a profile that changed its DLLs.
+        LaunchHealth.confirm(twoGame, twoWays)
+        LaunchHealth.adoptRecipe(twoGame, twoWays, recorded: plainStart, starting: withLoader)
+        check(!LaunchHealth.holds(twoGame, twoWays, for: withLoader) && LaunchHealth.holds(twoGame, twoWays, for: plainStart),
+              "the record's recipe: a start with other DLLs isn't proven")
+        LaunchHealth.reset(twoGame)
+        LaunchHealth.confirm(twoGame, twoWays)
+        LaunchHealth.adoptRecipe(twoGame, twoWays, recorded: nil, starting: withLoader)
+        check(LaunchHealth.holds(twoGame, twoWays, for: withLoader) && !LaunchHealth.holds(twoGame, twoWays, for: plainStart),
+              "none on record: this start's, and from the next start on a change counts")
+        LaunchHealth.adoptRecipe(twoGame, twoWays, recorded: plainStart, starting: plainStart)
+        check(LaunchHealth.holds(twoGame, twoWays, for: withLoader), "a recipe on record already stays")
+        LaunchHealth.reset(twoGame)
+        LaunchHealth.recordStart(twoGame, twoWays)
+        LaunchHealth.adoptRecipe(twoGame, twoWays, recorded: nil, starting: plainStart)
+        LaunchHealth.confirm(twoGame, twoWays)
+        check(LaunchHealth.holds(twoGame, twoWays, for: withLoader), "a way not confirmed takes none: its proof comes with its picture")
+        LaunchHealth.reset(twoGame)
+
         // MARK: A confirmed way loses its confirmation only on evidence
         // The player quits after 20 s (OxyRail after 22 s) on a layer that logs no frames.
         check(LaunchHealth.earlyEnd(trusted: true, graphicsFailed: false, crashed: false, drew: false, shortEndsBefore: 0) == .keep,
@@ -326,6 +420,23 @@ struct LaunchHealthTest {
               "a graphics error: the next way")
         check(LaunchHealth.earlyEnd(trusted: false, graphicsFailed: false, crashed: false, drew: false, shortEndsBefore: 0) == .nextWay,
               "a way not confirmed yet without a picture moves on, as before")
+        // ABZU, 10.11.2026: a proven way ended before Direct3D now and then; the next start had a picture.
+        let first = LaunchHealth.earlyEnd(trusted: true, graphicsFailed: false, crashed: false, drew: false, shortEndsBefore: 0)
+        check(LaunchHealth.startsAgainQuietly(first, alreadyAgain: false, ownLauncher: false, antiCheat: false),
+              "a proven way that ended early with nothing against it starts once more")
+        check(!LaunchHealth.startsAgainQuietly(first, alreadyAgain: true, ownLauncher: false, antiCheat: false),
+              "once only")
+        let second = LaunchHealth.earlyEnd(trusted: true, graphicsFailed: false, crashed: false, drew: false, shortEndsBefore: 1)
+        check(!LaunchHealth.startsAgainQuietly(second, alreadyAgain: false, ownLauncher: false, antiCheat: false),
+              "the second short end in a row unconfirms instead")
+        check(!LaunchHealth.startsAgainQuietly(first, alreadyAgain: false, ownLauncher: true, antiCheat: false),
+              "not for a game that hands over to a launcher of its own: a second copy")
+        check(!LaunchHealth.startsAgainQuietly(first, alreadyAgain: false, ownLauncher: false, antiCheat: true),
+              "nor for one with an anti-cheat")
+        for outcome in [LaunchHealth.Outcome.confirm, .unconfirm, .nextWay] {
+            check(!LaunchHealth.startsAgainQuietly(outcome, alreadyAgain: false, ownLauncher: false, antiCheat: false),
+                  "a picture, a crash or a graphics error: no quiet second start (\(outcome))")
+        }
         // A picture – the curtain sank, or frame lines in the log – then the end within 30 s (OxyRail, Mafia II, 1.11.).
         check(LaunchHealth.earlyEnd(trusted: false, graphicsFailed: false, crashed: false, drew: true, shortEndsBefore: 0) == .confirm,
               "a way not confirmed yet that showed a picture: confirmed, no start again")
@@ -403,7 +514,7 @@ struct LaunchHealthTest {
         var watcher = LaunchWatcher(steamRoot: steam, appID: appID)
         check(watcher.poll() == nil, "a finished launch earlier in the log isn't an open question")
         append(["ExecCommandLine: \"\"C:\\Steam\\steam.exe\" -silent -applaunch \(appID)\"", "\(action) waiting for user response to ShowEula \"\""])
-        check(watcher.poll() == .needsConfirmation, "a new question is seen")
+        check(watcher.poll() == .licence, "a new licence question is seen, as the licence")
         check(watcher.steamReceivedLaunch, "Steam took the launch request")
         append(["\(action) continues with user response \"ShowEula\"", "Game process added : AppID \(appID) \"C:\\game.exe\", ProcID 7, IP 0.0.0.0:0"])
         check(watcher.poll() == .running, "then the game runs")
@@ -431,6 +542,22 @@ struct LaunchHealthTest {
         check(errors.count == 6, "errors without repeats: \(errors.count)")
         check(errors.first?.hasPrefix("err:module") == true, "thread ids dropped: \(errors.first ?? "")")
         check(errors.contains("err:   DXGI: Failed to create swap chain"), "DXVK's own error lines kept")
+        // Every start carries +pid since step E5: the process's id stands before the thread's, and both differ
+        // between equal lines – as does a time, with +timestamp. One error is one line.
+        let withPids = """
+        0810:0124:err:module:import_dll Library MSVCP120.dll (which is needed by L"C:\\\\Games\\\\Some Game\\\\Game.exe") not found
+        0810:0128:err:module:import_dll Library MSVCP120.dll (which is needed by L"C:\\\\Games\\\\Some Game\\\\Game.exe") not found
+        0a2c:0a30:err:module:import_dll Library MSVCP120.dll (which is needed by L"C:\\\\Games\\\\Some Game\\\\Game.exe") not found
+          3.141:0810:0124:err:module:import_dll Library MSVCP120.dll (which is needed by L"C:\\\\Games\\\\Some Game\\\\Game.exe") not found
+        0810:0124:err:module:import_dll Library d3dx9_43.dll (which is needed by L"C:\\\\Games\\\\Some Game\\\\Game.exe") not found
+        """
+        let fromPids = GameLog.errors(in: withPids)
+        check(fromPids.count == 2 && fromPids.allSatisfy { $0.hasPrefix("err:module:import_dll") },
+              "with +pid one error is one line, whatever process and thread said it: \(fromPids)")
+        check(GameLog.withoutIDs("0124:err:module:x") == "err:module:x" && GameLog.withoutIDs("0810:0124:fixme:d3d:y") == "fixme:d3d:y"
+              && GameLog.withoutIDs("err:   DXGI: z") == "err:   DXGI: z" && GameLog.withoutIDs("wine: Call from 00006FFF to x") == "wine: Call from 00006FFF to x"
+              && GameLog.withoutIDs("[mvk-error] VK_ERROR: a") == "[mvk-error] VK_ERROR: a",
+              "only the ids go, a line without them stays as it is")
         // Steam's driver probes and browser at every start (live test of Control, 3.11.2026).
         let steamNoise = """
         0098:err:module:import_dll Library SDL2.dll (which is needed by L"C:\\\\Program Files (x86)\\\\Steam\\\\bin\\\\gldriverquery.exe") not found
@@ -780,6 +907,23 @@ struct LaunchHealthTest {
         check(LaunchPhase.isFirstStart(.steam(570), signature: otherLayer, defaults: shaderDefaults), "so does another layer")
         let otherEngine = LaunchPhase.graphicsSignature(runner: "/wine/4.8/bin/wine", layer: .dxmt, components: before)
         check(LaunchPhase.isFirstStart(.steam(570), signature: otherEngine, defaults: shaderDefaults), "and a new engine")
+        // Every signature seen, not only the last (MGS V between D3DMetal and DXMT, 15.11.2026): a way back is no first start.
+        LaunchPhase.recordStart(.steam(570), signature: otherLayer, defaults: shaderDefaults)
+        check(!LaunchPhase.isFirstStart(.steam(570), signature: signature, defaults: shaderDefaults)
+              && !LaunchPhase.isFirstStart(.steam(570), signature: otherLayer, defaults: shaderDefaults), "back to the way before: no shaders line")
+        LaunchPhase.recordStart(.steam(570), signature: signature, defaults: shaderDefaults)
+        check(LaunchPhase.seenSignatures(.steam(570), defaults: shaderDefaults) == [otherLayer, signature], "once each, the newest last")
+        // The entry from before the update holds the last one alone, as a string: taken over, no line at the next start.
+        shaderDefaults.set("old-signature", forKey: "shaders.\(GameID.steam(571).key)")
+        check(!LaunchPhase.isFirstStart(.steam(571), signature: "old-signature", defaults: shaderDefaults), "the single entry from before counts")
+        LaunchPhase.recordStart(.steam(571), signature: "new-signature", defaults: shaderDefaults)
+        check(LaunchPhase.seenSignatures(.steam(571), defaults: shaderDefaults) == ["old-signature", "new-signature"], "and is kept with the new one")
+        // A bound: the oldest go once there are more.
+        for index in 0..<(LaunchPhase.signaturesKept + 2) { LaunchPhase.recordStart(.steam(572), signature: "s\(index)", defaults: shaderDefaults) }
+        let lastSeen = LaunchPhase.seenSignatures(.steam(572), defaults: shaderDefaults)
+        check(lastSeen.count == LaunchPhase.signaturesKept && lastSeen.last == "s\(LaunchPhase.signaturesKept + 1)"
+              && LaunchPhase.isFirstStart(.steam(572), signature: "s0", defaults: shaderDefaults)
+              && !LaunchPhase.isFirstStart(.steam(572), signature: "s2", defaults: shaderDefaults), "the last \(LaunchPhase.signaturesKept) are kept")
         check(Set([LaunchPhase.startingSteam, .signingIn, .settingUp, .settingUpDotNet, .restartingSteam, .retrying("DXVK"),
                    .startingSteamForMac, .signInInSteamWindow].map(\.hint)).count == 8, "every phase explains itself differently")
 

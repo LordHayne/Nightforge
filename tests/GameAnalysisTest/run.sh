@@ -10,6 +10,6 @@ fi
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT  # the test program goes with it
 OUT="$WORK/game-analysis-test"
-# GameAnalysis.swift needs nothing else, so the test builds in seconds.
-swiftc -parse-as-library -o "$OUT" Sources/Nightforge/GameAnalysis.swift tests/GameAnalysisTest/main.swift
+# GameAnalysis.swift needs only GameKind.swift beside it, so the test builds in seconds.
+swiftc -parse-as-library -o "$OUT" Sources/Nightforge/GameAnalysis.swift Sources/Nightforge/GameKind.swift tests/GameAnalysisTest/main.swift
 "$OUT"

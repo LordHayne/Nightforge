@@ -7,6 +7,79 @@ import SwiftUI
 enum KeepAwake {
     private static var assertion: IOPMAssertionID = 0
     private static var holding = false
+    /// Whether the Mac is really being held awake right now (DownloadStanding says so only then).
+    static var isHolding: Bool { holding }
+
+    /// Whether anything can be fetching this game now. A download counts by what its store left on disk, and
+    /// that stays when the store isn't running: the Mac then never slept for as long as Nightforge was open,
+    /// which a start at login makes all day. Paused means the Mac may sleep, with no grace period (the user, 8.11.).
+    /// Epic's and GOG's are Nightforge's own jobs, gone when they end; a Steam in a bottle of the player's can't be looked at.
+    nonisolated static func counts(provider: Provider, platform: Platform, builtIn: Bool, paused: Bool,
+                                   steamRunning: Bool, macSteamRunning: Bool, battleNetRunning: Bool) -> Bool {
+        guard !paused else { return false }
+        switch provider {
+        case .steam: return platform == .mac ? macSteamRunning : (!builtIn || steamRunning)
+        case .battlenet: return battleNetRunning
+        case .epic, .gog: return true
+        }
+    }
+
+    /// One download a scan found.
+    struct Download: Equatable {
+        var name: String
+        var provider: Provider
+        var platform: Platform
+        var builtIn: Bool
+        var paused: Bool
+    }
+
+    /// A game's downloads: its own, unless it waits for room, and the Mac version's coming beside an installed
+    /// Windows one (`macPending`), which is Steam for Mac's.
+    nonisolated static func downloads(of game: Game) -> [Download] {
+        var found: [Download] = []
+        if case .downloading = game.install, game.downloadNeedsSpace == nil {
+            found.append(Download(name: game.name, provider: game.provider, platform: game.platform,
+                                  builtIn: game.bottle.isBuiltIn, paused: game.downloadPaused))
+        }
+        if case .downloading? = game.macPending {
+            found.append(Download(name: game.name, provider: .steam, platform: .mac, builtIn: false, paused: game.macPendingStopped))
+        }
+        return found
+    }
+
+    /// A store gone with its download still listed may be between two starts: the Steams changing over took
+    /// 1 min 33 s on 8.11. (22:27:13 to 22:28:47), and the hold was gone for it. Past this it has really ended.
+    nonisolated static let storeAwayGrace: TimeInterval = 300
+
+    /// What keeps the Mac awake now, and when a store was last seen fetching something. A pause doesn't get
+    /// this grace: paused means the Mac may sleep.
+    nonisolated static func held(_ downloads: [Download], steamRunning: Bool, macSteamRunning: Bool, battleNetRunning: Bool,
+                                 storeSeen: Date?, now: Date) -> (names: [String], storeSeen: Date?) {
+        let unpaused = downloads.filter { !$0.paused }
+        let fetched = unpaused.filter {
+            counts(provider: $0.provider, platform: $0.platform, builtIn: $0.builtIn, paused: false,
+                   steamRunning: steamRunning, macSteamRunning: macSteamRunning, battleNetRunning: battleNetRunning)
+        }
+        if !fetched.isEmpty { return (fetched.map(\.name), now) }
+        guard !unpaused.isEmpty, let storeSeen, now.timeIntervalSince(storeSeen) < storeAwayGrace else { return ([], nil) }
+        return (unpaused.map(\.name), storeSeen)
+    }
+
+    private static var storeSeen: Date?
+
+    /// Of these downloads, the names that keep the Mac awake.
+    static func fetched(_ downloads: [Download]) -> [String] {
+        guard !downloads.isEmpty else {  // the usual case: no process list asked for
+            storeSeen = nil
+            return []
+        }
+        let steam = Engine.steamRunningKnown ?? true  // not known: as before
+        let mac = MacSteam.isRunning
+        let battleNet = !NSRunningApplication.runningApplications(withBundleIdentifier: BattleNetClient.bundleID).isEmpty
+        let result = held(downloads, steamRunning: steam, macSteamRunning: mac, battleNetRunning: battleNet, storeSeen: storeSeen, now: Date())
+        storeSeen = result.storeSeen
+        return result.names
+    }
 
     static func update(downloading names: [String]) {
         if names.isEmpty {
@@ -25,26 +98,33 @@ enum KeepAwake {
 /// got and how many there are (D).
 struct DownloadsButton: View {
     @EnvironmentObject private var model: LibraryModel
+    @ObservedObject private var tv = TVLayout.shared
 
     var body: some View {
         let downloads = model.downloads
         let count = downloads.count + (model.move == nil ? 0 : 1)
+        let standing = model.downloadStanding
+        let ring = ringView(count: count, fraction: Self.progress(downloads, move: model.move), resting: standing.mayDoze)
         Button { model.showingDownloads.toggle() } label: {
-            ZStack {
-                Circle().stroke(Color.white.opacity(0.15), lineWidth: 2.5)
-                Circle()
-                    .trim(from: 0, to: max(0.03, Self.progress(downloads, move: model.move)))
-                    .stroke(Theme.sodium, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                Text("\(count)")
-                    .font(size: 10, weight: .bold, scales: false).monospacedDigit()
-                    .foregroundStyle(Theme.ink)
+            // The word goes first when the bar is tight; the panel has the whole sentence.
+            ViewThatFits(in: .horizontal) {
+                if let word = standing.ringWord {
+                    HStack(spacing: 7) {
+                        ring
+                        Text(word)
+                            .font(size: tv.isOn ? 18 : 12, weight: .semibold, scales: !tv.isOn)
+                            .foregroundStyle(standing == .awakeLidOpen ? Theme.sodium : standing.mayDoze ? Theme.muted : Theme.ink)
+                            .lineLimit(1)
+                            .fixedSize()
+                    }
+                }
+                ring
             }
-            .frame(width: 22, height: 22)
         }
-        .buttonStyle(GlassGroupButtonStyle())
+        .buttonStyle(GlassGroupButtonStyle(wide: standing.ringWord != nil))
         .help(count == 1 ? L10n.t("1 download (D)") : L10n.t("%ld downloads (D)", count))
-        .accessibilityLabel(count == 1 ? L10n.t("1 download") : L10n.t("%ld downloads", count))
+        .accessibilityLabel([count == 1 ? L10n.t("1 download") : L10n.t("%ld downloads", count), standing.ringWord]
+            .compactMap { $0 }.joined(separator: ", "))
         // With the pad, the highlight goes into the panel it opens.
         .padFocus("top.downloads", cornerRadius: 15, activate: {
             if model.showingDownloads { model.closeDownloads() } else {
@@ -52,6 +132,20 @@ struct DownloadsButton: View {
                 PadFocus.shared.focus("downloads.close")
             }
         })
+    }
+
+    private func ringView(count: Int, fraction: Double, resting: Bool) -> some View {
+        ZStack {
+            Circle().stroke(Color.white.opacity(0.15), lineWidth: 2.5)
+            Circle()
+                .trim(from: 0, to: max(0.03, fraction))
+                .stroke(resting ? Theme.ink.opacity(0.34) : Theme.sodium, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+            Text("\(count)")
+                .font(size: 10, weight: .bold, scales: false).monospacedDigit()
+                .foregroundStyle(Theme.ink)
+        }
+        .frame(width: 22, height: 22)
     }
 
     static func progress(_ downloads: [Game], move: GameMove? = nil) -> Double {
@@ -99,11 +193,12 @@ struct DownloadsPanel: View {
             ForEach(model.downloads) { game in
                 row(game)
             }
-            if !model.downloads.isEmpty {
+            if let sentence = model.downloadStanding.sentence {
                 Rectangle().fill(.white.opacity(0.1)).frame(height: 1)
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Image(systemName: "moon.zzz")
-                    Text(L10n.t("Your Mac stays awake while games download. The display can still turn off."))
+                    Image(systemName: sentence.symbol)
+                        .foregroundStyle(sentence.action == nil ? Theme.muted : Theme.sodium)
+                    Text(Self.styled(sentence))
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .font(size: 12)
@@ -115,6 +210,31 @@ struct DownloadsPanel: View {
         .frame(width: 380 * textScale)  // grows with the text, so the names keep their room
         .background(GlassBackground(glass: .thick, shape: RoundedRectangle(cornerRadius: 24, style: .continuous)))
         .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+    }
+
+    /// What matters stands out: a store that's gone, and the one thing the player has to do.
+    private static func styled(_ sentence: DownloadStanding.Sentence) -> AttributedString {
+        var text = AttributedString()
+        if let lead = sentence.lead {
+            var part = AttributedString(lead + " ")
+            part.foregroundColor = Theme.ink
+            part.inlinePresentationIntent = .stronglyEmphasized
+            text += part
+        }
+        text += AttributedString(sentence.text)
+        if let action = sentence.action {
+            var part = AttributedString(" " + action)
+            part.foregroundColor = Theme.sodium
+            part.inlinePresentationIntent = .stronglyEmphasized
+            text += part
+        }
+        return text
+    }
+
+    /// Nothing is coming down for this game: the row says so and its bar goes grey.
+    private func resting(_ game: Game) -> Bool {
+        if case .storeStopped = model.downloadStanding { return true }
+        return game.downloadPaused
     }
 
     private func row(_ game: Game) -> some View {
@@ -130,7 +250,7 @@ struct DownloadsPanel: View {
                         StoreBadge(store: game.provider.label)
                     }
                 }
-                DownloadBar(fraction: fraction(game))
+                DownloadBar(fraction: fraction(game), resting: resting(game))
                 statusLines(line(game))
             }
             if model.canUninstall(game) {
@@ -210,8 +330,10 @@ struct DownloadsPanel: View {
     /// "37 % of 12 GB" and "12 MB/s · 25 min left" – as much as is known.
     private func line(_ game: Game) -> (progress: String, speed: String?) {
         if game.downloadNeedsSpace != nil { return (L10n.t("Paused – not enough space"), nil) }
-        guard case .downloading(let fraction?) = game.install else { return (L10n.t("Preparing …"), nil) }
-        return Self.status(fraction: fraction, total: game.sizeOnDisk, rate: model.downloadRates[game.gameID])
+        let rest = resting(game) ? (game.downloadPaused ? L10n.t("Paused") : L10n.t("Stopped")) : nil
+        guard case .downloading(let fraction?) = game.install else { return (rest ?? L10n.t("Preparing …"), nil) }
+        let status = Self.status(fraction: fraction, total: game.sizeOnDisk, rate: model.downloadRates[game.gameID])
+        return rest.map { ($0, status.progress) } ?? status
     }
 
     /// "37 % of 12 GB" (or "37 %" while the size isn't known), and the speed and time left once
@@ -245,6 +367,7 @@ private struct DownloadCover: View {
 /// A thin sodium bar; without a known share, a short piece sweeps across while Steam prepares.
 private struct DownloadBar: View {
     let fraction: Double?
+    var resting = false
     @State private var sweep = false
     @Environment(\.reduceMotion) private var reduceMotion
 
@@ -253,10 +376,10 @@ private struct DownloadBar: View {
             ZStack(alignment: .leading) {
                 Capsule().fill(.white.opacity(0.1))
                 if let fraction {
-                    Capsule().fill(Theme.sodium)
+                    Capsule().fill(resting ? Theme.ink.opacity(0.34) : Theme.sodium)
                         .frame(width: max(5, geo.size.width * fraction))
                         .animation(.easeOut(duration: 0.5), value: fraction)
-                } else {
+                } else if !resting {  // nothing moves while nothing is coming down
                     Capsule().fill(Theme.sodium.opacity(0.7))
                         .frame(width: geo.size.width * 0.25)
                         .offset(x: sweep ? geo.size.width * 0.75 : 0)

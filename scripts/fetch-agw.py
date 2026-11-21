@@ -437,7 +437,13 @@ def own_graphics(mac: dict) -> dict:
     return layers
 
 
-def build(pages: list, mac: dict) -> tuple:
+def note_hint(key: str, notes: dict):
+    """A hint from profiles/agw-notes.json: the layer the page's free text names, where its fields say none."""
+    layer = (notes.get(key) or {}).get("graphics")
+    return {"graphics": layer, "from": ["notes"], "source": "agw"} if layer in ("d3dmetal", "dxmt", "dxvk") else None
+
+
+def build(pages: list, mac: dict, notes: dict = None) -> tuple:
     """The document's "games" and "aliases" from parsed pages, plus counts for the summary."""
     layers = own_graphics(mac)
     games, aliases = {}, {"steam": {}, "gog": {}}
@@ -456,7 +462,7 @@ def build(pages: list, mac: dict) -> tuple:
         if key in games:
             continue
         own = next((layers[k] for k in [key] + ["gog." + g for g in page["gog"]] + page["steam"] if k in layers), None)
-        hint = derive_hint(page, own)
+        hint = derive_hint(page, own) or (None if own else note_hint(key, notes or {}))
         if own and derive_hint(page) is not None:
             stats["overruled"] += 1
         entry = {k: v for k, v in page.items() if k in ("page", "ids", "edited", "codeweavers", "paths")}
@@ -481,7 +487,8 @@ def order(games: dict) -> dict:
     return dict(sorted(games.items(), key=lambda item: (0, int(item[0]), "") if item[0].isdigit() else (1, 0, item[0])))
 
 
-def document(games: dict, aliases: dict, previous: dict = None, now: datetime.datetime = None) -> dict:
+def document(games: dict, aliases: dict, previous: dict = None, now: datetime.datetime = None, directx: dict = None,
+             runtimes: dict = None) -> dict:
     doc = {
         "formatVersion": FORMAT_VERSION,
         "about": "What AppleGamingWiki says about running each game on a Mac. Per way (native, rosetta, crossover, "
@@ -502,6 +509,13 @@ def document(games: dict, aliases: dict, previous: dict = None, now: datetime.da
         "aliases": {k: dict(sorted(v.items(), key=lambda item: int(item[0]))) for k, v in aliases.items()},
         "games": order(games),
     }
+    if directx:
+        # What PCGamingWiki lists for games with DirectX 12 (fetch-pcgw.py): the same licence, and like this file not bundled.
+        doc["directX"] = directx
+        doc["directXSource"] = "PCGamingWiki contributors, https://www.pcgamingwiki.com (CC BY-NC-SA 3.0)"
+    if runtimes:
+        # What a game needs installed before its first start, from PCGamingWiki's lists (Steam app IDs, "gog.<id>").
+        doc["runtimes"] = runtimes
     unchanged = previous and {k: v for k, v in previous.items() if k != "generated"} == doc
     doc["generated"] = previous["generated"] if unchanged else \
         (now or datetime.datetime.now(datetime.timezone.utc)).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -618,6 +632,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--out", type=pathlib.Path, default=ROOT / "profiles" / "agw.json")
     parser.add_argument("--mac", type=pathlib.Path, default=ROOT / "profiles" / "mac.json")
+    parser.add_argument("--notes", type=pathlib.Path, default=ROOT / "profiles" / "agw-notes.json")
+    parser.add_argument("--pcgw", type=pathlib.Path, default=ROOT / "profiles" / "pcgw.json")
     parser.add_argument("--pages", type=pathlib.Path, help="read the pages from a file --save-pages wrote, offline")
     parser.add_argument("--save-pages", type=pathlib.Path, help="also keep the fetched pages, for --pages")
     parser.add_argument("--wikidata", type=pathlib.Path, help="read Wikidata's answer from a file --save-wikidata wrote")
@@ -635,9 +651,11 @@ def main() -> int:
     pages = [p for p in (parse_page(r["title"], r["wikitext"], r.get("edited")) for r in raw) if p]
     fill_ids(pages, wikidata_ids(bindings))
     mac = json.loads(options.mac.read_text(encoding="utf-8"))
-    games, aliases, stats = build(pages, mac)
+    notes = json.loads(options.notes.read_text(encoding="utf-8")).get("games", {}) if options.notes.exists() else {}
+    games, aliases, stats = build(pages, mac, notes)
     previous = json.loads(options.out.read_text(encoding="utf-8")) if options.out.exists() else None
-    doc = document(games, aliases, previous)
+    pcgw = json.loads(options.pcgw.read_text(encoding="utf-8")) if options.pcgw.exists() else {}
+    doc = document(games, aliases, previous, directx=pcgw.get("directX", {}), runtimes=pcgw.get("runtimes", {}))
     validate(doc, options.minimum)
     options.out.parent.mkdir(parents=True, exist_ok=True)
     options.out.write_text(json.dumps(doc, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")

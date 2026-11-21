@@ -186,6 +186,18 @@ struct GameDisplayTest {
         check(GameDisplay.destination([mirrorOfTV, lgTV], on: 2) == nil, "the MacBook mirrors the TV: one place, nothing to say")
         check(GameDisplay.destination([macBook, lgTV], on: nil) == nil, "no window on a screen yet: nothing")
         check(L10n.t("Plays on: %@", "LG TV SSCR2").hasSuffix("LG TV SSCR2"), "the line names the screen")
+        // TVs that don't name themselves: by size.
+        func sized(_ name: String, inches: CGFloat?, builtIn: Bool = false) -> GameDisplay.Candidate {
+            GameDisplay.Candidate(id: 9, name: name, builtIn: builtIn, pixels: 1, inches: inches)
+        }
+        check(sized("PHILIPS FTV", inches: 55).isTV, "a 55-inch set without a known name is a TV")
+        check(sized("Studio Display", inches: 27).isTV == false, "a 27-inch monitor isn't")
+        check(sized("Built-in Retina", inches: 42, builtIn: true).isTV == false, "the Mac's own screen never is")
+        check(sized("Monitor", inches: nil).isTV == false, "no size, no name: not a TV")
+        check(sized("LG TV SSCR2", inches: nil).isTV, "the name still counts without a size")
+        check(GameDisplay.inches(.zero) == nil, "a screen that gives no size")
+        check(abs((GameDisplay.inches(CGSize(width: 1210, height: 680)) ?? 0) - 54.6) < 0.2, "millimetres become inches")
+
         if failures == 0 { print("✓ GameDisplay: all checks passed") }
         exit(failures == 0 ? 0 : 1)
     }

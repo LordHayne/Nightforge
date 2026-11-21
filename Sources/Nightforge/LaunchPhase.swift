@@ -31,6 +31,14 @@ enum LaunchPhase: Equatable {
     /// A GOG game's Windows parts (GOG Galaxy's redistributables), before its first start: the
     /// part being installed (nil while they come from GOG), named in the line below the button.
     case settingUpWindowsParts(String?)
+    /// Blizzard's client isn't up yet: it starts hidden.
+    case startingBattleNet
+    /// The client wants the player's sign-in: its window is open.
+    case signInInBattleNetWindow
+    /// The client hasn't started the game and may be asking something: its window is open.
+    case battleNetAsks
+    /// The player said yes to Steam's licence; the game starts now.
+    case licenceAnswered
 
     var title: String {
         switch self {
@@ -51,6 +59,10 @@ enum LaunchPhase: Equatable {
         case .rollingBack: return L10n.t("Trying the previous engine …")
         case .heldEngine: return L10n.t("Starting with the previous engine …")
         case .settingUpWindowsParts: return L10n.t("Setting up the game …")
+        case .startingBattleNet: return L10n.t("Starting Battle.net …")
+        case .signInInBattleNetWindow: return L10n.t("Sign in in the Battle.net window")
+        case .battleNetAsks: return L10n.t("Battle.net is waiting for you")
+        case .licenceAnswered: return L10n.t("Thanks. The game is starting …")
         }
     }
 
@@ -78,14 +90,52 @@ enum LaunchPhase: Equatable {
             return L10n.t("Windows part: %@ – the game needs it. Only the first time.", part)
         case .settingUpWindowsParts(nil):
             return L10n.t("The Windows parts the game needs come from GOG. Only the first time.")
+        case .startingBattleNet: return L10n.t("Blizzard's games start through Battle.net, which runs in the background.")
+        case .signInInBattleNetWindow: return L10n.t("Battle.net needs you to sign in. Its window is open.")
+        case .battleNetAsks: return L10n.t("Its window is open: answer there, or press Play in it.")
+        case .licenceAnswered: return L10n.t("Steam won't ask again.")
         }
+    }
+
+    /// The curtain's line for it: what happens, the same words for the same thing – the rule of 15.11.2026
+    /// (board "Vorhang nach der Regel"). Which part, engine or way goes to the log (`kind`); the Play button
+    /// keeps `title`.
+    var curtainTitle: String {
+        switch self {
+        case .settingUp, .settingUpDotNet, .settingUpWindowsParts: return L10n.t("Setting up …")
+        case .restartingSteam, .steamNotResponding: return L10n.t("Restarting Steam …")
+        case .retrying, .rollingBack: return L10n.t("One more try …")
+        // The engine before, at a start of its own: no try of Nightforge's to tell of.
+        case .heldEngine: return L10n.t("Starting …")
+        case .savingToCloud: return L10n.t("Saving your game …")
+        case .licenceAnswered: return L10n.t("The game is starting …")
+        default: return title
+        }
+    }
+
+    /// The short sentence under the curtain's line: only where it's true once, or where the player has a window to
+    /// answer in (the rule of 15.11.2026). What else `hint` says is in the log as the phase begins.
+    var curtainSentence: String? {
+        switch self {
+        case .settingUp, .settingUpDotNet, .settingUpWindowsParts: return L10n.t("Only the first time.")
+        case .signInInSteamWindow, .signInAgain, .signInInBattleNetWindow: return L10n.t("Its window is open.")
+        case .battleNetAsks: return hint
+        default: return nil
+        }
+    }
+
+    /// For the log, once a phase begins: an update's figures don't make a new one.
+    var kind: String {
+        if case .updating = self { return "updating" }
+        return "\(self)"
     }
 
     /// While Steam starts the game itself, the first time with new graphics: shaders are built then.
     static var shaderHint: String { L10n.t("First start with this graphics version: shaders are prepared, so it can take a minute. Next time it's quicker.") }
     /// `updating` for an Epic or GOG game: legendary or gogdl fetches the update, not Steam.
-    static func storeUpdateHint(_ provider: Provider) -> String {
-        L10n.t("The update comes from %@ first – the game starts by itself when it's done.", provider.label)
+    static func storeUpdateHint(_ provider: Provider, speed: String? = nil) -> String {
+        guard let speed else { return L10n.t("The update comes from %@ first – the game starts by itself when it's done.", provider.label) }
+        return L10n.t("%@ – the update comes from %@ first, the game starts by itself when it's done.", speed, provider.label)
     }
     /// `updating` through Steam once its speed is known (`UpdateProgress`).
     static func steamUpdateHint(speed: String) -> String {
@@ -105,11 +155,25 @@ enum LaunchPhase: Equatable {
         return ([runner ?? "", layer.rawValue] + builds).joined(separator: "|")
     }
 
+    /// How many signatures a game keeps: the ways it changes between and back, and the engine and graphics updates.
+    static let signaturesKept = 12
+
+    /// Every signature the game has started with, the newest last. An entry from before 15.11.2026 holds only the
+    /// last one, as a string: it's taken over, so the update brings no "Preparing shaders …" at each game's next start.
+    static func seenSignatures(_ game: GameID, defaults: UserDefaults = .standard) -> [String] {
+        let value = defaults.object(forKey: shaderKey(game))
+        if let list = value as? [String] { return list }
+        return (value as? String).map { [$0] } ?? []
+    }
+
+    /// Shaders are built at a start with a signature the game never had. Kept was only the last one: MGS V, changing
+    /// between D3DMetal and DXMT on 15.11.2026, said "Preparing shaders …" at almost every start.
     static func isFirstStart(_ game: GameID, signature: String, defaults: UserDefaults = .standard) -> Bool {
-        defaults.string(forKey: shaderKey(game)) != signature
+        !seenSignatures(game, defaults: defaults).contains(signature)
     }
 
     static func recordStart(_ game: GameID, signature: String, defaults: UserDefaults = .standard) {
-        defaults.set(signature, forKey: shaderKey(game))
+        let seen = seenSignatures(game, defaults: defaults).filter { $0 != signature } + [signature]
+        defaults.set(Array(seen.suffix(signaturesKept)), forKey: shaderKey(game))
     }
 }

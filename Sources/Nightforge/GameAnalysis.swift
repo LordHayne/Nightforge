@@ -44,6 +44,15 @@ struct GameAnalysis: Codable, Equatable {
     /// folder (Control: Control.exe hands over to Control_DX11.exe, Control_DX12.exe lies beside
     /// it). D3DMetal starts it (GameProgram); the other layers have no DirectX 12 and keep the store's.
     var d3d12Program: String?
+    /// The switch past the game's own launcher window (Play, Options, …), where its program knows one:
+    /// Guardians of the Galaxy's gotg.exe takes -nolauncher (9.11.2026). Given at every start, not a way of its own.
+    var launcherSwitch: String?
+    /// The engine's version, major and minor ("4.26", "2017.4"), where the files say it (GameKind).
+    var engineVersion: String?
+    /// The libraries the game brings along ("physx3", "steamworks", …; GameKind.middleware).
+    var middleware: [String] = []
+    /// Its program is a 64-bit one; nil when its header wasn't read.
+    var is64Bit: Bool?
 
     /// Direct3D 10/11 is what DXMT and DXVK translate.
     var usesD3D11: Bool { apis.contains(.d3d10) || apis.contains(.d3d11) }
@@ -99,7 +108,8 @@ extension GameAnalysis {
         targets += programs.filter { $0.lastPathComponent.lowercased().contains("-shipping") }
         // Steam may start a launcher that draws nothing itself; then the biggest program is the game.
         let fallback = targets.count
-        if let largest = programs.max(by: { size($0) < size($1) }) { targets.append(largest) }
+        let largest = programs.max(by: { size($0) < size($1) })
+        if let largest { targets.append(largest) }
 
         var engineLibraries: [URL] = []
         // Direct3D 12's Agility SDK ships as D3D12Core.dll in a folder next to the game. It says the
@@ -108,9 +118,11 @@ extension GameAnalysis {
         // Overwatch_loader.dll, which links Direct3D 11 – taken for a pure DirectX 12 game, it ran
         // on D3DMetal alone, 1.11.2026).
         var agilitySDK = false
+        var linked = Set<String>()
         for (index, file) in targets.enumerated() where fm.fileExists(atPath: file.path) {
             if index == fallback, !analysis.apis.isEmpty || analysis.engine == .unity { break }
             guard let imports = PEImports.dlls(of: file) else { continue }
+            linked.formUnion(imports)
             let folder = file.deletingLastPathComponent()
             analysis.apis.formUnion(imports.compactMap(api(forDLL:)))
             if imports.contains("mscoree.dll") { analysis.usesDotNet = true }
@@ -140,6 +152,36 @@ extension GameAnalysis {
         if analysis.apis.isEmpty, contents.hasItem(named: "shaderapidx9.dll") {
             analysis.apis.insert(.d3d9)
         }
+        // Still nothing: the game's own libraries beside its programs, whatever their size – some engines keep
+        // their renderer in a small one, linked by another (Alan Wake: d3d_f_Win32.dll, 190 KB, links Direct3D 9;
+        // taken for a game that shows nothing, it started on D3DMetal, which has no Direct3D 9; 11.11.2026). Not
+        // the graphics DLLs themselves: DXVK's copies lie beside a game that runs on it (Engine.placeDXVK).
+        if analysis.apis.isEmpty, analysis.engine != .unity {
+            let folders = Set(targets.filter { fm.fileExists(atPath: $0.path) }.map { $0.deletingLastPathComponent() })
+            let beside = folders.flatMap { (try? fm.contentsOfDirectory(at: $0, includingPropertiesForKeys: nil)) ?? [] }
+                .filter { file in
+                    let name = file.lastPathComponent.lowercased()
+                    return name.hasSuffix(".dll") && !middleware.contains(where: name.hasPrefix) && !name.hasPrefix("api-ms-")
+                        && api(forDLL: name) == nil && !graphicsLayerDLLs.contains(name)
+                }
+                .sorted { $0.path < $1.path }
+            for library in beside.prefix(64) {
+                analysis.apis.formUnion((PEImports.dlls(of: library) ?? []).compactMap(api(forDLL:)))
+            }
+            // … or what the small ones name in their text: a renderer loaded by name (d3d_f_Win32.dll holds
+            // "D3D9.DLL" and "Direct3DCreate9", and links neither).
+            if analysis.apis.isEmpty {
+                for library in beside.filter({ size($0) <= 8 << 20 }).prefix(24) {
+                    analysis.apis.formUnion(ProgramText.apis(in: library))
+                }
+            }
+        }
+        // No import table says anything: a copy protection hides it, or the renderer is loaded at run
+        // time. The program's own text still names what it can draw with (Guardians of the Galaxy and
+        // GTA V Enhanced, 9.11.2026: nothing detected, so they started on DXMT, which has no DirectX 12).
+        if analysis.apis.isEmpty, analysis.engine != .unity, let largest {
+            analysis.apis.formUnion(ProgramText.apis(in: largest))
+        }
         if agilitySDK { analysis.apis.insert(.d3d12) }
         // Programs of its own for DirectX 11 and 12 beside the store's: the game draws each there,
         // whatever libraries hold its renderer (Control's sit in DLLs the look above doesn't reach).
@@ -154,12 +196,51 @@ extension GameAnalysis {
             || fm.fileExists(atPath: installDir.appendingPathComponent("Engine/Binaries").path) {
             analysis.engine = .unreal
         }
-        analysis.antiCheat = [("Easy Anti-Cheat", "easyanticheat"), ("BattlEye", "battleye")]
-            .filter { contents.hasItem(named: $0.1) }.map(\.0)
+        // Unreal Engine 3 keeps Binaries beside Engine and its game in <Name>Game/CookedPC… (Batman: Arkham Asylum,
+        // Dishonored; 11.11.2026): no Engine/Binaries and no -Win64-Shipping program to know it by.
+        var unreal3 = false
+        if analysis.engine == .other, contents.paths.contains("engine/config"), contents.paths.contains("binaries"),
+           contents.paths.contains(where: { $0.split(separator: "/").count == 2 && $0.contains("game/cookedpc") }) {
+            analysis.engine = .unreal
+            unreal3 = true
+        }
+        if let started = targets.first(where: { fm.fileExists(atPath: $0.path) }) {
+            analysis.launcherSwitch = ProgramText.launcherSwitch(in: started)
+        }
+        analysis.antiCheat = antiCheatFiles.filter { contents.hasItem(named: $0.1) }.map(\.0)
         analysis.launcher = launchers.first { $0.paths.contains(where: contents.has) }?.name
         analysis.usesWebView2 = contents.hasItem(named: "webview2loader.dll")
         analysis.usesDLSS = contents.hasItem(named: "nvngx_dlss.dll")
+        // The game's sort (GameKind): what it brings along, its program's width, its engine's version.
+        analysis.middleware = GameKind.middleware(in: linked.union(contents.paths.map { ($0 as NSString).lastPathComponent }))
+        let program = largest ?? targets.first { fm.fileExists(atPath: $0.path) }
+        let facts = program.flatMap(PEImports.facts(of:))
+        analysis.is64Bit = facts?.is64Bit
+        switch analysis.engine {
+        case .unreal: analysis.engineVersion = GameKind.unrealVersion(facts?.fileVersion) ?? (unreal3 ? "3" : nil)
+        case .unity:
+            // The started program's own data folder first: The Forest has three (its own on Unity 5.6, its VR
+            // build's on 2017.4).
+            let started = targets.first { fm.fileExists(atPath: $0.path) }
+            let own = started.flatMap { program in
+                ["globalgamemanagers", "data.unity3d"].lazy.map {
+                    program.deletingLastPathComponent()
+                        .appendingPathComponent(program.deletingPathExtension().lastPathComponent + "_Data").appendingPathComponent($0)
+                }.first { fm.fileExists(atPath: $0.path) }
+            }
+            analysis.engineVersion = (own ?? contents.unityData).flatMap(head).flatMap(GameKind.unityVersion(inHead:))
+        case .other: break
+        }
         return analysis
+    }
+
+    /// Anti-cheat recognised by what it leaves in the game folder.
+    private static let antiCheatFiles = [("Easy Anti-Cheat", "easyanticheat"), ("BattlEye", "battleye")]
+
+    /// Whether anti-cheat lies in the game folder, for a game no list knows about.
+    static func hasAntiCheatFiles(in installDir: URL) -> Bool {
+        let contents = scan(installDir)
+        return antiCheatFiles.contains { contents.hasItem(named: $0.1) }
     }
 
     /// Launchers of other stores, recognised by files they leave in the game folder (paths are
@@ -180,7 +261,13 @@ extension GameAnalysis {
         case "d3d12.dll", "d3d12core.dll": return .d3d12
         case "vulkan-1.dll": return .vulkan
         case "opengl32.dll": return .openGL
-        default: return nil
+        default:
+            // D3DX is made for one Direct3D each: a game that links d3dx9_43.dll draws with Direct3D 9, also when
+            // it loads d3d9.dll by name at run time (Alan Wake, 11.11.2026).
+            if dll.hasPrefix("d3dx9_") { return .d3d9 }
+            if dll.hasPrefix("d3dx10_") { return .d3d10 }
+            if dll.hasPrefix("d3dx11_") { return .d3d11 }
+            return nil
         }
     }
 
@@ -189,7 +276,11 @@ extension GameAnalysis {
     private static let middleware = [
         "sl.", "libxess", "nvngx", "gfsdk", "amd_", "ffx", "nvlowlatency", "openvr", "steam_api", "eossdk",
         "galaxy", "discord", "bink", "fmod", "physx", "nvapi", "d3dcompiler", "msvcp", "vcruntime", "ucrtbase",
+        "msvcr", "d3dx", "xinput", "reshade",
     ]
+
+    /// Graphics DLLs that aren't a game's own, though they may lie beside it: a layer's copies.
+    private static let graphicsLayerDLLs: Set<String> = ["dxgi.dll", "winemetal.dll", "d3d10_1.dll", "d3d12core.dll", "nvapi64.dll"]
 
     /// The game folder a few levels deep (where Unity and Unreal put their programs).
     private struct Contents {
@@ -197,6 +288,9 @@ extension GameAnalysis {
         var programs: [URL] = []
         /// Every file and folder, lower-cased and relative to the game folder.
         var paths = Set<String>()
+        /// Unity's data file that begins with the engine's version (<Game>_Data/globalgamemanagers, or
+        /// data.unity3d where the data is packed).
+        var unityData: URL?
 
         /// `path` relative to the game folder, or a bare name anywhere in it.
         func has(_ path: String) -> Bool { path.contains("/") ? paths.contains(path) : hasItem(named: path) }
@@ -253,12 +347,22 @@ extension GameAnalysis {
             let name = file.lastPathComponent.lowercased()
             let installers = path.hasPrefix("_commonredist") || path.hasPrefix("__installer")
             if name.hasSuffix(".exe"), !installers, !helpers.contains(where: name.contains) { contents.programs.append(file) }
+            if path.contains("_data/"), name == "globalgamemanagers" || (name == "data.unity3d" && contents.unityData == nil) {
+                contents.unityData = file
+            }
         }
         return contents
     }
 
     private static func size(_ file: URL) -> Int {
         (try? file.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+    }
+
+    /// A file's first 4 KB.
+    private static func head(_ file: URL) -> Data? {
+        guard let handle = try? FileHandle(forReadingFrom: file) else { return nil }
+        defer { try? handle.close() }
+        return try? handle.read(upToCount: 4096)
     }
 
     /// Windows file names ignore case; the Mac's disk usually does too, but not always.
@@ -269,6 +373,66 @@ extension GameAnalysis {
         let name = url.lastPathComponent.lowercased()
         return (try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil))?
             .first { $0.lastPathComponent.lowercased() == name }
+    }
+}
+
+/// What a Windows program's own text names, for one whose import table says nothing. Read in pieces,
+/// so a drive pulled out only ends the look.
+enum ProgramText {
+    private static let names: [(text: String, api: GameAnalysis.API)] = [
+        ("d3d12.dll", .d3d12), ("D3D12CreateDevice", .d3d12),
+        ("d3d11.dll", .d3d11), ("D3D11CreateDevice", .d3d11),
+        ("d3d10.dll", .d3d10),
+        ("d3d9.dll", .d3d9), ("Direct3DCreate9", .d3d9),
+        ("vulkan-1.dll", .vulkan),
+        ("opengl32.dll", .openGL),
+    ]
+
+    /// A program that names DirectX 11 or 12 draws with those: the other interfaces it names are for
+    /// overlays and tools.
+    static func apis(in file: URL) -> Set<GameAnalysis.API> {
+        let seen = find(names.map(\.text), in: file)
+        let found = Set(names.filter { seen.contains($0.text) }.map(\.api))
+        let direct = found.intersection([.d3d11, .d3d12])
+        return direct.isEmpty ? found : direct
+    }
+
+    /// The switches past a game's own launcher window that programs are known to take, as they
+    /// spell them (Guardians of the Galaxy: "-nolauncher" and "-NoLauncher" in gotg.exe).
+    static let launcherSwitches = ["-nolauncher", "-NoLauncher"]
+
+    /// The switch, in the first spelling the program holds; nil when it holds none. Not in programs over
+    /// 2 GB: read in full once per game and app run, a bigger one costs more than a launcher window.
+    static func launcherSwitch(in file: URL) -> String? {
+        guard let size = (try? file.resourceValues(forKeys: [.fileSizeKey]))?.fileSize, size <= 2 << 30 else { return nil }
+        let seen = find(launcherSwitches, in: file)
+        return launcherSwitches.first(where: seen.contains)
+    }
+
+    /// Which of `texts` the file holds, read in 16 MB pieces.
+    static func find(_ texts: [String], in file: URL) -> Set<String> {
+        guard let handle = try? FileHandle(forReadingFrom: file) else { return [] }
+        defer { try? handle.close() }
+        var found = Set<String>()
+        var tail = Data()  // a name across two pieces
+        var reading = true
+        while reading, found.count < texts.count {
+            autoreleasepool {
+                guard let piece = try? handle.read(upToCount: 16 << 20), !piece.isEmpty else {
+                    reading = false
+                    return
+                }
+                let window = tail + piece
+                window.withUnsafeBytes { bytes in
+                    guard let base = bytes.baseAddress else { return }
+                    for text in texts where !found.contains(text) {
+                        if text.withCString({ memmem(base, bytes.count, $0, strlen($0)) }) != nil { found.insert(text) }
+                    }
+                }
+                tail = Data(window.suffix(32))
+            }
+        }
+        return found
     }
 }
 
@@ -334,6 +498,44 @@ enum PEImports {
             }
         }
         return names
+    }
+
+    /// Whether a program is a 64-bit one, and the version in its version resource (VS_FIXEDFILEINFO's
+    /// file version, four numbers) – found by its signature in the resource section, which is read up
+    /// to 32 MB: icons come before it.
+    static func facts(of file: URL) -> (is64Bit: Bool, fileVersion: [Int]?)? {
+        guard let handle = try? FileHandle(forReadingFrom: file) else { return nil }
+        defer { try? handle.close() }
+        func read(_ offset: UInt64, _ count: Int) -> Data? {
+            guard (try? handle.seek(toOffset: offset)) != nil else { return nil }
+            return try? handle.read(upToCount: count)
+        }
+        guard let dos = read(0, 64), dos.count == 64, dos.u16(0) == 0x5A4D else { return nil }
+        let pe = UInt64(dos.u32(0x3C))
+        guard let coff = read(pe, 24), coff.count == 24, coff.u32(0) == 0x4550 else { return nil }
+        let sectionCount = Int(coff.u16(6))
+        let optionalSize = Int(coff.u16(20))
+        guard let optional = read(pe + 24, optionalSize), optional.count == optionalSize, optionalSize >= 96 else { return nil }
+        let is64 = optional.u16(0) == 0x20B
+        let resources = (is64 ? 112 : 96) + 2 * 8
+        guard resources + 8 <= optional.count, optional.u32(resources) != 0, sectionCount <= 96,
+              let table = read(pe + 24 + UInt64(optionalSize), sectionCount * 40), table.count == sectionCount * 40
+        else { return (is64, nil) }
+        let rva = optional.u32(resources), size = Int(optional.u32(resources + 4))
+        var offset: UInt64?
+        for index in 0..<sectionCount {
+            let at = index * 40
+            let virtualSize = table.u32(at + 8), address = table.u32(at + 12)
+            let rawSize = table.u32(at + 16), rawPointer = table.u32(at + 20)
+            if rva >= address, rva < address &+ max(virtualSize, rawSize) { offset = UInt64(rawPointer) + UInt64(rva - address) }
+        }
+        guard let offset, let block = read(offset, min(size, 32 << 20)),
+              let found = block.range(of: Data([0xBD, 0x04, 0xEF, 0xFE]))
+        else { return (is64, nil) }
+        let at = found.lowerBound - block.startIndex
+        guard at + 16 <= block.count else { return (is64, nil) }
+        let high = block.u32(at + 8), low = block.u32(at + 12)
+        return (is64, [Int(high >> 16), Int(high & 0xFFFF), Int(low >> 16), Int(low & 0xFFFF)])
     }
 }
 

@@ -9,6 +9,11 @@ enum MacGameHUD {
     /// The games' defaults domains Nightforge turned the HUD on in.
     static let setKey = "hud.macDomains"
 
+    /// The Mac versions Nightforge starts itself, and so sets the HUD for (`prepare`): Battle.net's start in its client.
+    static func reaches(_ game: Game) -> Bool {
+        game.platform == .mac && (game.provider == .steam || game.provider == .gog)
+    }
+
     /// The bundle IDs of the apps in a game's folder: the folder itself when it is an app, else the
     /// apps in it and one folder down (Valheim.app, or Game/Game.app).
     static func bundleIDs(in folder: URL) -> [String] {

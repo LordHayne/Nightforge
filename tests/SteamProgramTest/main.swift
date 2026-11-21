@@ -36,9 +36,64 @@ struct SteamProgramTest {
         editing()
         accounts()
         steamCommands()
+        licences()
         try? fm.removeItem(at: temp)
         print(failures == 0 ? "✓ SteamProgram" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
+    }
+
+    /// Steam's licences from its real files, read only: appinfo's list, the signed-in account's answers.
+    static func licences() {
+        let root = temp.appendingPathComponent("SteamLicences", isDirectory: true)
+        func file(_ path: String, _ text: String) {
+            let url = root.appendingPathComponent(path)
+            try? fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? Data(text.utf8).write(to: url)
+        }
+        func eulas(_ entries: [(String, KV)]) -> [(String, KV)] { [("common", .object([("eulas", .object(entries))]))] }
+        func eula(_ id: String, version: Int? = nil, countries: String? = nil) -> KV {
+            var pairs: [(String, KV)] = [("id", .string(id)), ("name", .string("EULA")), ("url", .string("https://example.com/\(id)"))]
+            if let version { pairs.append(("version", .int(Int32(version)))) }
+            if let countries { pairs.append(("countries", .string(countries))) }
+            return .object(pairs)
+        }
+        try? fm.createDirectory(at: root.appendingPathComponent("appcache"), withIntermediateDirectories: true)
+        try? appinfo([
+            (1_426_210, eulas([("0", eula("1426210_eula_1"))])),
+            (108_600, eulas([("0", eula("108600_eula_1", version: 11))])),
+            (480, eulas([("0", eula("480_eula_0")), ("1", eula("480_eula_1", countries: "US"))])),
+            (550, []),
+        ]).write(to: root.appendingPathComponent("appcache/appinfo.vdf"))
+        check(SteamCatalog.licences(appID: 1_426_210, steamRoot: root) == [SteamLicence.Entry(id: "1426210_eula_1", version: 0)],
+              "the id, not the entry's number, and no version is 0")
+        check(SteamCatalog.licences(appID: 108_600, steamRoot: root) == [SteamLicence.Entry(id: "108600_eula_1", version: 11)], "with its version")
+        check(SteamCatalog.licences(appID: 480, steamRoot: root).contains(SteamLicence.Entry(id: "480_eula_1", version: 0, countries: "US")), "with its countries")
+        check(SteamCatalog.licences(appID: 550, steamRoot: root).isEmpty && SteamCatalog.licences(appID: 7, steamRoot: root).isEmpty, "none, or a game Steam doesn't know")
+
+        func open(_ appID: Int) -> Bool {
+            SteamLicenceFiles.stillOpen(entries: SteamCatalog.licences(appID: appID, steamRoot: root), steamRoot: root)
+        }
+        check(!open(1_426_210), "no signed-in account to look at: nothing is said")
+        file("config/loginusers.vdf", "\"users\"\n{\n\t\"76561197972611406\"\n\t{\n\t\t\"AccountName\"\t\"test\"\n\t\t\"MostRecent\"\t\"1\"\n\t}\n}\n")
+        file("userdata/0/config/localconfig.vdf", "\t\"1426210_eula_1\"\t\t\"0\"\n")
+        file("userdata/12345678/config/localconfig.vdf", "\t\"108600_eula_1\"\t\t\"11\"\r\n\t\"480_eula_0\"\t\t\"0\"\r\n")
+        check(open(1_426_210), "another folder's answer isn't this account's")
+        check(!open(108_600), "answered")
+        check(!open(480), "answered, and the US-only one doesn't count")
+        check(!open(550), "a game without a licence")
+
+        func record(_ appID: Int, in folder: URL? = nil) -> Bool? {
+            SteamLicenceFiles.openInConfig(entries: SteamCatalog.licences(appID: appID, steamRoot: root), steamRoot: folder ?? root)
+        }
+        check(record(1_426_210) == true, "open in Steam's record")
+        check(record(108_600) == false, "answered there")
+        check(record(550) == nil, "a game without a licence: nothing to look for")
+        check(record(1_426_210, in: root.appendingPathComponent("nowhere")) == nil, "no account to look at: it can't be told")
+        let before = (try? Data(contentsOf: root.appendingPathComponent("userdata/12345678/config/localconfig.vdf")))
+        file("logs/webhelper_js.txt", "[2026] SteamUI: INFO: accepted eula 1426210_eula_1\r\n")
+        check(!open(1_426_210), "answered a moment ago: localconfig has it only later")
+        check(record(1_426_210) == true, "the log's word isn't the record's")
+        check((try? Data(contentsOf: root.appendingPathComponent("userdata/12345678/config/localconfig.vdf"))) == before, "Steam's file as it was")
     }
 
     // MARK: Binary KeyValues as Steam writes them (as in StoreFactsTest)
@@ -198,6 +253,14 @@ struct SteamProgramTest {
                        Entry(executable: "mpLauncher.sh", type: "option1", description: "in the Jackbox Games Megapicker"),
                        Entry(executable: "launch_megapicker", arguments: "product/drawful-2", type: "option1", betaKey: "latest")]
         check(SteamProgram.macLaunchType(drawful) == "Option2", "Drawful 2 on the Mac: its standalone option, by type")
+        let untyped = [Entry(executable: "Game.app", type: "none"), Entry(executable: "Editor.app", type: "none")]
+        check(SteamProgram.macNeedsApplaunch(untyped, hasArguments: false), "several options of type none: -applaunch, steam://launch has no name for them")
+        check(SteamProgram.macNeedsApplaunch([Entry(executable: "Game.app"), Entry(executable: "Server.app")], hasArguments: false), "no type at all: the same")
+        check(!SteamProgram.macNeedsApplaunch(drawful, hasArguments: false), "Drawful 2 has a name: steam://launch stays")
+        check(SteamProgram.macNeedsApplaunch(drawful, hasArguments: true), "with the player's arguments, which steam://launch doesn't carry: -applaunch")
+        check(!SteamProgram.macNeedsApplaunch(Array(untyped.prefix(1)), hasArguments: true), "one option: Steam doesn't ask")
+        check(!SteamProgram.macNeedsApplaunch([untyped[0], Entry(executable: "Beta.app", type: "none", betaKey: "beta")], hasArguments: false),
+              "an option only for a beta branch doesn't count")
         check(SteamProgram.macLaunchType(Array(drawful.prefix(1))) == nil, "one option: Steam doesn't ask, steam://run as before")
         check(SteamProgram.macLaunchType([drawful[0], drawful[2]]) == nil, "an option only for a beta branch doesn't count")
         check(SteamProgram.macLaunchType([Entry(executable: "Game.app", type: "default"), drawful[1]]) == nil,

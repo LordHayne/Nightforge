@@ -13,6 +13,13 @@ struct EngineLayoutTest {
         }
     }
 
+    /// The names Wine's install has on disk; this test's layouts below spell them out on their own.
+    static func folderNames() {
+        check(WineFolders.unix == "x86_64-unix", "Unix halves' folder")
+        check(WineFolders.windows == "x86_64-windows", "64-bit modules' folder")
+        check(WineFolders.windows32 == "i386-windows", "32-bit modules' folder")
+    }
+
     /// A DLL-sized file, builtin-marked like Wine's own when `builtin`.
     static func dll(_ tag: String, builtin: Bool = false) -> Data {
         var bytes = Data(count: 0x100)
@@ -39,6 +46,7 @@ struct EngineLayoutTest {
 
     static func main() {
         TestDefaults.useWorkFolder()
+        folderNames()
         let work = fm.temporaryDirectory.appendingPathComponent("elt-\(UUID().uuidString)", isDirectory: true)
         defer { try? fm.removeItem(at: work) }
 
@@ -53,6 +61,20 @@ struct EngineLayoutTest {
         let metal = Engine.layerOverrides(.d3dmetal, d3dMetalEngine: true)
         check(["dxgi", "d3d11", "d3d12", "d3d12core"].allSatisfy { metal[$0] == "builtin" }, "D3DMetal takes the builtins")
         check(Engine.layerOverrides(.wined3d, d3dMetalEngine: true) == ["d3d9": "builtin"], "WineD3D unchanged")
+        // It Takes Two, 10.11.2026: PhysX 3 → the PhysX System Software's update loader → nvapi64 → null.
+        for layer in [GraphicsLayer.d3dmetal, .dxmt, .dxvk, .wined3d] {
+            let plain = Engine.gameDllOverrides(layer, profile: nil, d3dMetalEngine: true)
+            check(plain["physxupdateloader64"] == "" && plain["physxupdateloader"] == "", "PhysX's update loader is off on \(layer)")
+        }
+        let profile = { (json: String) in try? JSONDecoder().decode(GameProfile.self, from: Data(json.utf8)) }
+        let recall = profile(#"{"graphics": "dxmt", "dllOverrides": {"nvapi64": "", "nvngx": ""}}"#)
+        let ow = Engine.gameDllOverrides(.dxmt, profile: recall, d3dMetalEngine: true)
+        check(ow["nvapi64"] == "" && ow["nvngx"] == "" && ow["d3d11"] == "native" && ow["physxupdateloader64"] == "",
+              "a profile's overrides stay, beside the layer's and the loader's")
+        let wants = profile(#"{"dllOverrides": {"physxupdateloader64": "native", "d3d11": "builtin"}}"#)
+        let w = Engine.gameDllOverrides(.dxvk, profile: wants, d3dMetalEngine: true)
+        check(w["physxupdateloader64"] == "native", "a profile that wants the loader gets it")
+        check(w["d3d11"] == "native", "the layer's Direct3D copies win over a profile's")
         check(Engine.defaultLoadOrder("dxgi", d3dMetalEngine: true) == "builtin"
               && Engine.defaultLoadOrder("d3d9", d3dMetalEngine: true) == "native,builtin",
               "winecx: programs without a choice (Steam's browser) don't get DXMT")
@@ -376,6 +398,12 @@ struct EngineLayoutTest {
                   "the start's analysis says no: no loader, though a second look at the files would say Direct3D 9")
             check(direct(work.appendingPathComponent("direct/not there"), usesD3D9: true)["CX_LIBVULKAN"] == loader.path,
                   "the start's analysis says yes: the loader, with no game folder there to read")
+            // A closer look (CloserLook): a store's game gets the channels with its own start.
+            check(direct(source, usesD3D9: false)["WINEDEBUG"] == CloserLook.usualWineDebug, "a direct start: Wine's usual channels")
+            Engine.setCloserLook(true)
+            check(direct(source, usesD3D9: false)["WINEDEBUG"] == CloserLook.wineDebug, "… and a closer look's on top when the start carries them")
+            Engine.setCloserLook(false)
+            check(direct(source, usesD3D9: false)["WINEDEBUG"] == CloserLook.usualWineDebug, "… gone again with the next start")
             UserDefaults.standard.removeObject(forKey: "vulkanLoader")
             switches.set("/nowhere/libvulkan.1.dylib", forKey: "vulkanLoader")
             check(Engine.vulkanLoader(for: wine, defaults: switches) == nil, "a path that isn't there: off")
@@ -445,6 +473,52 @@ struct EngineLayoutTest {
               && Engine.steamEnvironment["WINE_SIMULATE_WRITECOPY"] == nil, "the next game without it: Steam restarts without it")
         check(!Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false),
               "and one more game without it: no restart")
+        // A closer look's debug channels (CloserLook, step C): one place sets them for the start about to happen.
+        let quietSignature = Engine.steamConfigSignature
+        check(Engine.wineDebug == CloserLook.usualWineDebug && Engine.steamEnvironment["WINEDEBUG"] == CloserLook.usualWineDebug
+              && CloserLook.usualWineDebug == "-all,err+module,err+mscoree,+pid,+loaddll,+msgbox",
+              "without a closer look: Wine's usual channels, for Steam too")
+        check(!Engine.setCloserLook(false), "off while it's off: nothing changes")
+        check(Engine.setCloserLook(true), "a closer look: the channels change, Steam has to restart")
+        check(Engine.wineDebug == CloserLook.wineDebug && Engine.steamEnvironment["WINEDEBUG"] == CloserLook.wineDebug
+              && Engine.wineDebug == "-all,err+module,err+mscoree,+pid,+loaddll,warn+debugstr,+wintrust,+chain,+msgbox",
+              "… Steam and its games get them on top of the usual ones")
+        check(Engine.steamConfigSignature != quietSignature && Engine.steamConfigSignature.contains("WINEDEBUG=" + CloserLook.wineDebug),
+              "… and Steam's signature says so")
+        check(!Engine.setCloserLook(true), "the next start with them: no restart")
+        // The HUD's frame log for a game test's starts (GameTest.logsFrames): kept the same way.
+        do {
+            let before = Engine.steamConfigSignature, quiet = Engine.gameEnvironment
+            check(Engine.frameLogEnvironment(hudShown: false) == ["MTL_HUD_ENABLED": "1", "MTL_HUD_LOG_ENABLED": "1", "MTL_HUD_OPACITY": "0"],
+                  "the HUD off: it logs at opacity 0, drawing nothing")
+            check(Engine.frameLogEnvironment(hudShown: true) == ["MTL_HUD_ENABLED": "1", "MTL_HUD_LOG_ENABLED": "1"],
+                  "the HUD on: it logs and stays as the player has it")
+            check(!Engine.frameLog && quiet["MTL_HUD_LOG_ENABLED"] == nil && quiet["MTL_HUD_OPACITY"] == nil, "a start by Play: no frame log")
+            check(!Engine.setFrameLog(false), "off while it's off: nothing changes")
+            check(Engine.setFrameLog(true) && Engine.frameLog, "a game test's start: it changes, Steam has to restart")
+            check(Engine.gameEnvironment["MTL_HUD_LOG_ENABLED"] == "1" && Engine.gameEnvironment["MTL_HUD_ENABLED"] == "1"
+                  && Engine.steamEnvironment["MTL_HUD_LOG_ENABLED"] == "1"
+                  && Engine.directLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 0, upscaling: false)["MTL_HUD_LOG_ENABLED"] == "1",
+                  "… Steam's games and a game started straight both get it")
+            check(Engine.steamConfigSignature != before && Engine.steamConfigSignature.contains("-framelog"), "… and Steam's signature says so")
+            check(!Engine.setFrameLog(true), "the next start of the run: no restart")
+            check(!Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false)
+                  && Engine.steamEnvironment["MTL_HUD_LOG_ENABLED"] == "1" && Engine.wineDebug == CloserLook.wineDebug,
+                  "preparing a start leaves it on, beside a closer look's channels, and asks for no restart of its own")
+            check(Engine.setFrameLog(false) && Engine.gameEnvironment == quiet && Engine.steamConfigSignature == before,
+                  "the run's end, or the next start by Play: the environment and the signature are what they were")
+        }
+        check(!Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false)
+              && Engine.wineDebug == CloserLook.wineDebug, "preparing a start leaves them on, and asks for no restart of its own")
+        check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false,
+                                              environment: ["WINE_SIMULATE_WRITECOPY": "1"])
+              && Engine.wineDebug == CloserLook.wineDebug && Engine.steamEnvironment["WINE_SIMULATE_WRITECOPY"] == "1",
+              "… also beside a game's own switch")
+        check(Engine.setCloserLook(false) && Engine.wineDebug == CloserLook.usualWineDebug && Engine.steamEnvironment["WINEDEBUG"] == CloserLook.usualWineDebug,
+              "a start without them again: Steam restarts once more, quiet as before")
+        check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false)
+              && Engine.wineDebug == CloserLook.usualWineDebug && Engine.steamConfigSignature == quietSignature,
+              "preparing a start doesn't bring them back, and the signature is as before")
         Engine.launchEnvironment = launchBefore
 
         // MARK: CrossOver's user folder
@@ -561,10 +635,33 @@ struct EngineLayoutTest {
         // MARK: Layer configs
         let configs = work.appendingPathComponent("configs/Game", isDirectory: true)
         try? fm.createDirectory(at: configs, withIntermediateDirectories: true)
-        Engine.writeGameConfigs(installDir: configs, frameLimit: 60, upscaling: false)
+        Engine.writeGameConfigs(installDir: configs, frameLimit: 60, upscaling: false, antiCheat: false)
         let dxvkConf = (try? String(contentsOf: configs.appendingPathComponent("dxvk.conf"), encoding: .utf8)) ?? ""
         check(dxvkConf.contains("dxgi.maxFrameRate = 60") && dxvkConf.contains("d3d9.maxFrameRate = 60"),
               "the frame limit reaches DXVK's Direct3D 9 as well as its DirectX 10/11")
+        func dxmtConfig(_ folder: URL) -> String { (try? String(contentsOf: folder.appendingPathComponent("dxmt.conf"), encoding: .utf8)) ?? "" }
+        check(dxmtConfig(configs).contains("d3d11.prepareShaders = 1"), "a game gets early shader translation")
+
+        let earlyOff = TestDefaults.suite("early-translation-off")
+        earlyOff.set(false, forKey: ShaderCaches.earlyTranslationKey)
+        Engine.writeGameConfigs(installDir: configs, frameLimit: 60, upscaling: false, antiCheat: false, defaults: earlyOff)
+        check(!dxmtConfig(configs).contains("prepareShaders") && dxmtConfig(configs).contains("preferredMaxFrameRate = 60"),
+              "the hidden setting takes the line out again, the others stay")
+
+        let overwatch = work.appendingPathComponent("configs/Overwatch", isDirectory: true)
+        write(Data("exe".utf8), overwatch.appendingPathComponent("_retail_/Overwatch.exe"))
+        Engine.writeGameConfigs(installDir: overwatch, frameLimit: 60, upscaling: false, antiCheat: false)
+        check(!dxmtConfig(overwatch).contains("prepareShaders"), "Overwatch doesn't get early translation")
+        check(!dxmtConfig(overwatch.appendingPathComponent("_retail_")).contains("prepareShaders"), "nor next to its program")
+
+        Engine.writeGameConfigs(installDir: configs, frameLimit: 60, upscaling: false, antiCheat: true)
+        check(!dxmtConfig(configs).contains("prepareShaders") && dxmtConfig(configs).contains("preferredMaxFrameRate = 60"),
+              "a game with anti-cheat doesn't get early translation, its other settings stay")
+
+        let ownConfig = work.appendingPathComponent("configs/Own", isDirectory: true)
+        write(Data("d3d11.preferredMaxFrameRate = 30\n".utf8), ownConfig.appendingPathComponent("dxmt.conf"))
+        Engine.writeGameConfigs(installDir: ownConfig, frameLimit: 60, upscaling: false, antiCheat: false)
+        check(dxmtConfig(ownConfig) == "d3d11.preferredMaxFrameRate = 30\n", "a dxmt.conf the game ships itself stays as it is")
 
         // MARK: Settings files
         let settings = game.appendingPathComponent("b1/Saved/Config/Windows/GameUserSettings.ini")

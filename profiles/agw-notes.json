@@ -1,0 +1,100 @@
+{
+ "about": "The one graphics layer AppleGamingWiki's free-text notes name for a game the wiki's own fields don't say it for. Read from the notes once and checked against them; fetch-agw.py makes them hints. Only orders the ways a game is started.",
+ "license": "CC BY-NC-SA 3.0",
+ "licenseURL": "https://creativecommons.org/licenses/by-nc-sa/3.0/",
+ "attribution": "AppleGamingWiki contributors, https://www.applegamingwiki.com",
+ "games": {
+  "42910": {
+   "page": "Magicka",
+   "graphics": "d3dmetal"
+  },
+  "109600": {
+   "page": "Neverwinter",
+   "graphics": "d3dmetal"
+  },
+  "242050": {
+   "page": "Assassin's Creed IV: Black Flag",
+   "graphics": "d3dmetal"
+  },
+  "244850": {
+   "page": "Space Engineers",
+   "graphics": "d3dmetal"
+  },
+  "268500": {
+   "page": "XCOM 2",
+   "graphics": "dxvk"
+  },
+  "306130": {
+   "page": "The Elder Scrolls Online",
+   "graphics": "dxmt"
+  },
+  "359550": {
+   "page": "Tom Clancy's Rainbow Six Siege",
+   "graphics": "d3dmetal"
+  },
+  "361420": {
+   "page": "Astroneer",
+   "graphics": "d3dmetal"
+  },
+  "387990": {
+   "page": "Scrap Mechanic",
+   "graphics": "dxvk"
+  },
+  "485510": {
+   "page": "Nioh: Complete Edition",
+   "graphics": "d3dmetal"
+  },
+  "555950": {
+   "page": "Danganronpa Another Episode: Ultra Despair Girls",
+   "graphics": "d3dmetal"
+  },
+  "933110": {
+   "page": "Age of Empires III: Definitive Edition",
+   "graphics": "dxvk"
+  },
+  "1030840": {
+   "page": "Mafia: Definitive Edition",
+   "graphics": "d3dmetal"
+  },
+  "1172380": {
+   "page": "Star Wars Jedi: Fallen Order",
+   "graphics": "d3dmetal"
+  },
+  "1260320": {
+   "page": "Party animals",
+   "graphics": "d3dmetal"
+  },
+  "1262560": {
+   "page": "Need for Speed: Most Wanted (2012)",
+   "graphics": "d3dmetal"
+  },
+  "1282690": {
+   "page": "Crysis 3",
+   "graphics": "d3dmetal"
+  },
+  "1407200": {
+   "page": "World of Tanks",
+   "graphics": "dxvk"
+  },
+  "1449690": {
+   "page": "The Walking Dead The Telltale Definitive Series",
+   "graphics": "d3dmetal"
+  },
+  "1475810": {
+   "page": "Ghostwire tokyo",
+   "graphics": "d3dmetal"
+  },
+  "1557740": {
+   "page": "ROUNDS",
+   "graphics": "dxvk"
+  },
+  "1846380": {
+   "page": "Need for Speed Unbound",
+   "graphics": "d3dmetal"
+  },
+  "2161700": {
+   "page": "Persona 3 Reload",
+   "graphics": "d3dmetal"
+  }
+ }
+}

@@ -15,6 +15,20 @@ enum CloudSaves {
         case failed
     }
 
+    /// Whose word "Welcome back" waits for about a session's save: Steam's own record of it, the upload
+    /// Nightforge starts itself after an Epic or GOG game – or nobody's. Battle.net's games keep their
+    /// progress with Blizzard, Nightforge uploads nothing for them and reads no record: "Uploading your
+    /// save to Battle.net …" turned for a minute and a half and then said it carries on in the background.
+    enum Watch: Equatable { case steamRecord, storeUpload, none }
+
+    static func watch(for provider: Provider) -> Watch {
+        switch provider {
+        case .steam: return .steamRecord
+        case .epic, .gog: return .storeUpload
+        case .battlenet: return .none
+        }
+    }
+
     /// The game's cloud record, from the account folder that touched it last.
     static func record(appID: Int, steamRoot: URL) -> URL? {
         let userdata = steamRoot.appendingPathComponent("userdata", isDirectory: true)

@@ -10,6 +10,19 @@ struct SourceHint: Equatable {
     /// The DirectX version the reports ran it with ("12"), when they say one.
     var directX: String?
     var source = "agw"
+
+    /// A Mac database that says which game ran how goes before the engine's known DirectX 11 switch;
+    /// the wiki's reports, often years old, don't.
+    var outranksEngineSwitch: Bool { source != "agw" }
+
+    /// Where a hint comes from, for the log and problem reports.
+    static func name(of source: String?) -> String {
+        switch source {
+        case "highball": return "Highball"
+        case "pcgw": return "PCGamingWiki"
+        default: return "AppleGamingWiki"
+        }
+    }
 }
 
 /// What AppleGamingWiki says about one game on a Mac (profiles/agw.json, built nightly by
@@ -89,13 +102,71 @@ struct AGWEntry: Equatable {
     }
 }
 
+extension AGWEntry.Report {
+    /// From the time DXMT was there to choose: before it, a report naming DXVK says nothing against DXMT.
+    var fromDXMTEra: Bool {
+        let majors = versions.compactMap { version -> Int? in
+            guard version.hasPrefix("CrossOver ") else { return nil }
+            return Int(version.dropFirst("CrossOver ".count).prefix { $0.isNumber })
+        }
+        return majors.contains { $0 >= 24 } || (date ?? "") >= "2025"
+    }
+}
+
+extension AGWEntry {
+    /// The way the reports point to: the wiki's clear reading when there is one (`hint`), else the
+    /// newest report that ran well and names a layer, a perfect one before a playable one. A wrong
+    /// one costs a try, so reports needn't agree to count; a tie says nothing, and a layer a report as
+    /// new or newer found bad is out.
+    var weightedHint: SourceHint? {
+        if let hint { return hint }
+        let throughWine = reports.filter(\.key.throughWine).map(\.value)
+        var best: [GraphicsLayer: (rank: (String, Int), directX: [String])] = [:]
+        for report in throughWine where report.rating.good {
+            for layer in report.graphics where [.d3dmetal, .dxmt, .dxvk].contains(layer) && (layer != .dxvk || report.fromDXMTEra) {
+                let rank = (report.date ?? "", report.rating == .perfect ? 1 : 0)
+                if best[layer].map({ $0.rank < rank }) ?? true { best[layer] = (rank, report.directX) }
+            }
+        }
+        for report in throughWine where !report.rating.good {
+            for layer in report.graphics {
+                if let known = best[layer], (report.date ?? "") >= known.rank.0 { best[layer] = nil }
+            }
+        }
+        let ranked = best.sorted { $0.value.rank > $1.value.rank }
+        guard let top = ranked.first else { return nil }
+        if ranked.count > 1, ranked[1].value.rank == top.value.rank { return nil }
+        return SourceHint(graphics: top.key, directX: top.value.directX.count == 1 ? top.value.directX[0] : nil)
+    }
+}
+
 /// profiles/agw.json as read: entries by key ("870780", "gog.<id>") and the other IDs leading to them.
 struct AGWIndex: Equatable {
     var games: [String: AGWEntry] = [:]
     var steamAliases: [String: String] = [:]
     var gogAliases: [String: String] = [:]
+    /// The DirectX versions PCGamingWiki lists for games with DirectX 12, by Steam app ID (fetch-pcgw.py).
+    var directX: [String: [String]] = [:]
+    /// Runtimes (winetricks verbs) a game needs before its first start, by Steam app ID or "gog.<id>": PhysX for
+    /// an older 32-bit game (fetch-pcgw.py). Installed with the game, not after the error it would show.
+    var runtimes: [String: [String]] = [:]
+
+    func runtimes(steamAppID: Int?, gogID: String?) -> [String] {
+        let verbs = (steamAppID.flatMap { runtimes[String($0)] } ?? []) + (gogID.flatMap { runtimes["gog." + $0] } ?? [])
+        return verbs.reduce(into: []) { if !$0.contains($1) { $0.append($1) } }
+    }
+
+    func runtimes(for game: Game) -> [String] {
+        runtimes(steamAppID: game.steamAppID, gogID: game.provider == .gog ? game.gameID.id : nil)
+    }
 
     var isEmpty: Bool { games.isEmpty }
+
+    /// D3DMetal for a game PCGamingWiki knows nothing but DirectX 12 for: DXMT and DXVK have none.
+    func directXHint(steamAppID: Int?) -> SourceHint? {
+        guard let steamAppID, directX[String(steamAppID)] == ["12"] else { return nil }
+        return SourceHint(graphics: .d3dmetal, directX: "12", source: "pcgw")
+    }
 
     /// By the game's Steam app ID (its own, or that of the same game on Steam), else by its GOG product ID.
     func entry(steamAppID: Int?, gogID: String?) -> AGWEntry? {
@@ -118,7 +189,8 @@ struct AGWIndex: Equatable {
               document.formatVersion <= AGWStore.supportedFormat
         else { return nil }
         return AGWIndex(games: document.games.compactMapValues(\.entry),
-                        steamAliases: document.aliases?["steam"] ?? [:], gogAliases: document.aliases?["gog"] ?? [:])
+                        steamAliases: document.aliases?["steam"] ?? [:], gogAliases: document.aliases?["gog"] ?? [:],
+                        directX: document.directX ?? [:], runtimes: document.runtimes ?? [:])
     }
 }
 
@@ -128,6 +200,8 @@ private struct AGWDocument: Decodable {
     let formatVersion: Int
     let games: [String: Lenient]
     let aliases: [String: [String: String]]?
+    var directX: [String: [String]]?
+    var runtimes: [String: [String]]?
 
     struct Lenient: Decodable {
         let entry: AGWEntry?

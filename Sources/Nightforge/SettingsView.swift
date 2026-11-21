@@ -1,16 +1,18 @@
 import AppKit
 import GameController
+import ServiceManagement
 import SwiftUI
 
 /// Settings in tabs: where the games come from, how they run, the controller, and what
 /// Nightforge is built on. The tabs are a row of buttons, so the pad reaches them too.
 struct SettingsView: View {
     enum Tab: CaseIterable {
-        case stores, general, controller, storage, about
+        case stores, home, general, controller, storage, about
 
         var label: String {
             switch self {
             case .stores: return L10n.t("Stores")
+            case .home: return L10n.t("Home")
             case .general: return L10n.t("General")
             case .controller: return L10n.t("Controller")
             case .storage: return L10n.t("Storage")
@@ -42,6 +44,10 @@ struct SettingsView: View {
             Group {
                 switch tab {
                 case .stores: StoresSettings()
+                case .home:
+                    HomeSettingsForm(sources: model.homeSources, pinned: model.pinnedHomeGames, set: model.setHomeSource) {
+                        model.movePin($0, by: $1)
+                    }
                 case .general: GeneralSettings()
                 case .controller: ScrollView { ControllerSettings() }
                         .frame(idealHeight: 480)  // every button's row scrolls
@@ -80,6 +86,7 @@ struct SettingsView: View {
 
 private struct StoresSettings: View {
     @EnvironmentObject private var model: LibraryModel
+    @ObservedObject private var takeover = DriveTakeover.shared
     @AppStorage(Prefs.Keys.bottlesRoot) private var bottlesRoot = ""
     @AppStorage(Prefs.Keys.runnerPath) private var runnerPath = ""
     /// Folded away unless something is filled in: most players never need it.
@@ -99,6 +106,10 @@ private struct StoresSettings: View {
                             .font(size: 10)
                             .foregroundStyle(.secondary)
                     }
+                }
+                // Games on a drive that wait for this store's sign-in or for Steam for Mac.
+                ForEach(takeover.lines(onDrives: Set(ExternalDrive.connected().map(\.url.path)))) { line in
+                    DriveWaitRow(line: line, place: "stores")
                 }
             } footer: {
                 Text(L10n.t("Games from every connected store show up together. Nightforge downloads and starts Epic and GOG games itself – no Epic launcher, no GOG Galaxy. You sign in in the store's own window; Nightforge never sees your login."))
@@ -167,10 +178,27 @@ private struct GeneralSettings: View {
     @AppStorage(Prefs.Keys.gameMode) private var gameMode = true
     @AppStorage(Prefs.Keys.sharpAndSmooth) private var sharpAndSmooth = true
     @AppStorage(Prefs.Keys.notifyDownloads) private var notifyDownloads = true
+    @AppStorage(Prefs.Keys.keepAwakeMinutes) private var keepAwakeMinutes = 0
+    @State private var loginItem = LoginItem.state(of: SMAppService.mainApp.status)
     @AppStorage(Prefs.Keys.saveBattery) private var saveBattery = false
     @AppStorage(Prefs.Keys.reduceMotion) private var reduceMotionSetting = ""
     @AppStorage(Prefs.Keys.largerText) private var largerText = false
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+
+    private static func keepAwakeLabel(_ minutes: Int) -> String {
+        switch minutes {
+        case 0: return L10n.t("Let it sleep as usual")
+        case 60: return L10n.t("1 hour")
+        case let hours where hours % 60 == 0: return L10n.t("%ld hours", hours / 60)
+        default: return L10n.t("%ld minutes", minutes)
+        }
+    }
+
+    /// On while it's registered, also while macOS still waits for its OK.
+    private var startsAtLogin: Binding<Bool> {
+        Binding(get: { loginItem != .off },
+                set: { loginItem = LoginItem.set($0, service: SMAppService.mainApp, note: { GameLog.note($0) }) })
+    }
 
     var body: some View {
         Form {
@@ -228,6 +256,32 @@ private struct GeneralSettings: View {
                     }
                 }
                 .padFocus("settings.notify", toggle: $notifyDownloads)
+                Toggle(isOn: startsAtLogin) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(L10n.t("Open when you log in"))
+                        Text(L10n.t("Nightforge is there as soon as the Mac is. macOS tells you once that it's set."))
+                            .font(size: 10)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padFocus("settings.loginItem", toggle: startsAtLogin)
+                .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+                    loginItem = LoginItem.state(of: SMAppService.mainApp.status)
+                }
+                if loginItem == .needsApproval {
+                    Button(L10n.t("Confirm in System Settings …")) { SMAppService.openSystemSettingsLoginItems() }
+                        .padFocus("settings.loginItemApprove", cornerRadius: 15, activate: { SMAppService.openSystemSettingsLoginItems() })
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Picker(L10n.t("Keep the Mac awake"), selection: $keepAwakeMinutes) {
+                        ForEach(IdleAwake.choices, id: \.self) { Text(Self.keepAwakeLabel($0)).tag($0) }
+                    }
+                    .padFocus("settings.keepAwake", selection: $keepAwakeMinutes, values: IdleAwake.choices)
+                    Text(L10n.t("Plugged in, the Mac stays awake this long after the last input, so the controller finds it ready. The screen may still go dark. Never on battery."))
+                        .font(size: 10)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 Picker(L10n.t("After Launch"), selection: $afterLaunch) {
                     ForEach(AfterLaunch.allCases) { option in
                         Text(option.label).tag(option.rawValue)
@@ -333,9 +387,23 @@ private struct PadGuideGlyph: View {
 private struct ControllerSettings: View {
     @EnvironmentObject private var model: LibraryModel
     @AppStorage(Prefs.Keys.padGlyphs) private var padGlyphs = PadSymbols.Style.automatic.rawValue
+    @AppStorage(Prefs.Keys.padHaptics) private var padHaptics = true
+    @AppStorage(Prefs.Keys.padPointer) private var padPointer = true
+    /// Looked up again whenever Nightforge comes back, from System Settings for example.
+    @State private var pointerAccess = PadPointerAccess.state
     /// Bumped when a controller comes or goes, or its battery may have changed.
     @State private var refresh = 0
     @State private var pairing = false
+
+    private var pointerAccessText: String {
+        switch pointerAccess {
+        case .granted: return L10n.t("Allowed. The controller reaches Steam's windows and questions from macOS.")
+        case .afterRestart: return L10n.t("Allowed. It works once Nightforge has restarted.")
+        case .missing: return L10n.t("Steam's windows and questions from macOS need the Accessibility permission. Turn it on once with a mouse or trackpad; after that it works from the sofa.")
+        }
+    }
+    @State private var homeButton = HomeButtonSetup.State.unavailable
+    @State private var homeButtonIsOurs = false
 
     private static let bluetoothSettings = URL(string: "x-apple.systempreferences:com.apple.BluetoothSettings")!
 
@@ -368,11 +436,92 @@ private struct ControllerSettings: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            // macOS 27: the PS or Xbox button held opens Nightforge. Only the player can set that.
+            if HomeButtonSetup.exists, !pads.isEmpty {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(L10n.t("Open Nightforge with the controller's button"))
+                            .font(size: 12)
+                        Text(L10n.t("Hold the PS or Xbox button to open Nightforge. You choose that once in System Settings."))
+                            .font(size: 10)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
+                    if homeButton == .opensNightforge {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(Theme.sodium)
+                    } else {
+                        Button(L10n.t("Set Up …")) { HomeButtonSetup.openSettings() }
+                            .padFocus("settings.homeButton", cornerRadius: 15, activate: { HomeButtonSetup.openSettings() })
+                    }
+                }
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(L10n.t("A short press goes to Home"))
+                            .font(size: 12)
+                        Text(L10n.t("While Nightforge is in front. macOS asks once whether Nightforge may have the button: choose Allow. In a game it stays with macOS."))
+                            .font(size: 10)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
+                    if homeButtonIsOurs {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(Theme.sodium)
+                    } else {
+                        Button(L10n.t("Set Up …")) { model.askForHomeButton() }
+                            .padFocus("settings.homeButtonShort", cornerRadius: 15, activate: { model.askForHomeButton() })
+                    }
+                }
+                .onAppear { readHomeButton() }
+                .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in readHomeButton() }
+            }
+
             SectionTitle(L10n.t("Button labels"))
                 .padding(.top, 6)
             Segmented(options: PadSymbols.Style.allCases.map { ($0.rawValue, $0.label, nil) }, selection: padGlyphs,
                       id: "settings.padGlyphs") { padGlyphs = $0 }
                 .onChange(of: padGlyphs) { _, _ in model.refreshPadSymbols() }
+
+            // What a mouse is otherwise needed for: Steam's windows, a question from macOS.
+            SectionTitle(L10n.t("As a mouse"))
+                .padding(.top, 6)
+            Toggle(isOn: $padPointer) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(L10n.t("Controller as a mouse"))
+                    Text(L10n.t("Touchpad: one finger moves the pointer, press to click, two fingers scroll, press with two for a right click. Other controllers: right stick and R2 while another app is in front."))
+                        .font(size: 10)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padFocus("settings.padPointer", toggle: $padPointer)
+            if padPointer {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(L10n.t("Clicks in other windows"))
+                            .font(size: 12)
+                        Text(pointerAccessText)
+                            .font(size: 10)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
+                    switch pointerAccess {
+                    case .granted:
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(Theme.sodium)
+                    case .afterRestart:
+                        // The switch is on, and macOS lets it count from Nightforge's next start: the way there, in one press.
+                        Button(L10n.t("Restart")) { model.restartNightforge() }
+                            .padFocus("settings.padPointerRestart", cornerRadius: 15, activate: { model.restartNightforge() })
+                    case .missing:
+                        Button(L10n.t("Allow …"), action: PadPointerAccess.ask)
+                            .padFocus("settings.padPointerAllow", cornerRadius: 15, activate: PadPointerAccess.ask)
+                    }
+                }
+            }
 
             // The overlay's buttons (GameOverlay), so they can be found before they're needed.
             SectionTitle(L10n.t("In a game"))
@@ -386,6 +535,17 @@ private struct ControllerSettings: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+
+            Toggle(isOn: $padHaptics) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(L10n.t("Vibration"))
+                    Text(L10n.t("A short tap when you confirm or start a game, and while the overlay's buttons are held."))
+                        .font(size: 10)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padFocus("settings.padHaptics", toggle: $padHaptics)
 
             // Every button, to look up any time. Each row takes the pad's highlight, so ↓ walks the
             // list and it scrolls along.
@@ -414,7 +574,15 @@ private struct ControllerSettings: View {
         .padding(.bottom, 12)
         .onReceive(NotificationCenter.default.publisher(for: .GCControllerDidConnect)) { _ in refresh += 1; pairing = false }
         .onReceive(NotificationCenter.default.publisher(for: .GCControllerDidDisconnect)) { _ in refresh += 1 }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            pointerAccess = PadPointerAccess.state
+        }
         .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { _ in refresh += 1 }
+    }
+
+    private func readHomeButton() {
+        homeButton = HomeButtonSetup.current()
+        homeButtonIsOurs = HomeButtonSetup.appMayHaveButton()
     }
 
     /// One controller: its name, that it works everywhere, and its battery.
@@ -463,6 +631,7 @@ private struct ControllerSettings: View {
 
 private struct StorageSettings: View {
     @EnvironmentObject private var model: LibraryModel
+    @ObservedObject private var takeover = DriveTakeover.shared
     /// Nightforge's own folder without the games in it (engine, Windows environment, Steam, caches);
     /// nil while it's being measured.
     @State private var ownSize: Int64?
@@ -570,7 +739,9 @@ private struct StorageSettings: View {
                     if let note = drive.check.note(drive.name) {
                         Text(note).font(size: 10).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     }
-                    if games.isEmpty {
+                    // Games there that wait for a sign-in or Steam for Mac: one line each, with its button.
+                    ForEach(takeover.lines(onDrives: [drive.url.path])) { line in DriveWaitRow(line: line, place: "storage") }
+                    if games.isEmpty && takeover.lines(onDrives: [drive.url.path]).isEmpty {
                         Text(L10n.t("No games on %@ yet.", drive.name)).foregroundStyle(.secondary)
                     }
                 } header: {
@@ -678,7 +849,7 @@ private struct StorageSettings: View {
             }
         }
         .sheet(item: DialogMessage.item($forgetting)) { drive in
-            GlassQuestion(L10n.t("Forget %@?", drive.text), message: L10n.t("Its games count as not installed afterwards and can be downloaded again, onto your Mac or another drive. They stay in your store libraries, nothing is deleted on your Mac, and saves in the Windows environment stay. Plugged in again later, %@ counts as a new drive.", drive.text), id: "forgetDrive") {
+            GlassQuestion(L10n.t("Forget %@?", drive.text), message: L10n.t("Its games count as not installed afterwards and can be downloaded again, onto your Mac or another drive. They stay in your store libraries, nothing is deleted on your Mac, and saves in the Windows environment stay. Plugged in again later, %@ brings its games back without a download.", drive.text), id: "forgetDrive") {
                 // Return keeps the drive in the list; forgetting takes a deliberate click or a pad move first.
                 Button(L10n.t("Cancel")) { forgetting = nil }
                     .buttonStyle(GlassTextButtonStyle())

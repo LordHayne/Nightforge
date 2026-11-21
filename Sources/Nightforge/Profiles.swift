@@ -13,6 +13,24 @@ struct GameProfile: Decodable, Equatable {
     var graphics: GraphicsLayer?
     /// Appended to the game's command line.
     var arguments: [String]?
+
+    /// The arguments for a start on `layer`. A profile that names a layer was tested with its arguments on that
+    /// layer: on another way – the ladder moving on, or the player's pick – they stay out. It Takes Two's -dx12
+    /// went along with DXMT's and DXVK's -dx11 ("-dx12 -dx11"), and the game took DirectX 12 there (10.11.2026).
+    func arguments(on layer: GraphicsLayer) -> [String] {
+        guard let arguments else { return [] }
+        guard let graphics, graphics != .automatic else { return arguments }
+        return graphics == layer ? arguments : []
+    }
+
+    /// Whether the profile changes how the game starts – its layer, arguments, DLLs, registry, runtimes, files.
+    /// A start it shaped proves the profile, not the way for other games of the sort (StartEvidence.speaksForItsWay).
+    var shapesStart: Bool {
+        graphics != nil || arguments != nil || !(dllOverrides ?? [:]).isEmpty || !(registry ?? []).isEmpty
+            || !(winetricks ?? []).isEmpty || windowsVersion != nil || avx == false || !(fileEdits ?? []).isEmpty
+            || !(iniSettings ?? []).isEmpty
+    }
+
     /// DLL → load order as Wine writes it ("native,builtin", "" = disabled), for the game's programs.
     var dllOverrides: [String: String]?
     var registry: [RegistryEntry]?
@@ -38,6 +56,10 @@ struct GameProfile: Decodable, Equatable {
     /// Anti-cheat that only stops online play on a Mac (Easy Anti-Cheat, BattlEye: Proton runs them
     /// through their Linux module): it blocks games that have nothing else.
     var antiCheatOnline: [String]?
+    /// true: the game runs on a Mac and brings a cheat protection of its own, so no tool attaches to its
+    /// process – the game test takes no `sample` of it (GameTest.handsOff). The player's account is at stake
+    /// (the user, 14.11.2026). Overwatch.
+    var ownAntiCheat: Bool?
     /// Its game id on GeForce Now, NVIDIA's cloud gaming, where such a game can be streamed instead.
     var geforceNow: String?
     /// Why the game doesn't start on a Mac yet, in plain English (the German is in Strings.swift);
@@ -72,6 +94,24 @@ struct GameProfile: Decodable, Equatable {
     /// false: Unity's configuration window before the game asks something that matters here, so
     /// Nightforge leaves "Play!" to the player (UnityDialog).
     var skipUnityDialog: Bool?
+    /// true: the game hangs at its start without CX_APPLEGPTK_LIBD3DSHARED_PATH (Engine.environment),
+    /// whatever it draws with. That names Apple's libd3dshared.dylib, which comes with D3DMetal, so
+    /// without D3DMetal set up its start asks first (D3DMetalSupply.needed). Overwatch, 7.11.
+    var needsRosettaLibrary: Bool?
+    /// Where in the game its full screen is set to a borderless window, by language ({"de": …, "en": …}): said on the
+    /// curtain when its own full screen hides its picture (LibraryModel.fullScreenWords). Overwatch, 15.11.2026 – about
+    /// every second start in exclusive full screen. It changes nothing about the game or its files.
+    var fullscreenHint: [String: String]?
+
+    /// The hint in the player's language, else the English one.
+    func fullscreenHint(german: Bool) -> String? {
+        guard let fullscreenHint else { return nil }
+        return (german ? fullscreenHint["de"] : nil) ?? fullscreenHint["en"]
+    }
+
+    /// false: the game runs without msync. Wine's whole session has it or doesn't, so Steam starts
+    /// afresh when it changes from one game to the next. Everything else keeps it (Engine.msyncWanted).
+    var msync: Bool?
 
     /// {"root": "WinAppDataLocal", "path": "2K Games/Mafia II/Saves/videoconfig.cfg",
     ///  "fields": {"width": 2, "height": 3, "fullscreen": 4}} – a line of values separated by spaces,
@@ -130,7 +170,8 @@ struct GameProfile: Decodable, Equatable {
         case source, note
         case name, graphics, arguments, dllOverrides, registry, windowsVersion, winetricks, metalFX, frameLimit
         case vulkanSamplers, preferWindows, saves, antiCheat, antiCheatOnline, geforceNow, notYet, avx, fileEdits
-        case iniSettings, retina, dlss, resolution, executable, environment, skipUnityDialog
+        case iniSettings, retina, dlss, resolution, executable, environment, skipUnityDialog, msync
+        case needsRosettaLibrary, ownAntiCheat, fullscreenHint
     }
 
     /// {"root": "WinAppDataRoaming", "path": "7DaysToDie/Saves", "pattern": "*", "recursive": true, "mac": "MacAppSupport"}
@@ -168,6 +209,8 @@ struct GameProfile: Decodable, Equatable {
         }
         antiCheat = try? container.decodeIfPresent([String].self, forKey: .antiCheat)
         antiCheatOnline = try? container.decodeIfPresent([String].self, forKey: .antiCheatOnline)
+        ownAntiCheat = try? container.decodeIfPresent(Bool.self, forKey: .ownAntiCheat)
+        fullscreenHint = try? container.decodeIfPresent([String: String].self, forKey: .fullscreenHint)
         geforceNow = try? container.decodeIfPresent(String.self, forKey: .geforceNow)
         // An empty reason is none.
         notYet = (try? container.decodeIfPresent(String.self, forKey: .notYet)).flatMap { $0.isEmpty ? nil : $0 }
@@ -181,6 +224,8 @@ struct GameProfile: Decodable, Equatable {
         environment = (try? container.decodeIfPresent([String: String].self, forKey: .environment))
             .map { GameEnvironment.sanitized($0) }.flatMap { $0.isEmpty ? nil : $0 }
         skipUnityDialog = try? container.decodeIfPresent(Bool.self, forKey: .skipUnityDialog)
+        needsRosettaLibrary = try? container.decodeIfPresent(Bool.self, forKey: .needsRosettaLibrary)
+        msync = try? container.decodeIfPresent(Bool.self, forKey: .msync)
     }
 
     // MARK: What a list may ask for at a start
@@ -264,6 +309,12 @@ struct AntiCheatBlock: Hashable {
 private struct ProfileDocument: Decodable {
     let formatVersion: Int
     let games: [String: Lenient]
+    /// What others ran games with on a Mac, by Steam app ID (Highball's database). A report, not a profile.
+    var reported: [String: ReportedWay]?
+
+    struct ReportedWay: Decodable {
+        let graphics: String
+    }
 
     /// One odd entry shouldn't cost every other game its profile.
     struct Lenient: Decodable {
@@ -290,6 +341,8 @@ actor ProfileStore {
     private var epicProfiles: [String: GameProfile] = [:]
     /// GOG games' entries ("gog.<product ID>" in the list), by product ID.
     private var gogProfiles: [String: GameProfile] = [:]
+    /// The layer others ran a game with on a Mac, by Steam app ID.
+    private var reported: [Int: SourceHint] = [:]
     private var refreshed = false
 
     /// `bundledURL`: the copy that comes with the app, `remoteURL` the online one, `keys` the public
@@ -320,6 +373,15 @@ actor ProfileStore {
         if !refreshed { await refresh() }
         loadLocalIfNeeded()
         return epicNamespace.map { epicProfiles[$0] } ?? gogProfiles[game.id]
+    }
+
+    /// The layer others ran the game with on a Mac (`reported` in the list), by its Steam app ID: an
+    /// Epic or GOG copy by the same game on Steam's.
+    func reportedWay(steamAppID: Int?) async -> SourceHint? {
+        guard let steamAppID else { return nil }
+        if !refreshed { await refresh() }
+        loadLocalIfNeeded()
+        return reported[steamAppID]
     }
 
     /// Every game's profile from the list at hand, without waiting for the online copy (like
@@ -378,6 +440,7 @@ actor ProfileStore {
         profiles = decoded
         epicProfiles = Self.decodeEpic(data)
         gogProfiles = Self.decodeGOG(data)
+        reported = Self.decodeReported(data)
         return true
     }
 
@@ -403,6 +466,18 @@ actor ProfileStore {
         case .unavailable:
             break
         }
+    }
+
+    static func decodeReported(_ data: Data) -> [Int: SourceHint] {
+        guard let document = try? JSONDecoder().decode(ProfileDocument.self, from: data),
+              document.formatVersion <= supportedFormat
+        else { return [:] }
+        var ways: [Int: SourceHint] = [:]
+        for (key, way) in document.reported ?? [:] {
+            guard let appID = Int(key), let layer = GraphicsLayer(rawValue: way.graphics) else { continue }
+            ways[appID] = SourceHint(graphics: layer, source: "highball")
+        }
+        return ways
     }
 
     /// The entries keyed "epic.<namespace>" (older Nightforge versions skip them: not a number).

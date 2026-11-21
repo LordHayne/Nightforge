@@ -99,7 +99,8 @@ jobs:
           test "$(git -C dxmt rev-parse HEAD)" = "$DXMT_COMMIT" \
             || { echo "::error::DXMT $DXMT_VERSION isn't commit $DXMT_COMMIT any more"; exit 1; }
           # DXMT v0.80 is MIT, with DXVK code (zlib) and NVIDIA's NVAPI headers (MIT) built in: their
-          # licences and the untouched source (submodules included) go into the release.
+          # licences and the untouched source (submodules included) go into the release. The patch
+          # dxmt-0.80-prepare-shaders.patch is LGPL-2.1-or-later, which makes this build LGPL as a whole.
           mkdir -p source
           git -C dxmt rev-parse HEAD > source/dxmt-commit.txt
           cp dxmt/LICENSE source/LICENSE-DXMT.txt
@@ -395,6 +396,9 @@ jobs:
           DXMT $DXMT_VERSION ($(cat artifacts/dxmt-source/dxmt-commit.txt)), https://github.com/3Shain/dxmt
             -> x86_64-windows/, i386-windows/, x86_64-unix/winemetal.so. MIT (LICENSE-DXMT.txt), with code
             from DXVK (zlib, LICENSE-DXVK.txt) and NVIDIA's NVAPI headers (MIT, LICENSE-NVAPI.txt).
+            Built with Nightforge's dxmt-0.80-prepare-shaders.patch, which carries parts of Recall's DXMT
+            patches (Joshua Asher Nelson, https://github.com/AsherJN/recall) under LGPL-2.1-or-later, so
+            this build of DXMT is under LGPL-2.1-or-later as a whole (COPYING-Wine.txt is that licence's text).
           Wine $WINE_VERSION ($(cat artifacts/wine-source/wine-commit.txt)), https://gitlab.winehq.org/wine/wine
             -> x86_64-unix/winemac.so, x86_64-unix/winebus.so, msync/. LGPL-2.1-or-later (COPYING-Wine.txt, LICENSE-Wine.txt).
 
@@ -420,4 +424,4 @@ jobs:
             "${{ steps.assemble.outputs.source }}" \
             --repo "$GITHUB_REPOSITORY" --latest=false \
             --title "Graphics ${{ steps.assemble.outputs.version }}" \
-            --notes "DXMT $DXMT_VERSION with Nightforge's Wine 11 patches, winemac.so from Wine $WINE_VERSION built with visible symbols, ntdll.so + wineserver from Wine $WINE_VERSION with msync (from CodeWeavers' CrossOver sources), and winebus.so from Wine $WINE_VERSION with the SDL bus, pads reporting as Xbox 360 controllers. Licences: DXMT MIT (with DXVK code, zlib, and NVAPI headers, MIT), Wine LGPL-2.1-or-later (texts in licenses/ inside the package). Corresponding source: ${{ steps.assemble.outputs.source }} (untouched DXMT and Wine sources, Nightforge's patches, the build workflow)."
+            --notes "DXMT $DXMT_VERSION with Nightforge's Wine 11 patches, winemac.so from Wine $WINE_VERSION built with visible symbols, ntdll.so + wineserver from Wine $WINE_VERSION with msync (from CodeWeavers' CrossOver sources), and winebus.so from Wine $WINE_VERSION with the SDL bus, pads reporting as Xbox 360 controllers. Licences: DXMT LGPL-2.1-or-later as built here (upstream v0.80 is MIT, with DXVK code, zlib, and NVAPI headers, MIT; Nightforge's shader patch is LGPL-2.1-or-later), Wine LGPL-2.1-or-later (texts in licenses/ inside the package). Corresponding source: ${{ steps.assemble.outputs.source }} (untouched DXMT and Wine sources, Nightforge's patches, the build workflow)."

@@ -135,6 +135,19 @@ struct VDFTest {
         check(VDF.nodes(#""a" { { } }"#) == nil, "a nested brace with no key")
         check(VDF.nodes(#""a" "1" // note"#) == [VDFNode(key: "a", value: .string("1"))], "comments aren't kept, but don't hurt")
 
+        // Objects in objects, deeper than any file of Steam's: no file at all, instead of a stack that runs out
+        // (a manifest of nothing but braces on a drive ended Nightforge at every start with it plugged in).
+        func nested(_ levels: Int) -> String {
+            String(repeating: "\"a\" { ", count: levels) + "\"b\" \"1\"" + String(repeating: " }", count: levels)
+        }
+        check(VDF.parse(nested(12))?["a"]?["a"] != nil && VDF.nodes(nested(12))?.count == 1, "a dozen levels, as localconfig.vdf has them")
+        check(VDF.parse(nested(64))?["a"] != nil && VDF.nodes(nested(64)) != nil, "64 levels are still read")
+        check(VDF.parse(nested(65)) == nil && VDF.nodes(nested(65)) == nil, "one more isn't")
+        check(VDF.parse(nested(200_000)) == nil && VDF.nodes(nested(200_000)) == nil, "200,000 levels end as no file, not as a crash")
+        check(VDF.parse(String(repeating: "a{", count: 200_000)) == nil, "nor braces that never close")
+        // The count starts over with each object that closes: many side by side are no depth.
+        check(VDF.parse(String(repeating: "\"a\" { \"b\" { } } ", count: 500))?["a"] != nil, "500 objects side by side are read")
+
         finish()
     }
 

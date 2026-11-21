@@ -24,8 +24,13 @@ jobs:
       - name: Build the app
         run: ./build.sh
 
+      # Stand-ins for the compiler: the shortcut below only takes what it prepared, and a failure stays one.
+      - name: Test build shortcut
+        run: python3 -m unittest tests/test_testbuild.py
+
       # Every tests/*Test at once, one per core, each with its own log and exit code: all logs land in
       # groups, a failed series' log once more at the end, and any failure fails the job.
+      # The app is compiled once for all of them; a series builds only its own files (scripts/testbuild/swiftc).
       - name: Swift tests
         run: scripts/run-tests.sh
 
@@ -51,6 +56,15 @@ jobs:
       - name: Code signing script
         run: python3 -m unittest tests/test_codesign_app.py
 
+      # What may stay x86_64 only, the arm64 build of Nightforge's helpers, and what the ARM64 preparation keeps.
+      - name: Processor rules
+        run: python3 -m unittest tests/test_component_arch.py tests/test_no_new_x86_only.py tests/test_helper_architectures.py tests/test_wine_folders.py tests/test_game_test_baseline.py tests/test_arm64_watchlist.py tests/test_macos28_probe.py tests/test_rosetta_notice.py
+
       # A shell script a workflow runs as a command has to be executable in git: enginefix.yml's never ran (2.11.).
       - name: Workflow scripts
         run: python3 -m unittest tests/test_workflow_scripts.py
+
+      # The switches for Nightforge's own tests stand in the #else of NIGHTFORGE_RELEASE, key and all, and
+      # release.yml looks for each of them in the build: the finished build tracks nothing.
+      - name: Test switches stay out of a release
+        run: python3 -m unittest tests/test_release_switches.py

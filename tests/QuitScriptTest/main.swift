@@ -62,6 +62,14 @@ struct QuitScriptTest {
             // FAKE_MAC_STEAM: Steam for Mac runs and doesn't go away.
             QuitScriptTest.write("#!/bin/sh\n[ -n \"$FAKE_MAC_STEAM\" ] && exit 0\nexit 1\n", to: bin.appendingPathComponent("pgrep"), executable: true)
             QuitScriptTest.write("#!/bin/sh\n\(record)\n", to: bin.appendingPathComponent("pkill"), executable: true)
+            // Stays until it's told to go, as the real one does, and says so.
+            QuitScriptTest.write("""
+                #!/bin/sh
+                echo "caffeinate $*" >> "$FAKE_AWAKELOG"
+                trap 'echo ended >> "$FAKE_AWAKELOG"; exit 0' TERM
+                /bin/sleep 4 &
+                wait
+                """, to: bin.appendingPathComponent("caffeinate"), executable: true)
             QuitScriptTest.write("#!/bin/sh\nexit 0\n", to: bin.appendingPathComponent("lsof"), executable: true)
             QuitScriptTest.write("#!/bin/sh\necho \"$*\" >> \"$FAKE_SLEEPLOG\"\n", to: bin.appendingPathComponent("sleep"), executable: true)
             QuitScriptTest.write("#!/bin/sh\n\(record)\n", to: bin.appendingPathComponent("open"), executable: true)
@@ -101,6 +109,8 @@ struct QuitScriptTest {
             if let limit { environment["NIGHTFORGE_QUIT_LIMIT"] = String(limit) }
             if let psLimit { environment["NIGHTFORGE_PS_LIMIT"] = String(psLimit) }
             environment["FAKE_SLEEPLOG"] = sleepLog.path
+            try? FileManager.default.removeItem(at: awakeLog)
+            environment["FAKE_AWAKELOG"] = awakeLog.path
             if hang {
                 environment["FAKE_HANG"] = "1"
                 environment["NIGHTFORGE_HANG_LIMIT"] = "1"
@@ -120,6 +130,18 @@ struct QuitScriptTest {
         }
 
         func cleanUp() { try? FileManager.default.removeItem(at: root) }
+
+        var awakeLog: URL { root.appendingPathComponent("awake.log") }
+
+        /// What the stand-in caffeinate wrote, once `wanted` is in it or a second has gone by: it runs beside the script.
+        func awakeCalls(until wanted: String) -> [String] {
+            for _ in 0..<40 {
+                let text = (try? String(contentsOf: awakeLog, encoding: .utf8)) ?? ""
+                if text.contains(wanted) { break }
+                Thread.sleep(forTimeInterval: 0.025)
+            }
+            return ((try? String(contentsOf: awakeLog, encoding: .utf8)) ?? "").split(separator: "\n").map(String.init)
+        }
     }
 
     static let steam = #"C:\Program Files (x86)\Steam\steam.exe -silent"#
@@ -153,9 +175,14 @@ struct QuitScriptTest {
             check(shutDown(result.calls), "restart: Steam and the wineserver were ended: \(result.calls)")
             check(result.calls.last == "open \(world.app)", "restart: Nightforge opens again, last: \(result.calls)")
             check(!sleeps(world).contains("10"), "restart: no waiting for the game or the download: \(sleeps(world))")
+            // Right after a game Nightforge has waited already, where it shows (audit A11).
             let recent = world.run(lastGame: now(), restart: true)
-            check(sleeps(world).contains("30") && recent.calls.last == "open \(world.app)",
-                  "restart right after a game: 30 s for the cloud saves first, then Nightforge: \(sleeps(world))")
+            check(!sleeps(world).contains("30") && recent.calls.last == "open \(world.app)",
+                  "restart right after a game: no silent half minute here: \(sleeps(world))")
+            check(Engine.cloudSaveWait(since: nil) == 0, "no game: no wait")
+            let moment = Date()
+            check(Engine.cloudSaveWait(since: moment, now: moment.addingTimeInterval(10)) == 20, "what's left of the 30 s")
+            check(Engine.cloudSaveWait(since: moment, now: moment.addingTimeInterval(45)) == 0, "half a minute on: none")
         }
 
         // A Steam that doesn't answer: the restart goes on all the same and Nightforge comes back (audit 8.11.).
@@ -246,6 +273,43 @@ struct QuitScriptTest {
             world.download(456, flags: flags)
             let result = world.run()
             check(shutDown(result.calls), "a \(name) download doesn't hold Steam: \(result.calls)")
+        }
+
+        // Nightforge's hold on sleep goes with it: while a download is what the script waits for, its own.
+        do {
+            let world = World()
+            defer { world.cleanUp() }
+            world.processes([(200, steam)])
+            world.download(123, flags: 1026)
+            let result = world.run(limit: -1)
+            let calls = world.awakeCalls(until: "caffeinate")
+            check(!result.timedOut && calls.first?.hasPrefix("caffeinate -i -w ") == true, "a download under way: the Mac stays awake, for as long as the script runs: \(calls)")
+        }
+        do {
+            let world = World()
+            defer { world.cleanUp() }
+            world.processes([(200, steam)])
+            world.download(123, flags: 1538)
+            _ = world.run()
+            check(world.awakeCalls(until: "never").isEmpty, "paused: the Mac may sleep")
+        }
+        do {
+            let world = World()
+            defer { world.cleanUp() }
+            world.processes([(400, #"C:\Games\steamapps\common\Hung\Hung.exe"#)])
+            _ = world.run(limit: -1, app: "")
+            check(world.awakeCalls(until: "never").isEmpty, "only a game: nothing of this script's, the game is played by someone")
+        }
+        do {
+            // The download is over (Steam gone from the list here): the hold goes before Steam is ended.
+            let world = World()
+            defer { world.cleanUp() }
+            world.processes([(200, steam)])
+            QuitScriptTest.write("300\tsomething else\n", to: world.later)
+            world.download(123, flags: 1026)
+            let result = world.run(app: "", switchAfter: 8)
+            let calls = world.awakeCalls(until: "ended")
+            check(!result.timedOut && calls.first?.hasPrefix("caffeinate") == true && calls.last == "ended", "the download done: the Mac may sleep again: \(calls)")
         }
 
         // One paused and one running: running counts.

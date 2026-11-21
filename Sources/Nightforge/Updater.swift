@@ -26,6 +26,12 @@ enum Updater {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
     }
 
+    /// When this Nightforge was built (its program's date): test builds between two versions share the
+    /// version, not this. What a game test's report and a start's evidence name beside the version.
+    static let currentBuilt: Date? = Bundle.main.executablePath.flatMap {
+        try? FileManager.default.attributesOfItem(atPath: $0)[.modificationDate] as? Date
+    }
+
     /// The newest release, or the test release this Mac is set to.
     static func releaseURL(testRelease: String? = UserDefaults.standard.string(forKey: testReleaseKey)) -> URL {
         if let tag = testRelease, !tag.isEmpty, tag.count <= 64,
@@ -134,8 +140,26 @@ enum Updater {
         return needed > (running.majorVersion, running.minorVersion, running.patchVersion)
     }
 
-    /// Downloads and installs `update` over the running app, then restarts it.
-    static func install(_ update: AppUpdate) async throws {
+    /// What an update waits for before it may go in: it quits Nightforge, and the one that opens in its
+    /// place didn't start the game that runs – no curtain at its end, no way back, no "Welcome back" – and
+    /// a game half moved to another drive would stay half moved. "Restart Nightforge" waits for the same.
+    enum Hold: Equatable {
+        case game, move
+
+        var message: String {
+            switch self {
+            case .game: return L10n.t("Quit the game first, then update Nightforge.")
+            case .move: return L10n.t("Wait until the game has moved, then update Nightforge.")
+            }
+        }
+    }
+
+    static func hold(gameUnderWay: Bool, moving: Bool) -> Hold? {
+        gameUnderWay ? .game : moving ? .move : nil
+    }
+
+    /// Downloads and installs `update` over the running app, then restarts it. `keys`: whose signature counts.
+    static func install(_ update: AppUpdate, keys: [String] = SigningKeys.trusted) async throws {
         let fm = FileManager.default
         let app = Bundle.main.bundleURL
         guard !runsFromProtectedPlace(app) else { throw Failure.protectedPlace }
@@ -153,7 +177,7 @@ enum Updater {
         let zip = work.appendingPathComponent("Nightforge.zip")
         try fm.moveItem(at: download, to: zip)
         // Nothing of the download is opened before the maintainer's signature holds for it.
-        guard isSigned(zip, signature: signature) else {
+        guard isSigned(zip, signature: signature, keys: keys) else {
             GameLog.note("The download of Nightforge \(update.version) doesn't match its signature: not installed")
             throw Failure.signature
         }
@@ -180,6 +204,8 @@ enum Updater {
         relaunch.arguments = ["-c", #"for i in $(seq 1 50); do kill -0 "$1" 2>/dev/null || break; sleep 0.2; done; /usr/bin/open "$0""#,
                               app.path, String(getpid())]
         try relaunch.run()
+        // Now, not by the `defer` above: quitting ends the process before it would run, and the zip stayed in the temp folder.
+        try? fm.removeItem(at: work)
         await MainActor.run { _ = Quit.now(by: "the update") }  // also from the Settings sheet
     }
 

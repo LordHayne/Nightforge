@@ -1,6 +1,18 @@
 // Checks what "Remove Nightforge completely" deletes, keeps and copies first – on fake folders:
 // tests/CompleteRemovalTest/run.sh
 import Foundation
+import ServiceManagement
+
+/// macOS's login items, as a stand-in: the real ones are never touched here.
+private final class LoginStandIn: LoginService {
+    var status: SMAppService.Status = .enabled
+    var unregistered = 0
+    func register() throws {}
+    func unregister() throws {
+        unregistered += 1
+        status = .notRegistered
+    }
+}
 
 @main
 struct CompleteRemovalTest {
@@ -220,6 +232,15 @@ struct CompleteRemovalTest {
             let phases = Phases()
             let saves = try? CompleteRemoval.remove(scenario.places, defaults: scenario.defaults, phase: { phases.add($0) })
             check(saves != nil && phases.list == [.copyingSaves, .deleting], "phases: copying saves, then deleting: \(phases.list)")
+
+            let gone = fixture(root.appendingPathComponent("login", isDirectory: true))
+            let login = LoginStandIn()
+            check(works { try CompleteRemoval.remove(gone.places, defaults: gone.defaults, login: login) } && login.unregistered == 1,
+                  "everything gone: Nightforge no longer opens at login")
+            let source = (try? String(contentsOfFile: "Sources/Nightforge/CompleteRemoval.swift", encoding: .utf8)) ?? ""
+            let run = source.components(separatedBy: "static func run(phase:").last ?? ""
+            check(run.contains("login: SMAppService.mainApp") && run.range(of: "login: SMAppService.mainApp")!.lowerBound < run.range(of: "trashItem")!.lowerBound,
+                  "the app's real entry goes, before the app itself is in the Bin")
         }
 
         // A folder without write permission (some installers leave one) doesn't stop the removal.
@@ -241,7 +262,9 @@ struct CompleteRemovalTest {
             try? FileManager.default.setAttributes([.immutable: true], ofItemAtPath: stuck.path)
             scenario.defaults.set(true, forKey: "library.hidden")
             var thrown: Error?
-            do { try CompleteRemoval.remove(scenario.places, defaults: scenario.defaults) } catch { thrown = error }
+            let login = LoginStandIn()
+            do { try CompleteRemoval.remove(scenario.places, defaults: scenario.defaults, login: login) } catch { thrown = error }
+            check(login.unregistered == 0, "one target stuck: it stays in the login items, like the settings, until the second try")
             check(!exists(scenario.places.support), "one target stuck: the others are deleted all the same")
             check(exists(scenario.places.caches), "… the stuck one is still there")
             check(scenario.defaults.object(forKey: "library.hidden") != nil, "… and the settings stay, for the second try")
@@ -488,6 +511,8 @@ struct CompleteRemovalTest {
     /// came back with the next redraw, and `NSApp.terminate` with a sheet attached does nothing. Now
     /// the sheets close through the model first, AppKit ends only what's left of its own, and the
     /// quit comes once they're gone – or says in wine.log why it didn't go through.
+    /// And it keeps at it (14.11.): a sheet that comes after the closing is closed too, and Nightforge goes
+    /// the moment none is left, instead of trying once under it after two seconds and staying.
     @MainActor
     static func quitOrder() async {
         @MainActor
@@ -496,6 +521,11 @@ struct CompleteRemovalTest {
             var notes: [String] = []
             var sheets: [String]
             let model: Bool, appKit: Bool
+            /// How often AppKit takes no quit although nothing is in the way (a sheet on its way out).
+            var refusals = 0
+            /// The first try neither quits nor comes back: AppKit waits inside it, its run loop going on.
+            var holds = false
+            var gone = false
             /// `model`: the sheets go when the model closes them (SwiftUI's, a moment later);
             /// `appKit`: when AppKit ends them (its own).
             init(_ sheets: [String], model: Bool = false, appKit: Bool = false) {
@@ -505,7 +535,9 @@ struct CompleteRemovalTest {
             }
             func closeSheets() {
                 events.append("model")
-                if model { Task { try? await Task.sleep(for: .milliseconds(150)); self.sheets = [] } }
+                // Only what's up at this closing: one that comes later needs another.
+                let up = sheets
+                if model { Task { try? await Task.sleep(for: .milliseconds(150)); self.sheets.removeAll(where: up.contains) } }
             }
             var sheetsLeft: [String] { sheets }
             func endSheets() {
@@ -515,16 +547,40 @@ struct CompleteRemovalTest {
             var panelWaiting: Bool { false }
             func stopPanel() { events.append("panel") }
             func terminate() -> Bool {
-                events.append(sheets.isEmpty ? "terminate" : "terminate under " + sheets.joined(separator: ", "))
-                return sheets.isEmpty  // as AppKit: nothing at all with a sheet attached
+                guard sheets.isEmpty else {
+                    events.append("terminate under " + sheets.joined(separator: ", "))
+                    return false  // as AppKit: nothing at all with a sheet attached
+                }
+                if refusals > 0 {
+                    refusals -= 1
+                    events.append("not taken")
+                    return false
+                }
+                if holds {
+                    holds = false
+                    events.append("held")
+                    let limit = Date().addingTimeInterval(4)
+                    while !gone, Date() < limit { RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.02)) }
+                    return gone
+                }
+                events.append("terminate")
+                gone = true
+                return true
             }
             func note(_ line: String) { notes.append(line) }
+            /// A sheet that comes by itself after `milliseconds`, or goes (the player answers it).
+            func change(after milliseconds: Int, _ change: @escaping (inout [String]) -> Void) {
+                Task { try? await Task.sleep(for: .milliseconds(milliseconds)); change(&self.sheets) }
+            }
+            /// The closings by the model count once: how often it closes again is the clock's.
+            var order: [String] { events.reduce(into: []) { if !($1 == "model" && $0.last == "model") { $0.append($1) } } }
         }
-        func quit(_ stage: Stage) async -> TimeInterval {
+        /// Asks for the quit and waits until Nightforge is gone or the quit has given up; the seconds it took.
+        func quit(_ stage: Stage, patience: TimeInterval = Quit.giveUpAfter) async -> TimeInterval {
             let start = Date()
-            check(Quit.now(by: "⌘Q", beforeQuitting: { stage.events.append("answer") }, on: stage), "⌘Q quits")
-            for _ in 0..<80 where !(stage.events.last ?? "").hasPrefix("terminate") {
-                try? await Task.sleep(for: .milliseconds(50))
+            check(Quit.now(by: "⌘Q", beforeQuitting: { stage.events.append("answer") }, on: stage, patience: patience), "⌘Q quits")
+            while !stage.gone, !(stage.notes.last ?? "").contains("didn't go through: a sheet"), Date().timeIntervalSince(start) < patience + 2 {
+                try? await Task.sleep(for: .milliseconds(25))
             }
             return Date().timeIntervalSince(start)
         }
@@ -537,18 +593,61 @@ struct CompleteRemovalTest {
 
         let alert = Stage(["NSAlert"], appKit: true)
         let alertTook = await quit(alert)
-        check(alert.events == ["model", "AppKit", "answer", "terminate"] && alert.notes == ["Quit by ⌘Q"],
+        check(alert.order == ["model", "AppKit", "answer", "terminate"] && alert.notes == ["Quit by ⌘Q"],
               "a sheet of AppKit's own: ended through AppKit after the model's turn: \(alert.events)")
-        check(alertTook >= 0.9, "AppKit's turn comes after a second: \(alertTook) s")
+        check(alertTook >= 0.9 && alertTook < 1.6, "AppKit's turn comes after a second: \(alertTook) s")
+
+        // A sheet that comes after the closing: "Welcome back" once the game's curtain has gone, the full-screen
+        // offer the moment nothing else is open. One closing never reached it, and Nightforge stayed.
+        let late = Stage(["Didn't start"], model: true)
+        late.change(after: 100) { $0.append("Welcome back") }
+        let lateTook = await quit(late)
+        check(late.gone && late.order == ["model", "answer", "terminate"], "a sheet that came after the closing is closed too: \(late.events)")
+        check(late.notes == ["Quit by ⌘Q"] && lateTook < 1.5, "within the next closing, with nothing to explain: \(lateTook) s, \(late.notes)")
+
+        // One the quit can't close (a sheet of a sheet), which the player answers after three seconds.
+        let answered = Stage(["Question"])
+        answered.change(after: 3000) { $0.removeAll() }
+        let answeredTook = await quit(answered)
+        check(answered.gone && answeredTook >= 2.9 && answeredTook < 4, "Nightforge goes the moment the sheet is gone: \(answeredTook) s")
+        check(answered.notes == ["Quit by ⌘Q waits: a sheet is still open (Question). It goes the moment that's gone", "Quit by ⌘Q"],
+              "wine.log says what it waited for: \(answered.notes)")
+        check(answered.events.filter { $0 == "answer" }.count == 1 && answered.events.suffix(2) == ["answer", "terminate"]
+              && !answered.events.contains { $0.hasPrefix("terminate under") },
+              "the sender hears yes once, as Nightforge goes, and nothing is tried under the sheet meanwhile: \(answered.order)")
 
         let stuck = Stage(["Settings"])
-        _ = await quit(stuck)
-        check(stuck.events == ["model", "AppKit", "answer", "terminate under Settings"], "a sheet that won't go: tried all the same: \(stuck.events)")
-        check(stuck.notes == ["Quit by ⌘Q", "Quit by ⌘Q didn't go through: a sheet is still open (Settings)"], "and wine.log says why: \(stuck.notes)")
+        let stuckTook = await quit(stuck, patience: 3)
+        check(!stuck.gone && stuck.order == ["model", "AppKit", "model", "answer", "terminate under Settings"],
+              "a sheet that won't go: tried all the same, once, at the end: \(stuck.order)")
+        check(stuck.notes == ["Quit by ⌘Q waits: a sheet is still open (Settings). It goes the moment that's gone", "Quit by ⌘Q",
+                              "Quit by ⌘Q didn't go through: a sheet is still open (Settings)"], "and wine.log says why: \(stuck.notes)")
+        check(stuckTook >= 2.9 && stuckTook < 4, "it gives up when its patience is over: \(stuckTook) s")
 
         let none = Stage([])
         check(Quit.now(by: "the menu", on: none) && none.events == ["model", "terminate"], "no sheet: at once: \(none.events)")
         check(none.notes == ["Quit by the menu"], "every quit says in wine.log what asked for it: \(none.notes)")
+
+        // Nothing in the way that Nightforge can see, and AppKit takes no quit (a sheet on its way out): tried again.
+        let slow = Stage([])
+        slow.refusals = 2
+        check(Quit.now(by: "the Dock", on: slow), "the Dock quits")
+        for _ in 0..<80 where !slow.gone { try? await Task.sleep(for: .milliseconds(25)) }
+        check(slow.gone && slow.events == ["model", "not taken", "not taken", "terminate"], "a quit AppKit doesn't take is tried again: \(slow.events)")
+        check(slow.notes == ["Quit by the Dock", "Quit by the Dock didn't go through: AppKit didn't take it"], "said once: \(slow.notes)")
+
+        // AppKit neither quits nor comes back from the first try (14.11.: "Quit by", then nothing for 24 s, until
+        // another quit came and went through at once). The next try comes by itself, from inside that wait.
+        // Asked from the run loop itself, as a key or an Apple Event is: a job of the main queue (this test) would
+        // hold the queue for as long as its try hangs, and nothing else on it would run.
+        let held = Stage([])
+        held.holds = true
+        let heldStart = Date()
+        RunLoop.main.perform { MainActor.assumeIsolated { _ = Quit.now(by: "osascript", on: held) } }
+        while !held.gone, Date().timeIntervalSince(heldStart) < 6 { try? await Task.sleep(for: .milliseconds(25)) }
+        let heldTook = Date().timeIntervalSince(heldStart)
+        check(held.gone && held.events == ["model", "held", "terminate"], "a first try that hangs is followed by another: \(held.events)")
+        check(heldTook < 2, "within the next half second, not when someone asks again: \(heldTook) s")
 
         check(Quit.reason(sheetsLeft: [], panelWaiting: true) == "a panel still waits for a file", "a panel's wait named")
         check(Quit.reason(sheetsLeft: [], panelWaiting: false) == "AppKit didn't take it", "else AppKit's silence")

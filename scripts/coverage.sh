@@ -2,12 +2,14 @@
 # Measures how much of Sources/Nightforge the tests run, per file:
 #   scripts/coverage.sh                    every tests/*Test, four at a time
 #   scripts/coverage.sh VDFTest EpicTest   only these
+#   scripts/coverage.sh -P 2               two at a time
 #   scripts/coverage.sh --html             also an annotated copy of every file in build/coverage/html
 #   scripts/coverage.sh --files            … as text in build/coverage/files, where `grep -n '^ *[0-9]*| *0|'`
 #                                          finds the lines no test ran, and `^0` marks parts of a line
 #
 # The tests' own run.sh files stay as they are: a swiftc in front of the real one on PATH adds the
 # coverage flags and keeps a copy of each test binary (some run.sh files delete theirs at the end).
+# The app is compiled once with those flags (scripts/testbuild/swiftc), as in scripts/run-tests.sh.
 # The table lands in build/coverage/report.txt, with what failed in build/coverage/logs.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -20,13 +22,16 @@ fi
 
 HTML=0
 FILES=0
+JOBS=4
 TESTS=()
-for arg in "$@"; do
-  case "$arg" in
+while [ $# -gt 0 ]; do
+  case "$1" in
     --html) HTML=1 ;;
     --files) FILES=1 ;;
-    *) TESTS+=("tests/${arg#tests/}") ;;
+    -P) JOBS="$2"; shift ;;
+    *) TESTS+=("tests/${1#tests/}") ;;
   esac
+  shift
 done
 if [ ${#TESTS[@]} -eq 0 ]; then
   for dir in tests/*Test; do TESTS+=("$dir"); done
@@ -38,6 +43,10 @@ trap 'rm -rf "$WORK"' EXIT
 rm -rf "$OUT" && mkdir -p "$OUT/logs" "$WORK/bin" "$WORK/objects" "$WORK/profiles"
 
 REAL_SWIFTC="$(xcrun -f swiftc)"
+# shellcheck source=testbuild/compile-once.sh
+. scripts/testbuild/compile-once.sh
+compile_app_once "$JOBS" -profile-generate -profile-coverage-mapping
+if [ -n "${NIGHTFORGE_TEST_OBJECTS:-}" ]; then REAL_SWIFTC="$ROOT/scripts/testbuild/swiftc"; fi
 cat > "$WORK/bin/swiftc" <<EOF
 #!/bin/bash
 # Compiles with coverage and keeps the binary for llvm-cov.
@@ -72,7 +81,7 @@ EOF
 chmod +x "$WORK/run-one.sh"
 
 echo "▸ Running ${#TESTS[@]} test series with coverage …"
-printf '%s\n' "${TESTS[@]}" | xargs -P 4 -n 1 "$WORK/run-one.sh"
+printf '%s\n' "${TESTS[@]}" | xargs -P "$JOBS" -n 1 "$WORK/run-one.sh"
 
 shopt -s nullglob
 profiles=("$WORK"/profiles/*.profraw)

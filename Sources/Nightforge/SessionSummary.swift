@@ -214,9 +214,12 @@ struct SessionSummarySheet: View {
     }
 
     /// Asks Steam's cloud record every two seconds for a minute, until it confirms. Epic and GOG
-    /// games: how the upload Nightforge started after the session is going.
+    /// games: how the upload Nightforge started after the session is going. A store whose saves
+    /// Nightforge neither moves nor sees (Battle.net) gets no line.
     private func followCloud() async {
-        if summary.game.provider != .steam {
+        let watch = CloudSaves.watch(for: summary.game.provider)
+        guard watch != .none else { return }
+        if watch == .storeUpload {
             for _ in 0..<90 {
                 cloud = model.storeSaves[summary.game.gameID] ?? .syncing
                 if cloud != .syncing { return }

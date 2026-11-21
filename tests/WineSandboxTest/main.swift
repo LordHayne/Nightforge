@@ -346,6 +346,9 @@ struct WineSandboxTest {
             ("WineSandbox.swift", "program"),                   // the start it built, wrapped
             ("Engine.swift", "lsregister"), ("Legendary.swift", "binary"), ("GOGStore.swift", "program"),  // Mac programs
             ("MacSteamTestHome.swift", "executable"),
+            ("MacSteam.swift", "program"),                      // steam_osx -applaunch, a Mac program
+            ("PowerMenu.swift", "sleepCommand"),                // /usr/bin/pmset sleepnow
+            ("BattleNetStart.swift", "program"),                // the Battle.net client's Mac app
             // h1-h3's runner with a time limit: system tools (ProcessList's ps) and wineserver -k, no Wine start.
             ("Subprocess.swift", "URL(fileURLWithPath: executable)"),
         ]

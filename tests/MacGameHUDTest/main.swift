@@ -12,6 +12,19 @@ struct MacGameHUDTest {
         }
     }
 
+    /// Which Mac versions the card "This Game" may say the HUD of (audit A10).
+    static func reaches() {
+        func game(_ id: GameID, _ platform: Platform) -> Game {
+            var game = Game(gameID: id, name: "x", bottle: Bottle(name: "x", url: URL(fileURLWithPath: "/tmp")), steamRoot: URL(fileURLWithPath: "/tmp"),
+                            steamExeWindowsPath: "", installDir: URL(fileURLWithPath: "/tmp"), sizeOnDisk: 0)
+            game.platform = platform
+            return game
+        }
+        check(MacGameHUD.reaches(game(.steam(1), .mac)) && MacGameHUD.reaches(game(.gog("1"), .mac)), "Steam's and GOG's Mac versions")
+        check(!MacGameHUD.reaches(game(.battlenet("hsb"), .mac)), "not Battle.net's: its client starts them")
+        check(!MacGameHUD.reaches(game(.steam(1), .windows)), "not a Windows version")
+    }
+
     /// A minimal app bundle with an Info.plist naming its bundle ID.
     static func app(_ url: URL, id: String) {
         let contents = url.appendingPathComponent("Contents", isDirectory: true)
@@ -21,6 +34,7 @@ struct MacGameHUDTest {
     }
 
     static func main() {
+        reaches()
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("mac-hud-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let game = root.appendingPathComponent("Valheim", isDirectory: true)

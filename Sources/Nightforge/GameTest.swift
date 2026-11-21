@@ -22,6 +22,8 @@ enum GameTest {
         static let stop = "gameTest.stop"
         /// A test basket (`Basket`, compat-db's testkorb.json): its games first, by its score.
         static let basket = "gameTest.basket"
+        /// False: the run's starts don't have Apple's Metal HUD log their frames (`logsFrames`; on unless set to false).
+        static let frameLog = "gameTest.frameLog"
         /// The helper that presses "Play!" in Unity's start window is on (UnityDialog's own switch, on
         /// unless set to false, read at every start – `UnityDialog.enabled`): the run gives it time before
         /// it calls the window one that needs a click. Whether it runs for a game says UnityDialog.programs.
@@ -31,6 +33,50 @@ enum GameTest {
     /// A run is under way: nothing gets installed for a start (LibraryModel.installRuntimes), and
     /// Nightforge doesn't quit after one (Prefs.afterLaunch). Set on the main actor only.
     nonisolated(unsafe) static var active = false
+
+    /// Whether the start about to happen has Apple's Metal HUD log its frames (Engine.setFrameLog): a game
+    /// test's, so that every way that presents through Metal gets a frame rate (GameTestMeasure) – and a
+    /// start by Play only with the hidden switch for measuring play (`measuresPlay`). Without that switch no
+    /// start by Play logs anything.
+    static func logsFrames(active: Bool = active, defaults: UserDefaults = .standard) -> Bool {
+        (active && defaults.object(forKey: Keys.frameLog) as? Bool != false) || measuresPlay(defaults: defaults)
+    }
+
+    /// The hidden switch for measuring while a game is played, for Nightforge's own tests: no entry in the
+    /// interface, off unless someone sets it (`defaults write io.github.lordhayne.nightforge gameTest.measurePlay -bool true`).
+    /// A menu or an intro says nothing of how a game runs (the user, 15.11.2026), so a frame rate for the list
+    /// comes from play. With the switch a start by Play has Apple's Metal HUD log its frames as a game test's
+    /// has – invisible where the performance display is off. Nothing leaves the Mac and nothing is kept but
+    /// those lines in wine.log; the list's script reads a session from there (scripts/laeuft-liste.py).
+    ///
+    /// A build made with NIGHTFORGE_RELEASE (swift build -Xswiftc -DNIGHTFORGE_RELEASE) has no such switch at
+    /// all, not even its name: the finished build tracks nothing (the user, 15.11.2026).
+    #if NIGHTFORGE_RELEASE
+    static func measuresPlay(defaults: UserDefaults = .standard) -> Bool { false }
+    #else
+    static let measurePlayKey = "gameTest.measurePlay"
+
+    static func measuresPlay(defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: measurePlayKey)
+    }
+    #endif
+
+    /// When a measured session of play began and under what, a line for the log beside the start's limit
+    /// (GameTestMeasure.limitNote): the list counts a frame rate only with its conditions on record, and
+    /// finds the start in the evidence by the moment (scripts/laeuft-liste.py, PLAY_LINE).
+    /// "Play measuring of <game>: 2026-11-15T20:10:29Z, on mains, load 2.1 on 10 cores" ·
+    /// "Play measuring of <game>: 2026-11-15T20:10:29Z, on battery, Low Power Mode, load 7.4 on 10 cores".
+    static func playNote(game: String, at: Date = Date(), onBattery: Bool, lowPower: Bool, load: Load?) -> String {
+        "Play measuring of \(game): \(ISO8601DateFormatter().string(from: at)), " + (onBattery ? "on battery" : "on mains")
+            + (lowPower ? ", Low Power Mode" : "") + (load.map { ", load \($0.average) on \($0.cores) cores" } ?? "")
+    }
+
+    /// Whether Wine's debug channels (GameLog.extraWineDebug, the switch `wineDebug`) have its fps channel on:
+    /// "+fps" among them, as in "+fps,+pid,+loaddll,+timestamp". Wine's own Direct3D then logs its frame rate
+    /// (GameTestMeasure.wineRates).
+    static func wineFpsOn(_ channels: String? = GameLog.extraWineDebug) -> Bool {
+        (channels ?? "").split(separator: ",").contains { $0 == "+fps" || $0 == "fps" || $0 == "trace+fps" }
+    }
 
     struct Settings: Equatable {
         var pictureWait: TimeInterval = 120
@@ -80,7 +126,7 @@ enum GameTest {
             case .macOSAsks: return "macOS fragt um Erlaubnis"
             case .stopped: return "Test vorher angehalten"
             case .gone: return "nicht mehr installiert"
-            case .battleNet: return "Battle.net-Spiele starten noch nicht aus Nightforge"
+            case .battleNet: return "Battle.net-Spiele prüft der Spieletest nicht"
             }
         }
     }
@@ -135,6 +181,8 @@ enum GameTest {
         var inBasket = false
         var hint: String?
         var standsFor: [String]?
+        /// What it takes on the disk, as its store says.
+        var sizeBytes: Int64?
     }
 
     /// Which games matter most to test (compat-db, scripts/test-basket.py): by `score`, with the way
@@ -413,12 +461,34 @@ enum GameTest {
     /// Below this a picture counts as a low frame rate (GameRating's lowFrameRate).
     static let lowFrameRate: Double = 25
 
-    /// GameRating.Issue's words: it ended by itself while it was played, its frames stayed low.
-    static func issues(endedWhilePlaying: Bool, frames: Frames?) -> [String] {
+    /// GameRating.Issue's words: it ended by itself while it was played, its frames stayed low. A rate that
+    /// hardly moved (`steady`) is a film's or a lock's pace, not the game running badly.
+    static func issues(endedWhilePlaying: Bool, frames: Frames?, steady: Bool = false) -> [String] {
         var issues: [String] = []
         if endedWhilePlaying { issues.append("crashed") }
-        if let frames, frames.average < lowFrameRate { issues.append("lowFrameRate") }
+        if let frames, frames.average < lowFrameRate, !steady { issues.append("lowFrameRate") }
         return issues
+    }
+
+    /// Why no tool may attach to a game's process – `sample` does – or nil when nothing speaks against it:
+    /// "ownAntiCheat" where its profile says it brings a cheat protection of its own, "antiCheat" where
+    /// Nightforge knows of an anti-cheat otherwise (ShaderCaches.hasAntiCheat: its profile's lists, the
+    /// stores' word, the files in its folder). The player's account is at stake (the user, 14.11.2026).
+    static func handsOff(profile: GameProfile?, knownAntiCheat: Bool) -> String? {
+        if profile?.ownAntiCheat == true { return "ownAntiCheat" }
+        return knownAntiCheat ? "antiCheat" : nil
+    }
+
+    /// A hanging game's sample for the report, or the word why none was taken: with a reason to keep hands
+    /// off, `take` isn't called at all.
+    static func hangSample(handsOff: String?, take: () async -> String?) async -> (sample: String?, skipped: String?) {
+        if let handsOff { return (nil, handsOff) }
+        return (await take(), nil)
+    }
+
+    /// `Entry.noSample` in the report's words.
+    static func noSampleText(_ why: String) -> String {
+        "kein sample: Spiel mit " + (why == "ownAntiCheat" ? "eigenem Cheat-Schutz" : "Anti-Cheat")
     }
 
     /// compat-report.yml's words (CompatReport.result), so a count of reports takes an entry as it
@@ -438,10 +508,25 @@ enum GameTest {
         /// The lowest period.
         var low: Double
         var periods: Int
+        // Since report format 2 (GameTestMeasure):
+        /// The seconds the periods cover.
+        var seconds: Double?
+        /// The slowest single frame of all periods, in milliseconds – a loading hitch counts.
+        var slowestFrame: Double?
+        /// The slowest frame of a usual period: the median of the periods' slowest, in milliseconds.
+        var slowestTypical: Double?
+        /// Who logged them: "dxmt", "vulkan" (a layer, by period), "metal-hud" (Apple's HUD, frame by frame) or
+        /// "wine-fps" (Wine's own Direct3D through its fps channel: rates only, no single frames).
+        var source: String?
+        /// Only from the Metal HUD's frames: the rate at the 99th percentile of the frame times (99 of 100
+        /// frames were faster), and the median GPU time of a frame in milliseconds.
+        var onePercentLow: Double?
+        var gpuTime: Double?
     }
 
     /// The frame rates the game logged (FramePacing.periods): DXMT does, every 10 s from its first
-    /// frame. D3DMetal, WineD3D, DXVK on winecx and Mac versions log none.
+    /// frame. D3DMetal, WineD3D, DXVK on winecx and Mac versions log none. `measuredFrames` adds the
+    /// slowest frames.
     static func frames(_ periods: [(fps: Double, seconds: Double)]) -> Frames? {
         let periods = periods.filter { $0.fps > 0 && $0.seconds > 0 }
         guard !periods.isEmpty else { return nil }
@@ -468,7 +553,11 @@ enum GameTest {
             lines = []
         }
         for line in log.split(separator: "\n", omittingEmptySubsequences: false) {
-            guard let range = line.range(of: marker) else {
+            // Only a way's line: LibraryModel also notes "Start of <game>: it ended at a question of its own – …",
+            // which counted as one more way (Alan Wake, 11.11.2026).
+            guard let range = line.range(of: marker), let layer = line[range.upperBound...].split(separator: " ").first,
+                  GraphicsLayer(rawValue: String(layer)) != nil
+            else {
                 if !starts.isEmpty { lines.append(line) }
                 continue
             }

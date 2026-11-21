@@ -226,9 +226,17 @@ class FileRuleTests(unittest.TestCase):
             "1": {"winetricks": ["win98", "vcrun2019"]}, "2": {"saves": [{"root": "WinAppDataLocal", "path": "", "mac": "MacAppSupport"}]},
             "3": {"fileEdits": [{"path": "x.ini", "find": "a", "replace": "aa"}]}, "4": {"arguments": ["--config=/etc/x"]},
             "5": {"registry": [{"key": "HKCU\\Software\\Microsoft\\x"}]}, "6": {"windowsVersion": "win95"},
+            "7": {"ownAntiCheat": "yes"}, "8": {"ownAntiCheat": 1}, "9": {"ownAntiCheat": True}, "10": {"ownAntiCheat": False},
+            "11": {"fullscreenHint": "Borderless"}, "12": {"fullscreenHint": {"de": "Randlos"}}, "13": {"fullscreenHint": {"en": "a\nb"}},
+            "14": {"fullscreenHint": {"en": "Options › Video › Borderless Windowed", "de": "Optionen › Video › Randloses Fenster"}},
         })
         self.assertEqual(problems, ["1: winetricks 'win98' (say windowsVersion)", "2: saves", "3: fileEdits", "4: arguments",
-                                    "5: registry", "6: windowsVersion"])
+                                    "5: registry", "6: windowsVersion", "7: ownAntiCheat", "8: ownAntiCheat",
+                                    "11: fullscreenHint", "12: fullscreenHint", "13: fullscreenHint"])
+        # Overwatch's full screen hid its picture (15.11.2026): where to set a borderless window, and only for it.
+        self.assertEqual([key for key, profile in shipped.items() if profile.get("fullscreenHint")], ["2357570"])
+        # Overwatch brings a cheat protection of its own: the list that ships says so, and nothing else does without a source.
+        self.assertEqual([key for key, profile in shipped.items() if profile.get("ownAntiCheat")], ["2357570"])
 
     def test_winetricks_verbs_the_app_wont_run_dont_get_through(self):
         self.assertFalse(build_profiles.safe_verb("dsound"))
@@ -285,6 +293,51 @@ class AntiCheatTests(unittest.TestCase):
             "578080": {"name": "PUBG", "antiCheat": ["BattlEye"]},
             "1245620": {"name": "Elden Ring", "antiCheatOnline": ["Easy Anti-Cheat"]},
         })
+
+    def test_highball_reports_only_name_a_usable_layer(self):
+        reports = build_profiles.highball_reports({"games": [
+            {"steam_appid": 1088850, "renderer": "d3dmetal", "status": "verified-local", "lastVerified": "2026-09-13", "notes": "x"},
+            {"steam_appid": 990080, "renderer": "d3dmetal", "status": "community", "lastVerified": None},
+            {"steam_appid": 42, "renderer": "wined3d", "status": "community"},
+            {"steam_appid": 43, "renderer": None, "status": "community"},
+            {"steam_appid": None, "renderer": "dxmt", "status": "community"},
+            {"steam_appid": 44, "renderer": "dxmt", "status": "blocked-anticheat"},
+        ]})
+        self.assertEqual(reports, {
+            "990080": {"graphics": "d3dmetal", "status": "community"},
+            "1088850": {"graphics": "d3dmetal", "status": "verified-local", "date": "2026-09-13"},
+        })
+
+    def test_reports_from_the_same_engine_stack(self):
+        reports = build_profiles.same_stack_reports([
+            {"steam_appid": "516750", "renderer": "d3dmetal", "rating": "5", "engine": "x64-crossover26.3-r12"},
+            {"steam_appid": "516750", "renderer": "d3dmetal", "rating": "4", "engine": "x64-crossover26.3-r5"},
+            {"steam_appid": "516750", "renderer": "dxmt", "rating": "5", "engine": "x64-crossover26.3-r9"},
+            {"steam_appid": "7", "renderer": "dxmt", "rating": "5", "engine": "x64-sikarugir10.0_6-r21"},
+            {"steam_appid": "8", "renderer": "dxmt", "rating": "5", "engine": "x64-crossover26.3-r9"},
+            {"steam_appid": "8", "renderer": "d3dmetal", "rating": "5", "engine": "x64-crossover26.3-r9"},
+            {"steam_appid": "9", "renderer": "dxvk", "rating": "4", "engine": "x64-crossover26.3-r9"},
+            {"steam_appid": "9", "renderer": "dxvk", "rating": "1", "engine": "x64-crossover26.3-r9"},
+            {"steam_appid": "10", "renderer": "wined3d", "rating": "5", "engine": "x64-crossover26.3-r9"},
+        ])
+        self.assertEqual(reports, {"516750": {"graphics": "d3dmetal", "status": "same-stack", "reports": 2}})
+
+    def test_an_anticheat_the_player_may_switch_off_costs_only_online_play(self):
+        # Rockstar lets the player turn BattlEye off for GTA V's story; the same status for another game stays a block.
+        denied = {"status": "Denied", "anticheats": ["BattlEye"]}
+        blocks = build_profiles.anticheat_blocks([
+            {"name": "Grand Theft Auto V", **denied, "storeIds": {"steam": "271590"}},
+            {"name": "PUBG: Battlegrounds", **denied, "storeIds": {"steam": "578080"}},
+        ])
+        self.assertEqual(blocks["271590"], {"name": "Grand Theft Auto V", "antiCheatOnline": ["BattlEye"]})
+        self.assertEqual(blocks["578080"], {"name": "PUBG: Battlegrounds", "antiCheat": ["BattlEye"]})
+
+    def test_the_list_never_switches_gta_battleye_off_itself(self):
+        # The switch stays the player's: the list only stops blocking the game.
+        games = json.loads((pathlib.Path(__file__).parent.parent / "profiles" / "profiles.json").read_text(encoding="utf-8"))["games"]
+        self.assertEqual(games["271590"].get("antiCheatOnline"), ["BattlEye"])
+        self.assertNotIn("antiCheat", games["271590"])
+        self.assertNotIn("arguments", games["271590"])
 
     def test_supported_loses_online_play_only_through_a_linux_module(self):
         # Proton runs Easy Anti-Cheat and BattlEye through their Linux module, which a Mac lacks;

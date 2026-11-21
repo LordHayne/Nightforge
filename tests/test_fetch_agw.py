@@ -104,6 +104,58 @@ class ParseTests(unittest.TestCase):
         self.assertIsNone(agw.parse_date("sometime"))
 
 
+pcgw_spec = importlib.util.spec_from_file_location("fetch_pcgw", SCRIPT.parent / "fetch-pcgw.py")
+pcgw = importlib.util.module_from_spec(pcgw_spec)
+pcgw_spec.loader.exec_module(pcgw)
+
+
+class PCGamingWikiTests(unittest.TestCase):
+    ROWS = [{"title": {"page": "Hogwarts Legacy", "steam": "990080", "d3d": "12", "engines": "Unreal Engine 4",
+                       "win64": "true", "win32": "false", "drm": "Steam,Denuvo Anti-Tamper"}},
+            {"title": {"page": "Mafia II", "steam": "50130", "gog": "1816059595", "d3d": "9.0c", "physics": "PhysX",
+                       "win32": "true", "win64": "false", "drm": "Steam"}},
+            {"title": {"page": "Control", "steam": "870780, 1", "d3d": "12,11", "anticheat": ""}},
+            {"title": {"page": "Old", "steam": "", "d3d": "12"}},
+            {"title": {"page": "It Takes Two", "steam": "1426210", "d3d": "11", "drm": "EA app,Microsoft Store,Steam",
+                       "drmSteam": "Steam,EA app"}},
+            {"title": {"page": "", "steam": "5", "d3d": "12"}}]
+
+    def test_facts_by_page_without_empty_values(self):
+        pages = pcgw.facts(self.ROWS)
+        self.assertEqual(list(pages), ["Control", "Hogwarts Legacy", "It Takes Two", "Mafia II", "Old"])
+        self.assertEqual(pages["Mafia II"], {"steam": ["50130"], "gog": ["1816059595"], "d3d": ["9.0c"],
+                                             "physics": ["PhysX"], "win32": "true", "win64": "false", "drm": ["Steam"]})
+        self.assertEqual(pages["Control"]["d3d"], ["11", "12"])
+        self.assertNotIn("anticheat", pages["Control"])
+
+    def test_what_nightforge_uses(self):
+        data = pcgw.derived(pcgw.facts(self.ROWS))
+        self.assertEqual(data["directX"], {"1": ["11", "12"], "870780": ["11", "12"], "990080": ["12"]})
+        self.assertEqual(data["physX"], ["50130"])
+        self.assertEqual(data["only32bit"], ["50130"])
+        self.assertEqual(data["drm"], {"990080": ["Denuvo Anti-Tamper"], "1426210": ["EA app"]})
+        self.assertEqual(data["anticheat"], {})
+        self.assertEqual(data["runtimes"], {"50130": ["physx"], "gog.1816059595": ["physx"]})
+
+    def test_the_date_only_moves_with_the_content(self):
+        now = datetime.datetime(2026, 11, 9, tzinfo=datetime.timezone.utc)
+        first = pcgw.document({"physX": ["1"]}, None, now)
+        later = now + datetime.timedelta(days=1)
+        self.assertEqual(pcgw.document({"physX": ["1"]}, first, later)["generated"], first["generated"])
+        self.assertNotEqual(pcgw.document({"physX": ["2"]}, first, later)["generated"], first["generated"])
+
+    def test_the_wiki_list_carries_directx_when_there_is_any(self):
+        self.assertEqual(agw.document({}, {"steam": {}, "gog": {}}, directx={"1": ["12"]})["directX"], {"1": ["12"]})
+        self.assertEqual(agw.document({}, {"steam": {}, "gog": {}}, runtimes={"1": ["physx"]})["runtimes"], {"1": ["physx"]})
+        self.assertNotIn("runtimes", agw.document({}, {"steam": {}, "gog": {}}))
+        self.assertNotIn("directX", agw.document({}, {"steam": {}, "gog": {}}, directx={}))
+
+    def test_the_list_in_the_repository_reads(self):
+        document = json.loads((pathlib.Path(__file__).parent.parent / "profiles" / "pcgw.json").read_text(encoding="utf-8"))
+        self.assertEqual(document["license"], "CC BY-NC-SA 3.0")
+        self.assertIn("990080", document["directX"])
+
+
 class HintTests(unittest.TestCase):
     def hint(self, text, own=None):
         return agw.derive_hint(parse(text), own)
@@ -114,6 +166,22 @@ class HintTests(unittest.TestCase):
         self.assertEqual(hint, {"graphics": "d3dmetal", "directX": "12", "from": ["crossover", "wine"], "source": "agw"})
         self.assertEqual(self.hint(page(crossover="playable", crossover_notes="Use DXMT on CrossOver 25.1.")),
                          {"graphics": "dxmt", "from": ["crossover"], "source": "agw"})
+
+    def test_a_note_names_the_layer_the_fields_dont(self):
+        notes = {"42910": {"page": "Magicka", "graphics": "d3dmetal"}, "7": {"page": "Odd", "graphics": "wined3d"}}
+        self.assertEqual(agw.note_hint("42910", notes), {"graphics": "d3dmetal", "from": ["notes"], "source": "agw"})
+        self.assertIsNone(agw.note_hint("7", notes))
+        self.assertIsNone(agw.note_hint("8", notes))
+
+    def test_the_notes_file_is_what_it_says(self):
+        path = pathlib.Path(__file__).parent.parent / "profiles" / "agw-notes.json"
+        document = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(document["license"], "CC BY-NC-SA 3.0")
+        self.assertGreaterEqual(len(document["games"]), 20)
+        for key, game in document["games"].items():
+            self.assertTrue(key.isdigit(), key)
+            self.assertEqual(set(game), {"page", "graphics"}, key)
+            self.assertIn(game["graphics"], ("d3dmetal", "dxmt", "dxvk"), key)
 
     def test_nothing_named_no_hint(self):
         self.assertIsNone(self.hint(page(crossover="perfect", crossover_notes="Runs great.")))

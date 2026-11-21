@@ -1,6 +1,7 @@
 // Checks which of the two Steams runs (SteamSwitch), their sign-in as they log it (SteamLogin),
 // Steam for Mac in the first start (MacSteamPrep, its lines, the reveal's Mac count) and its test
 // home: tests/SteamSwitchTest/run.sh. Nothing here starts, stops or reads a real Steam.
+import AppKit
 import Foundation
 
 @main
@@ -21,7 +22,139 @@ struct SteamSwitchTest {
     }
 
     @MainActor
+    /// Steam only when something needs it, on battery (SteamOnDemand).
+    /// Nobody there: Steam rests on a Mac that's plugged in too, Nightforge in front or not.
+    static func onDemandNobodyThere() {
+        let start = Date()
+        let after = start.addingTimeInterval(SteamOnDemand.awayFor + 1)
+        var console = SteamOnDemand.Facts(onBattery: false, inFront: true, nobodyThere: true, steamRunning: true, signInKept: true)
+        check(SteamOnDemand.unneeded(console), "plugged in, in front, nobody there: nothing needs it")
+        var rest = SteamOnDemand()
+        check(rest.step(console, now: start) == .keep && rest.step(console, now: after) == .sleep, "after the wait it sleeps")
+        var down = console
+        down.steamRunning = false
+        check(rest.step(down, now: after.addingTimeInterval(200)) == .keep && rest.asleep, "nobody back: it stays down")
+        var back = down
+        back.nobodyThere = false
+        check(rest.step(back, now: after.addingTimeInterval(201)) == .wake, "input again: it comes back without Play")
+
+        var someone = console
+        someone.nobodyThere = false
+        var stays = SteamOnDemand()
+        check(!SteamOnDemand.unneeded(someone) && stays.step(someone, now: start) == .keep && stays.step(someone, now: after) == .keep,
+              "plugged in with someone there: nothing changes")
+        for spoil in [\SteamOnDemand.Facts.gameBusy, \.downloading, \.gameRanRecently, \.clientUpdating, \.otherWork] {
+            console[keyPath: spoil] = true
+            check(!SteamOnDemand.unneeded(console), "what needs Steam counts with nobody there as well")
+            console[keyPath: spoil] = false
+        }
+        var battery = SteamOnDemand.Facts(onBattery: true, inFront: true, nobodyThere: true)
+        check(SteamOnDemand.rests(battery), "on battery in front, nobody there: rests")
+        battery.nobodyThere = false
+        check(!SteamOnDemand.rests(battery), "on battery in front, someone there: the player may press Play")
+        battery.inFront = false
+        check(SteamOnDemand.rests(battery), "on battery out of front: as before")
+    }
+
+    static func onDemand() {
+        typealias F = SteamOnDemand.Facts
+        let idle = F(onBattery: true, inFront: false, steamRunning: true, signInKept: true)
+        let start = Date(timeIntervalSince1970: 1_000_000)
+        func at(_ seconds: TimeInterval) -> Date { start.addingTimeInterval(seconds) }
+        let away = SteamOnDemand.awayFor
+        check(SteamOnDemand.unneeded(idle), "on battery, out of front, nothing going on: unneeded")
+        for (name, facts) in [("plugged in", F(onBattery: false, steamRunning: true, signInKept: true)),
+                              ("Nightforge in front", F(onBattery: true, inFront: true, steamRunning: true, signInKept: true)),
+                              ("no Steam to stop", F(onBattery: true, signInKept: true)),
+                              ("sign-in not remembered", F(onBattery: true, steamRunning: true)),
+                              ("a game", F(onBattery: true, steamRunning: true, signInKept: true, gameBusy: true)),
+                              ("a download", F(onBattery: true, steamRunning: true, signInKept: true, downloading: true)),
+                              ("a game just ended, cloud saves", F(onBattery: true, steamRunning: true, signInKept: true, gameRanRecently: true)),
+                              ("Steam updating itself", F(onBattery: true, steamRunning: true, signInKept: true, clientUpdating: true)),
+                              ("other work", F(onBattery: true, steamRunning: true, signInKept: true, otherWork: true))] {
+            check(!SteamOnDemand.unneeded(facts), "\(name): Steam stays")
+        }
+
+        var state = SteamOnDemand()
+        check(state.step(idle, now: start) == .keep, "the wait begins")
+        check(state.step(idle, now: at(away - 1)) == .keep, "not before the time is up")
+        check(state.step(idle, now: at(away)) == .sleep && state.asleep, "after it, Steam sleeps")
+
+        var interrupted = SteamOnDemand()
+        _ = interrupted.step(idle, now: start)
+        var busy = idle
+        busy.gameBusy = true
+        check(interrupted.step(busy, now: at(away - 10)) == .keep, "something needs it")
+        check(interrupted.step(idle, now: at(away)) == .keep, "and the wait starts over: no sleep right after")
+        check(interrupted.step(idle, now: at(2 * away - 1)) == .keep, "not yet")
+        check(interrupted.step(idle, now: at(2 * away)) == .sleep, "the whole time again")
+
+        var ending = state
+        var stillGoing = idle
+        stillGoing.steamRunning = true
+        check(ending.step(stillGoing, now: at(away + 10)) == .keep && ending.asleep, "a Steam still listed while it ends: still asleep")
+        var back = stillGoing
+        back.inFront = true
+        check(ending.step(back, now: at(away + 20)) == .wake && !ending.asleep, "back in front during its end: woken, queued behind the stop")
+
+        var stopped = F(onBattery: true, signInKept: true)
+        var sleeping = state
+        check(sleeping.step(stopped, now: at(away + 200)) == .keep && sleeping.asleep, "asleep, nothing wants it: stays asleep")
+        stopped.inFront = true
+        check(sleeping.step(stopped, now: at(away + 300)) == .wake && !sleeping.asleep, "Nightforge in front: wakes")
+
+        var charging = state
+        check(charging.step(F(onBattery: false, signInKept: true), now: at(away + 200)) == .wake, "plugged in: wakes")
+
+        var startedElsewhere = state
+        check(startedElsewhere.step(idle, now: at(away + SteamOnDemand.endingFor)) == .keep && !startedElsewhere.asleep,
+              "running after its end should be over: something else started it, nothing to wake")
+
+        var played = state
+        check(played.wakeNow() && !played.asleep, "Play wakes it")
+        check(!played.wakeNow(), "once")
+        var awake = SteamOnDemand()
+        check(!awake.wakeNow(), "not asleep: nothing to start")
+        var postponed = SteamOnDemand()
+        _ = postponed.step(idle, now: start)
+        postponed.postpone()
+        check(postponed.step(idle, now: at(away)) == .keep, "its window was open: the wait begins anew")
+
+        // What it comes back into (audit 0.3.3, B2).
+        for (name, facts) in [("a game runs", F(onBattery: false, signInKept: true, gameBusy: true)),
+                              ("a game runs, Nightforge in front", F(onBattery: true, inFront: true, signInKept: true, gameBusy: true)),
+                              ("a Mac version downloads", F(onBattery: false, signInKept: true, macDownload: true))] {
+            var asleep = state
+            check(asleep.step(facts, now: at(away + 200)) == .keep && asleep.asleep, "\(name): it stays asleep for now")
+        }
+        typealias W = SteamOnDemand
+        check(W.wakeWay(macGameBusy: true, macDownload: false, macRunning: true, macOurs: true, forStart: false) == .stay, "a Mac game has the sign-in")
+        check(W.wakeWay(macGameBusy: false, macDownload: true, macRunning: true, macOurs: true, forStart: false) == .stay, "so has a Mac download")
+        check(W.wakeWay(macGameBusy: false, macDownload: true, macRunning: true, macOurs: true, forStart: true) == .start, "a Windows game's start goes ahead of it")
+        check(W.wakeWay(macGameBusy: false, macDownload: false, macRunning: true, macOurs: true, forStart: false) == .quitMacFirst,
+              "a Steam for Mac Nightforge left running goes first, its saves on their way")
+        check(W.wakeWay(macGameBusy: false, macDownload: false, macRunning: true, macOurs: false, forStart: false) == .start, "the player's own isn't quit")
+        check(W.wakeWay(macGameBusy: false, macDownload: false, macRunning: false, macOurs: false, forStart: false) == .start, "none there: just starts")
+
+        var held = state
+        check(held.wakeNow(), "woken")
+        held.stayAsleep(now: at(away + 300))
+        check(held.asleep, "something in the way: asleep again")
+        var later = F(onBattery: true, signInKept: true)
+        later.inFront = true
+        check(held.step(later, now: at(away + 400)) == .wake, "and a later look wakes it")
+
+        var slept = state
+        check(slept.confirmSleep(windowOpen: false), "nothing changed during the look at the windows: it sleeps")
+        var windowUp = state
+        check(!windowUp.confirmSleep(windowOpen: true) && !windowUp.asleep, "a window of Steam's: no sleep")
+        var cameBack = state
+        check(cameBack.wakeNow() && !cameBack.confirmSleep(windowOpen: false), "the player came back during the look: no stop behind the wake")
+    }
+
     static func main() async {
+        onDemand()
+        onDemandNobodyThere()
         TestDefaults.useWorkFolder()
         let arguments = CommandLine.arguments
         if let index = arguments.firstIndex(of: "--test-home"), arguments.count > index + 1 {
@@ -49,6 +182,7 @@ struct SteamSwitchTest {
         let realLog = realHome + "/Library/Application Support/Steam/logs/connection_log.txt"
         let realLogBefore = try? fm.attributesOfItem(atPath: realLog)[.modificationDate] as? Date
         check(MacSteam.isTestHome, "a home of its own is a test home")
+        check(GameLog.writes, "and there the log is the test's own: it's written")
         check(path(MacSteam.root.path).hasPrefix(path(home) + "/"), "Steam for Mac's folder is in the test home: \(MacSteam.root.path)")
         check(MacSteam.app == nil, "the player's Steam.app doesn't count there: \(MacSteam.app?.path ?? "none")")
         check(!MacSteam.isInstalled && !MacSteam.isReady, "so Steam for Mac isn't set up there")
@@ -291,6 +425,39 @@ struct SteamSwitchTest {
         cache("2", modified: Date())
         await switcher.waitForSaves(.mac, limit: 60) { Date().timeIntervalSince(started) < 1 }
         check(Date().timeIntervalSince(started) < 10, "waiting stops when it's no longer wanted")
+
+        // MARK: A Mac version has the account: the Windows Steam doesn't sign in under it (Valheim, 8.11. 16:08:52)
+        check(Engine.holdsBack(arguments: ["-silent"], heldBack: true), "a start nobody waits for holds back")
+        check(!Engine.holdsBack(arguments: ["-silent"], heldBack: false), "with the account free it goes ahead")
+        check(!Engine.holdsBack(arguments: ["-shutdown"], heldBack: true) && !Engine.holdsBack(arguments: [], heldBack: true)
+              && !Engine.holdsBack(arguments: ["-applaunch", "1"], heldBack: true),
+              "its end, the player's own window and a game's start aren't held back")
+        let turn = SteamSwitch()
+        check(!turn.macHasAccount && !Engine.windowsSteamHeldBack, "nothing is held back before a Mac version")
+        turn.macTakesAccount()
+        check(turn.macHasAccount && Engine.windowsSteamHeldBack, "a Mac version's start takes it")
+        let lastStart = Engine.lastSteamStart?.at
+        // This series runs in the real home (above: "the real home isn't a test home"), and the held-back start
+        // says so in wine.log: the line stood in the player's log on 14.11., once in the middle of a real start.
+        check(!GameLog.writes, "a test series in the real home writes nothing into the player's wine.log")
+        let realLog = (try? FileManager.default.attributesOfItem(atPath: GameLog.url.path))?[.size] as? UInt64
+        check((try? Engine.startSteam(URL(fileURLWithPath: "/nowhere/bin/wine"), arguments: ["-silent"])) != nil
+              && Engine.lastSteamStart?.at == lastStart, "a background start meanwhile does nothing at all")
+        // Only with no Nightforge running is the log's length this series' own doing.
+        if let realLog, NSRunningApplication.runningApplications(withBundleIdentifier: "io.github.lordhayne.nightforge").isEmpty {
+            check((try? FileManager.default.attributesOfItem(atPath: GameLog.url.path))?[.size] as? UInt64 == realLog,
+                  "the player's wine.log is as long as before the held-back start")
+        }
+        turn.macGivesAccountBack()
+        check(!turn.macHasAccount && !Engine.windowsSteamHeldBack, "handed back, the Windows Steam may come")
+
+        // Every way out of a Mac version's start without a game: nothing's end would hand the account back, and from then on
+        // no background start of the Windows Steam comes, until the next Windows game.
+        let model = (try? String(contentsOfFile: "Sources/Nightforge/LibraryModel.swift", encoding: .utf8)) ?? ""
+        let mac = model.components(separatedBy: "private func launchMac(").dropFirst().first?.components(separatedBy: "\n    }\n").first ?? ""
+        check(mac.contains("makeWayForMac"), "launchMac still takes the account")
+        check(mac.range(of: "defer {[^}]*macGivesAccountBack", options: .regularExpression) != nil, "and hands it back when no game came of it")
+        check(mac.contains("gameStarted = true"), "but not from a game that runs: that one's end does")
 
         // MARK: The first start
         check(MacSteamPrep.decide(macAccount: nil, windowsAccount: "1", macVersions: 12) == .signIn, "Mac versions: the second code")

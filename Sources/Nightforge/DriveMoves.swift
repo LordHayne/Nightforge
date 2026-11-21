@@ -294,7 +294,9 @@ extension LibraryModel {
 
     /// A drive plugged in or out: the games on it can play again, or say to plug it in. Nightforge's
     /// Windows Steam looks at its libraries when it starts, so it starts again once nothing runs –
-    /// for a drive with games for it.
+    /// for a drive with games for it, in a library its list has. A library the list doesn't have (a
+    /// fresh Nightforge, a drive from another Mac) is taken over with its games, as are Epic's and
+    /// GOG's there (DriveTakeover), which sees to Steam's restart itself.
     func watchDrives() {
         let center = NSWorkspace.shared.notificationCenter
         for name in [NSWorkspace.didMountNotification, NSWorkspace.didUnmountNotification] {
@@ -303,8 +305,11 @@ extension LibraryModel {
                 MainActor.assumeIsolated {
                     guard let self else { return }
                     self.reload(quiet: true)
-                    if name == NSWorkspace.didMountNotification, let volume, Engine.isSteamRunning, self.move == nil,
-                       !SteamLibraries.installedApps(in: DriveLibrary.windowsSteam(on: volume).appendingPathComponent("steamapps")).isEmpty {
+                    guard name == NSWorkspace.didMountNotification, let volume else { return }
+                    DriveTakeover.shared.ask()
+                    let steamapps = DriveLibrary.windowsSteam(on: volume).appendingPathComponent("steamapps", isDirectory: true)
+                    if Engine.isSteamRunning, self.move == nil, !SteamLibraries.installedApps(in: steamapps).isEmpty,
+                       Self.listHas(steamapps, in: LibraryScanner.libraryFolders(steamRoot: Engine.steamRoot, bottle: Engine.bottle)) {
                         self.steam.restartWhenIdle = true
                     }
                 }

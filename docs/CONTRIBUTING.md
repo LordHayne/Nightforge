@@ -88,7 +88,9 @@ All fields are optional. They're read by `GameProfile` in `Sources/Nightforge/Pr
 | `environment` | `{"NAME": "value"}` | Wine's and CrossOver's own switches for this game alone. Only `WINE_SIMULATE_WRITECOPY`, `CX_HACK_FILESYSTEM_TYPE`, `CX_ACTIVE_GRAPHICS_BACKEND`, `CX_GRAPHICS_BACKEND` and `WINE_LARGE_ADDRESS_AWARE`, with values of letters, digits, `.`, `_` and `-` (up to 32). |
 | `dlss` | `true` | The game's DLSS was seen working on D3DMetal (through MetalFX), so with MetalFX on it gets Retina mode as well. A DLSS library in the game folder alone isn't enough. |
 | `skipUnityDialog` | `false` | Leaves Unity's configuration window before the game to the player, for a game that asks something there that matters. Otherwise Nightforge presses "Play!" itself. |
+| `msync` | `false` | Runs the game without msync, for one that hangs or stutters with it. Wine's whole session has it or doesn't, so Steam restarts when it changes from one game to the next. A game started next to a running Windows game takes that session as it is. |
 | `antiCheat`, `antiCheatOnline` | list of text | `[]` says the game runs on a Mac after all, whatever AreWeAntiCheatYet lists. |
+| `ownAntiCheat` | `true` | The game runs on a Mac and brings a cheat protection of its own (Overwatch). No tool attaches to its process: Nightforge's game test takes no `sample` of it when it hangs, and says so in its report. Set it only for a game you have a source for. |
 | `notYet` | text in plain English | The game doesn't start on a Mac yet and Nightforge is working on it: Nightforge says so before the download and offers GeForce Now when it has the game. The reason also needs its German text in `Sources/Nightforge/Strings.swift`, the one other file such a pull request changes. |
 | `gog` | list of GOG product IDs | The same game's GOG versions get this profile too. |
 | `ignoreUpstream` | `true` | Leave out umu-protonfixes' fixes for this game; only this profile applies. |
@@ -104,7 +106,7 @@ Every pull request that touches `profiles/` runs the **Update game profiles** wo
 - `mac.json` isn't valid JSON,
 - a key isn't a Steam app ID (digits only), `epic.<namespace>` (letters, digits, `_` and `-`, up to 64) or `gog.<product ID>` (digits),
 - `graphics` is anything but `dxmt`, `dxvk`, `wined3d` or `d3dmetal`,
-- `metalFX` isn't `true` or `false`, `frameLimit` isn't a whole number, `antiCheat` or `antiCheatOnline` isn't a list, `notYet` isn't text,
+- `metalFX` isn't `true` or `false`, `frameLimit` isn't a whole number, `antiCheat` or `antiCheatOnline` isn't a list, `notYet` isn't text, `ownAntiCheat` isn't `true` or `false`,
 - `executable` is empty, starts with `/` or `\`, or contains a `..` part,
 - `arguments`, `dllOverrides` or `environment` break the rules in the table above,
 - `windowsVersion` isn't one of the nine names above,
@@ -128,6 +130,12 @@ Most checks on `mac.json` run in `scripts/build-profiles.py` itself: it stops wi
 `metal` isn't a layer (`d3dmetal` is), the registry key is an autostart entry, `annihilate` is a winetricks command, and the program lies outside the game folder.
 
 The check doesn't look at every field. The app skips a field it can't read without a word – `"retina": "yes"` simply does nothing –, keeps `frameLimit` within 0–240 and `vulkanSamplers` within 1–128, and writes only `REG_SZ` and `REG_DWORD` registry values. So test the profile in the app as well.
+
+## New components and helpers
+
+Nightforge's Windows path runs under Rosetta, and macOS 28 limits Rosetta (`docs/ENTWURF-ARM64.md`). So nothing new
+should depend on x86_64 without need: a new entry in `components/sources.json` says what it is built for with `arch`
+(`x86_64`, `arm64` or `universal`), and a new `clang -arch x86_64` needs a reason. `tests/test_no_new_x86_only.py` checks both.
 
 ## Test before you open the pull request
 

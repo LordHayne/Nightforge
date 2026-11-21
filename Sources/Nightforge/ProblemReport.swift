@@ -8,6 +8,10 @@ struct GameInsight: Equatable {
     let attempts: [LaunchAttempt]
     /// The layer `attempts` put first because other sources report it working (`LaunchHealth.hinted`).
     var hint: GraphicsLayer?
+    /// Where that hint comes from (SourceHint.source).
+    var hintSource: String?
+    /// How many games of its sort stand behind the first way with a picture on this Mac (StartEvidence.sortScores).
+    var sortGames = 0
 }
 
 /// A game that ended right after starting with every way Nightforge knows.
@@ -56,7 +60,7 @@ enum ProblemReport {
         if options.graphics == .automatic, !attempts.isEmpty {
             let (index, confirmed) = LaunchHealth.current(game.gameID, attempts)
             graphics += " → " + attempts[index].label + (confirmed ? "" : " (not confirmed yet)")
-            if let hint = insight?.hint { graphics += " · \(hint.shortLabel) first from AppleGamingWiki" }
+            if let hint = insight?.hint { graphics += " · \(hint.shortLabel) first from \(SourceHint.name(of: insight?.hintSource))" }
         }
         var detected = insight?.analysis.summary ?? "–"
         if let analysis = insight?.analysis {
@@ -76,7 +80,12 @@ enum ProblemReport {
         let learned = LearnedFixes.winetricks(game.gameID)
         if !learned.isEmpty { facts.append(("Installed by itself", learned.joined(separator: ", "))) }
 
-        let errors = GameLog.errors(since: LearnedFixes.lastLaunchMark(game.gameID) ?? GameLog.mark())
+        // What the last start's diagnosis found: its names among the facts, its lines with the errors.
+        let diagnosis = StartDiagnosis.remembered(game.gameID)
+        if !diagnosis.isEmpty {
+            facts.append(("Diagnosis", diagnosis.map { String($0.prefix { $0 != ":" }) }.joined(separator: ", ")))
+        }
+        let errors = diagnosis.map { "diagnosis: " + $0 } + GameLog.errors(since: LearnedFixes.lastLaunchMark(game.gameID) ?? GameLog.mark())
         // A GOG download that stopped: how gogdl ended it.
         var downloadFailure: [String] = []
         if game.provider == .gog, let text = try? String(contentsOf: GOGDL.failedLog(for: game.gameID.id), encoding: .utf8) {
@@ -86,7 +95,7 @@ enum ProblemReport {
                                  launchOptions: options.extraArgs)
     }
 
-    static var chip: String {
+    nonisolated static var chip: String {
         var size = 0
         sysctlbyname("machdep.cpu.brand_string", nil, &size, nil, 0)
         var bytes = [CChar](repeating: 0, count: max(size, 1))
@@ -95,7 +104,7 @@ enum ProblemReport {
         return name.isEmpty ? "Mac" : name
     }
 
-    static var osVersion: String {
+    nonisolated static var osVersion: String {
         let version = ProcessInfo.processInfo.operatingSystemVersion
         return "\(version.majorVersion).\(version.minorVersion)"
     }

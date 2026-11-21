@@ -398,6 +398,8 @@ enum MacSteam {
         for app in windowApps { app.hide() }
     }
 
+    static var windowPids: Set<pid_t> { Set(windowApps.map(\.processIdentifier)) }
+
     /// The Steam processes whose windows the player sees: the client and its web view.
     private static var windowApps: [NSRunningApplication] {
         clientApps + (isTestHome ? [] : NSRunningApplication.runningApplications(withBundleIdentifier: helperBundleID))
@@ -410,6 +412,12 @@ enum MacSteam {
     /// not even then while the first start holds it back.
     @MainActor
     static func guardWindows() async {
+        // Steam coming up ends the wait at once, however long it is.
+        let launched = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didLaunchApplicationNotification, object: nil, queue: .main) { note in
+            guard (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier == bundleID else { return }
+            MainActor.assumeIsolated { guardNap?.cancel() }
+        }
+        defer { NSWorkspace.shared.notificationCenter.removeObserver(launched) }
         while !Task.isCancelled {
             // By a window on screen for the web view: it may not be hideable at all, and then
             // `waitingForPlayer` (two logs read) would run every second for nothing.
@@ -417,9 +425,13 @@ enum MacSteam {
             if shows, !allowedVisible, isHeld || (hasSignedIn && !waitingForPlayer) {
                 hide()
             }
-            try? await Task.sleep(for: .seconds(1))
+            let pause = IdleRest.windowGuardPause(steamRunning: isRunning, testHome: isTestHome)
+            guardNap = Task { try? await Task.sleep(for: .seconds(pause)) }
+            await guardNap?.value
         }
     }
+
+    @MainActor private static var guardNap: Task<Void, Never>?
 
     /// Steam waits for the player: a question before a game starts ("waiting for user response"
     /// in its console log), a cloud sync it couldn't finish, or its sign-in window.
@@ -473,6 +485,24 @@ enum MacSteam {
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = activate
         NSWorkspace.shared.open([url], withApplicationAt: app, configuration: configuration)
+    }
+
+    /// The running Steam starts the game's first launch option, without asking which: a second
+    /// steam_osx hands the command over and ends. False with no Steam running to take it (a start
+    /// of Steam from here would stay Nightforge's child), or without its program.
+    @discardableResult
+    static func applaunch(_ appID: Int, arguments: [String]) -> Bool {
+        let command = ["-applaunch", String(appID)] + arguments
+        if isTestHome {
+            TestSteam.launch(command)
+            return true
+        }
+        let program = root.appendingPathComponent("Steam.AppBundle/Steam/Contents/MacOS/steam_osx")
+        guard isRunning, FileManager.default.isExecutableFile(atPath: program.path) else { return false }
+        let process = DetachedProcess()
+        process.executableURL = program
+        process.arguments = command
+        return (try? process.run()) != nil
     }
 
     /// Asks Steam to quit (it saves its state and cloud files) and ends it the hard way after 20 s.

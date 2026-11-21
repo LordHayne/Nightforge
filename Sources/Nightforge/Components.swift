@@ -15,6 +15,15 @@ struct Component: Codable, Identifiable, Hashable {
     let size: Int64
     let license: String
     let source: URL
+    /// The processor the component's code is for: "x86_64" (also when the list doesn't say), "arm64" or
+    /// "universal". Older Nightforges ignore the field and would take an arm64 build for theirs, so one
+    /// goes under an id of its own, "<id>-arm64" (scripts/validate-manifest.py).
+    var arch: String? = nil
+
+    /// Everything this Nightforge starts runs as x86_64 under Rosetta.
+    var fitsThisNightforge: Bool {
+        ["x86_64", "universal"].contains(arch ?? "x86_64")
+    }
 
     /// id, version and the file name become paths under Application Support and the url is
     /// downloaded: a changed list may not point them elsewhere (`..`) or at a plain-HTTP or local file.
@@ -45,7 +54,7 @@ struct ComponentManifest: Codable {
         schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
         generated = (try? container.decode(String.self, forKey: .generated)) ?? ""
         components = try container.decode([Lenient<Component>].self, forKey: .components)
-            .compactMap(\.value).filter(\.isSafeToInstall)
+            .compactMap(\.value).filter { $0.isSafeToInstall && $0.fitsThisNightforge }
     }
 
     func component(_ id: String) -> Component? {
@@ -113,7 +122,8 @@ actor ComponentStore {
 
     private var cachedManifestURL: URL { root.appendingPathComponent("manifest.json") }
     /// The online list is fetched once per app run. Asking again for every engine lookup would
-    /// make each launch wait for the network – up to a minute when offline.
+    /// make each launch wait for the network – up to a minute when offline. After a wake it's asked
+    /// once more, apart from the list in use (`askAgain`).
     private var fetched: ComponentManifest?
     private var triedRemote = false
     private var installing: [String: Task<URL, Error>] = [:]
@@ -122,6 +132,11 @@ actor ComponentStore {
     /// doesn't name go (`Engine.removeUnusedComponents`): with the online list turned away and 0.3.0's
     /// unsigned copy not counting, the app's list can be older and would take a newer engine away.
     private(set) var manifestIsSigned = false
+    /// A newer online list that isn't the one in use yet (`askAgain`), with its bytes and signature as they
+    /// came: kept as the list at hand once it is (`adoptWaiting`).
+    private var waiting: (manifest: ComponentManifest, data: Data, signature: Data)?
+
+    var hasWaitingList: Bool { waiting != nil }
 
     func manifest() async throws -> ComponentManifest {
         if let fetched { return fetched }
@@ -143,6 +158,7 @@ actor ComponentStore {
                     try? signature.write(to: Signature.file(for: cachedManifestURL), options: .atomic)
                     fetched = manifest
                     manifestIsSigned = true
+                    clearAhead(keeping: manifest)
                     return manifest
                 }
             case .refused:
@@ -166,6 +182,50 @@ actor ComponentStore {
             }
         }
         throw failure
+    }
+
+    /// The online list asked once more in this run: after the Mac woke, hours on (WakeCatchUp). `manifest()`
+    /// asks once per run and keeps that answer, so a Nightforge left open for weeks never learned of a new
+    /// engine. By the same checks as there: signed, no older than the list kept or the app's own.
+    /// A newer one isn't in use yet – a start that comes meanwhile would wait for its downloads. It waits
+    /// until what it names is here (`fetchAhead`) and becomes the one in use with `adoptWaiting`.
+    /// Nil when nothing newer is there or waits; no answer leaves a list that already waits waiting.
+    func askAgain() async -> ComponentManifest? {
+        guard let remote = remoteManifestURL else { return waiting?.manifest }
+        switch await Signature.fetch(remote, keys: keys) {
+        case .signed(let data, let signature):
+            SignedLists.note(SignedLists.components, refused: false)
+            let kept = Signature.signedContents(of: cachedManifestURL, keys: keys)
+            let older = SignedLists.isOlder(data, than: kept)
+            SignedLists.note(SignedLists.components, older: older)
+            let olderThanOwn = SignedLists.isOlder(data, than: bundledManifestURL.flatMap { try? Data(contentsOf: $0) })
+            guard !older, !olderThanOwn, let manifest = try? decode(data) else { return waiting?.manifest }
+            // The list kept is the one in use, or the app's own is newer and this one was turned away above.
+            if data == kept {
+                waiting = nil
+                return nil
+            }
+            waiting = (manifest, data, signature)
+            return manifest
+        case .refused:
+            SignedLists.note(SignedLists.components, refused: true)
+        case .unavailable:
+            break
+        }
+        return waiting?.manifest
+    }
+
+    /// The waiting list is the one in use from here on, and the one kept for the next run. What was
+    /// fetched ahead for it goes into place as it's asked for (`install`); what it doesn't name goes.
+    func adoptWaiting() {
+        guard let waiting else { return }
+        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try? waiting.data.write(to: cachedManifestURL, options: .atomic)
+        try? waiting.signature.write(to: Signature.file(for: cachedManifestURL), options: .atomic)
+        fetched = waiting.manifest
+        manifestIsSigned = true
+        self.waiting = nil
+        clearAhead(keeping: waiting.manifest)
     }
 
     /// The list at hand without asking the network (Settings › About): the last one fetched (with its
@@ -217,14 +277,95 @@ actor ComponentStore {
     func install(_ component: Component, progress: @escaping @Sendable (Double) -> Void = { _ in }) async throws -> URL {
         if let dir = installedPath(for: component) { return dir }
         let key = "\(component.id)@\(component.version)"
+        // Fetched ahead, or on its way there: into its place, without a second download.
+        if let ahead = installing[Self.aheadPrefix + key] { _ = try? await ahead.value }
+        if let dir = takeAhead(component) {
+            progress(1)
+            return dir
+        }
         if let running = installing[key] { return try await running.value }
-        let task = Task { try await self.download(component, progress: progress) }
+        let dir = directory(for: component)
+        let task = Task { try await self.download(component, to: dir, progress: progress) }
         installing[key] = task
         defer { installing[key] = nil }
         return try await task.value
     }
 
-    private func download(_ component: Component, progress: @escaping @Sendable (Double) -> Void) async throws -> URL {
+    // MARK: - Fetched ahead
+
+    /// Components of a list that isn't in use yet lie here, whole and checked, until it is. Not beside the
+    /// installed ones: what looks for the newest folder of an engine (`Engine.installedWineNow`,
+    /// `installedComponentNow`) would take one nothing has set up yet, and what clears the folders the
+    /// list in use doesn't name (`Engine.removeUnusedComponents`, which passes names with a dot) would
+    /// take it away again.
+    private var aheadRoot: URL { root.appendingPathComponent(".ahead", isDirectory: true) }
+    private static let aheadPrefix = "ahead "
+
+    private func aheadDirectory(for component: Component) -> URL {
+        aheadRoot.appendingPathComponent(component.id, isDirectory: true)
+            .appendingPathComponent(component.version, isDirectory: true)
+    }
+
+    private func aheadPath(for component: Component) -> URL? {
+        let dir = aheadDirectory(for: component)
+        guard (try? String(contentsOf: dir.appendingPathComponent(".sha256"), encoding: .utf8)) == component.sha256 else { return nil }
+        return dir
+    }
+
+    /// Here, in place or fetched ahead.
+    func isAtHand(_ component: Component) -> Bool {
+        installedPath(for: component) != nil || aheadPath(for: component) != nil
+    }
+
+    /// Downloads, checks and unpacks `component` to wait beside the installed ones: nothing in use changes.
+    func fetchAhead(_ component: Component) async throws {
+        if isAtHand(component) { return }
+        let key = Self.aheadPrefix + "\(component.id)@\(component.version)"
+        if let running = installing[key] {
+            _ = try await running.value
+            return
+        }
+        let dir = aheadDirectory(for: component)
+        let task = Task { try await self.download(component, to: dir, progress: { _ in }) }
+        installing[key] = task
+        defer { installing[key] = nil }
+        _ = try await task.value
+    }
+
+    /// What was fetched ahead moves into its place: a rename, the two folders are on one volume.
+    private func takeAhead(_ component: Component) -> URL? {
+        guard let staged = aheadPath(for: component) else { return nil }
+        let fm = FileManager.default
+        let dir = directory(for: component)
+        try? fm.removeItem(at: dir)
+        do {
+            try fm.createDirectory(at: dir.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try fm.moveItem(at: staged, to: dir)
+        } catch {
+            return nil
+        }
+        if (try? fm.contentsOfDirectory(atPath: staged.deletingLastPathComponent().path))?.isEmpty == true {
+            try? fm.removeItem(at: staged.deletingLastPathComponent())
+        }
+        return dir
+    }
+
+    /// What waits for a list that never came into use (a newer one overtook it) goes.
+    private func clearAhead(keeping manifest: ComponentManifest) {
+        let fm = FileManager.default
+        let ids = (try? fm.contentsOfDirectory(at: aheadRoot, includingPropertiesForKeys: nil)) ?? []
+        for id in ids {
+            let wanted = manifest.component(id.lastPathComponent)?.version
+            for version in (try? fm.contentsOfDirectory(at: id, includingPropertiesForKeys: nil)) ?? []
+            where version.lastPathComponent != wanted {
+                try? fm.removeItem(at: version)
+            }
+            if (try? fm.contentsOfDirectory(atPath: id.path))?.isEmpty == true { try? fm.removeItem(at: id) }
+        }
+    }
+
+    /// Downloads, verifies and unpacks `component` into `dir`.
+    private func download(_ component: Component, to dir: URL, progress: @escaping @Sendable (Double) -> Void) async throws -> URL {
 
         let fm = FileManager.default
         let downloads = root.appendingPathComponent(".downloads", isDirectory: true)
@@ -240,7 +381,6 @@ actor ComponentStore {
         }
 
         // Unpack into a staging folder first so a half-extracted component is never picked up.
-        let dir = directory(for: component)
         let staging = downloads.appendingPathComponent("\(component.id)-\(UUID().uuidString)", isDirectory: true)
         try fm.createDirectory(at: staging, withIntermediateDirectories: true)
         defer { try? fm.removeItem(at: staging) }

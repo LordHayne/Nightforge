@@ -29,6 +29,25 @@ enum GameBackdrop {
         @Published var detail: String?
         /// A tip for new players under it, on their first starts (LaunchTip).
         @Published var tip: LaunchTip?
+        /// The way out of a curtain with no game under it yet (CurtainEscape), in the tip's place.
+        @Published var wayOut: LaunchTip?
+        /// How far an update is, 0 to 1 (the thin bar under the step); nil without one.
+        @Published var progress: Double?
+        /// Steam's window stands on the curtain: the mark gives way, a bar at the bottom says what to do.
+        @Published var steamAsks = false
+        /// That question is its licence: said so at the top, with a seam round its window (`seam`) and the way to answer.
+        @Published var licence: LicenceLook?
+        /// Steam's window on the curtain, in the curtain's coordinates, once it's there.
+        @Published var seam: CGRect?
+        /// The pad's buttons for what the player has to do now (CurtainButton), in the tip's place: the rule of 15.11.2026.
+        @Published var buttons: [CurtainButton] = []
+    }
+
+    /// What the bar under Steam's licence says.
+    struct LicenceLook: Equatable {
+        var answering: SteamLicence.Answering
+        /// R2 or RT, for a pad without a touchpad.
+        var click: String
     }
 
     enum Stage: Equatable {
@@ -47,6 +66,8 @@ enum GameBackdrop {
     /// Whether the game being played still shows its window (LibraryModel sets it): with the page
     /// over Nightforge's window, Nightforge coming to the front decides by it where the page goes.
     static var gameShowsWindow: @MainActor () -> Bool = { true }
+    /// Another app came to the front with the page behind the game (LibraryModel looks whether its picture went).
+    static var frontMoved: @MainActor (pid_t) -> Void = { _ in }
     private static var settling: Task<Void, Never>?
     /// The player quit the game: the curtain stays up, whatever its processes do, until Nightforge
     /// is in front (`hide(once:)`).
@@ -67,6 +88,9 @@ enum GameBackdrop {
     static var pageNumber: Int? { window?.isVisible == true && !state.stage.raised ? window?.windowNumber : nil }
 
     static var isRaised: Bool { window?.isVisible == true && state.stage.raised }
+    private static var upSince = Date.distantFuture
+    /// How long the curtain has stood as it is now.
+    static var upFor: TimeInterval { Date().timeIntervalSince(upSince) }
     /// Up for the game's end: Nightforge's way back has it now.
     static var isReturning: Bool { isRaised && state.stage == .returning }
 
@@ -85,26 +109,110 @@ enum GameBackdrop {
 
     /// What's happening: the step at once, the why once the curtain has been up a few seconds, so
     /// a quick start stays calm and a long one doesn't look stuck.
-    static func setStatus(_ step: String?, detail: String?) {
+    static func setStatus(_ step: String?, detail: String?, progress: Double? = nil, buttons: [CurtainButton] = []) {
         guard state.stage == .starting else { return }
         if state.step != step { state.step = step }
+        if state.progress != progress { state.progress = progress }
+        if state.buttons != buttons { state.buttons = buttons }
         let shown = Date().timeIntervalSince(raisedAt) >= detailAfter ? detail : nil
         if state.detail != shown { state.detail = shown }
+    }
+
+    static func setSteamAsks(_ asks: Bool, licence: LicenceLook? = nil) {
+        if state.steamAsks != asks { state.steamAsks = asks }
+        if state.licence != licence { state.licence = licence }
+        if state.seam != nil { state.seam = nil }
+    }
+
+    /// Steam's window under the licence's frame (screen coordinates, y down); nil while it isn't there.
+    static func frameSteamWindow(_ frame: CGRect?) {
+        guard let window, state.licence != nil else { return }
+        let curtain = appKitFrame(bounds: window.frame, mainHeight: CGDisplayBounds(CGMainDisplayID()).height)
+        let seam = frame.flatMap { SteamLicence.seam(window: $0, curtain: curtain) }
+        if state.seam != seam { state.seam = seam }
+    }
+
+    /// A question already on the curtain turned out to be the licence (SteamLicence.framesLate).
+    static var licenceStillToSay: Bool { SteamLicence.framesLate(steamAsks: state.steamAsks, framed: state.licence != nil) }
+
+    static func sayLicence(_ look: LicenceLook) { state.licence = look }
+
+    static func setWayOut(_ tip: LaunchTip?) {
+        if state.wayOut != tip { state.wayOut = tip }
+    }
+
+    /// The curtain's level: just under the overlay – or, `overShield`, above a captured display's shield
+    /// and the game over it (L…628, the game L…629 or L…630). Under it, each change of the display mode
+    /// turned the curtain black and back (Overwatch's start and end, 8.11.). Not for good: up there it
+    /// would cover ⌘-Tab and macOS's own alerts.
+    nonisolated static func curtainLevel(overShield: Bool) -> Int {
+        overShield ? Int(CGShieldingWindowLevel()) + 3 : NSWindow.Level.screenSaver.rawValue - 1
+    }
+
+    /// The curtain's level while it's up, for the overlay to go above it.
+    static var raisedLevel: Int? { isRaised ? window?.level.rawValue : nil }
+
+    /// The curtain lies under a question: not moved over anything until that's over.
+    private static var underQuestion = false
+
+    /// A Windows game runs: Wine may take the display at any moment, and a curtain that only follows the
+    /// shield goes black for as long as it takes to see it. So over it beforehand, from the game's first
+    /// process to its end. A Mac game that takes the display is noticed at the next look.
+    static var mayCapture = false
+
+    static func expectCapture() {
+        mayCapture = true
+        keepOverShield()
+    }
+
+    /// A game took the display or let it go: the curtain stays over it, the same window, not redrawn.
+    static func keepOverShield() {
+        guard let window, isRaised, !underQuestion else { return }
+        let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
+        let level = curtainLevel(overShield: mayCapture || GameProcesses.screenCaptured(windows, me: getpid()))
+        guard window.level.rawValue != level else { return }
+        window.level = NSWindow.Level(rawValue: level)
+        toFront(window)
+        // Over it also before any shield stands, once a Windows game runs (`mayCapture`): said, with whose shield there is.
+        GameLog.note("The curtain goes \(level > NSWindow.Level.screenSaver.rawValue ? "over" : "back under") a captured display's shield"
+                     + " (" + (mayCapture ? "a Windows game runs; " : "")
+                     + GameProcesses.captureNote(owners: GameProcesses.shieldOwners(windows, me: getpid()), modes: GameProcesses.displayModes()) + ")")
     }
 
     /// The screens changed while the page is up (a game setting its display mode, 1920×1200 on a
     /// 1512×982 Mac; the mode restored as it ends): the page keeps to the screen, or it covers only
     /// a corner of it, as the overlay did on 4.11. before it followed.
     static func followScreen() {
-        guard let window, let screen = GameDisplay.gameScreen ?? NSScreen.main,
-              shouldFollow(visible: window.isVisible, frame: window.frame, screen: screen.frame)
-        else { return }
-        GameLog.note("The page follows the screen: \(Int(screen.frame.width))×\(Int(screen.frame.height))")
-        window.setFrame(screen.frame, display: true)
+        guard let window, let screen = GameDisplay.gameScreen ?? NSScreen.main else { return }
+        let frame = currentFrame(of: screen)
+        guard shouldFollow(visible: window.isVisible, frame: window.frame, screen: frame) else { return }
+        GameLog.note("The page follows the screen: \(Int(frame.width))×\(Int(frame.height))")
+        window.setFrame(frame, display: true)
     }
 
     nonisolated static func shouldFollow(visible: Bool, frame: CGRect, screen: CGRect) -> Bool {
         visible && frame != screen
+    }
+
+    /// A display's place in AppKit's coordinates from its bounds in Core Graphics' (y down, the main
+    /// display's height the turning point).
+    nonisolated static func appKitFrame(bounds: CGRect, mainHeight: CGFloat) -> CGRect {
+        CGRect(x: bounds.minX, y: mainHeight - bounds.maxY, width: bounds.width, height: bounds.height)
+    }
+
+    /// The screen as it is this moment. NSScreen only learns of a new mode with its notification, a while
+    /// after the display has it: until then a page sized by NSScreen covered a corner, the desktop beside it.
+    private static func currentFrame(of screen: NSScreen) -> CGRect {
+        guard let display = GameDisplay.id(screen) else { return screen.frame }
+        return appKitFrame(bounds: CGDisplayBounds(display), mainHeight: CGDisplayBounds(CGMainDisplayID()).height)
+    }
+
+    /// Told of a new display mode right as it's set, before NSScreen's notification.
+    private static func listenToDisplays() {
+        CGDisplayRegisterReconfigurationCallback({ _, flags, _ in
+            guard !flags.contains(.beginConfigurationFlag) else { return }
+            DispatchQueue.main.async { MainActor.assumeIsolated { GameBackdrop.followScreen() } }
+        }, nil)
     }
 
     /// The page was found over the game's picture (GameProcesses.pageCovers): behind every window.
@@ -112,6 +220,25 @@ enum GameBackdrop {
     static func stepAside() {
         guard let window, window.isVisible, !state.stage.raised else { return }
         window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
+        window.orderFrontRegardless()
+    }
+
+    /// The page's level right under a game that covers the screen in front (`level`: the game's), when
+    /// it's above every normal window. There the page hides what the player shouldn't see as the game's
+    /// window closes: Steam's windows, the browser, the desktop. Nil for a game at the normal level, which
+    /// the page mustn't get in front of.
+    nonisolated static func pageLevel(underGameAt level: Int?) -> Int? {
+        let highestUnder = NSWindow.Level.statusBar.rawValue
+        guard let level, level > highestUnder else { return nil }
+        return highestUnder
+    }
+
+    /// The stage watch at each look, while the game has the front with its picture.
+    static func keepUnderGame(at level: Int?) {
+        guard let window, window.isVisible, !state.stage.raised, let wanted = pageLevel(underGameAt: level),
+              window.level.rawValue != wanted
+        else { return }
+        window.level = NSWindow.Level(rawValue: wanted)
         window.orderFrontRegardless()
     }
 
@@ -138,6 +265,7 @@ enum GameBackdrop {
     /// game's window coming over it in front lowers it as ever.
     static func makeWay(under question: Int) {
         guard let window, isRaised else { return }
+        underQuestion = true
         window.level = .normal
         window.ignoresMouseEvents = false
         window.order(.below, relativeTo: question)
@@ -184,14 +312,22 @@ enum GameBackdrop {
             if let ready {
                 // While Spaces change underneath, the curtain is put in front again and again: the
                 // one shown next has it from its first frame on.
-                for _ in 0..<60 where !ready() {
+                for look in 0..<60 where !ready() {
                     if isRaised { window.orderFrontRegardless() }
+                    if asksFrontAgain(look: look), !NSApp.isActive { NSApp.comeToFront() }
                     try? await Task.sleep(for: .milliseconds(50))
                 }  // up to 3 s
                 if isRaised { window.orderFrontRegardless() }
             }
             try? await Task.sleep(for: delay)
             guard !Task.isCancelled else { return }
+            // Steam Helper took the front back in that moment (Valheim's end, 16:09 on 8.11.): the curtain
+            // would go over Steam's window.
+            if let ready, !ready() {
+                NSApp.comeToFront()
+                for _ in 0..<20 where !ready() { try? await Task.sleep(for: .milliseconds(50)) }
+                guard !Task.isCancelled else { return }
+            }
             held = false
             await NSAnimationContext.runAnimationGroup { context in
                 context.duration = 0.25
@@ -205,6 +341,10 @@ enum GameBackdrop {
         }
     }
 
+    /// On the way back Nightforge asks for the front once, and macOS may give it to Steam Helper as a
+    /// game ends: asked again after half a second and after one and a half, not at every look.
+    nonisolated static func asksFrontAgain(look: Int) -> Bool { look == 10 || look == 30 }
+
     private static func put(_ game: String, on screen: NSScreen?, stage: Stage, tip: LaunchTip? = nil,
                             gameOn: @escaping @MainActor () -> Bool) {
         guard let screen = screen ?? NSScreen.main else { return }
@@ -215,7 +355,14 @@ enum GameBackdrop {
             state.step = nil
             state.detail = nil
             state.tip = tip
+            state.wayOut = nil
+            state.progress = nil
+            state.buttons = []
+            state.steamAsks = false
+            state.licence = nil
+            state.seam = nil
         }
+        if stage.raised, stage != state.stage || !isRaised { upSince = Date() }
         state.stage = stage
         self.gameOn = gameOn
         if let observer { NotificationCenter.default.removeObserver(observer) }
@@ -223,6 +370,7 @@ enum GameBackdrop {
                                                           object: nil, queue: .main) { _ in
             MainActor.assumeIsolated { GameBackdrop.nightforgeInFront() }
         }
+        if self.window == nil { listenToDisplays() }
         let window = self.window ?? make(screen.frame)
         self.window = window
         // A curtain is ordered into the Space shown; after a switch of Spaces (Nightforge's full
@@ -233,7 +381,7 @@ enum GameBackdrop {
                 MainActor.assumeIsolated {
                     GameBackdrop.spaceChanged = Date()
                     guard GameBackdrop.isRaised else { return }
-                    GameBackdrop.window?.orderFrontRegardless()
+                    GameBackdrop.holdInFront(for: afterSpaceChange)
                     GameLog.note("Space changed under the curtain")
                 }
             }
@@ -251,10 +399,13 @@ enum GameBackdrop {
                     if other, !GameBackdrop.isRaised {
                         // After the curtain too, in wine.log: who takes the front from a game.
                         if GameBackdrop.window?.isVisible == true, GameBackdrop.gameOn() { GameLog.note("In front over the page: \(app)") }
-                        return GameBackdrop.otherAppInFront()
+                        GameBackdrop.otherAppInFront()
+                        if let front = running?.processIdentifier { GameBackdrop.frontMoved(front) }
+                        return
                     }
                     guard GameBackdrop.isRaised else { return }
                     GameLog.note("In front under the curtain: \(app)")
+                    if other { GameBackdrop.holdInFront(for: afterActivation) }
                     // On the way back each app coming forward brought the pointer back. The start
                     // hides it once the game has had the front a moment (LibraryModel.watchCurtain).
                     if GameBackdrop.isReturning { InputRouter.hidePointerSoon() }
@@ -262,7 +413,7 @@ enum GameBackdrop {
             }
         }
         let appearing = !window.isVisible
-        window.setFrame(screen.frame, display: true)
+        window.setFrame(currentFrame(of: screen), display: true)
         window.alphaValue = appearing ? 0 : 1
         arrange(window)
         // Faded in where it wasn't up; from behind the game it's there at once, as it covers its end.
@@ -272,6 +423,33 @@ enum GameBackdrop {
                 window.animator().alphaValue = 1
             }
         }
+    }
+
+    /// How long the curtain is put in front again and again after another app comes forward under it, and
+    /// after the Space changes. Valheim's own full-screen Space (8.11.) came about a second after its
+    /// activation, with the desktop showing until the curtain was ordered into it (`Space changed …`).
+    nonisolated static let afterActivation: TimeInterval = 4
+    nonisolated static let afterSpaceChange: TimeInterval = 1
+    private static var holding: Task<Void, Never>?
+
+    /// Never over a question it lies under (`makeWay`), where the player has to see the question.
+    nonisolated static func holdsInFront(raised: Bool, underQuestion: Bool) -> Bool { raised && !underQuestion }
+
+    private static func holdInFront(for seconds: TimeInterval) {
+        holding?.cancel()
+        let until = Date().addingTimeInterval(seconds)
+        holding = Task {
+            while !Task.isCancelled, Date() < until, holdsInFront(raised: isRaised, underQuestion: underQuestion), let window {
+                toFront(window)
+                try? await Task.sleep(for: .milliseconds(50))
+            }
+        }
+    }
+
+    /// With the curtain at the top level the overlay shares it: the panel is ordered back above it.
+    private static func toFront(_ window: NSWindow) {
+        window.orderFrontRegardless()
+        if GameOverlay.isOpen { GameOverlay.window?.orderFrontRegardless() }
     }
 
     /// Nightforge came to the front with the page behind a game. The game gone: the page goes. The
@@ -309,8 +487,9 @@ enum GameBackdrop {
     /// Nightforge is in front.
     private static func arrange(_ window: NSWindow, nightforgeFront: Bool? = nil) {
         window.ignoresMouseEvents = true  // taken under a question (makeWay)
+        underQuestion = false
         if state.stage.raised {
-            window.level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue - 1)  // the overlay above it
+            window.level = NSWindow.Level(rawValue: curtainLevel(overShield: mayCapture || GameProcesses.screenCaptured()))  // the overlay above it
             window.collectionBehavior = [.canJoinAllSpaces, .canJoinAllApplications, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         } else {
             window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenNone]
@@ -324,7 +503,7 @@ enum GameBackdrop {
             }
             window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
         }
-        window.orderFrontRegardless()
+        toFront(window)
     }
 
     /// The brand's pictures (BrandArt), drawn once per size and scale: sharp on a 4K TV as on the
@@ -363,12 +542,26 @@ private final class CurtainPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
-private struct BackdropView: View {
+struct BackdropView: View {
     @ObservedObject var state: GameBackdrop.State
 
     var body: some View {
         ZStack {
             BrandNight()
+            // One fade each way, between two pages that stand still.
+            if state.stage == .starting && state.steamAsks {
+                SteamQuestionFrame(game: state.game, wayOut: state.wayOut, licence: state.licence, seam: state.seam)
+                    .transition(.opacity)
+            } else {
+                page.transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.4), value: state.steamAsks)
+        .clipped()
+        .ignoresSafeArea()
+    }
+
+    private var page: some View {
             VStack(spacing: 0) {
                 BrandMark(moving: state.stage.raised)
                 // The banner's wordmark, and under it the game in the blue of its tagline.
@@ -391,17 +584,32 @@ private struct BackdropView: View {
                 .foregroundStyle(Theme.muted)
                 .animation(.easeInOut(duration: 0.4), value: status)
                 .padding(.top, 34)
+                // In the gap above the second line, which is there anyway: an update's bar – nothing moves when it comes.
+                UpdateBar(fraction: state.stage == .starting ? state.progress : nil)
+                    .frame(height: 34)
                 // Its own fade only, nothing else on the page moves with it.
                 Text(state.stage == .starting ? state.detail ?? " " : " ")
                     .font(size: 14)
                     .foregroundStyle(Theme.muted.opacity(0.75))
                     .lineLimit(2)
                     .frame(maxWidth: 560)
-                    .padding(.top, 14)
                     .opacity(state.stage == .starting && state.detail != nil ? 1 : 0)
                     .animation(.easeInOut(duration: 0.5), value: state.detail)
-                // A tip for new players, quiet, in the banner's blue.
-                if state.stage == .starting, let tip = state.tip {
+                if state.stage == .starting, !state.buttons.isEmpty {
+                    // What to press now, each button with its word: where the player has to do something.
+                    HStack(spacing: 22) {
+                        ForEach(Array(state.buttons.enumerated()), id: \.offset) { _, button in
+                            HStack(spacing: 8) {
+                                PadGlyph(button.symbol, size: 17)
+                                Text(button.label)
+                            }
+                        }
+                    }
+                    .font(size: 15)
+                    .foregroundStyle(Color(nsColor: BrandArt.tagline).opacity(0.85))
+                    .padding(.top, 26)
+                } else if state.stage == .starting, let tip = state.wayOut ?? state.tip {
+                    // A tip for new players, quiet, in the banner's blue.
                     HStack(spacing: 12) {
                         HStack(spacing: 6) {
                             ForEach(Array(tip.symbols.enumerated()), id: \.offset) { index, symbol in
@@ -418,9 +626,6 @@ private struct BackdropView: View {
             }
             .multilineTextAlignment(.center)
             .padding(Theme.gutter)
-        }
-        .clipped()
-        .ignoresSafeArea()
     }
 
     private var status: String {
@@ -429,6 +634,115 @@ private struct BackdropView: View {
         case .behind: return L10n.t("Nightforge waits here until you're done.")
         case .returning: return L10n.t("Back to Nightforge …")
         }
+    }
+}
+
+/// How far an update is: a thin line in the seam's blue, in a gap that's there with or without it.
+private struct UpdateBar: View {
+    let fraction: Double?
+    static let width: CGFloat = 420
+    static let height: CGFloat = 4
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            Capsule().fill(.white.opacity(0.12))
+            Capsule().fill(Color(nsColor: BrandArt.seamBlue))
+                .frame(width: Self.width * (fraction ?? 0))
+        }
+        .frame(width: Self.width, height: Self.height)
+        .opacity(fraction == nil ? 0 : 1)
+        .animation(.linear(duration: 0.4), value: fraction)
+        .frame(height: 14)
+    }
+}
+
+/// Steam's question on the curtain: its window stands where Steam puts it, so the mark gives way, the
+/// game's name goes to the top, and a bar at the bottom says how to answer and how to leave.
+private struct SteamQuestionFrame: View {
+    let game: String
+    let wayOut: LaunchTip?
+    /// Steam's licence: said so at the top, with `seam` round its window once that's there.
+    var licence: GameBackdrop.LicenceLook?
+    var seam: CGRect?
+    @ObservedObject private var tv = TVLayout.shared
+
+    var body: some View {
+        ZStack {
+            if let seam {
+                // Drawn once where the window stands, on the curtain under it; the window itself is left as it is.
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(Color(nsColor: BrandArt.seamBlue), lineWidth: 2)
+                    .shadow(color: Color(nsColor: BrandArt.seamBlue).opacity(0.6), radius: 18)
+                    .frame(width: seam.width + 24, height: seam.height + 24)
+                    .position(x: seam.midX, y: seam.midY)
+                    .transition(.opacity)
+            }
+            VStack(spacing: 0) {
+                Spaced(text: game.uppercased(with: L10n.locale) + " · " + (licence == nil ? L10n.t("Steam is asking something") : L10n.t("The licence, just once")).uppercased(with: L10n.locale), kern: 6)
+                    .fontWidth(.expanded)
+                    .font(size: 18)
+                    .foregroundStyle(Color(nsColor: BrandArt.tagline))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                    .padding(.top, max(48, Theme.margins.top))
+                    .padding(.horizontal, Theme.margins.side)
+                if licence != nil {
+                    Text(L10n.t("Steam only asks this at the first start."))
+                        .font(size: 15)
+                        .foregroundStyle(Theme.muted)
+                        .padding(.top, 12)
+                }
+                Spacer()
+                HStack(spacing: 48) {
+                    answers
+                    // Without a controller there's no B to name, and Esc goes to Steam's window.
+                    if let wayOut, !wayOut.symbols.isEmpty {
+                        HStack(spacing: 10) {
+                            ForEach(Array(wayOut.symbols.enumerated()), id: \.offset) { _, symbol in PadGlyph(symbol, size: 20) }
+                            Text(licence == nil ? wayOut.text : L10n.t("Cancel"))
+                        }
+                    }
+                }
+                .font(size: 17)
+                .foregroundStyle(Color(nsColor: BrandArt.tagline))
+                .frame(maxWidth: .infinity)
+                .frame(height: 96)
+                .padding(.bottom, tv.isOn ? Theme.margins.bottom : 0)  // what a TV may cut off stays empty
+                .background(Color(red: 6 / 255, green: 8 / 255, blue: 11 / 255).opacity(0.72))
+                .overlay(alignment: .top) { Rectangle().fill(.white.opacity(0.08)).frame(height: 1) }
+            }
+        }
+        .animation(.easeInOut(duration: 0.4), value: seam == nil)
+    }
+
+    @ViewBuilder private var answers: some View {
+        switch licence?.answering ?? .mouse {
+        case .mouse:
+            Text(L10n.t("Answer with the mouse or trackpad"))
+        case .touchpad:
+            HStack(spacing: 10) {
+                TouchpadMark()
+                Text(L10n.t("Touchpad moves the pointer"))
+            }
+            Text(L10n.t("Press to click"))
+            Text(L10n.t("Two fingers scroll"))
+        case .stick:
+            HStack(spacing: 10) {
+                PadGlyph("r.joystick.fill", size: 20)
+                Text(L10n.t("Right stick moves the pointer"))
+            }
+            Text(L10n.t("%@ clicks", licence?.click ?? "R2"))
+        }
+    }
+}
+
+/// The pad's touchpad, as small as the button marks beside it.
+private struct TouchpadMark: View {
+    var body: some View {
+        RoundedRectangle(cornerRadius: 5)
+            .strokeBorder(lineWidth: 1.8)
+            .frame(width: 30, height: 20)
+            .overlay(Circle().frame(width: 5, height: 5))
     }
 }
 

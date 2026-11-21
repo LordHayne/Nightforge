@@ -1,0 +1,184 @@
+Nightforge: keeps controller input from Windows games while Nightforge's overlay is up.
+
+The overlay asks through a Darwin notification with a time limit (pad_silence.h): until Nightforge asks
+this does nothing, and if Nightforge hangs or crashes the silence ends by itself. Only winebus.so
+changes: nothing is loaded into a game and no game file is touched; the game sees a pad at rest.
+
+diff --git a/dlls/winebus.sys/bus_sdl.c b/dlls/winebus.sys/bus_sdl.c
+index 2ce5fa9..68a64c2 100644
+--- a/dlls/winebus.sys/bus_sdl.c
++++ b/dlls/winebus.sys/bus_sdl.c
+@@ -32,6 +32,7 @@
+ #include <unistd.h>
+ #include <sys/types.h>
+ #include <dlfcn.h>
++#include "pad_silence.h"  /* Nightforge; before Windows' headers, it brings in Mach's */
+ #ifdef HAVE_SDL_H
+ # include <SDL.h>
+ #endif
+@@ -1196,6 +1197,39 @@ failed:
+     return STATUS_UNSUCCESSFUL;
+ }
+ 
++static struct pad_silence pad_silence;
++
++/* Nightforge: when the silence begins every pad reports a pad at rest (a report of zeros: the sticks
++ * centred, triggers and buttons up, the hat in the middle) and then nothing; when it ends, the real
++ * state, which the SDL events have gone on updating. Only reports are held back, rumble still works. */
++static void pad_silence_update(void)
++{
++    enum pad_silence_change change = pad_silence_poll(&pad_silence);
++    struct sdl_device *impl;
++
++    if (change == PAD_SILENCE_SAME) return;
++
++    bus_pad_silent = FALSE;
++    LIST_FOR_EACH_ENTRY(impl, &device_list, struct sdl_device, unix_device.entry)
++    {
++        struct unix_device *iface = &impl->unix_device;
++        struct hid_device_state *state = &iface->hid_device_state;
++        BYTE *neutral;
++
++        if (!impl->started || !state->report_len) continue;
++        if (change == PAD_SILENCE_ENDS)
++        {
++            bus_event_queue_input_report(&event_queue, iface, state->report_buf, state->report_len);
++            continue;
++        }
++        if (!(neutral = calloc(1, state->report_len))) continue;
++        neutral[0] = state->id;
++        bus_event_queue_input_report(&event_queue, iface, neutral, state->report_len);
++        free(neutral);
++    }
++    bus_pad_silent = change == PAD_SILENCE_BEGINS;
++}
++
+ NTSTATUS sdl_bus_wait(void *args)
+ {
+     struct bus_event *result = args;
+@@ -1206,6 +1240,7 @@ NTSTATUS sdl_bus_wait(void *args)
+ 
+     do
+     {
++        pad_silence_update();
+         if (bus_event_queue_pop(&event_queue, result)) return STATUS_PENDING;
+         if (pSDL_WaitEventTimeout(&event, 10) != 0) process_device_event(&event);
+         else check_all_devices_effects_state();
+diff --git a/dlls/winebus.sys/pad_silence.h b/dlls/winebus.sys/pad_silence.h
+new file mode 100644
+index 0000000..c771d84
+--- /dev/null
++++ b/dlls/winebus.sys/pad_silence.h
+@@ -0,0 +1,76 @@
++/* Nightforge: keeps controller input from the games for as long as Nightforge's overlay asks.
++ *
++ * macOS can't take a pad from the game in front, but in a Windows game everything a pad says comes
++ * through this driver, which runs in winedevice.exe and not in the game. While the overlay is up it
++ * reports a pad at rest, as if the player had let go, and nothing else; afterwards the real state.
++ *
++ * Off unless Nightforge asks. Nightforge writes a time into a Darwin notification's state: silent
++ * until then, on the monotonic clock in nanoseconds. It renews that while the overlay is up, so if
++ * Nightforge hangs or crashes the silence ends by itself and no player sits with a dead pad. The
++ * answer notification tells Nightforge that this driver heard it. */
++
++#ifndef __WINEBUS_PAD_SILENCE_H
++#define __WINEBUS_PAD_SILENCE_H
++
++#include <notify.h>
++#include <stdint.h>
++#include <time.h>
++
++#ifndef PAD_SILENCE_NAME
++#define PAD_SILENCE_NAME "io.github.lordhayne.nightforge.pad-silence"
++#define PAD_SILENCE_ANSWER_NAME "io.github.lordhayne.nightforge.pad-silence.answer"
++#endif
++
++/* Nightforge asks for seconds at a time. A value further off is a mistake, not a request: it must
++ * not leave a player without a pad. */
++#define PAD_SILENCE_LONGEST_NS (30 * 1000000000ull)
++
++enum pad_silence_change { PAD_SILENCE_SAME, PAD_SILENCE_BEGINS, PAD_SILENCE_ENDS };
++
++struct pad_silence
++{
++    int request;
++    int answer;
++    int ready;  /* 0: not registered yet, 1: registered, -1: notifications failed, never silent */
++    int silent;
++    uint64_t until;
++};
++
++static inline int pad_silence_wanted(uint64_t until, uint64_t now)
++{
++    return until > now && until - now <= PAD_SILENCE_LONGEST_NS;
++}
++
++static inline enum pad_silence_change pad_silence_next(struct pad_silence *silence, uint64_t until, uint64_t now)
++{
++    int wanted = pad_silence_wanted(until, now);
++
++    silence->until = until;
++    if (wanted == silence->silent) return PAD_SILENCE_SAME;
++    silence->silent = wanted;
++    return wanted ? PAD_SILENCE_BEGINS : PAD_SILENCE_ENDS;
++}
++
++/* Called often: notify_check only looks at shared memory, the state is fetched when it changed. */
++static inline enum pad_silence_change pad_silence_poll(struct pad_silence *silence)
++{
++    uint64_t now = clock_gettime_nsec_np(CLOCK_MONOTONIC), until = silence->until;
++    int changed = 0;
++
++    if (!silence->ready)
++    {
++        silence->ready = notify_register_check(PAD_SILENCE_NAME, &silence->request) == NOTIFY_STATUS_OK
++                      && notify_register_check(PAD_SILENCE_ANSWER_NAME, &silence->answer) == NOTIFY_STATUS_OK ? 1 : -1;
++    }
++    if (silence->ready < 0) return PAD_SILENCE_SAME;
++
++    if (notify_check(silence->request, &changed) == NOTIFY_STATUS_OK && changed
++        && notify_get_state(silence->request, &until) == NOTIFY_STATUS_OK && pad_silence_wanted(until, now))
++    {
++        notify_set_state(silence->answer, until);
++        notify_post(PAD_SILENCE_ANSWER_NAME);
++    }
++    return pad_silence_next(silence, until, now);
++}
++
++#endif /* __WINEBUS_PAD_SILENCE_H */
+diff --git a/dlls/winebus.sys/unix_private.h b/dlls/winebus.sys/unix_private.h
+index 7b7e5c7..51326e9 100644
+--- a/dlls/winebus.sys/unix_private.h
++++ b/dlls/winebus.sys/unix_private.h
+@@ -242,6 +242,9 @@ extern void bus_event_cleanup(struct bus_event *event);
+ extern void bus_event_queue_destroy(struct list *queue);
+ extern BOOL bus_event_queue_device_removed(struct list *queue, struct unix_device *device);
+ extern BOOL bus_event_queue_device_created(struct list *queue, struct unix_device *device, struct device_desc *desc);
++/* Nightforge: input reports are dropped while this is set (pad_silence.h). */
++extern BOOL bus_pad_silent;
++
+ extern BOOL bus_event_queue_input_report(struct list *queue, struct unix_device *device,
+                                          BYTE *report, USHORT length);
+ extern BOOL bus_event_queue_pop(struct list *queue, struct bus_event *event);
+diff --git a/dlls/winebus.sys/unixlib.c b/dlls/winebus.sys/unixlib.c
+index d2b1fad..ffb3616 100644
+--- a/dlls/winebus.sys/unixlib.c
++++ b/dlls/winebus.sys/unixlib.c
+@@ -391,10 +391,16 @@ BOOL bus_event_queue_device_created(struct list *queue, struct unix_device *devi
+     return TRUE;
+ }
+ 
++BOOL bus_pad_silent = FALSE;
++
+ BOOL bus_event_queue_input_report(struct list *queue, struct unix_device *device, BYTE *report, USHORT length)
+ {
+     ULONG size = offsetof(struct bus_event_entry, event.input_report.buffer[length]);
+-    struct bus_event_entry *entry = malloc(size);
++    struct bus_event_entry *entry;
++
++    if (bus_pad_silent) return TRUE;  /* Nightforge: the game is not to hear the pad (pad_silence.h) */
++
++    entry = malloc(size);
+     if (!entry) return FALSE;
+ 
+     if (unix_device_incref(device) == 1) /* being destroyed */

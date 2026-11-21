@@ -30,7 +30,10 @@ enum Theme {
     /// which adds "Larger text".
     static func display(_ size: CGFloat) -> Font { .system(size: size, weight: .heavy).width(.expanded) }
 
-    static let gutter: CGFloat = 56
+    /// Set by TVLayout: 5 % on a TV. The window's edges and what's measured from them.
+    static var margins = TVRules.normal
+    static var focusRing = TVRules.ringWidth(onTV: false)
+    static var gutter: CGFloat { margins.side }
 }
 
 /// The N beside the name in the top bar: the app icon's three pieces in brushed silver, with the

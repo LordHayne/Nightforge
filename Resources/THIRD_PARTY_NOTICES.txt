@@ -24,7 +24,8 @@ Downloaded by Nightforge (not inside the app)
 Each package comes with its own licence and, where its licence asks for it, its source:
 
   Wine (Gcenx builds, winecx)     LGPL-2.1-or-later
-  DXMT 0.80                       MIT (with DXVK code, zlib, and NVIDIA NVAPI headers, MIT)
+  DXMT 0.80                       MIT (with DXVK code, zlib, and NVIDIA NVAPI headers, MIT);
+                                  Nightforge's build with its shader patch as a whole LGPL-2.1-or-later
   DXVK-macOS                      zlib
   MoltenVK                        Apache-2.0
   winetricks                      LGPL-2.1-or-later

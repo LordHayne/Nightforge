@@ -1,0 +1,136 @@
+{
+  "basket" : {
+    "entries" : 239,
+    "generated" : "2026-11-02T21:23:38Z",
+    "installed" : 3
+  },
+  "engine" : [
+    "winecx@4.7.3",
+    "d3dmetal@apple-3.0",
+    "dxvk-macos@1.10.3-20230507",
+    "gamepad@4.7.3-15",
+    "graphics@11.18-dxmt0.80-17",
+    "moltenvk@1.4.2"
+  ],
+  "finished" : "2026-11-03T19:33:41Z",
+  "formatVersion" : 1,
+  "games" : [
+    {
+      "frames" : {
+        "average" : 56.5,
+        "low" : 38.7,
+        "periods" : 6
+      },
+      "game" : "The Forest",
+      "issues" : [
+
+      ],
+      "load" : {
+        "average" : 12.1,
+        "cores" : 10,
+        "low" : false
+      },
+      "notes" : [
+        "der Play-Helfer drückte „Play!“ in Unitys Startfenster"
+      ],
+      "outcome" : "picture",
+      "platform" : "windows",
+      "result" : "good",
+      "secondsToPicture" : 16.3,
+      "secondsToProcess" : 5.4,
+      "startedAt" : "2026-11-03T19:26:28Z",
+      "store" : "steam",
+      "storeID" : "242760",
+      "way" : "dxvk",
+      "ways" : [
+        {
+          "engine" : "winecx@4.7.3",
+          "outcome" : "picture",
+          "way" : "dxvk"
+        }
+      ]
+    },
+    {
+      "frames" : {
+        "average" : 54.5,
+        "low" : 41.2,
+        "periods" : 6
+      },
+      "game" : "ABZU",
+      "issues" : [
+
+      ],
+      "load" : {
+        "average" : 8.7,
+        "cores" : 10,
+        "low" : false
+      },
+      "notes" : [
+        "das Spiel zeigte vor dem Bild ein Fenster mit einer Frage"
+      ],
+      "outcome" : "picture",
+      "platform" : "windows",
+      "result" : "good",
+      "secondsToPicture" : 8.7,
+      "secondsToProcess" : 2.2,
+      "standsFor" : [
+        "steam.1426210",
+        "steam.548430",
+        "steam.1144200",
+        "steam.1149460"
+      ],
+      "startedAt" : "2026-11-03T19:30:03Z",
+      "store" : "epic",
+      "storeID" : "Curry",
+      "way" : "dxmt -dx11",
+      "ways" : [
+        {
+          "engine" : "winecx@4.7.3",
+          "outcome" : "picture",
+          "way" : "dxmt -dx11"
+        }
+      ]
+    },
+    {
+      "game" : "Mafia II (Classic)",
+      "issues" : [
+
+      ],
+      "load" : {
+        "average" : 5.5,
+        "cores" : 10,
+        "low" : false
+      },
+      "notes" : [
+        "das Spiel zeigte vor dem Bild ein Fenster mit einer Frage"
+      ],
+      "outcome" : "picture",
+      "platform" : "windows",
+      "result" : "good",
+      "secondsToPicture" : 31.4,
+      "secondsToProcess" : 11.8,
+      "startedAt" : "2026-11-03T19:31:34Z",
+      "store" : "gog",
+      "storeID" : "1816059595",
+      "way" : "wined3d",
+      "ways" : [
+        {
+          "engine" : "winecx@4.7.3",
+          "outcome" : "picture",
+          "way" : "wined3d"
+        }
+      ]
+    }
+  ],
+  "load" : {
+    "average" : 12.1,
+    "cores" : 10,
+    "low" : false
+  },
+  "mac" : "Apple M5 · macOS 27.0",
+  "nightforge" : "0.3.0",
+  "pictureWait" : 120,
+  "playSeconds" : 60,
+  "started" : "2026-11-03T19:21:21Z",
+  "stopped" : false
+}

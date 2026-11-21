@@ -13,7 +13,73 @@ struct PadRulesTest {
         }
     }
 
+    /// The curtain up, Nightforge still the active app: nothing under it is reached, by pad or keyboard.
+    static func curtain() {
+        check(PadRules.curtainCovers(raised: true, overlay: false), "the curtain covers the levels")
+        check(!PadRules.curtainCovers(raised: false, overlay: false), "no curtain: nothing to cover them")
+        check(!PadRules.curtainCovers(raised: true, overlay: true), "the overlay over it has the pad")
+        let source = (try? String(contentsOfFile: "Sources/Nightforge/InputRouter.swift", encoding: .utf8)) ?? ""
+        func has(_ text: String, _ what: String) { check(source.contains(text), what) }
+        has("guard self?.reach != Reach.none, self?.curtainCovers != true else { return }", "A presses nothing under the curtain")
+        has("|| model.launcherMenuOpen || model.showsLauncherCards || model.signingIn != nil || model.padKeyboard != nil\n            || curtainCovers",
+            "X, Y, ☰, L1, R1, L2 and R2 count it as something open")
+        has("if curtainCovers { return true }  // a direction held", "the d-pad and the stick stop at it")
+        has("|| keyboardHasPad || curtainCovers", "⧉ too")
+        has("model?.padKeyboard == nil && !curtainCovers ? Self.stickSpeed(y)", "and the right stick's scrolling")
+        has("if code == 53, model.curtainEscapeOpen { model.askAboutStuckStart() }", "keys: Esc is the way out")
+        has("if command, code == 51, self?.curtainCovers != true", "⌘⌫ removes nothing unseen")
+    }
+
+    /// Player numbers (PlayerSlots): nothing here touches a real controller.
+    static func players() {
+        var slots = PlayerSlots<String>()
+        func pads(_ names: String...) -> [(pad: String, kind: String)] {
+            names.map { (pad: $0, kind: $0.hasPrefix("d") ? "DualSense" : "Xbox") }
+        }
+        check(slots.update(connected: pads("d1")) == ["d1": 1], "first on: player 1")
+        check(slots.update(connected: pads("d1", "d2")) == ["d1": 1, "d2": 2], "the next is player 2")
+        check(slots.update(connected: pads("d2", "d1")) == ["d1": 1, "d2": 2], "macOS's order doesn't move anyone")
+        check(slots.update(connected: pads("d2")) == ["d2": 2], "player 1 off: player 2 stays 2")
+        check(slots.update(connected: pads("d2", "d3")) == ["d2": 2, "d3": 1], "back on (a new object): its old seat")
+        check(slots.update(connected: pads("d2", "d3", "x1")) == ["d2": 2, "d3": 1, "x1": 3], "another kind: the next free seat")
+
+        var both = PlayerSlots<String>()
+        _ = both.update(connected: pads("d1", "x1"))
+        _ = both.update(connected: [])
+        check(both.update(connected: pads("x2")) == ["x2": 2], "both off, the Xbox pad first: still its own seat")
+        check(both.update(connected: pads("x2", "d2")) == ["x2": 2, "d2": 1], "and the DualSense its own")
+
+        var reserved = PlayerSlots<String>()
+        _ = reserved.update(connected: pads("d1"))
+        _ = reserved.update(connected: [])
+        check(reserved.update(connected: pads("x1")) == ["x1": 2], "a seat waits for its kind: another pad goes on to the next")
+
+        var full = PlayerSlots<String>()
+        _ = full.update(connected: pads("d1", "d2", "d3", "d4"))
+        check(full.update(connected: pads("d1", "d2", "d3", "d4", "d5")).count == 4, "a fifth has no number")
+        check(full.update(connected: pads("d1", "d2", "d3", "d4", "d5"))["d5"] == nil, "and keeps none")
+        check(full.update(connected: pads("d2", "d3", "d4", "d5"))["d5"] == 1, "until a seat is there for it")
+
+        var oldest = PlayerSlots<String>()
+        _ = oldest.update(connected: pads("d1", "d2", "d3", "d4"))
+        _ = oldest.update(connected: pads("d1", "d3", "d4"))  // seat 2 first
+        _ = oldest.update(connected: pads("d3", "d4"))  // then seat 1
+        check(oldest.update(connected: pads("d3", "d4", "x1"))["x1"] == 2, "no seat of its own kind and none free: the one left longest ago")
+
+        for player in 1...4 { check(PlayerLight.color(player: player) != nil, "player \(player) has a colour") }
+        check(Set((1...4).map { "\(PlayerLight.color(player: $0)!)" }).count == 4, "four different colours")
+        check(PlayerLight.color(player: 0) == nil && PlayerLight.color(player: 5) == nil, "no number, no colour")
+
+        check(ControllerStatus(name: "DualSense Wireless Controller", battery: 0.8, player: 1).label == "1 · DualSense · 80 %", "number, name, battery")
+        check(ControllerStatus(name: "Xbox Wireless Controller", battery: nil, player: 2).label == "2 · Xbox", "no battery reported")
+        check(ControllerStatus(name: "DualSense Wireless Controller", battery: 0.8).label == "DualSense · 80 %", "no number: as before")
+        let unordered = [ControllerStatus(name: "a", battery: nil), ControllerStatus(name: "b", battery: nil, player: 2),
+                         ControllerStatus(name: "c", battery: nil), ControllerStatus(name: "d", battery: nil, player: 1)]
+        check(ControllerStatus.inPlayerOrder(unordered).map(\.name) == ["d", "b", "a", "c"], "player 1 first, those without a number last in their order")
+    }
+
     static func main() {
+        players()
         typealias Open = PadRules.Open
 
         // B: one press, one level, the innermost first.
@@ -39,6 +105,8 @@ struct PadRulesTest {
         check(PadRules.back(Open(highlight: true, gamePage: true, curtain: true)) == .nothing, "nor changes the page hidden under it")
         check(PadRules.back(Open(overlay: true, curtain: true)) == .overlay, "\"Not starting?\" over the curtain takes B")
         check(PadRules.back(Open(awaitingSteam: true)) == .cancelLaunch, "without the curtain a waiting start is still called off")
+        check(PadRules.back(Open(awaitingSteam: true, curtain: true, curtainEscape: true)) == .curtainEscape, "no game under it for a while: B asks")
+        check(PadRules.back(Open(overlay: true, curtain: true, curtainEscape: true)) == .overlay, "the question open: B steps back in it")
 
         // The launcher menus.
         check(PadRules.back(Open(highlight: true, launcherMenu: true)) == .launcherMenu, "the small menu closes in one press")
@@ -73,6 +141,7 @@ struct PadRulesTest {
         check(!PadRules.actsOnGames(inFront: true, sheet: false, panel: true), "not behind the downloads panel, a list or a big screenshot")
         check(!PadRules.actsOnGames(inFront: true, sheet: true, panel: false), "not behind a sheet")
         check(!PadRules.actsOnGames(inFront: false, sheet: false, panel: false), "not with a game in front")
+        curtain()
 
         // Home: ↓ to the game's buttons, ↑ to the top bar, sideways the games; back the way it came.
         check(PadRules.homeEntry(dy: 1) == .game, "down on Home: the game's buttons, not the library")

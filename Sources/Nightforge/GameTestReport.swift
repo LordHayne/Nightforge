@@ -35,10 +35,18 @@ extension GameTest {
         var secondsToProcess: Double?
         var secondsToPicture: Double?
         var frames: Frames?
+        /// With a picture, since format 2: the size it drew at, the limit it was held to, why no frames (GameTestMeasure).
+        var measure: Measure?
+        /// Since format 2: whether this run saw a clean start and a frame rate that counts (`GameTest.check`);
+        /// nil when it wasn't started. And what the game takes on the disk.
+        var check: Check?
+        var sizeBytes: Int64?
         /// wine.log's error lines since the start (GameLog.errors), when it had no picture or ended.
         var errors: [String]?
         /// Where it hung (`topOfStack`).
         var stack: [String]?
+        /// Why no sample was taken of a game that hung (GameTest.handsOff): "ownAntiCheat", "antiCheat".
+        var noSample: String?
         /// In German, for people: what else came up.
         var notes: [String]?
         /// Files in the run's folder with more: the log since the start, the sample.
@@ -54,6 +62,7 @@ extension GameTest {
             notYet = candidate.notYet ? true : nil
             hint = candidate.hint
             standsFor = candidate.standsFor
+            sizeBytes = candidate.sizeBytes
             if skip != nil, let note = candidate.skipNote { notes = [note] }
         }
 
@@ -74,7 +83,11 @@ extension GameTest {
     }
 
     struct Report: Codable, Equatable {
-        static let format = 1
+        /// 2 (14.11.2026): `measure`, `check` and `sizeBytes` per game, the frames' slowest and source, `built`,
+        /// `onBattery`, `lowPower`, `frameLog`, `wineFps`.
+        /// A format 1 report reads as before.
+        static let format = 2
+        static let underRosetta = "x86_64 under Rosetta"
 
         var formatVersion = Report.format
         var started: Date
@@ -82,10 +95,16 @@ extension GameTest {
         /// Ended early by `gameTest.stop`.
         var stopped = false
         var nightforge: String
+        /// When this Nightforge was built (its program's date): test builds between two versions share the
+        /// version, not this. Since format 2.
+        var built: Date?
         /// The engine's parts (EngineBuild.parts): "winecx@4.7.3", "dxmt@…".
         var engine: [String]?
         /// Chip and macOS.
         var mac: String
+        /// How Wine ran, so a later engine's run isn't compared with this one blindly. Missing in reports
+        /// from before 8.11.2026, which all ran under Rosetta.
+        var runsOn: String? = Report.underRosetta
         var pictureWait: Double
         var playSeconds: Double
         /// Minutes the run waited for a locked screen.
@@ -94,6 +113,18 @@ extension GameTest {
         var waitedProcessList: Int?
         /// The Mac's load when the first game started, after waiting up to `loadPatience` for it to drop.
         var load: Load?
+        /// The Mac ran on battery, or in Low Power Mode, when the run began: its frame rates don't compare
+        /// with a run on mains (the battery's 30 FPS, a CPU and GPU held back). Only written when true.
+        var onBattery: Bool?
+        var lowPower: Bool?
+        /// The run's starts had Apple's Metal HUD log their frames (GameTest.logsFrames): a picture without
+        /// frame rates on D3DMetal or DXVK then says the HUD logged none, not that the way reports none.
+        /// Only written when true.
+        var frameLog: Bool?
+        /// Wine's fps channel was on for the run (the engine test's switch `wineDebug` with "+fps",
+        /// GameTest.wineFpsOn): Wine's own Direct3D then says its frame rate, and a picture on it without one
+        /// says the log held none. Only written when true.
+        var wineFps: Bool?
         /// The test basket it went by: when it was built, how many games it has, how many of them are installed here.
         var basket: BasketUse?
         /// In German, for people: what else came up (a basket that couldn't be read).
@@ -179,6 +210,13 @@ extension GameTest {
             lines.append("Systemlast zu Beginn: \(decimal(load.average)) bei \(load.cores) Kernen – "
                          + (load.low ? "niedrig." : "hoch: Andere Arbeit lief mit, die FPS-Werte sind nicht verlässlich."))
         }
+        if report.frameLog == true {
+            lines.append("Apples Metal-HUD hat die Frames mitgeschrieben (unsichtbar, wo die Leistungsanzeige aus ist): "
+                         + "FPS-Werte auf jedem Weg, der über Metal zeichnet.")
+        }
+        if report.wineFps == true {
+            lines.append("Wines fps-Kanal war an: WineD3D-Spiele melden ihre Bildrate (Ø und tiefste zehn Sekunden, kein 1-%-Tief).")
+        }
         let busy = report.games.filter { $0.load?.low == false && $0.outcome != .skipped }.count
         if busy > 0 {
             lines.append("Bei \(busy) \(busy == 1 ? "Spiel" : "Spielen") war die Last beim Start hoch (in der Tabelle markiert).")
@@ -221,6 +259,9 @@ extension GameTest {
             lines.append("")
         }
 
+        lines += measures(report)
+        lines += checklist(report)
+
         let troubled = report.games.filter { entry in
             entry.outcome != .skipped && (entry.outcome != .picture || !entry.issues.isEmpty || entry.notes != nil)
         }
@@ -232,6 +273,8 @@ extension GameTest {
                 for note in entry.notes ?? [] { lines.append("- \(note)") }
                 if let stack = entry.stack, !stack.isEmpty {
                     lines += ["", "Wo es hängt (sample):", "", "```"] + stack + ["```"]
+                } else if let why = entry.noSample {
+                    lines += ["", "Wo es hängt: \(noSampleText(why))."]
                 }
                 if let errors = entry.errors, !errors.isEmpty {
                     lines += ["", "Fehler im wine.log:", "", "```"] + errors + ["```"]
@@ -290,17 +333,5 @@ extension GameTest {
 
     private static func decimal(_ value: Double) -> String {
         String(format: "%.1f", value).replacingOccurrences(of: ".", with: ",")
-    }
-
-    private static func framesText(_ entry: Entry) -> String {
-        if let frames = entry.frames {
-            return "\(Int(frames.average.rounded())) / \(Int(frames.low.rounded()))" + (entry.load?.low == false ? " (Last hoch)" : "")
-        }
-        guard entry.outcome == .picture else { return "–" }
-        let way = entry.way ?? ""
-        if way.hasPrefix("d3dmetal") { return "– (D3DMetal meldet keine)" }
-        if way == "mac" { return "– (Mac-Fassung meldet keine)" }
-        if way.hasPrefix("dxmt") { return "– (keine im Log)" }
-        return "– (meldet keine)"
     }
 }

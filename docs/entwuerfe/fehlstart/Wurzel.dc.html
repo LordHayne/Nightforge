@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Die Frage zur Windows-Wurzel</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.board{width:1480px;height:1120px;box-sizing:border-box;padding:40px 40px 28px;display:flex;flex-direction:column;gap:22px;background:#0f141c;color:#f3f1ec;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-serif}
+.top{display:grid;grid-template-columns:880px minmax(0,1fr);gap:32px;align-items:start}
+.frame{position:relative;width:880px;height:495px;border-radius:10px;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(180deg,#171a24,#06080b);box-shadow:0 12px 22px rgba(0,0,0,.55)}
+.tag{position:absolute;top:22px;left:0;right:0;text-align:center;font-size:12px;font-stretch:expanded;letter-spacing:5px;color:#8ca8db}
+.ask{width:640px;display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center}
+.ask h2{margin:0;font-size:24px;line-height:30px;font-weight:800;font-stretch:expanded}
+.ask p{margin:0;font-size:15px;line-height:22px;color:#f3f1ec}
+.ask .root{font-size:12px;line-height:17px;color:#9aa3af}
+.acts{display:flex;gap:18px;margin-top:10px}
+.btn{height:52px;padding:0 28px;border-radius:999px;font:800 17px -apple-system,BlinkMacSystemFont,system-ui,sans-serif;font-stretch:expanded;color:#f3f1ec;background:rgba(243,241,236,.1);border:1px solid rgba(243,241,236,.14)}
+.btn.main{background:#ffb347;color:#0f141c;border-color:rgba(255,255,255,.3);outline:3px solid #ffb347;outline-offset:5px;box-shadow:0 0 14px rgba(255,179,71,.3)}
+.hints{position:absolute;left:0;right:0;bottom:20px;display:flex;justify-content:center;gap:26px;font-size:13px;font-weight:500;color:#9aa3af}
+.key{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;margin-right:7px;border-radius:50%;font-size:11px;font-weight:700;background:rgba(243,241,236,.14);color:#f3f1ec}
+.col{display:flex;flex-direction:column;gap:11px}
+h1{margin:0;font-size:30px;font-weight:800;font-stretch:expanded}
+.lead{margin:0;font-size:15px;line-height:22px;color:#9aa3af}
+.name{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:800;font-stretch:expanded}
+.pick{padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;font-stretch:normal;background:#ffb347;color:#0f141c}
+.text{margin:0;font-size:14px;line-height:21px}
+.muted{margin:0;font-size:14px;line-height:21px;color:#9aa3af}
+.label{font-size:11px;font-weight:700;letter-spacing:.8px;color:#9aa3af;text-transform:uppercase}
+.en{margin:0;font-size:12px;line-height:17px;color:#9aa3af}
+.row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}
+.state{display:flex;flex-direction:column;gap:8px}
+.card{height:118px;box-sizing:border-box;padding:0 30px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;background:linear-gradient(180deg,#171a24,#0a0d12)}
+.status{font-size:18px;font-weight:500;color:#9aa3af}
+.detail{font-size:14px;line-height:19px;color:rgba(154,163,175,.78)}
+.cap b{display:block;margin-bottom:2px;font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:#f3f1ec}
+.foot{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
+</style>
+</helmet>
+<div class="board">
+  <div class="top">
+    <div class="frame">
+      <div class="tag">METAL GEAR SOLID V</div>
+      <div class="ask">
+        <h2>Metal Gear Solid V braucht ein älteres Zertifikat</h2>
+        <p>Das Spiel prüft beim Start eine seiner Dateien. Sie ist mit einem Zertifikat signiert, das macOS nicht mehr führt, Windows aber schon. Nightforge kann es für seine Windows-Spiele eintragen – nur dort, nicht in deinem Mac.</p>
+        <p class="root">VeriSign Class 3 Public Primary Certification Authority – G5</p>
+        <div class="acts">
+          <button class="btn main" type="button">Eintragen und starten</button>
+          <button class="btn" type="button">Nicht eintragen</button>
+        </div>
+      </div>
+      <div class="hints"><span><span class="key">A</span>Auswählen</span><span><span class="key">B</span>Nicht eintragen</span></div>
+    </div>
+    <div class="col">
+      <h1>Die Frage zur Wurzel</h1>
+      <p class="lead">Nur für ein Zertifikat, das Nightforge selbst kennt und geprüft hat. Ein unbekanntes wird weiter nur genannt. Die Frage kann an zwei Orten stehen.</p>
+      <div class="name">1 · Auf dem Vorhang <span class="pick">Empfehlung</span></div>
+      <p class="text">Im selben Start, sobald Nightforge den Grund kennt. Ja trägt das Zertifikat ein und startet das Spiel noch einmal. Nein beendet den Start, ohne die übrigen Wege durchzugehen.</p>
+      <p class="muted">Dafür: Der Spieler wartet ohnehin dort, und ein Ja kostet ihn keinen zweiten Druck auf „Spielen“. Dagegen: eine Frage mitten im Start, die erste dieser Art auf dem Vorhang, die Nightforge selbst stellt.</p>
+      <div class="name">2 · Auf der Seite des Spiels</div>
+      <p class="text">Der Start endet. Auf der Seite steht ein Hinweis mit dem Knopf „Zertifikat eintragen und starten“.</p>
+      <p class="muted">Dafür: Der Vorhang bleibt frei von Fragen. Dagegen: Der Spieler landet erst bei einem Spiel, das nicht startete, und muss den Hinweis finden.</p>
+      <p class="en">EN: “Metal Gear Solid V needs an older certificate” · “At its start the game checks one of its files. It is signed with a certificate macOS no longer carries, but Windows does. Nightforge can add it for its Windows games – only there, not to your Mac.” · “Add and Start” · “Don’t Add” · hints “Select”, “Don’t Add”</p>
+    </div>
+  </div>
+  <div class="label">Danach, Text in Originalgröße</div>
+  <div class="row">
+    <div class="state">
+      <div class="card"><div class="status">Noch ein Versuch …</div><div class="detail">Das Zertifikat ist eingetragen. Das Spiel startet noch einmal.</div></div>
+      <div class="cap en"><b>Nach Ja</b>“One more try …” · “The certificate is added. The game starts once more.”</div>
+    </div>
+    <div class="state">
+      <div class="card"><div class="status">Metal Gear Solid V startet so nicht.</div><div class="detail">Ohne das Zertifikat läuft das Spiel nicht. Du kannst es jederzeit auf seiner Seite eintragen.</div></div>
+      <div class="cap en"><b>Nach Nein</b>“Metal Gear Solid V doesn’t start this way.” · “The game doesn’t run without the certificate. You can add it on its page any time.”</div>
+    </div>
+    <div class="state">
+      <div class="card"><div class="status">Das hat nicht geklappt.</div><div class="detail">Das Spiel vertraut einer seiner Dateien nicht. Nightforge kennt das Zertifikat dahinter nicht und trägt es nicht ein.</div></div>
+      <div class="cap en"><b>Unbekanntes Zertifikat, keine Frage</b>“That didn’t work.” · “The game doesn’t trust one of its files. Nightforge doesn’t know the certificate behind it and won’t add it.”</div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="col">
+      <div class="label">Was dafür noch fehlt</div>
+      <p class="muted">Heute trägt Nightforge jedes Zertifikat, das es kennt, für alle ein. Die Frage braucht eine zweite Liste: bekannt und geprüft, aber nur auf Ja. Dazu einen Ort, an dem das Ja oder Nein des Spielers steht. Jedes Zertifikat in dieser Liste braucht wie bisher deine Freigabe.</p>
+    </div>
+    <div class="col">
+      <div class="label">Zu entscheiden</div>
+      <p class="muted">Merkt sich Nightforge ein Nein? Sonst fragt jedes „Spielen“ wieder. Vorschlag: ja, je Spiel, mit dem Knopf auf der Seite des Spiels als Weg zurück. Und: Gilt ein Ja nur für dieses Spiel oder für alle Windows-Spiele? Technisch gilt es für alle, also sagt der Text es auch so.</p>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1480,"height":1120}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

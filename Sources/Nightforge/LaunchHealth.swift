@@ -69,6 +69,16 @@ enum LaunchHealth {
         return crashed || shortEndsBefore + 1 >= 2 ? .unconfirm : .keep
     }
 
+    /// A confirmed way that ended in its first seconds with nothing against it (`.keep`: no picture, no
+    /// crash, no graphics error) starts once more on the same way before the player is back in the
+    /// library. ABZU on DXMT, 10.11.2026: 2 of 7 starts ended before Direct3D, the next start on the same
+    /// way had a picture every time. Once only: a second such end counts (`earlyEnd`). Not for games that
+    /// hand over to a launcher of their own or carry an anti-cheat: their processes go and come by design,
+    /// and a start then would be a second copy.
+    static func startsAgainQuietly(_ outcome: Outcome, alreadyAgain: Bool, ownLauncher: Bool, antiCheat: Bool) -> Bool {
+        outcome == .keep && !alreadyAgain && !ownLauncher && !antiCheat
+    }
+
     /// A start that ran past its first seconds, once its verdict is in: confirmed when it drew (or
     /// ran `drawingWindow`). Ending earlier without a picture changes nothing – no frames in the
     /// log says nothing on most layers; it isn't a short start either.
@@ -89,17 +99,30 @@ enum LaunchHealth {
     /// D3DMetal (which runs Direct3D 11 too) last. `hint`: a way other sources report working
     /// (AppleGamingWiki); it goes first where it fits the game (`hinted`) and the profile names no
     /// layer of its own.
+    /// Without a profile or a report the game's files decide (`fromFiles`; `filesDecide: false`: the list
+    /// from before they did, which ways already proven on it stay on).
     /// A game with a DirectX 12 program of its own starts that one on D3DMetal (GameProgram, Control_DX12.exe).
     /// `kosmicKrisp`: under winecx DXVK's Direct3D 9 draws on KosmicKrisp (Engine.vulkanDriver).
     static func attempts(for analysis: GameAnalysis, profile: GameProfile?, hint: SourceHint? = nil,
                          d3dMetal: Bool = Engine.d3dMetalReady, vulkanLayer: Bool = Engine.vulkanLayerLoads,
-                         kosmicKrisp: Bool = Engine.kosmicKrispReady) -> [LaunchAttempt] {
+                         kosmicKrisp: Bool = Engine.kosmicKrispReady, filesDecide: Bool = true) -> [LaunchAttempt] {
         let preferred = profile?.graphics ?? hinted(hint, analysis: analysis, d3dMetal: d3dMetal)
+            ?? (filesDecide ? fromFiles(analysis, d3dMetal: d3dMetal) : nil)
         if analysis.usesD3D11, analysis.apis.contains(.d3d12), d3dMetal, preferred == .d3dmetal {
             // Measured to run better on DirectX 12 through D3DMetal than on DirectX 11: no -dx11 then.
             let arguments = analysis.preferD3D11Arguments
             return [LaunchAttempt(graphics: .d3dmetal), LaunchAttempt(graphics: .dxmt, arguments: arguments),
                     LaunchAttempt(graphics: .dxvk, arguments: arguments)]
+        }
+        // A game whose files name no renderer may draw with Direct3D 9 after all: Wine's own Direct3D is its last
+        // way then – without it no way could draw it (Alan Wake, 11.11.2026: D3DMetal, DXMT and DXVK, none of
+        // which has a Direct3D 9 that gets a device here).
+        let unknown = analysis.apis.isEmpty ? [LaunchAttempt(graphics: .wined3d)] : []
+        // … and an older 32-bit one draws with Direct3D 9 far more often than with 11: its ways first.
+        if analysis.apis.isEmpty, analysis.is64Bit == false, preferred == nil, filesDecide {
+            let old: [GraphicsLayer] = vulkanLayer || kosmicKrisp ? [.dxvk, .wined3d] : [.wined3d]
+            let rest: [GraphicsLayer] = [.dxmt, .dxvk] + (d3dMetal ? [.d3dmetal] : [])
+            return (old + rest.filter { !old.contains($0) }).map { LaunchAttempt(graphics: $0) }
         }
         if analysis.usesD3D11 || analysis.apis.isEmpty {
             let arguments = analysis.preferD3D11Arguments
@@ -107,7 +130,7 @@ enum LaunchHealth {
             if first == .d3dmetal {
                 // Apple's Direct3D 11 first (Control's DX11 build runs only there, 2.11.2026), then the usual two.
                 return [LaunchAttempt(graphics: .d3dmetal, arguments: arguments), LaunchAttempt(graphics: .dxmt, arguments: arguments),
-                        LaunchAttempt(graphics: .dxvk, arguments: arguments)]
+                        LaunchAttempt(graphics: .dxvk, arguments: arguments)] + unknown
             }
             let second: GraphicsLayer = first == .dxmt ? .dxvk : .dxmt
             var list = [LaunchAttempt(graphics: first, arguments: arguments), LaunchAttempt(graphics: second, arguments: arguments)]
@@ -118,7 +141,7 @@ enum LaunchHealth {
             } else if !arguments.isEmpty {
                 list.append(LaunchAttempt(graphics: first))
             }
-            return list
+            return list + unknown.filter { way in !list.contains { $0.graphics == way.graphics } }
         }
         if analysis.usesD3D9 {
             // Without Nightforge's Vulkan layer (winecx) DXVK never gets a device on MoltenVK – it
@@ -139,14 +162,15 @@ enum LaunchHealth {
     /// The layer a source's hint puts first, where it fits the game; nil where it doesn't. D3DMetal
     /// for a game with DirectX 11 (and maybe a DirectX 12 build), or one nothing was detected for –
     /// D3DMetal runs both – unless Nightforge knows the engine's DirectX 11 switch: Unreal's and
-    /// Unity's DirectX 11 on DXMT is measured, a report from CrossOver doesn't beat that. DXMT or DXVK
-    /// for a game with DirectX 11. (Control: DirectX 11 crashed on DXMT and DXVK and runs on D3DMetal,
-    /// 1./2.11.2026; every Mac source runs it on D3DMetal.)
+    /// Unity's DirectX 11 on DXMT is measured, a report from CrossOver doesn't beat that – one from a
+    /// Mac database that says which game ran how does (`outranksEngineSwitch`: Hogwarts Legacy won't
+    /// take -dx11). DXMT or DXVK for a game with DirectX 11. (Control: DirectX 11 crashed on DXMT and
+    /// DXVK and runs on D3DMetal, 1./2.11.2026; every Mac source runs it on D3DMetal.)
     static func hinted(_ hint: SourceHint?, analysis: GameAnalysis, d3dMetal: Bool = Engine.d3dMetalReady) -> GraphicsLayer? {
         guard let hint, analysis.usesD3D11 || analysis.apis.isEmpty else { return nil }
         switch hint.graphics {
         case .d3dmetal:
-            return d3dMetal && analysis.preferD3D11Arguments.isEmpty ? .d3dmetal : nil
+            return d3dMetal && (analysis.preferD3D11Arguments.isEmpty || hint.outranksEngineSwitch) ? .d3dmetal : nil
         case .dxmt, .dxvk:
             return hint.graphics
         case .automatic, .wined3d:
@@ -155,22 +179,60 @@ enum LaunchHealth {
     }
 
     /// The ways for a game, with a source's hint where it fits – unless the game already runs on a
-    /// confirmed way of the list without it: a way that works isn't given up for someone else's
-    /// report. One still looking for its way (started before the hint came, on the first run) takes
-    /// the hinted list. `hint` in the result: the layer the list put first for it, nil when it didn't
-    /// follow one.
+    /// confirmed way of a list without it: a way that works isn't given up for someone else's report,
+    /// nor for what the files say since they decide. One still looking for its way (started before the
+    /// hint came, on the first run) takes the new list. `hint` in the result: the layer the list put
+    /// first for it, nil when it didn't follow one.
     static func attempts(for analysis: GameAnalysis, profile: GameProfile?, hint: SourceHint?, game: GameID,
                          preset: GraphicsPreset, d3dMetal: Bool = Engine.d3dMetalReady,
                          vulkanLayer: Bool = Engine.vulkanLayerLoads,
                          kosmicKrisp: Bool = Engine.kosmicKrispReady) -> (attempts: [LaunchAttempt], hint: GraphicsLayer?) {
         let plain = attempts(for: analysis, profile: profile, d3dMetal: d3dMetal, vulkanLayer: vulkanLayer, kosmicKrisp: kosmicKrisp)
-        guard profile?.graphics == nil, let layer = hinted(hint, analysis: analysis, d3dMetal: d3dMetal) else { return (plain, nil) }
-        let followed = attempts(for: analysis, profile: profile, hint: hint, d3dMetal: d3dMetal, vulkanLayer: vulkanLayer,
-                                kosmicKrisp: kosmicKrisp)
-        let before = ladder(plain, preset: preset, profile: profile)
-        let after = ladder(followed, preset: preset, profile: profile, hint: layer)
-        if after != before, peek(game, before)?.confirmed == true, peek(game, after) == nil { return (plain, nil) }
-        return (followed, layer)
+        let layer = profile?.graphics == nil ? hinted(hint, analysis: analysis, d3dMetal: d3dMetal) : nil
+        let chosen = layer == nil ? plain : attempts(for: analysis, profile: profile, hint: hint, d3dMetal: d3dMetal,
+                                                     vulkanLayer: vulkanLayer, kosmicKrisp: kosmicKrisp)
+        let before = attempts(for: analysis, profile: profile, d3dMetal: d3dMetal, vulkanLayer: vulkanLayer,
+                              kosmicKrisp: kosmicKrisp, filesDecide: false)
+        let after = ladder(chosen, preset: preset, profile: profile, hint: layer)
+        for list in [plain, before] where list != chosen {
+            let earlier = ladder(list, preset: preset, profile: profile)
+            if earlier != after, peek(game, earlier)?.confirmed == true, peek(game, after) == nil { return (list, nil) }
+        }
+        return (chosen, layer)
+    }
+
+    /// The ways in the order the proofs of games of the same sort put them (StartEvidence.sortScores): more
+    /// points first, the rest as they were. An order only – no way is ever left out for it.
+    static func ordered(_ attempts: [LaunchAttempt], bySort points: [String: Int]) -> [LaunchAttempt] {
+        guard attempts.contains(where: { (points[$0.id] ?? 0) != 0 }) else { return attempts }
+        return attempts.enumerated()
+            .sorted { a, b in
+                let (pa, pb) = (points[a.element.id] ?? 0, points[b.element.id] ?? 0)
+                return pa != pb ? pa > pb : a.offset < b.offset
+            }
+            .map(\.element)
+    }
+
+    /// The ways for a game, with what games of its sort have proven on this Mac put first – after a profile and
+    /// the game's own state, before reports and files (docs/ENTWURF-STARTREZEPT.md, stage 4). A profile's layer
+    /// stands; "Most compatible" has its own order; a game that has started on the list as it was keeps it; and
+    /// one that has started on an order its sort gave it keeps that, whatever the sort has learned since.
+    static func attempts(for analysis: GameAnalysis, profile: GameProfile?, hint: SourceHint?, game: GameID,
+                         preset: GraphicsPreset, sort points: [String: Int], d3dMetal: Bool = Engine.d3dMetalReady,
+                         vulkanLayer: Bool = Engine.vulkanLayerLoads,
+                         kosmicKrisp: Bool = Engine.kosmicKrispReady) -> (attempts: [LaunchAttempt], hint: GraphicsLayer?, bySort: Bool) {
+        let base = attempts(for: analysis, profile: profile, hint: hint, game: game, preset: preset, d3dMetal: d3dMetal,
+                            vulkanLayer: vulkanLayer, kosmicKrisp: kosmicKrisp)
+        guard profile?.graphics == nil, preset != .compatible, base.attempts.count > 1 else { return (base.attempts, base.hint, false) }
+        if peek(game, base.attempts) != nil { return (base.attempts, base.hint, false) }
+        let ids = base.attempts.map(\.id)
+        func keepsHint(_ list: [LaunchAttempt]) -> GraphicsLayer? { list.first?.graphics == base.attempts.first?.graphics ? base.hint : nil }
+        if let kept = savedLadder(game), kept != ids, kept.count == ids.count, Set(kept) == Set(ids) {
+            let list = kept.compactMap { id in base.attempts.first { $0.id == id } }
+            return (list, keepsHint(list), true)
+        }
+        let sorted = ordered(base.attempts, bySort: points)
+        return (sorted, keepsHint(sorted), sorted != base.attempts)
     }
 
     /// The ways in the order a preset tries them. "Most compatible" starts with the safest: the
@@ -204,6 +266,10 @@ enum LaunchHealth {
         var shortEnds: Int?
         /// When the current, unconfirmed way was last started.
         var startedAt: Date?
+        /// What the way was made of when it was confirmed (step E4 of docs/ENTWURF-STARTREZEPT.md 3.3): its
+        /// proof holds for that start (`holds`). nil: confirmed before recipes were kept here (up to
+        /// 14.11.2026), or by Steam's log alone (`review`) – then it holds for whatever the way is started with.
+        var recipe: StartRecipe?
 
         var trusted: Bool { confirmed && proof == LaunchHealth.proof }
     }
@@ -243,6 +309,11 @@ enum LaunchHealth {
         if let data = try? JSONEncoder().encode(state) { UserDefaults.standard.set(data, forKey: key(game)) }
     }
 
+    /// The list the game's state was saved for, whatever list is asked about now; nil when it has none.
+    static func savedLadder(_ game: GameID) -> [String]? {
+        UserDefaults.standard.data(forKey: key(game)).flatMap { try? JSONDecoder().decode(State.self, from: $0) }?.ladder
+    }
+
     /// The way to start the game now.
     static func current(_ game: GameID, _ attempts: [LaunchAttempt]) -> (index: Int, confirmed: Bool) {
         let state = load(game, attempts)
@@ -261,12 +332,38 @@ enum LaunchHealth {
         save(game, state)
     }
 
-    static func confirm(_ game: GameID, _ attempts: [LaunchAttempt]) {
+    /// `recipe`: what the start that proved the way was made of; without one what is kept stays.
+    static func confirm(_ game: GameID, _ attempts: [LaunchAttempt], recipe: StartRecipe? = nil) {
         var state = load(game, attempts)
         state.confirmed = true
         state.proof = proof
         state.shortEnds = nil
         state.startedAt = nil
+        if let recipe { state.recipe = recipe }
+        save(game, state)
+    }
+
+    /// Whether the confirmed way's proof holds for a start made of `recipe` (step E4): a way is proven for
+    /// what it was started with, not for its graphics layer alone – It Takes Two ran on D3DMetal with the
+    /// PhysX update loader off and crashed there with it on (10.11.2026). The same start, whatever led to it
+    /// (StartRecipe.startsLike); and a way confirmed without a recipe on record holds for any, so what was
+    /// proven before 14.11.2026 keeps its value.
+    static func holds(_ game: GameID, _ attempts: [LaunchAttempt], for recipe: StartRecipe) -> Bool {
+        guard let with = load(game, attempts).recipe else { return true }
+        return with.startsLike(recipe)
+    }
+
+    /// A confirmed way with no recipe on record takes one, so that `holds` means something from its next
+    /// start on, not only after a start that confirms it again: what the start record says it worked with
+    /// (`recorded`, StartEvidence.Proof.workedWith), else the recipe of the start about to happen
+    /// (`starting`). It Takes Two on 15.11.2026: proven before recipes were kept here, started with a profile
+    /// that changed its DLLs, and taken for proven – a start of 40 s with a picture confirms nothing on
+    /// D3DMetal, which logs no frames, so no recipe ever came. A way not confirmed, or one with a recipe
+    /// already, stays as it is.
+    static func adoptRecipe(_ game: GameID, _ attempts: [LaunchAttempt], recorded: StartRecipe?, starting: StartRecipe) {
+        var state = load(game, attempts)
+        guard state.trusted, state.recipe == nil else { return }
+        state.recipe = recorded ?? starting
         save(game, state)
     }
 
@@ -287,19 +384,37 @@ enum LaunchHealth {
         state.confirmed = false
         state.proof = nil
         state.shortEnds = nil
+        state.recipe = nil
         save(game, state)
     }
 
-    /// Moves on to the next way. False when there is none: then the list starts over next time.
-    static func advance(_ game: GameID, _ attempts: [LaunchAttempt]) -> Bool {
+    /// Moves on to the next way – the next one that answers what the game said (`failure`), if there is
+    /// one. False when no way is left: then the list starts over next time.
+    static func advance(_ game: GameID, _ attempts: [LaunchAttempt], answering failure: StartFailure? = nil) -> Bool {
         var state = load(game, attempts)
         state.startedAt = nil
         state.confirmed = false
         state.proof = nil
-        let next = state.index + 1 < attempts.count
-        state.index = next ? state.index + 1 : 0
+        state.recipe = nil
+        let following = Array(attempts.indices.dropFirst(state.index + 1))
+        let next = following.first { failure?.answered(by: attempts[$0]) ?? true } ?? following.first
+        state.index = next ?? 0
         save(game, state)
-        return next
+        return next != nil
+    }
+
+    /// Moves on to the way at `index`, picked by the caller (NextStart.Step.way) – what `advance` does with
+    /// a way of its own choice. An index outside the list changes nothing.
+    static func advance(_ game: GameID, _ attempts: [LaunchAttempt], to index: Int) {
+        guard attempts.indices.contains(index) else { return }
+        var state = load(game, attempts)
+        state.startedAt = nil
+        state.confirmed = false
+        state.proof = nil
+        state.shortEnds = nil
+        state.recipe = nil
+        state.index = index
+        save(game, state)
     }
 
     /// Games whose way is confirmed, with that way's id: what they ran well with so far
@@ -367,6 +482,54 @@ enum LaunchHealth {
     }
 
     private static func questionKey(_ game: GameID) -> String { "launchHealth.ownQuestion.\(game.key)" }
+
+    /// Whether an end at a window of the game's own was the player's choice, by what the start left – on top
+    /// of what the start flow asks already (LibraryModel.ownQuestionEndStands: no graphics error, no crash,
+    /// nothing running after it). Alan Wake, 14.11.2026: its error box ("could not initialize your 3D graphics
+    /// card", OK) stood under the curtain as a question, the player pressed OK, and the curtain's watch wrote
+    /// "answered by the player: no other way" – the start took it for a failure only because DXVK's own words
+    /// stood against it. Metal Gear Solid V's "Failed to load SteamAPI" on 11.11. had nothing else against it
+    /// and went into the record as "closed at a question of its own".
+    /// `explained`: the table saw the start fail (StartDiagnosis.sawFailure) – then it failed, whatever the
+    /// player pressed. `endedAtBox`: the text of the message box the game ended at
+    /// (CloserLook.Reading.endedAtBox), which every start's channels print since step E5; a notice leaves
+    /// nothing to choose (CloserLook.box). Without one the window wasn't one of Windows' message boxes, and its
+    /// words and buttons can't be read from outside: `knownWindow` says the game shows a window of its own
+    /// before it plays (`showsOwnWindow`: Unity's configuration window, its own launcher window, another
+    /// store's launcher) – an end there stays the player's, as with The Forest's Quit on 3.11. Any other window
+    /// before a picture is taken for the game's word that it won't go on: Metal Gear Solid V's "Failed to load
+    /// SteamAPI" on 15.11.2026 was a window of its own, no message box (no msgbox line with every start carrying
+    /// the channel), and went down as the player's choice where the start had failed. The start flow asks this
+    /// since step E5 (LibraryModel.launch, docs/ENTWURF-STARTREZEPT.md 3.3).
+    /// `unreadableBefore`, `somethingFound`: such a window can be the game's word that it won't go on, or a small
+    /// window of its own that nothing tells of – a language picker, a settings dialog, an older game's launcher –
+    /// which the player closed on purpose; from outside the two look alike. The first such end in a Play is taken
+    /// for a failed start, as since step E5. The second in the same Play (`unreadableBefore` > 0), with nothing
+    /// found that speaks of a failure (`somethingFound`, StartDiagnosis.speaksAgainstAChoice), is the player's:
+    /// the same window twice and still no reason is more likely a window closed twice than a failure with no
+    /// trace. Up to 17.11.2026 a game closed that way came back once per way of its ladder, with a closer look in
+    /// between. The ladder stays where the first end moved it, so a game that really fails on its first ways gets
+    /// to the next one with the next Play.
+    static func ownQuestionWasAChoice(explained: Bool, endedAtBox: String?, knownWindow: Bool,
+                                      unreadableBefore: Int = 0, somethingFound: Bool = false) -> Bool {
+        if explained { return false }
+        if let endedAtBox { return CloserLook.box(endedAtBox) == .question }
+        if knownWindow { return true }
+        return unreadableBefore > 0 && !somethingFound
+    }
+
+    /// The window a start ended at says nothing Nightforge can read: the table saw no failure, it was no message
+    /// box, and the game isn't known to show a window of its own.
+    static func endedAtUnreadableWindow(explained: Bool, endedAtBox: String?, knownWindow: Bool) -> Bool {
+        !explained && endedAtBox == nil && !knownWindow
+    }
+
+    /// Whether a game shows a window of its own before it plays, one the player may close on purpose: Unity's
+    /// configuration window, its own launcher window (GameAnalysis.launcherSwitch), another store's launcher.
+    static func showsOwnWindow(_ analysis: GameAnalysis?) -> Bool {
+        guard let analysis else { return false }
+        return analysis.engine == .unity || analysis.launcherSwitch != nil || analysis.launcher != nil
+    }
 
     /// The curtain sank for the game: its window in picture size had the front. Kept like Quit
     /// Game, so a start that ends soon after still counts as one that showed a picture – in the
@@ -475,6 +638,44 @@ enum LearnedFixes {
     /// Whether Rosetta advertises AVX to this game.
     static func avx(_ game: GameID, profile: GameProfile?) -> Bool {
         profile?.avx != false && !noAVX(game)
+    }
+
+    private static func dllsOffKey(_ game: GameID) -> String { "learned.dllsOff.\(game.key)" }
+    private static func stepsKey(_ game: GameID) -> String { "learned.steps.\(game.key)" }
+
+    /// All the diagnosis has taught about the game so far, as the part of its recipe it is
+    /// (StartRecipe.Learned): the runtimes and the AVX hint under the keys they have had since 0.2, and from
+    /// step E on the DLLs kept unloaded and which rule asked for what.
+    static func learned(_ game: GameID, defaults: UserDefaults = .standard) -> StartRecipe.Learned {
+        StartRecipe.Learned(dllsOff: defaults.stringArray(forKey: dllsOffKey(game)) ?? [],
+                            runtimes: defaults.stringArray(forKey: winetricksKey(game)) ?? [],
+                            noAVX: defaults.bool(forKey: noAVXKey(game)),
+                            steps: defaults.stringArray(forKey: stepsKey(game)) ?? [])
+    }
+
+    /// Keeps it, under the same keys: `winetricks` and `noAVX` answer what was learned through the table too.
+    static func keep(_ learned: StartRecipe.Learned, for game: GameID, defaults: UserDefaults = .standard) {
+        func set(_ list: [String], _ key: String) {
+            if list.isEmpty { defaults.removeObject(forKey: key) } else { defaults.set(list, forKey: key) }
+        }
+        set(learned.dllsOff, dllsOffKey(game))
+        set(learned.runtimes, winetricksKey(game))
+        set(learned.steps, stepsKey(game))
+        if learned.noAVX { defaults.set(true, forKey: noAVXKey(game)) } else { defaults.removeObject(forKey: noAVXKey(game)) }
+    }
+
+    /// Forgets all the diagnosis taught about the game (`learned`) and says what went. For a start over "as if
+    /// the game were new" (LibraryModel.startOver, startMostCompatible): what was learned was kept for good up to
+    /// 15.11.2026 – a remedy that didn't help, or one that cost the game something (NVIDIA's interface off takes
+    /// DLSS along), had no button that took it back. What a game still needs is learned again at the first
+    /// start that fails for it: a start over's ways are watched, every one. Not where a layer is chosen by hand
+    /// (LaunchHealth.reset alone): a start on a way that ran well before isn't watched, and a remedy the game
+    /// needs wouldn't come back. Where its last start begins in the log stays.
+    @discardableResult
+    static func forget(_ game: GameID, defaults: UserDefaults = .standard) -> StartRecipe.Learned {
+        let had = learned(game, defaults: defaults)
+        keep(StartRecipe.Learned(), for: game, defaults: defaults)
+        return had
     }
 
     static func setLastLaunch(_ game: GameID, logMark: UInt64) {

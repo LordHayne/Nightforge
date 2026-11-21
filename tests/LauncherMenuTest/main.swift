@@ -50,7 +50,7 @@ struct LauncherMenuTest {
             check(!state.detail.isEmpty, "\(provider): the card says what it brings")
         }
         let battleNet = LauncherState(.battlenet, facts: Facts()).detail
-        check(battleNet == L10n.t("Shows what Battle.net for Mac has installed: WoW, Hearthstone and more. Overwatch runs through Steam."),
+        check(battleNet == L10n.t("Starts what Battle.net for Mac has installed: WoW, Hearthstone and more. Overwatch runs through Steam."),
               "Battle.net says what's there and where Overwatch is")
         check(!battleNet.contains("Diablo"), "Battle.net promises no Windows game")
     }
@@ -277,7 +277,7 @@ struct LauncherMenuTest {
 
     /// Nightforge never sees a password: the sign-in has no field of its own, wherever it opens.
     static func noFieldOfOurOwn() {
-        let files = ["SignInStage", "LauncherViews", "Launchers", "EpicSignIn", "GOGSignIn"]
+        let files = ["SignInStage", "LauncherViews", "Launchers", "EpicSignIn", "GOGSignIn", "PhoneSignIn", "PhoneSignInServer", "PhoneSignInView"]
         for file in files {
             guard let text = try? String(contentsOfFile: "Sources/Nightforge/\(file).swift", encoding: .utf8) else {
                 check(false, "\(file).swift can be read")

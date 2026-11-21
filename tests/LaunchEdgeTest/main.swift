@@ -1,0 +1,181 @@
+// The start's small parts against odd input: the launch options a player types, Steam's console log
+// (empty, rotated, another game's lines) and SteamStartCheck, which decides whether a Steam that started
+// counts as failed: tests/LaunchEdgeTest/run.sh
+import Foundation
+
+@main
+struct LaunchEdgeTest {
+    static var failures = 0
+
+    static func check(_ condition: Bool, _ message: String) {
+        if !condition {
+            failures += 1
+            print("✗ " + message)
+        }
+    }
+
+    static let work = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("launch-edge-\(UUID().uuidString)", isDirectory: true)
+
+    static func main() {
+        TestDefaults.useWorkFolder()
+        try? FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: work) }
+        launchOptions()
+        watcher()
+        startCheck()
+        print(failures == 0 ? "✓ The start against odd input" : "\(failures) failed")
+        exit(failures == 0 ? 0 : 1)
+    }
+
+    static func launchOptions() {
+        func split(_ text: String) -> [String] { Launcher.splitArguments(text) }
+        check(split("").isEmpty && split("   \t ").isEmpty, "nothing typed: no arguments")
+        check(split(#"-foo "bar baz" -x"#) == ["-foo", "bar baz", "-x"], "quotes hold spaces together")
+        check(split(#"-path="C:\Program Files\Spiel" -y"#) == [#"-path=C:\Program Files\Spiel"#, "-y"], "and work inside a word: \(split(#"-path="C:\Program Files\Spiel" -y"#))")
+        check(split("  -a   -b\t-c\n") == ["-a", "-b", "-c"], "any white space separates")
+        check(split("-name Jörg -städte") == ["-name", "Jörg", "-städte"], "umlauts as they are")
+        check(split(#"-a "unfinished quote"#) == ["-a", "unfinished quote"], "a quote that never ends runs to the end")
+    }
+
+    static func log(_ steam: URL) -> URL { steam.appendingPathComponent("logs/console_log.txt") }
+
+    static func append(_ text: String, to file: URL) {
+        try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        if let handle = try? FileHandle(forWritingTo: file) {
+            _ = try? handle.seekToEnd()
+            try? handle.write(contentsOf: Data(text.utf8))
+            try? handle.close()
+        } else {
+            try? Data(text.utf8).write(to: file)
+        }
+    }
+
+    static func watcher() {
+        let steam = work.appendingPathComponent("steam folder ü", isDirectory: true)
+        var nothing = LaunchWatcher(steamRoot: steam, appID: 730)
+        check(nothing.poll() == nil && !nothing.steamReceivedLaunch, "no log yet: nothing, no crash")
+
+        append("[2026] Game process added : AppID 730\n", to: log(steam))
+        var past = LaunchWatcher(steamRoot: steam, appID: 730)
+        check(past.poll() == nil, "what the log already said isn't news")
+        append("[2026] GameAction [AppID 1730, ActionID 3] : Game process added\n", to: log(steam))
+        check(past.poll() == nil, "another game's line (AppID 1730) isn't this one's (730)")
+        append("[2026] Game process added : AppID 730\n", to: log(steam))
+        check(past.poll() == .running, "a new line of this game is")
+
+        var rotated = LaunchWatcher(steamRoot: steam, appID: 730)
+        try? Data("[2026] Game process added : AppID 730\n".utf8).write(to: log(steam))
+        check(rotated.poll() == .running, "Steam starting a fresh, shorter log: it's read from its start")
+
+        try? Data().write(to: log(steam))
+        var empty = LaunchWatcher(steamRoot: steam, appID: 730)
+        append(String(decoding: [0xFF, 0xFE, 0x00, 0x0A], as: UTF8.self), to: log(steam))
+        check(empty.poll() == nil, "bytes that aren't text are nothing")
+
+        append("[2026] GameAction [AppID 730, ActionID 9] : LaunchApp waiting for user response to CloudSync\n", to: log(steam))
+        var questioned = LaunchWatcher(steamRoot: steam, appID: 730)
+        check(questioned.poll() == .needsConfirmation, "a question open before the start is told at once")
+        check(questioned.poll() == nil, "and only once")
+        licence()
+    }
+
+    /// Steam's licence: a question from its first word, and how its end shows in each Steam.
+    static func licence() {
+        let steam = work.appendingPathComponent("steam-licence", isDirectory: true)
+        let line = "[2026] GameAction [AppID 1426210, ActionID 1] : LaunchApp"
+        func say(_ text: String) { append("\(line) \(text)\n", to: log(steam)) }
+        append("", to: log(steam))
+
+        var watcher = LaunchWatcher(steamRoot: steam, appID: 1_426_210)
+        check(!watcher.licenceAsked, "nothing asked yet")
+        say("changed task to ShowEula with \"\"")
+        check(watcher.poll() == .licence && watcher.licenceAsked, "the licence from its first word on")
+        say("waiting for user response to ShowEula \"\"")
+        check(watcher.poll() == .licence, "and the wait for it")
+        check(watcher.poll() == nil && !watcher.wentOnAfterLicence, "the Windows Steam stays there after a yes, without a word")
+
+        say("waiting for user response to ShowInterstitials \"\"")
+        check(watcher.poll() == .needsConfirmation, "the routine step stays what it was")
+        check(watcher.wentOnAfterLicence, "and Steam has moved on")
+
+        say("continues with user response \"ShowInterstitials\"")  // nothing left open for the next one to find
+        var mac = LaunchWatcher(steamRoot: steam, appID: 1_426_210)
+        say("changed task to ShowEula with \"\"")
+        check(mac.poll() == .licence, "Steam for Mac asks the same")
+        say("continues with user response \"ShowEula\"")
+        check(mac.poll() == .continued && mac.wentOnAfterLicence && mac.licenceContinued, "and goes on by itself, which says yes")
+
+        // Asked in an earlier start, whether or not it still stands: not new, so no frame at once.
+        say("waiting for user response to ShowEula \"\"")
+        var earlier = LaunchWatcher(steamRoot: steam, appID: 1_426_210)
+        check(earlier.licenceAsked, "known to have been asked")
+        check(earlier.poll() == .needsConfirmation, "an old line isn't a new licence")
+        say("changed task to CheckShaderDepotManifest with \"\"")
+        check(earlier.poll() == .continued && !earlier.licenceContinued, "a new start going past it ends that wait, and says nothing of a yes")
+
+        // The game's own installers: Steam says nothing more until they're done, however long that takes.
+        say("continues with user response \"ShowEula\"")
+        var install = LaunchWatcher(steamRoot: steam, appID: 1_426_210)
+        check(!install.runningInstallScript, "nothing running yet")
+        say("changed task to CheckShaderDepotManifest with \"\"")
+        _ = install.poll()
+        check(!install.runningInstallScript, "another step")
+        say("changed task to RunningInstallScript with \"\"")
+        check(install.poll() == nil && install.runningInstallScript, "the install script: no event, but Steam is busy")
+        check(install.poll() == nil && install.runningInstallScript, "and stays so while nothing is written")
+        append("[2026] GameAction [AppID 142621, ActionID 1] : LaunchApp changed task to SynchronizingStats with \"\"\n", to: log(steam))
+        _ = install.poll()
+        check(install.runningInstallScript, "another game's step changes nothing")
+        say("changed task to SynchronizingStats with \"\"")
+        _ = install.poll()
+        check(!install.runningInstallScript, "the next step ends it")
+
+        let interfaceLog = steam.appendingPathComponent("logs/webhelper_js.txt")
+        append("SteamUI: INFO: accepted eula 1426210_eula_1\nSteamUI: INFO: eulas complete 1426210_eula_1\n", to: interfaceLog)
+        var answers = SteamLicenceLog(steamRoot: steam, appID: 1_426_210)
+        check(!answers.answered(), "a yes from before this start isn't this start's")
+        append("SteamUI: INFO: prompt for eula 1426210_eula_1\n", to: interfaceLog)
+        check(!answers.answered(), "being asked")
+        append("SteamUI: INFO: accepted eula 1426210_eula_1\nSteamUI: INFO: eulas complete 1426210_eula_1\n", to: interfaceLog)
+        check(answers.answered() && answers.answered(), "the yes, and it stays one")
+        answers.askedAgain()
+        check(!answers.answered(), "Steam asking again needs another")
+
+        // The frame comes before Steam's window does: that wait is longer than the usual one.
+        func step(_ since: TimeInterval, licence: Bool) -> LibraryModel.SteamOnCurtain {
+            LibraryModel.steamOnCurtainStep(lowest: nil, sinceSeen: since, savesToChoose: false,
+                                            patience: licence ? LibraryModel.licenceWindowPatience : LibraryModel.steamWindowPatience)
+        }
+        check(step(9, licence: false) == .giveUp && step(9, licence: true) == .wait, "9 s without a window: over for a question, not for the licence")
+        check(step(LibraryModel.licenceWindowPatience, licence: true) == .giveUp, "but not for ever")
+    }
+
+    static func startCheck() {
+        let steam = work.appendingPathComponent("steam-check", isDirectory: true)
+        let start = Date(timeIntervalSince1970: 2_000_000_000)
+        let signs = SteamStartCheck.signs(steamRoot: steam, start: start, running: true, now: start.addingTimeInterval(120))
+        check(!signs.signedIn && !signs.startupFinished && signs.quietFor == 120, "no logs folder at all: nothing signed in, quiet since the start")
+        check(SteamStartCheck.judge(signs) == .failed, "that long with its process and no log: failed")
+
+        // A log from the session before says nothing of this start.
+        let connection = steam.appendingPathComponent("logs/connection_log.txt")
+        append("[2026-11-08 10:00:00] Logged On\n", to: connection)
+        try? FileManager.default.setAttributes([.modificationDate: start.addingTimeInterval(-600)], ofItemAtPath: connection.path)
+        check(!SteamStartCheck.signs(steamRoot: steam, start: start, running: true, now: start.addingTimeInterval(120)).signedIn,
+              "an old log's “Logged On” isn't this start's")
+
+        // Never failed early, whatever else is wrong.
+        for since in stride(from: 0.0, to: SteamStartCheck.patience, by: 13.0) {
+            for running: Bool? in [true, false, nil] {
+                let judged = SteamStartCheck.judge(.init(running: running, quietFor: 10_000, sinceStart: since))
+                check(judged == .undecided, "before its patience is up: undecided (\(since), \(String(describing: running)))")
+            }
+        }
+        // Not knowing isn't failing.
+        check(SteamStartCheck.judge(.init(running: nil, quietFor: 10_000, sinceStart: 500)) == .undecided, "no process list: not judged")
+        // A sign of life wins over everything.
+        check(SteamStartCheck.judge(.init(askingForAccount: true, running: false, quietFor: 10_000, sinceStart: 500)) == .cameUp, "its window asking counts as up")
+        // An update takes as long as it takes.
+        check(SteamStartCheck.judge(.init(bootstrap: .downloading, running: false, quietFor: 10_000, sinceStart: 5000)) == .undecided, "while it updates itself: never judged")
+    }
+}

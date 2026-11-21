@@ -89,6 +89,20 @@ STEAM_IDS_BY_SLUG = {
     "skate.": "3354750",  # skate.
 }
 
+# Games whose maker lets the player switch the anti-cheat off for the single player: Rockstar's own
+# BattlEye option for GTA V's story. Only online play is lost, so it's no block. Nightforge passes no
+# such switch for them (no "-nobattleye" in a profile): the player sets it.
+PLAYER_SWITCHES_ANTICHEAT_OFF = {"271590"}  # Grand Theft Auto V Legacy
+
+# Highball's curated list (gethighball.com/data/games.json, CC0-1.0): the graphics layer people ran a
+# game with on a Mac. A report, not a test of Nightforge's own: it goes beside the profiles and only orders
+# the ways a game is started. Its notes, arguments and recipes stay out.
+HIGHBALL_LAYERS = {"dxmt", "d3dmetal", "dxvk"}
+HIGHBALL_STATUSES = {"verified-local", "reported-upstream", "community"}
+# Highball's players' reports (db/reports, CC0) from an engine built on CrossOver 26 – the tree Nightforge's
+# own engine comes from – say more for Nightforge than a summary over other engines.
+SAME_STACK = re.compile(r"^x64-crossover26\.")
+
 # Anti-cheat that runs fine under Wine; it doesn't block a game.
 HARMLESS_ANTICHEATS = {"VAC"}
 # Anti-cheat that only a multiplayer server asks for (PunkBuster) or that only checks on the server
@@ -345,6 +359,14 @@ def mac_problems(mac_games) -> list:
                 problems.append(f"{key}: registry")
         if profile.get("windowsVersion") not in (None, *WINDOWS_VERSIONS):
             problems.append(f"{key}: windowsVersion")
+        # The app reads anything but true as "not said" and would take its sample: a typo mustn't get there.
+        if "ownAntiCheat" in profile and not isinstance(profile["ownAntiCheat"], bool):
+            problems.append(f"{key}: ownAntiCheat")
+        # Said on the curtain as it stands: words by language, the English one always there, one line each.
+        hint = profile.get("fullscreenHint")
+        if hint is not None and (not isinstance(hint, dict) or not isinstance(hint.get("en"), str)
+                                 or any(not isinstance(v, str) or not v.strip() or "\n" in v or len(v) > 80 for v in hint.values())):
+            problems.append(f"{key}: fullscreenHint")
     return problems
 
 
@@ -439,6 +461,56 @@ def translate(path: pathlib.Path):
     return profile, partial
 
 
+def highball_reports(document):
+    """Steam app ID → {"graphics", "status", "date"} for the games Highball names a usable layer for."""
+    reports = {}
+    for game in document.get("games") or []:
+        app_id, layer = game.get("steam_appid"), game.get("renderer")
+        if isinstance(app_id, int) and layer in HIGHBALL_LAYERS and game.get("status") in HIGHBALL_STATUSES:
+            reports[str(app_id)] = {"graphics": layer, "status": game["status"]}
+            if game.get("lastVerified"):
+                reports[str(app_id)]["date"] = game["lastVerified"]
+    return dict(sorted(reports.items(), key=lambda item: int(item[0])))
+
+
+def same_stack_reports(lines):
+    """Steam app ID → {"graphics", "status": "same-stack", "reports"} from Highball's reports on an engine like
+    Nightforge's: the layer the good ones (4 or 5 of 5) name most, where one does. A layer a bad one (1 or 2)
+    names as often is no answer."""
+    good, bad = {}, {}
+    for report in lines:
+        app, layer = str(report.get("steam_appid") or ""), report.get("renderer")
+        if not app.isdigit() or layer not in HIGHBALL_LAYERS or not SAME_STACK.match(str(report.get("engine") or "")):
+            continue
+        rating = str(report.get("rating"))
+        if rating in ("4", "5"):
+            good.setdefault(app, []).append(layer)
+        elif rating in ("1", "2"):
+            bad.setdefault(app, []).append(layer)
+    reports = {}
+    for app, layers in good.items():
+        ranked = sorted({layer: layers.count(layer) for layer in layers}.items(), key=lambda item: -item[1])
+        if len(ranked) > 1 and ranked[0][1] == ranked[1][1]:
+            continue
+        layer, count = ranked[0]
+        if bad.get(app, []).count(layer) >= count:
+            continue
+        reports[app] = {"graphics": layer, "status": "same-stack", "reports": count}
+    return reports
+
+
+def report_lines(folder: pathlib.Path):
+    """Every report in Highball's db/reports, one JSON object a line."""
+    for path in sorted(folder.rglob("*")):
+        if path.is_file():
+            for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+                if line.strip().startswith("{"):
+                    try:
+                        yield json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+
+
 def anticheat_block(game):
     """{"name", and "antiCheat" or "antiCheatOnline": anti-cheat names} for an AreWeAntiCheatYet
     game that can't run on a Mac, or not online; None for one that runs."""
@@ -463,6 +535,8 @@ def anticheat_blocks(games, titles=None):
         if not (game.get("storeIds") or {}).get("steam") and app_id in own:
             continue
         block = anticheat_block(game)
+        if block and app_id in PLAYER_SWITCHES_ANTICHEAT_OFF and "antiCheat" in block:
+            block = {"name": block["name"], "antiCheatOnline": block["antiCheat"]}
         # Two entries for one app (a renamed game): the other's full block doesn't shrink to online.
         if app_id.isdigit() and block and not ("antiCheat" in blocks.get(app_id, {}) and "antiCheatOnline" in block):
             blocks[app_id] = block
@@ -564,6 +638,8 @@ def main() -> int:
     parser.add_argument("protonfixes", type=pathlib.Path)
     parser.add_argument("--anticheat", type=pathlib.Path, help="AreWeAntiCheatYet games.json")
     parser.add_argument("--geforcenow", type=pathlib.Path, help="GeForce Now catalog from fetch-geforce-now.py")
+    parser.add_argument("--highball", type=pathlib.Path, help="Highball's curated games.json (CC0-1.0)")
+    parser.add_argument("--highball-reports", type=pathlib.Path, help="db/reports of Highball's database (CC0-1.0)")
     parser.add_argument("--mac", type=pathlib.Path, default=ROOT / "profiles" / "mac.json")
     parser.add_argument("--out", type=pathlib.Path, default=ROOT / "profiles" / "profiles.json")
     options = parser.parse_args()
@@ -639,6 +715,12 @@ def main() -> int:
         # Steam app IDs by number, then the other stores' keys ("epic.<namespace>", "gog.<product ID>").
         "games": dict(sorted(games.items(), key=lambda item: (0, int(item[0]), "") if item[0].isdigit() else (1, 0, item[0]))),
     }
+    if options.highball:
+        document["reported"] = highball_reports(json.loads(options.highball.read_text(encoding="utf-8")))
+        if options.highball_reports:
+            document["reported"].update(same_stack_reports(report_lines(options.highball_reports)))
+            document["reported"] = dict(sorted(document["reported"].items(), key=lambda item: int(item[0])))
+        document["sources"]["highball"] = {"url": "https://gethighball.com/database", "license": "CC0-1.0"}
     previous = None
     if options.out.exists():
         previous = json.loads(options.out.read_text(encoding="utf-8"))

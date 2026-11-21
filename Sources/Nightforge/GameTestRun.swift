@@ -50,6 +50,11 @@ final class GameTestRun {
                                  engine: EngineRollback.shared.history().current?.parts,
                                  mac: "\(ProblemReport.chip) · macOS \(ProblemReport.osVersion)",
                                  pictureWait: settings.pictureWait, playSeconds: settings.playSeconds)
+        report.built = Updater.currentBuilt
+        if model.power.onBattery { report.onBattery = true }
+        if ProcessInfo.processInfo.isLowPowerModeEnabled { report.lowPower = true }
+        if GameTest.logsFrames(active: true) { report.frameLog = true }
+        if GameTest.wineFpsOn() { report.wineFps = true }
     }
 
     private func run() async {
@@ -115,6 +120,8 @@ final class GameTestRun {
             write()
         }
         _ = await clearStage()  // a start Steam carried out after the last game's end
+        // The HUD's frame log goes with the run: a Steam that started with it starts again without.
+        model.endFrameLog()
         report.finished = Date()
         report.stopped = stopAsked
         UserDefaults.standard.removeObject(forKey: GameTest.Keys.stop)
@@ -176,12 +183,13 @@ final class GameTestRun {
             // What Play asks before anything starts (askAboutD3DMetalBeforeStart): it would set D3DMetal up.
             let analysis = await model.insight(of: game)?.analysis
             facts.needsD3DMetal = !Engine.d3dMetalReady && Engine.installedWineNow().map({ Engine.isGPTKCapable(wine: $0) }) == true
-                && D3DMetalSupply.needed(by: analysis, picked: GameOptionsStore.load(game.gameID).graphics, game: game.gameID)
+                && D3DMetalSupply.needed(by: analysis, picked: GameOptionsStore.load(game.gameID).graphics, profile: profile)
         }
         let skip = GameTest.skip(facts)
         return GameTest.Candidate(key: game.gameID.key, name: game.name, store: game.provider, storeID: game.gameID.id,
                                   platform: game.platform, notYet: game.antiCheatBlock?.notYet != nil, skip: skip,
-                                  skipNote: skip == .runtimes ? "fehlt: " + facts.missingRuntimes.joined(separator: ", ") : nil)
+                                  skipNote: skip == .runtimes ? "fehlt: " + facts.missingRuntimes.joined(separator: ", ") : nil,
+                                  sizeBytes: game.sizeOnDisk > 0 ? game.sizeOnDisk : nil)
     }
 
     // MARK: - One game
@@ -197,6 +205,8 @@ final class GameTestRun {
         var appeared: Date?
         var idleSince: Date?
         var pids: [pid_t] = []
+        /// Every process the game had while it was watched: whose frames the HUD's log is read for.
+        var everSeen: Set<pid_t> = []
         var blind = 0  // looks in a row without a process list
         /// What only the player could do, since when: Steam's question gets `steamAskPatience` to answer itself.
         var asking: (need: GameTest.Skip, since: Date)?
@@ -278,6 +288,7 @@ final class GameTestRun {
             }
             blind = 0
             pids = listed
+            everSeen.formUnion(listed)
             if pids.isEmpty {
                 appeared = nil
                 idleSince = model.launchingID == game.id ? nil : idleSince ?? now
@@ -373,12 +384,19 @@ final class GameTestRun {
         }
         var files: [String] = []
         var stack: [String]?
+        var noSample: String?
         // The game's own process, not a launcher waiting for it (2.11.: Wukong's b1_benchmark.exe, 4 threads).
         if seen.stillRunning, !seen.smallWindow, let pid = await Task.detached(priority: .utility, operation: { [pids] in
             GameProcesses.biggest(pids)
         }).value {
             let name = GameTest.fileName(game.gameID.key, "sample.txt")
-            if let sample = await Self.sample(pid, to: folder.appendingPathComponent(name)) {
+            let file = folder.appendingPathComponent(name)
+            // Not of a game with a cheat protection: nothing attaches to its process.
+            let taken = await GameTest.hangSample(handsOff: await handsOff(game)) { await Self.sample(pid, to: file) }
+            if let why = taken.skipped {
+                noSample = why
+                GameLog.note("Game test: no sample of \(game.name) (\(why))")
+            } else if let sample = taken.sample {
                 stack = GameTest.topOfStack(in: sample)
                 files.append(name)
             } else {
@@ -397,19 +415,30 @@ final class GameTestRun {
         }
         seen.crashSigns = GameLog.crashed(in: log) || unrealCrash
         let outcome = GameTest.outcome(seen)
-        let frames = GameTest.frames(FramePacing.periods(in: log, programs: programs))
+        // Apple's HUD frame by frame where its logging is on, else the layer's periods, else what Wine's own
+        // Direct3D says of its rate where Wine's fps channel is on.
+        let frames = GameTest.hudSample(in: log, processes: everSeen).flatMap { GameTest.measuredFrames($0) }
+            ?? GameTest.measuredFrames(GameTest.periods(in: log, programs: programs))
+            ?? GameTest.wineFrames(GameTest.wineRates(in: log, programs: programs))
         var entry = GameTest.Entry(candidate, outcome: outcome, skip: seen.needs)
         entry.ways = game.platform == .mac ? [GameTest.Way(way: "mac", outcome: outcome)]
             : GameTest.ways(of: game.name, in: log, last: outcome)
         entry.way = entry.ways.last?.way
-        entry.issues = GameTest.issues(endedWhilePlaying: endedWhilePlaying, frames: frames)
+        entry.frames = frames
+        if outcome == .picture {
+            entry.measure = GameTest.measure(of: game.name, way: entry.way, in: log, frames: frames,
+                                             held: GameTest.held(of: game.name, in: log), frameLog: report.frameLog == true,
+                                             wineFps: report.wineFps == true)
+        }
+        entry.issues = GameTest.issues(endedWhilePlaying: endedWhilePlaying, frames: frames, steady: GameTest.steady(entry))
         entry.result = GameTest.result(outcome, issues: entry.issues)
         entry.startedAt = started
         entry.load = load
         entry.secondsToProcess = processAt.map { ($0.timeIntervalSince(started) * 10).rounded() / 10 }
         entry.secondsToPicture = pictureAt.map { ($0.timeIntervalSince(started) * 10).rounded() / 10 }
-        entry.frames = frames
+        entry.check = GameTest.check(entry, playSeconds: settings.playSeconds, onBattery: report.onBattery == true, lowPower: report.lowPower == true)
         entry.stack = stack
+        entry.noSample = noSample
         let learned = LearnedFixes.winetricks(game.gameID).filter { !learnedBefore.contains($0) }
         if !learned.isEmpty { notes.append("laut Log fehlen Laufzeiten, im Test nicht installiert: " + learned.joined(separator: ", ")) }
         if log.contains("Curtain under a window of \(game.name)'s") { notes.append("das Spiel zeigte vor dem Bild ein Fenster mit einer Frage") }
@@ -617,6 +646,16 @@ final class GameTestRun {
             try? await Task.sleep(for: .seconds(2))
         }
         GameLog.note("Game test: Steam and Wine still busy after two minutes – on to the next game")
+    }
+
+    /// Why no tool may attach to `game`'s process (GameTest.handsOff), by its profile – a copy from another
+    /// store by the same game's on Steam – and by what Nightforge knows of an anti-cheat.
+    private func handsOff(_ game: Game) async -> String? {
+        var profile = await ProfileStore.shared.profile(for: game.gameID)
+        if profile == nil, let twin = game.steamTwin { profile = await ProfileStore.shared.profile(for: twin) }
+        let block = game.antiCheatBlock, installDir = game.installDir
+        let known = await Engine.offMain { [profile] in ShaderCaches.hasAntiCheat(profile: profile, block: block, installDir: installDir) }
+        return GameTest.handsOff(profile: profile, knownAntiCheat: known)
     }
 
     nonisolated private static func ps() -> String? {

@@ -7,6 +7,20 @@ import SystemConfiguration
 enum GameLog {
     static var url: URL { Engine.supportDir.appendingPathComponent("Logs/wine.log") }
 
+    /// Whether this program writes Nightforge's log. Nightforge does. A bare program – a test series, no
+    /// app bundle – only in a home of its own, where the log is its own too (MacSteam.isTestHome). Most
+    /// series run in the real home, and there the log is the player's: "Steam switch: the Windows Steam
+    /// waits …" from tests/SteamSwitchTest stood in wine.log on 14.11., once with no Nightforge running and
+    /// once in the middle of a real start – and a Steam start with a stand-in would have moved an 8 MB
+    /// log aside (`handleForSteam`).
+    static let writes: Bool = {
+        guard let entry = getpwuid(getuid()), let real = entry.pointee.pw_dir else { return true }
+        let path = { (path: String) in URL(fileURLWithPath: path).resolvingSymlinksInPath().path }
+        return writes(bundled: Bundle.main.bundleIdentifier != nil, ownHome: path(NSHomeDirectory()) != path(String(cString: real)))
+    }()
+
+    static func writes(bundled: Bool, ownHome: Bool) -> Bool { bundled || ownHome }
+
     /// Wine's own messages that help: libraries a program can't load, and .NET without Mono.
     /// Everything else stays quiet – unless an engine test asks for more (`extraWineDebug`).
     static let wineDebug = "-all,err+module,err+mscoree" + (extraWineDebug.map { "," + $0 } ?? "")
@@ -27,6 +41,7 @@ enum GameLog {
 
     /// A line of Nightforge's own, for problem reports and to see in a live test what happened.
     static func note(_ text: String) {
+        guard writes else { return }
         let descriptor = open(url.path, O_WRONLY | O_APPEND)
         guard descriptor >= 0 else { return }
         FileHandle(fileDescriptor: descriptor, closeOnDealloc: true).write(Data(("info:  [nightforge] " + text + "\n").utf8))
@@ -51,6 +66,7 @@ enum GameLog {
 
     /// For a Steam about to start: appends to the log, starting a fresh one when it has grown large.
     static func handleForSteam() -> FileHandle? {
+        guard writes else { return nil }
         let fm = FileManager.default
         try? fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         if let size = (try? fm.attributesOfItem(atPath: url.path))?[.size] as? UInt64, size > 8_000_000 {
@@ -81,7 +97,7 @@ enum GameLog {
     /// Rosetta's AVX hint (`ROSETTA_ADVERTISE_AVX`) at its word on a path Rosetta lacks. Wine says
     /// so in the log; Unreal games catch it themselves and leave a crash report in their folder.
     static func illegalInstruction(since mark: UInt64, installDir: URL, startedAt: Date) -> Bool {
-        illegalInstruction(in: text(since: mark)) || unrealCrashes(in: installDir, since: startedAt).contains {
+        illegalInstruction(in: text(since: mark)) || crashReports(installDir: installDir, since: startedAt).contains {
             ((try? String(contentsOf: $0, encoding: .utf8)) ?? "").contains("EXCEPTION_ILLEGAL_INSTRUCTION")
         }
     }
@@ -110,6 +126,79 @@ enum GameLog {
                   modified >= date
             else { continue }
             found.append(file)
+        }
+        return found
+    }
+
+    /// The crash reports of a start, wherever the game keeps them. A shipped Unreal game writes to
+    /// %LOCALAPPDATA%\<project>\Saved\Crashes rather than its own folder (Hogwarts Legacy, 9.11.2026:
+    /// two crashes nobody read). An ensure is a report from a game that goes on: no crash.
+    static func crashReports(installDir: URL, since date: Date, prefix: URL = Engine.prefix) -> [URL] {
+        (unrealCrashes(in: installDir, since: date) + crashesInPrefix(prefix, since: date)).filter {
+            crashContext(reportText($0)).type?.lowercased() != "ensure"
+        }
+    }
+
+    /// What those reports say, one message each.
+    static func crashMessages(installDir: URL, since date: Date, prefix: URL = Engine.prefix) -> [String] {
+        crashReports(installDir: installDir, since: date, prefix: prefix).compactMap { crashContext(reportText($0)).message }
+    }
+
+    /// The minidumps of a start: Unreal's lies beside its crash report (UE4Minidump.dmp, UEMinidump.dmp),
+    /// Unity's in %TEMP%\<company>\<product>\Crashes\<crash>\crash.dmp.
+    static func crashDumps(installDir: URL, since date: Date, prefix: URL = Engine.prefix) -> [URL] {
+        let fm = FileManager.default
+        func folders(_ url: URL) -> [URL] {
+            (try? fm.contentsOfDirectory(at: url, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)) ?? []
+        }
+        func dumps(in folder: URL) -> [URL] {
+            folders(folder).filter { file in
+                file.pathExtension.lowercased() == "dmp"
+                    && ((try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate).map { $0 >= date } == true
+            }
+        }
+        var found = crashReports(installDir: installDir, since: date, prefix: prefix).flatMap { dumps(in: $0.deletingLastPathComponent()) }
+        for user in folders(prefix.appendingPathComponent("drive_c/users")) {
+            for company in folders(user.appendingPathComponent("AppData/Local/Temp")) {
+                for product in folders(company) {
+                    for crash in folders(product.appendingPathComponent("Crashes")) { found += dumps(in: crash) }
+                }
+            }
+        }
+        return found
+    }
+
+    /// A crash report's kind ("Crash", "Assert", "Ensure") and its message.
+    static func crashContext(_ text: String) -> (type: String?, message: String?) {
+        func field(_ name: String) -> String? {
+            guard let open = text.range(of: "<\(name)>"),
+                  let close = text.range(of: "</\(name)>", range: open.upperBound..<text.endIndex)
+            else { return nil }
+            let value = text[open.upperBound..<close.lowerBound].trimmingCharacters(in: .whitespacesAndNewlines)
+            return value.isEmpty ? nil : value
+        }
+        return (field("CrashType"), field("ErrorMessage"))
+    }
+
+    private static func reportText(_ file: URL) -> String {
+        String(decoding: (try? Data(contentsOf: file)) ?? Data(), as: UTF8.self)
+    }
+
+    private static func crashesInPrefix(_ prefix: URL, since date: Date) -> [URL] {
+        func folders(_ url: URL) -> [URL] {
+            (try? FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)) ?? []
+        }
+        var found: [URL] = []
+        for user in folders(prefix.appendingPathComponent("drive_c/users")) {
+            for owner in folders(user.appendingPathComponent("AppData/Local")) {
+                for crash in folders(owner.appendingPathComponent("Saved/Crashes")) {
+                    let file = crash.appendingPathComponent("CrashContext.runtime-xml")
+                    if let modified = try? file.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate,
+                       modified >= date {
+                        found.append(file)
+                    }
+                }
+            }
         }
         return found
     }
@@ -179,6 +268,17 @@ enum GameLog {
     static func graphicsFailed(in text: String, layer: GraphicsLayer) -> Bool {
         layer == .dxvk && graphicsFailed(in: text)
     }
+
+    /// DXVK's signs on a start that isn't DXVK's: under D3DMetal and DXMT Direct3D 9 is still DXVK's, which gets
+    /// no device on MoltenVK – so the game draws with Direct3D 9 (Alan Wake on D3DMetal: "could not initialize
+    /// your 3D graphics card", 11.11.2026). The log is shared: it counts once the start has failed anyway, never
+    /// as a reason to end a game that runs.
+    static func direct3D9Failed(in text: String, layer: GraphicsLayer) -> Bool {
+        direct3D9IsDXVKs(on: layer) && graphicsFailed(in: text)
+    }
+
+    /// The ways that aren't DXVK's and leave Direct3D 9 to it all the same.
+    static func direct3D9IsDXVKs(on layer: GraphicsLayer) -> Bool { layer == .d3dmetal || layer == .dxmt }
 
     static func graphicsFailed(in text: String) -> Bool {
         let signs = ["dxvkadapter: failed to create device", "dxvkbuffer: failed to create buffer",
@@ -300,15 +400,28 @@ enum GameLog {
             guard lower.contains(":err:") || lower.contains("mvk-error") || lower.hasPrefix("err:")
                 || lower.hasPrefix("wine:") || lower.contains("unhandled"), !steamNoise(lower)
             else { continue }
-            // Thread ids ("0124:err:…") differ between otherwise equal lines.
-            var cleaned = String(line)
-            if line.count > 5, line.prefix(4).allSatisfy(\.isHexDigit), line.dropFirst(4).first == ":" {
-                cleaned = String(line.dropFirst(5))
-            }
-            cleaned = redacted(cleaned)
+            let cleaned = redacted(String(withoutIDs(line)))
             if seen.insert(cleaned).inserted { result.append(cleaned) }
         }
         return Array(result.suffix(limit))
+    }
+
+    /// A line of Wine's without what stands before its class: the thread's id ("0124:err:…"), with +pid the
+    /// process's before that ("0810:0124:err:…") – every start's since step E5 (CloserLook.everyStart) – and
+    /// with +timestamp a time before both. They differ between otherwise equal lines: with only the first id
+    /// taken off, one error of a game with a dozen threads filled the problem report's list by itself.
+    static func withoutIDs(_ line: Substring) -> Substring {
+        var rest = line
+        for _ in 0..<3 {
+            let start = rest.drop { $0 == " " }
+            guard let colon = start.firstIndex(of: ":") else { break }
+            let id = start[..<colon]
+            let isID = id.count >= 4 && id.allSatisfy(\.isHexDigit)
+            let isTime = id.contains(".") && id.allSatisfy { $0.isNumber || $0 == "." }
+            guard isID || isTime else { break }
+            rest = start[start.index(after: colon)...]
+        }
+        return rest
     }
 
     /// An error Steam's own helpers print at every start, whatever the game: its driver probes
