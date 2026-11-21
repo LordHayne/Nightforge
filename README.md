@@ -124,7 +124,7 @@ Everything else: try it. Nightforge picks the way from a game's files and moves 
 
 ## What's next
 
-No dates – just an honest sort.
+No dates – sorted into soon and later.
 
 **Coming soon** – in the works, arriving with one of the next updates:
 
