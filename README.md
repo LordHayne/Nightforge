@@ -31,7 +31,7 @@ When a game also comes for the Mac, Nightforge plays the Mac version – without
   <img src="site/img/shots/library-en-1400.webp" alt="The library: installed games first, MAC and EPIC tags on the covers, filters for Runs great, Controller and Mac version" width="820">
 </p>
 
-### Sharp & smooth, by itself
+### Sharp & smooth
 
 Most Windows games get Apple's MetalFX upscaling to full Retina sharpness, and games get an even frame rate that fits your display – 60 FPS on a 120 Hz screen. Nothing to set up; each game's options still offer four graphics routes in plain words. DirectX 10 and 11 go straight to Metal through DXMT, DirectX 12 through Apple's D3DMetal (once you agree), DirectX 9 through Wine's own WineD3D.
 
@@ -50,9 +50,9 @@ DirectX 12 through D3DMetal: the Black Myth: Wukong Benchmark Tool averages 68 F
 
 Your Steam, Epic and GOG games show up together. Nightforge downloads and starts Epic and GOG games itself – no Epic launcher, no GOG Galaxy – through [legendary](https://github.com/derrod/legendary) and [gogdl](https://github.com/Heroic-Games-Launcher/heroic-gogdl). You sign in in each store's own window; Nightforge never sees your login. GOG's games are DRM-free, so they play without internet and without signing in. Games you own in more than one store show up once, and you choose which store starts them.
 
-### Made for the couch
+### From the couch
 
-Playing, downloading, options and settings work with a controller, L1/R1 switch between Home and the library, the bar at the bottom shows every connected controller with its battery, and the pointer hides until you move the mouse again; signing in and searching still need a keyboard. PlayStation and Xbox controllers are recognised by themselves, the hints switch to your controller's own buttons, and a badge on every cover shows which games play with one. On a TV, games start full screen at its resolution, sound goes over HDMI, and when a game ends you're back in Nightforge like on a console, not on the desktop. Full screen needs no Space of its own, so nothing slides aside at the start or the end, and a loading screen covers the wait. Keyboard and trackpad work everywhere too.
+Playing, downloading, options and settings work with a controller, L1/R1 switch between Home and the library, the bar at the bottom shows every connected controller with its battery, and the pointer hides until you move the mouse again. For searching, Y opens an on-screen keyboard, and a DualSense's touchpad moves the pointer; signing in still needs a keyboard for some stores. PlayStation and Xbox controllers are recognised by themselves, the hints switch to your controller's own buttons, and a badge on every cover shows which games play with one. On a TV, games start full screen at its resolution, sound goes over HDMI, and when a game ends you're back in Nightforge, not on the desktop. Full screen needs no Space of its own, so nothing slides aside at the start or the end, and a loading screen covers the wait. Keyboard and trackpad work everywhere too.
 
 **Nightforge's own controller menu.** Press both sticks (L3 + R3) and hold them for two seconds, and a calm menu comes up in the middle of any game: keep playing, quit the game – even when it hangs – or go back to Nightforge. So on the couch you never get stuck: you quit a frozen game with the controller, without getting up, and you're straight back in your library.
 
@@ -71,18 +71,19 @@ After every game Nightforge shows how long you played and asks how it ran. It re
 ### And more
 
 - **Continue playing.** Home puts your pinned games first, then what you played lately. One button and you're back in.
-- **Fixes that arrive by themselves.** A game database is rebuilt every night from the community fixes behind Proton, plus our own profiles tested on Macs. The right one applies silently at launch.
-- **Self-healing starts.** If a game doesn't start the usual way, Nightforge starts it another way, by itself. If the newest engine crashes a game, it goes back to the one before.
+- **Game fixes, rebuilt every night.** A game database is rebuilt every night from the community fixes behind Proton, plus our own profiles tested on Macs. At launch the right one applies, without a message.
+- **A second way.** If a game doesn't start the usual way, Nightforge tries another. If the newest engine crashes a game, it goes back to the one before.
 - **External drives.** Install games straight onto an external SSD, or move them there later.
 - **macOS Game Mode.** Games get priority on the CPU and graphics, and controllers and headphones get half the Bluetooth latency.
 - **Dock and notifications.** Right-click the Dock icon to start your last five games. A notification tells you when a download is done, and downloads keep your Mac awake.
-- **Looks out for your battery.** A charger too weak for games shows at the top before the battery runs low; on battery, games can be capped at 30 FPS.
-- **Launcher menu.** Four cards show where you're signed in at Steam, Epic, GOG and Battle.net, and you sign in right from the card. Battle.net games show in the library, but you still start them in the Battle.net client.
+- **Charger and battery.** A charger too weak for games shows at the top before the battery runs low; on battery, games can be capped at 30 FPS.
+- **Launcher menu.** Four cards show where you're signed in at Steam, Epic, GOG and Battle.net, and you sign in right from the card. Battle.net games for Mac start from Nightforge; those from the Windows client you still start in Battle.net.
 - **Store search.** Search also finds games in the Steam and GOG stores, in one list; a game both sell is one card. Steam's come with price and Metascore; you buy in your browser, and they appear in your library. Free games you add right away with **Add for Free** – Steam asks once in its own window.
 - **Restart Nightforge.** In the Nightforge menu and in Settings: it ends Steam, Wine and everything in the background and starts Nightforge fresh, for when something hangs.
-- **Big screen.** Plug in a monitor or TV, and Nightforge and your games move over to it by themselves.
+- **A start that repairs itself.** When a game ends right after starting, Nightforge reads the log for the reason, applies the fitting fix and starts it once more; the loading screen only says what's happening.
+- **Big screen.** Plug in a monitor or TV, and Nightforge and your games move over to it automatically.
 - **Larger text and less motion.** One switch makes all of Nightforge's text a step larger; another turns zooming and sliding into plain cross-fades.
-- **Free and quiet.** No account, no telemetry, no background service. A problem report opens on GitHub filled in with the game and its settings, and is public only once you submit it; error lines stay on your clipboard until you paste them.
+- **No account and no telemetry.** No Nightforge service runs in the background. A problem report opens on GitHub filled in with the game and its settings, and is public only once you submit it; error lines stay on your clipboard until you paste them.
 
 ### Settings in plain words
 
@@ -123,12 +124,11 @@ Everything else: try it. Nightforge picks the way from a game's files and moves 
 
 ## What's next
 
-No dates – just an honest sort.
+No dates – sorted into soon and later.
 
 **Coming soon** – in the works, arriving with one of the next updates:
 
-- **Search with a controller.** Jump to a first letter or use an on-screen keyboard – then search works without a keyboard too.
-- **Games stay up to date.** Updates download in the background while Nightforge is open – like on a console.
+- **Games stay up to date.** Updates download in the background while Nightforge is open.
 - **Download queue.** Set the order, pause and resume, and download only at night if you like.
 
 **Planned** – later, no date yet:

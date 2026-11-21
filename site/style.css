@@ -130,6 +130,7 @@ b { font-weight: 600; color: var(--text); }
 .nav-links { display: none; gap: 28px; margin-left: 36px; }
 .nav-links a { color: var(--text-2); font-size: 13px; letter-spacing: -0.01em; transition: color 0.2s ease; }
 .nav-links a:hover { color: var(--text); text-decoration: none; }
+.nav-links a[aria-current="page"] { color: var(--text); }
 .nav-end { display: flex; align-items: center; gap: 12px; margin-left: auto; }
 @media (min-width: 900px) { .nav-links { display: flex; } }
 /* Small phones: the hero's own Download button is right below, so the bar keeps name and language. */
@@ -356,6 +357,9 @@ b { font-weight: 600; color: var(--text); }
 @media (min-width: 734px) {
   .bento { grid-template-columns: repeat(2, 1fr); }
   .tile-hero, .tile-wide { grid-column: span 2; }
+  /* The last small tile takes the row when it would stand alone before the two wide ones.
+     On the six-column grid this is the width every tile has. */
+  .bento > .tile:nth-last-child(3):nth-child(even) { grid-column: span 2; }
 }
 @media (min-width: 1068px) {
   .bento { grid-template-columns: repeat(6, 1fr); }
@@ -408,6 +412,10 @@ b { font-weight: 600; color: var(--text); }
 .tested-list .tg { font-weight: 600; font-size: 16px; }
 .tested-list .tw { color: var(--text-3); font-size: 14px; }
 .tested-list .tr { color: var(--text-2); font-size: 15px; }
+/* The list's own page (geprueft/): the heading above it, and room before the footer. */
+.tested-page { padding-bottom: clamp(72px, 9vw, 120px); }
+.tested-page .lede { margin-top: 20px; }
+.tested-page .tested { margin-top: clamp(32px, 4vw, 48px); }
 @media (min-width: 834px) {
   .tested-list li { grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.9fr) minmax(0, 1.5fr); align-items: baseline; }
 }
@@ -448,6 +456,8 @@ b { font-weight: 600; color: var(--text); }
 @media (min-width: 734px) { .road-list { grid-template-columns: repeat(2, 1fr); } }
 @media (min-width: 1068px) { .road-list { grid-template-columns: repeat(3, 1fr); } }
 @media (min-width: 1068px) { .road-later .road-list { grid-template-columns: repeat(2, 1fr); } }
+/* Two cards share the row instead of leaving a third place empty. */
+@media (min-width: 1068px) { .road-list:has(> li:nth-child(2):last-child) { grid-template-columns: repeat(2, 1fr); } }
 .road-list li { padding: 26px 26px 28px; border-radius: 24px; background: var(--card); box-shadow: inset 0 0 0 1px var(--line); }
 .road-later .road-list li { background: transparent; box-shadow: none; border: 1px dashed rgba(255, 255, 255, 0.16); }
 .road-list .tile-i { width: 26px; height: 26px; margin-bottom: 18px; }
