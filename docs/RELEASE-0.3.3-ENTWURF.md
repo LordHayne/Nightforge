@@ -1,5 +1,7 @@
 # 0.3.3: Status der Release-Notizen (nur für uns)
 
+**21.11.: Der Nutzer gibt das Release frei, die Arbeitskommentare sind aus `v0.3.3.md` entfernt. Was live bestanden hat und was nach dem Release geprüft wird, steht in `docs/TODO.md` unter „0.3.3: Release“. Die Tabellen unten sind der Stand vom 15.11.**
+
 Stand: `claude/staging-033` bei `60b582b` (15.11. abends), `docs/TODO.md` (Abschlussliste, Liste für 0.3.3, Vorhang nach
 der Regel, Live-Ergebnisse vom 15.11.), `docs/AUDIT-0.3.3-ABSCHLUSS.md` und der Code. Ersetzt den Entwurf vom 9.11.
 

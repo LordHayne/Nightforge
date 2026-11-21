@@ -301,6 +301,33 @@ scheitert und sich nicht schnell beheben lässt, wird ausgeschaltet oder herausg
 - **Abschluss wie 0.3.2:** Audit- und Testrunde, Profilliste signieren (Nutzer), Zusammenführen auf `main` (OK des
   Nutzers), Release-Notizen, Bot-PRs #39–#41 entscheiden.
 
+## 0.3.3: Release (21.11., der Nutzer: „bringen wir das release online dann kann ich update und alles prüfen und etwaige bugs bügeln wir in .4 aus“)
+
+**Stand:** Testzweig `08ec62c` plus dieser Commit (Version 0.3.3, Release-Notizen ohne Arbeitskommentare). Die Live-Runde
+vom 21.11. endet hier. Was sie nicht mehr gesehen hat, prüft der Nutzer nach dem Update von 0.3.2 auf 0.3.3; Fehler
+daraus kommen in 0.3.4.
+
+- **Live bestanden am 21.11.** (Testbuilds `201c63a` bis `08ec62c`): Spieler 1 und 2; Tastatur für den Controller;
+  Einstellungen › Startseite; Touchpad als Maus (nach `f9a6042`: „Erlaubt. Es wirkt, sobald Nightforge neu gestartet
+  ist.“); ABZU (Vorhang nach 18 s unten, kein Shader-Hinweis, Menü als Leiste rechts, Beenden ohne Flackern); N2 (ein
+  frühes Ende von außen: erst der zweite Start, dann „Noch ein Versuch …“); Drawful 2; Hearthstone über Battle.net;
+  Ruhe im Leerlauf und Steam bei Bedarf am Protokoll vom 18.–21.11.
+- **Aus der Runde gebaut, nicht mehr live gesehen:** der Vollbild-Hinweis, wenn Overwatch sein Bild erst nach dem
+  Vorhang verliert (`8aa955a`, Kette grün).
+- **Nach dem Release zu prüfen (Fehler → 0.3.4):** Laufwerk am zweiten Mac (Teil B, B1–B11; seit dem 21.11. auf dem
+  neuen MacBook Pro M5 Pro statt auf dem Mac mini – mit 0.3.2 passiert dort beim Anstecken nichts, wie erwartet);
+  Overwatch im Vollbild (Hinweis, ⌘⇥, „Neu starten“ per Pad); Lizenz beim ersten Start (GTA V); Updates auf dem
+  Ladescreen; „Hängt es?“ nach 30 s; Steams Fragen auf dem Ladescreen; B während der Battle.net-Anmeldung; W3; Anmelden
+  am Sofa (GOG per QR); Fernseher (T1–T5); Mac bleibt wach beim Laden; Shader-Hinweis nur beim ersten Start. Neu als
+  Frage: eine Platte abwechselnd an zwei Macs (Epic und GOG führen ihre Liste je Mac).
+- **Der Merge nach `main` stößt an** (nichts davon erreicht Spieler ohne signiertes Manifest): `graphics.yml` baut und
+  veröffentlicht einen Grafik-Baustein mit `dxmt-0.80-prepare-shaders.patch` (LGPL, Ja des Nutzers vom 8.11.; der kurze
+  Test `ablauf.sh test` ist nicht gelaufen – vor einem Manifest-Eintrag nachholen), `gamepad.yml` (winebus-Stille),
+  `profiles.yml`, `pad-answer.yml` (Bot-PR mit `pad-answer.exe`), `signatures.yml` (rot, bis die Listen signiert sind).
+- **Schritte:** Kette lokal → Push → PR nach `main` → `ci.yml` grün → Merge (wie #43 als Merge-Commit) →
+  `scripts/sign-lists.sh main` (Nutzer) → Tag `v0.3.3` → `release.yml` legt den Entwurf an →
+  `scripts/sign-release.sh v0.3.3 --publish` (Nutzer) → Landingpage, Download-Zahlen, `main` zurück in den Arbeitszweig.
+
 ## 0.3.3: Abschlussliste (15.11., auf Wunsch des Nutzers: „schau mal das wir alles zusammenhaben für den 0.3.3 release“)
 
 **Stand:** Testzweig `claude/staging-033` liegt 397 Commits vor `origin/main` (`2276ccb`, 0.3.2 mit Landingpage) und ist
