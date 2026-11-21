@@ -319,7 +319,7 @@ oder ein Bildschirmfoto.
   Controller-Schlüssel tut); was der Spieler später im Spiel wählt, bleibt. Zu klären: Schlüssel und Domäne je
   Unity-Fassung, Erkennen von Unity an der App, andere Engines (Feral, Unreal). Bis dahin hilft im Spiel einmal
   „Vollbild“ in den Grafikeinstellungen.
-- [ ] **F2 (gebaut 21.11., `claude/rosetta-034` 5d2bc5c/94fbdd0/464b6aa, im Arbeitszweig seit e06db69, Kette grün; live mit dem Testschalter `gameTest.missingRosetta` noch zu sehen) – Windows-Steam startet auf dem neuen MacBook gar nicht; „Ungültiger CPU-Typ im startfähigen Programm“**
+- [ ] **F2 (gebaut 21.11., `claude/rosetta-034` 5d2bc5c/94fbdd0/464b6aa, im Arbeitszweig seit e06db69, Kette grün; **live mit dem Testschalter `gameTest.missingRosetta` am neuen MacBook gesehen, der Nutzer am 21.11. nachts: „Lief wie beschrieben“**; geht als 0.3.4 raus) – Windows-Steam startet auf dem neuen MacBook gar nicht; „Ungültiger CPU-Typ im startfähigen Programm“**
   (21.11., 20:35, Bildschirmfoto: Meldung „Etwas ist schiefgelaufen“ in „Deine Launcher“, GOG-Karte gewählt; Steam für
   Mac läuft). Der Wortlaut ist die Systemmeldung für ein Programm, dessen Prozessortyp der Mac nicht ausführen kann.
   Nachgesehen: Intel-Programme (x86_64) sind Wine und wineserver aus den Bausteinen und `nightforge-sandbox` im Bundle;
