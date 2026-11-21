@@ -301,6 +301,82 @@ scheitert und sich nicht schnell beheben lässt, wird ausgeschaltet oder herausg
 - **Abschluss wie 0.3.2:** Audit- und Testrunde, Profilliste signieren (Nutzer), Zusammenführen auf `main` (OK des
   Nutzers), Release-Notizen, Bot-PRs #39–#41 entscheiden.
 
+## 0.3.4: Befunde nach dem Release von 0.3.3 (ab 21.11., neues MacBook Pro M5 Pro, alles frisch installiert)
+
+Der Nutzer prüft 0.3.3 auf dem zweiten Mac; sein Protokoll sieht der Koordinator nicht, die Einträge sind seine Beobachtung
+oder ein Bildschirmfoto.
+
+- [x] **Laufwerk am zweiten Mac (Teil B):** „spieleerkennung am neuen mac die platte angesteckt funktioniert!“ (21.11.,
+  ~20:00, Release 0.3.3 nach dem Update). Welche Läden und ob die Zeile „… sind wieder da“ kam, ist nicht notiert.
+- [ ] **F1 – Mac-Fassung mit Unity startet auf einem frischen Mac im kleinen Fenster** (Valheim, Bildschirmfoto 21.11.
+  20:01): Das Spiel läuft in einem Fenster mit Titelleiste über dem Ladescreen („Nightforge wartet hier, bis du fertig
+  bist.“), Menüleiste und Dock sind zu sehen. Gelesen im Code: `GameResolution.swift` stellt Vollbild und Größe nur für
+  Windows-Spiele ein (Registry, `GameUserSettings.ini`) und nur, wo das Spiel selbst Vollbild gewählt hat. Für
+  Mac-Fassungen fasst Nightforge den Bildschirmmodus nicht an; Unity nimmt beim allerersten Start seinen Vorgabewert, bei
+  Valheim ein Fenster. Auf dem Entwicklungs-Mac fiel das nie auf, weil dort Vollbild längst gespeichert war.
+  Richtung für die Abhilfe: vor dem ersten Start einer Unity-Mac-Fassung, die noch keinen eigenen Wert geschrieben hat,
+  Unitys Vollbild-Fenster in die Einstellungen des Spiels schreiben (wie `ControllerCompatibility.swift` es für den
+  Controller-Schlüssel tut); was der Spieler später im Spiel wählt, bleibt. Zu klären: Schlüssel und Domäne je
+  Unity-Fassung, Erkennen von Unity an der App, andere Engines (Feral, Unreal). Bis dahin hilft im Spiel einmal
+  „Vollbild“ in den Grafikeinstellungen.
+- [ ] **F2 (gebaut 21.11., `claude/rosetta-034` 5d2bc5c/94fbdd0/464b6aa, im Arbeitszweig seit e06db69, Kette grün; **live mit dem Testschalter `gameTest.missingRosetta` am neuen MacBook gesehen, der Nutzer am 21.11. nachts: „Lief wie beschrieben“**; geht als 0.3.4 raus) – Windows-Steam startet auf dem neuen MacBook gar nicht; „Ungültiger CPU-Typ im startfähigen Programm“**
+  (21.11., 20:35, Bildschirmfoto: Meldung „Etwas ist schiefgelaufen“ in „Deine Launcher“, GOG-Karte gewählt; Steam für
+  Mac läuft). Der Wortlaut ist die Systemmeldung für ein Programm, dessen Prozessortyp der Mac nicht ausführen kann.
+  Nachgesehen: Intel-Programme (x86_64) sind Wine und wineserver aus den Bausteinen und `nightforge-sandbox` im Bundle;
+  Nightforge selbst, sein Helfer, legendary und gogdl sind arm64. Das veröffentlichte 0.3.3 hat dieselben Architekturen
+  wie 0.3.2 – am Release liegt es nicht. **Vermutung, vom neuen Mac noch nicht bestätigt:** Dort läuft kein Intel-Code,
+  weil Rosetta fehlt oder nach einem macOS-Update neu installiert werden muss. Probe dort:
+  `arch -x86_64 /usr/bin/true`; Abhilfe: `softwareupdate --install-rosetta` (Lizenz bestätigt der Nutzer), sonst Neustart.
+  **Lücke in Nightforge, unabhängig von der Ursache:** Nach Rosetta fragt nur die erste Einrichtung (`Setup.swift`, erster
+  Schritt, `Engine.isRosettaInstalled`). Danach prüft es niemand mehr: Ein Start von Wine, Steam oder der Sandbox
+  scheitert dann still oder mit der rohen Systemmeldung. Abhilfe: vor jedem Start von Intel-Code einmal je Sitzung
+  prüfen (und bei „Bad CPU type“ erneut), denselben Schritt „Rosetta installieren“ zeigen wie die Einrichtung, die rohe
+  Meldung nie durchreichen.
+  **Bestätigt und gebaut (21.11.):** Auf dem neuen MacBook fehlte Rosetta (Probe des Nutzers). Der Weg an der Prüfung
+  vorbei, belegt im Code: Das Zahnrad steht auch während der Ersteinrichtung in der Kopfleiste; Einstellungen › Launcher ›
+  „Verwalten“ öffnet die Karten; die Anmeldung bei Epic, GOG oder Steam für Mac berührt die Einrichtung nicht; mit Spielen
+  in der Liste ist `needsSetup` falsch, und der Rosetta-Schritt kommt nie. Jetzt: `RosettaSupport.stateHere` vor jedem
+  Start von x86_64-Code (Windows-Spiel, Mac-Fassung für Intel, Steam-Download, Steams Fenster) und einmal je Sitzung,
+  sobald die Bibliothek Spiele hat; Frage „Rosetta fehlt“ mit „Rosetta installieren“, danach geht weiter, was der Spieler
+  wollte; Fehler 86 wird überall zu „Auf diesem Mac fehlt Rosetta von Apple. Windows-Spiele brauchen es.“ Offen, nur am
+  echten Ablauf zu sehen: Passwortabfrage und Rückweg; die Frage, während ein anderes Blatt offen ist; Steam-Starts im
+  Hintergrund melden ein fehlendes Rosetta nur im Protokoll. Entscheidung des Nutzers offen: Die Frage kommt einmal je
+  Sitzung auch bei Spielern, die nur Mac-Spiele haben (Empfehlung der Session: so lassen).
+
+- [x] **F1 gebaut und live bestätigt (der Nutzer am 22.11., Testbuild 9f32973: „valheim startete im vollbild“; gebaut 21.11. nachts, `claude/mac-vollbild-034` c881d15, im Arbeitszweig seit 10e0bd0, Kette grün):** Eine
+  Unity-Mac-Version ohne eigenen gespeicherten Bildschirmmodus startet mit `-screen-fullscreen 1` (`MacUnityScreen.swift`);
+  danach gilt, was das Spiel speichert. Belegt: Valheims Vorgabe ist ein Fenster von 1366×768
+  (`com.coffeestain.valheim-steam`, „Screenmanager Fullscreen mode Default“ = 3). Nicht Unity und unverändert: Asphalt
+  Legends, Drawful 2, Dying Light, No Man's Sky, Tomb Raider. Einen echten Start hat noch niemand gesehen; zum
+  Nachstellen am neuen MacBook: `defaults delete com.coffeestain.valheim-steam "Screenmanager Fullscreen mode"`.
+- [ ] **F3 – zu wenig Geduld mit dem Windows-Steam auf einem frischen Mac** (Protokoll des Nutzers, 21.11. 23:24–23:43,
+  Testbuild e06db69): OxyRail (DXMT) startete in 53 s. Black Myth: Wukong Benchmark Tool (D3DMetal) fünfmal nicht: Steam
+  braucht dort vom Start bis „Logged On“ 40–45 s; `LibraryModel` (~4798) wartet 45 s und ruft dann
+  `restartStuckSteam`, startet also ein Steam neu, das gerade fertig wurde; je Versuch steht „The Windows Steam starts in
+  the background“ zweimal im Protokoll. Nach rund 30 s kommt „Hängt es? Zurück zu Nightforge“ (storeQuiet, Overlay
+  „stuck“), obwohl die Phase „Anmeldung bei Steam …“ noch läuft; der Nutzer ging jedes Mal Sekunden vor dem Start
+  zurück – die Zeile „starts on D3DMetal“ steht jeweils direkt danach. Auftrag an diagnose-start
+  (`claude/steam-geduld-034`): ein Steam, das vorankommt, nicht neu starten; kein doppelter Neustart; „Hängt es?“ erst
+  nach der erklärenden Phase; klären, ob „Zurück“ den Start beendet.
+  **Gebaut (`claude/steam-geduld-034` a2797f6, im Arbeitszweig seit 9f32973, Kette grün):** bis 120 s warten, solange
+  Steam vorankommt (Prozess da, Protokolle bewegen sich); höchstens ein Neustart je Start; „Hängt es?“ zählt nicht in
+  Phasen, die das Warten erklären; „Zurück“ beendet den Start; der Neustart heißt „Steam wird neu gestartet …“. Live am
+  22.11.: Wukong startete nach dem Wechsel von Valheim von selbst, „ca 70 sekunden bis zum ersten bild“.
+- [ ] **F4 – Windows-Steam braucht auf dem neuen MacBook rund 40 s bis „Logged On“, auf dem Entwicklungs-Mac 6–9 s**
+  (gemessen 21./22.11.; dort M5 Pro, 24 GB, frisch eingerichtet). Das Netz ist es nicht (1 s vom ersten
+  Verbindungsversuch bis zur Anmeldung); die cryptnet-Wiederholungen stehen hier genauso im Protokoll. Ursache offen.
+  Der Wechsel von einer Mac-Version (Steam für Mac) zu einem Windows-Spiel kostet dort deshalb rund 70 s. Aufzeichnung
+  dafür: ein Befehl, der Steams Meilensteine des letzten Starts in die Zwischenablage legt (im Bericht der Session,
+  am Entwicklungs-Mac geprüft: hier 2 s bis Steams erste Zeile, „System startup time: 5.23 seconds“).
+  **Zwei Aufzeichnungen vom neuen MacBook (22.11., Steam-Start 00:14:28), Meilenstein für Meilenstein neben diesem Mac:**
+  Wine/Rosetta bis zu Steams erster Zeile 1 s (hier 2 s); Verbindungstest und IPv6-Test wie hier (IPv6 läuft auf beiden in
+  die Zeitüberschreitung, daran liegt es nicht); Steams Oberfläche („SP Shared JS Context … LoadEnd“) nach 7,1 s statt
+  2,2 s; Anmeldefenster angelegt nach 13,8 s statt 3,3 s; dann „SetLoginState: WaitingForNetwork“ um 00:14:45, die
+  Bibliothek auf dem Laufwerk geladen um 00:14:46 („Loaded 8 apps from … Z:\Volumes\Games\Nightforge Games“), und der
+  erste Verbindungsversuch erst um 00:15:05 – 20 s in „WaitingForNetwork“, wo dieser Mac in derselben Sekunde weitergeht.
+  „System startup time“: 38,51 s dort, 5,23 s hier, gleiche Client-Version. Ursache offen. Nächste Proben, je ein Start:
+  ohne angestecktes Laufwerk; am Netzteil; nachdem Steam einmal lange ungestört lief (Updates der übernommenen Spiele fertig).
+
 ## 0.3.3: Release (21.11., der Nutzer: „bringen wir das release online dann kann ich update und alles prüfen und etwaige bugs bügeln wir in .4 aus“)
 
 **Stand:** Testzweig `08ec62c` plus dieser Commit (Version 0.3.3, Release-Notizen ohne Arbeitskommentare). Die Live-Runde
@@ -327,6 +403,21 @@ daraus kommen in 0.3.4.
 - **Schritte:** Kette lokal → Push → PR nach `main` → `ci.yml` grün → Merge (wie #43 als Merge-Commit) →
   `scripts/sign-lists.sh main` (Nutzer) → Tag `v0.3.3` → `release.yml` legt den Entwurf an →
   `scripts/sign-release.sh v0.3.3 --publish` (Nutzer) → Landingpage, Download-Zahlen, `main` zurück in den Arbeitszweig.
+- **Veröffentlicht am 21.11.2026, 18:57 (17:57 UTC):** Merge-Commit `3cb9ac8` (#45), Listen signiert `5c9b068`, Tag `v0.3.3`
+  darauf, `release.yml` grün, vom Nutzer signiert und veröffentlicht. Nachgeprüft an der veröffentlichten Datei:
+  Update-Signatur mit dem Hauptschlüssel gültig, App 0.3.3, Code-Signatur mit dem Nightforge-Zertifikat (gleiche
+  Anforderung wie 0.3.2), keine Testschalter, kein `pad-answer.exe`. Ausgangswert der Downloads direkt danach: 0.3.3 = 0;
+  0.3.2 DMG 2 / Zip 3; 0.3.1 DMG 2 / Zip 2; 1 Stern.
+- **Offen nach dem Release:**
+  - [x] Landingpage und README: #46 und #47 gemergt und live angesehen; #48 „Geprüft auf dem Mac“ als eigene Seite mit Tab, ohne die „ehrlich“-Überschriften (main da92cae). Der Textdurchgang ist als #49 online (main 3bbadd0), live bei 1440, 900 und 390 px angesehen.
+  - [ ] Der Nutzer prüft nach dem Update auf dem neuen MacBook Pro (Liste oben); Fehler → 0.3.4.
+  - [ ] `scripts/fetch-geforce-now.py` bekommt auf GitHub seit dem 20.11. HTTP 403, „Update game profiles“ ist rot,
+    nächtlich und auf `main`. Ursache ansehen; kein Umgehen über einen fremden User-Agent.
+  - [ ] Der Merge hat ein Grafik-Paket mit `dxmt-0.80-prepare-shaders.patch` und ein Controller-Paket gebaut. Vor einem
+    Manifest-Eintrag: kurzer Test des Shader-Pakets (`ablauf.sh test`), dann Bot-PR #41 lesen, signieren, mergen.
+  - [ ] Bot-PRs #39–#41 und der neue für `pad-answer.exe`; Dependabot #21–#26.
+  - [ ] Sessions archivieren, sobald ihre Live-Punkte gesehen sind (Audit, Startrezept C, Laufwerk); ARM64-Entscheidungen.
+  - Arbeitszweig für 0.3.4: `claude/staging-034` von `main` (`5c9b068`), lokal.
 
 ## 0.3.3: Abschlussliste (15.11., auf Wunsch des Nutzers: „schau mal das wir alles zusammenhaben für den 0.3.3 release“)
 

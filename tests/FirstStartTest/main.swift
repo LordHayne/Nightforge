@@ -20,6 +20,7 @@ struct FirstStartTest {
     static func main() {
         actions()
         rosetta()
+        rosettaBeforeIntelCode()
         signInNote()
         signInWindow()
         libraryCheck()
@@ -45,6 +46,67 @@ struct FirstStartTest {
         check(S.confirmAction(stage: .checklist, phase: .rosettaGone) == nil, "the notice has nothing to press")
         check(RosettaSupport.isGone(macOSMajor: 28, translates: { false }), "macOS 28, x86_64 doesn't run: gone")
         check(!RosettaSupport.isGone(macOSMajor: 28, translates: { true }), "macOS 28, x86_64 runs: nothing changes")
+    }
+
+    /// Rosetta before x86_64 code (21.11.2026): a new Mac without it signed in through the launcher cards, never saw
+    /// the first start's step, and Windows Steam failed with "Bad CPU type in executable".
+    static func rosettaBeforeIntelCode() {
+        typealias R = RosettaSupport
+        // The rule: the probe, and macOS past 27.
+        check(R.state(macOSMajor: 26, installed: { true }) == .ready && R.state(macOSMajor: 28, installed: { true }) == .ready,
+              "Rosetta there: ready, whatever macOS")
+        check(R.state(macOSMajor: 26, installed: { false }) == .missing && R.state(macOSMajor: 27, installed: { false }) == .missing,
+              "missing through macOS 27: offered for install")
+        check(R.state(macOSMajor: 28, installed: { false }) == .gone, "past macOS 27: gone, the notice")
+        // Once a session while it's there, again after a "Bad CPU type", at each ask while it's missing.
+        R.forget()
+        check(R.stateHere(probe: { true }) == .ready, "probed: there")
+        check(R.stateHere(probe: {
+            check(false, "not probed again in the same session")
+            return false
+        }) == .ready, "seen once: ready")
+        R.forget()
+        check(R.stateHere(probe: { false }) != .ready, "after a Bad CPU type: probed again, missing")
+        check(R.stateHere(probe: { true }) == .ready, "while missing every ask probes: the install counts at once")
+        R.forget()
+        // The hidden test switch: "missing" on a Mac with Rosetta, until Install Rosetta is pressed this session.
+        let switched = UserDefaults(suiteName: "first-start-rosetta-\(UUID().uuidString)")!
+        switched.set(true, forKey: R.testMissingRosettaKey)
+        check(R.stateHere(probe: { true }, defaults: switched) == .missing, "the switch: missing, though Rosetta is there")
+        check(R.stateHere(probe: { true }) == .ready, "without it: as the probe says")
+        R.noteInstallAsked()
+        check(R.stateHere(probe: { true }, defaults: switched) == .ready, "Install Rosetta pressed: as the probe says again")
+        check(R.testMissingRosettaKey.utf8.count > 15, "the key is text in an optimized build, for the release check")
+        R.forget()
+        // Error 86 in every shape it comes in, and never in the system's words for the player.
+        let posix = NSError(domain: NSPOSIXErrorDomain, code: Int(EBADARCH))
+        let wrapped = NSError(domain: NSCocoaErrorDomain, code: 4, userInfo: [NSUnderlyingErrorKey: posix])
+        check(EBADARCH == 86 && R.isBadCPUType(posix) && R.isBadCPUType(POSIXError(.EBADARCH)) && R.isBadCPUType(wrapped)
+              && R.isBadCPUType(R.Missing()), "error 86: from Process, from the helper, wrapped, and our own")
+        check(!R.isBadCPUType(NSError(domain: NSPOSIXErrorDomain, code: Int(ENOENT))) && !R.isBadCPUType(CocoaError(.fileNoSuchFile)),
+              "another error: not Rosetta")
+        let text = R.playerText(posix)
+        check(text.contains("Rosetta") && !text.contains("CPU") && text == R.missingText(macOSMajor: ProcessInfo.processInfo.operatingSystemVersion.majorVersion),
+              "error 86 for the player: Rosetta is missing (\(text))")
+        let other = NSError(domain: NSPOSIXErrorDomain, code: Int(ENOENT))
+        check(R.playerText(other) == other.localizedDescription, "any other error as it says itself")
+        check(R.missingText(macOSMajor: 28) == R.notice && R.missingText(macOSMajor: 27) != R.notice, "past macOS 27: the notice instead")
+        // The first start's decision: asked once a library is there and the first start doesn't ask itself.
+        typealias M = LibraryModel
+        check(M.asksAboutRosetta(.missing, setupActive: false, needsSetup: false),
+              "games in the list through the launcher cards, the first start never ran: asked")
+        check(!M.asksAboutRosetta(.missing, setupActive: true, needsSetup: false), "the first start runs: its own step asks")
+        check(!M.asksAboutRosetta(.missing, setupActive: false, needsSetup: true), "no games yet: the first start is still to come")
+        check(!M.asksAboutRosetta(.ready, setupActive: false, needsSetup: false) && !M.asksAboutRosetta(.gone, setupActive: false, needsSetup: false),
+              "there, or gone past macOS 27: no install question")
+        // Which starts run x86_64 code.
+        check(M.startNeedsRosetta(platform: .windows, provider: .epic, macAppleSilicon: false)
+              && M.startNeedsRosetta(platform: .windows, provider: .steam, macAppleSilicon: true), "every Windows game: Wine")
+        check(M.startNeedsRosetta(platform: .mac, provider: .steam, macAppleSilicon: false), "a Mac version Steam says is for Intel")
+        check(!M.startNeedsRosetta(platform: .mac, provider: .steam, macAppleSilicon: true)
+              && !M.startNeedsRosetta(platform: .mac, provider: .gog, macAppleSilicon: false)
+              && !M.startNeedsRosetta(platform: .mac, provider: .battlenet, macAppleSilicon: false),
+              "Apple silicon, or a store that doesn't say: no question")
     }
 
     /// Return/A and Esc/B on each page: the setup itself can't be skipped, the check and the replay can.

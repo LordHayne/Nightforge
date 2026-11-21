@@ -155,7 +155,7 @@ extension LibraryModel {
             } catch DriveError.cancelled {
                 Toasts.shared.show(L10n.t("%@ stays where it was", game.name))
             } catch {
-                errorMessage = L10n.t("%@ couldn't be moved: %@ It's still where it was and plays as before.", game.name, error.localizedDescription)
+                errorMessage = L10n.t("%@ couldn't be moved: %@ It's still where it was and plays as before.", game.name, RosettaSupport.playerText(error))
             }
         }
     }

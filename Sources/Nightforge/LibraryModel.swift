@@ -357,6 +357,71 @@ final class LibraryModel: ObservableObject {
 
     /// Nothing to show and Nightforge's own Steam isn't ready yet.
     var needsSetup: Bool { allGames.isEmpty && !SetupModel.isComplete }
+
+    // MARK: - Rosetta
+
+    /// Rosetta is missing where macOS still has it: the question with its install, and what the player wanted
+    /// (`then`) done after it.
+    struct RosettaQuestion: Identifiable {
+        let id = UUID()
+        let then: (@MainActor () -> Void)?
+    }
+
+    @Published var rosettaQuestion: RosettaQuestion?
+    /// The question came without a start this session (`askAboutRosettaOnce`).
+    private var rosettaAskedOnce = false
+
+    /// Whether x86_64 code can run now. If not it says so: the install offered, `then` after it – or past macOS 27
+    /// that Windows games can't run here (RosettaSupport.notice). Checked before anything starts, so a start never
+    /// fails for want of Rosetta and nothing counts against its way (LaunchHealth, start-evidence).
+    func rosettaReady(for what: String, then: (@MainActor () -> Void)?) -> Bool {
+        let state = RosettaSupport.stateHere()
+        guard state != .ready else { return true }
+        GameLog.note("Rosetta \(state == .gone ? "isn't available on this macOS" : "is missing"): \(what) waits")
+        if state == .gone { errorMessage = RosettaSupport.notice } else { rosettaQuestion = RosettaQuestion(then: then) }
+        return false
+    }
+
+    /// Once a session, without a start: the library has games and the first start's Rosetta step never came – the
+    /// way through Settings › Launchers › Manage (the gear is there during the first start too) signs in to Epic,
+    /// GOG or Steam for Mac, and with games in the list `needsSetup` is false (the user's new Mac, 21.11.2026).
+    func askAboutRosettaOnce() {
+        guard !rosettaAskedOnce, rosettaQuestion == nil, !setup.isActive, !needsSetup else { return }
+        rosettaAskedOnce = true
+        guard Self.asksAboutRosetta(RosettaSupport.stateHere(), setupActive: setup.isActive, needsSetup: needsSetup) else { return }
+        GameLog.note("Rosetta is missing and the first start's step never came: asked now")
+        rosettaQuestion = RosettaQuestion(then: nil)
+    }
+
+    /// The question without a start: Rosetta missing where Apple still installs it, a library there, and the first
+    /// start not running – that asks in its own step (SetupModel's `.needsRosetta`), and with no games yet it's
+    /// still to come. Past macOS 27 the notice comes with the first start of a Windows game.
+    nonisolated static func asksAboutRosetta(_ state: RosettaSupport.State, setupActive: Bool, needsSetup: Bool) -> Bool {
+        state == .missing && !setupActive && !needsSetup
+    }
+
+    /// A start that failed after all for want of Rosetta ("Bad CPU type", RosettaSupport.Missing): the question,
+    /// and the start again after the install – the start loop has ended without a verdict, nothing on the way's
+    /// account. Any other error as before (`say`).
+    private func startFailed(_ game: Game, _ error: Error, say: () -> String) {
+        guard RosettaSupport.isBadCPUType(error) else { return errorMessage = say() }
+        GameLog.note("\(game.name) couldn't start: Rosetta is missing – asked, the start comes again after the install")
+        rosettaQuestion = RosettaQuestion(then: { [weak self] in self?.launch(game) })
+    }
+
+    /// Whether a start runs x86_64 code: every Windows game (Wine), and a Mac version Steam says is made for Intel.
+    nonisolated static func startNeedsRosetta(platform: Platform, provider: Provider, macAppleSilicon: Bool) -> Bool {
+        platform != .mac || (provider == .steam && !macAppleSilicon)
+    }
+
+    /// "Install Rosetta" in the question: macOS's password prompt, then what the player wanted.
+    func installRosetta(_ question: RosettaQuestion) {
+        rosettaQuestion = nil
+        Task {
+            guard await RosettaSupport.install(), RosettaSupport.stateHere() == .ready else { return }
+            question.then?()
+        }
+    }
     /// Home shows the first start (SetupView): until the setup is done, then until "Let's Play".
     var showsFirstStart: Bool { setup.isActive || needsSetup }
 
@@ -469,7 +534,7 @@ final class LibraryModel: ObservableObject {
                 reload(quiet: true)
                 Toasts.shared.show(L10n.t("Epic Games is connected – your games are in the library"))
             } catch {
-                errorMessage = error.localizedDescription
+                errorMessage = RosettaSupport.playerText(error)
             }
         }
     }
@@ -531,7 +596,7 @@ final class LibraryModel: ObservableObject {
                 reload(quiet: true)
                 Toasts.shared.show(L10n.t("GOG is connected – your games are in the library"))
             } catch {
-                errorMessage = error.localizedDescription
+                errorMessage = RosettaSupport.playerText(error)
             }
         }
     }
@@ -623,11 +688,18 @@ final class LibraryModel: ObservableObject {
             await leftStartEnded()
             guard !Task.isCancelled, await beforeGOGStart(game) else { return }
             let installDir = game.installDir
-            await Task.detached(priority: .userInitiated) { ControllerCompatibility.prepare(installDir: installDir) }.value
+            let playerArguments = arguments.joined(separator: " ")
+            let screen = await Task.detached(priority: .userInitiated) { () -> MacUnityScreen.Decision in
+                ControllerCompatibility.prepare(installDir: installDir)
+                return MacUnityScreen.look(installDir: installDir, playerArguments: playerArguments)
+            }.value
+            // A Unity Mac version's first start in full screen (MacUnityScreen).
+            if let note = MacUnityScreen.note(screen, game: game.name) { GameLog.note(note) }
+            let withScreen = Launcher.splitArguments(MacUnityScreen.arguments(playerArguments, screen))
             do {
-                try await gog.launchMac(game, extraArguments: arguments)
+                try await gog.launchMac(game, extraArguments: withScreen)
             } catch {
-                errorMessage = L10n.t("%@ couldn't start: %@", game.name, error.localizedDescription)
+                errorMessage = L10n.t("%@ couldn't start: %@", game.name, RosettaSupport.playerText(error))
                 return
             }
             gog.recordStart(game)
@@ -1622,7 +1694,8 @@ final class LibraryModel: ObservableObject {
             // Under all of them, the backmost lowest; again at each look: nothing gets between.
             if loweredAt == nil, let lowest = macOSQuestions.last { GameBackdrop.makeWay(under: lowest) }
             let macOSAsks = turn == .makeWay
-            noProcessSince = pids.isEmpty && loweredAt == nil ? (noProcessSince ?? Date()) : nil
+            // Nightforge's own work explains the wait (Steam signing in or restarting, setting up): "Stuck?" counts from its end.
+            noProcessSince = pids.isEmpty && loweredAt == nil && !Self.phaseExplainsWait(launchPhase) ? (noProcessSince ?? Date()) : nil
             if case .updating(let fraction)? = launchPhase {
                 if updateProgress == nil || updateProgress?.fraction != fraction { updateProgress = (fraction, Date()) }
             } else {
@@ -2676,6 +2749,7 @@ final class LibraryModel: ObservableObject {
         downloadLooks = 0
         measureDownloads()
         libraryLoaded = true
+        askAboutRosettaOnce()
         let finished = found.filter { $0.isInstalled && wasDownloading.contains($0.id) }
         for game in finished { prepare(game) }
         if !finished.isEmpty || !spaceLooked { refreshLowSpace() }
@@ -3000,6 +3074,47 @@ final class LibraryModel: ObservableObject {
         return false
     }
 
+    // MARK: - Steam's patience (F3)
+
+    enum SteamSignInStep: Equatable { case signedIn, wait, stuck }
+
+    /// How long a Windows Steam may take to sign in before a start. A new Mac's Rosetta translates all of it at its
+    /// first starts: the user's MacBook Pro took 40–45 s to "Logged On" (21.11.2026), and the 45 s here restarted a
+    /// Steam that had just got there – which then took as long again.
+    nonisolated static let steamSignInPatience: TimeInterval = 120
+    /// Nothing in its logs for this long: it doesn't come along.
+    nonisolated static let steamQuietPatience: TimeInterval = 45
+    /// No Steam process for this long after the wait began: none is coming.
+    nonisolated static let steamGonePatience: TimeInterval = 10
+
+    /// The wait for a Steam that signs in: on while it comes along – its process there, something in its logs
+    /// lately – up to two minutes; stuck without a process, with its logs quiet, or after that.
+    nonisolated static func steamSignInStep(signedIn: Bool, running: Bool, waited: TimeInterval, quietFor: TimeInterval) -> SteamSignInStep {
+        if signedIn { return .signedIn }
+        if waited >= steamSignInPatience { return .stuck }
+        if !running, waited >= steamGonePatience { return .stuck }
+        if waited >= steamQuietPatience, quietFor >= steamQuietPatience { return .stuck }
+        return .wait
+    }
+
+    /// One Steam restart for a start: the game's settings that come with Steam's environment (only while no Windows
+    /// game runs in it), or a Steam stuck signing in – both at once in one.
+    nonisolated static func restartsSteamForStart(environmentChanged: Bool, stuck: Bool, running: Bool, gamesRunning: Bool) -> Bool {
+        stuck || (environmentChanged && running && !gamesRunning)
+    }
+
+    /// Nightforge's own work that explains a wait with no process of the game's yet: "Stuck?" counts from its end. Not an
+    /// update, which has its own way out, nor Epic's and GOG's saves, which B stops at once (CurtainEscape).
+    nonisolated static func phaseExplainsWait(_ phase: LaunchPhase?) -> Bool {
+        switch phase {
+        case .startingSteam?, .startingSteamForMac?, .signingIn?, .savingToCloud?, .settingUp?, .settingUpDotNet?, .restartingSteam?,
+             .steamNotResponding?, .signingInEpic?, .settingUpWindowsParts?, .startingBattleNet?:
+            return true
+        default:
+            return false
+        }
+    }
+
     /// Restarts a hung Steam, queued like any other Steam start so a launch waits for it.
     /// True once it has signed in again (up to 90 s). It signs in by itself; when it asks instead
     /// (its remembered sign-in ran out) while a game waits to start, its window comes to the front
@@ -3145,7 +3260,7 @@ final class LibraryModel: ObservableObject {
             do {
                 if try await steam.addDemoLicense(game) { reload(quiet: true) }
             } catch {
-                errorMessage = error.localizedDescription
+                errorMessage = RosettaSupport.playerText(error)
             }
         }
     }
@@ -3169,7 +3284,7 @@ final class LibraryModel: ObservableObject {
             } catch {
                 updating = false
                 if case Updater.Failure.notWritable = error { NSWorkspace.shared.open(update.page) }
-                errorMessage = error.localizedDescription
+                errorMessage = RosettaSupport.playerText(error)
             }
         }
     }
@@ -3328,13 +3443,17 @@ final class LibraryModel: ObservableObject {
             downloadMac(game, drive: drive)
             return
         }
+        // Windows Steam downloads it, and Windows Steam is x86_64 (Epic's and GOG's downloaders aren't).
+        if game.provider == .steam, !rosettaReady(for: "the download of \(game.name)", then: { [weak self] in self?.download(game, drive: drive) }) {
+            return
+        }
         Task {
             do {
                 var context = StoreContext(busy: !running.isEmpty || launchingID != nil) { self.reload(quiet: true) }
                 context.drive = drive
                 try await store(for: game).install(game, context: context)
             } catch {
-                errorMessage = error.localizedDescription
+                errorMessage = RosettaSupport.playerText(error)
             }
         }
     }
@@ -3534,6 +3653,7 @@ final class LibraryModel: ObservableObject {
         managedLauncher = nil
         if macSetup != nil { closeMacSetup() }
         errorMessage = nil
+        rosettaQuestion = nil
         sessionSummary = nil
         failedLaunch = nil
         if saveChoice != nil { answerSaveChoice(takeNewer: false) }
@@ -3553,7 +3673,7 @@ final class LibraryModel: ObservableObject {
     var openSheets: [String] {
         [("showingOptions", showingOptions), ("showingSettings", showingSettings), ("pendingSpace", pendingSpace != nil),
          ("pendingMove", pendingMove != nil), ("managedLauncher", managedLauncher != nil), ("macSetup", macSetup != nil),
-         ("errorMessage", errorMessage != nil), ("sessionSummary", sessionSummary != nil), ("failedLaunch", failedLaunch != nil),
+         ("errorMessage", errorMessage != nil), ("rosettaQuestion", rosettaQuestion != nil), ("sessionSummary", sessionSummary != nil), ("failedLaunch", failedLaunch != nil),
          ("saveChoice", saveChoice != nil), ("pendingDemoLicense", pendingDemoLicense != nil), ("d3dMetalDialog", d3dMetalDialog != nil),
          ("pendingCloudGame", pendingCloudGame != nil), ("pendingUninstall", pendingUninstall != nil),
          ("pendingLeftoverRemoval", pendingLeftoverRemoval != nil), ("pendingPower", pendingPower != nil),
@@ -3598,7 +3718,7 @@ final class LibraryModel: ObservableObject {
                 reload(quiet: true)
                 await watchMacDownloadStart(game)
             } catch {
-                errorMessage = error.localizedDescription
+                errorMessage = RosettaSupport.playerText(error)
             }
         }
     }
@@ -3679,24 +3799,32 @@ final class LibraryModel: ObservableObject {
             launchPhase = nil
             await waitForSteamCloud(MacSteam.root)
             if Task.isCancelled { return }  // no saves taken along for a start that's over
-            // steam://run/<id>//<arguments>: the extra part goes to the game.
-            let extra = arguments.isEmpty ? ""
-                : "//" + (arguments.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? "")
             await takeSavesAlong(game, to: .mac)
             let installDir = game.installDir  // the library it's really in, an external drive's included
             let appID = game.appID
-            let macLaunch = await Task.detached(priority: .userInitiated) { () -> [SteamCatalog.LaunchEntry] in
+            let (macLaunch, screen) = await Task.detached(priority: .userInitiated) { () -> ([SteamCatalog.LaunchEntry], MacUnityScreen.Decision) in
                 ControllerCompatibility.prepare(installDir: installDir)
                 MacGameHUD.prepare(folder: installDir)
-                return SteamCatalog.macLaunchEntries(appID: appID, steamRoot: MacSteam.root)
+                return (SteamCatalog.macLaunchEntries(appID: appID, steamRoot: MacSteam.root),
+                        MacUnityScreen.look(installDir: installDir, playerArguments: arguments))
             }.value
             let launchType = SteamProgram.macLaunchType(macLaunch)
+            // A Unity Mac version's first start in full screen (MacUnityScreen), where steam://run carries the switch:
+            // not with several launch options, which go by steam://launch without arguments.
+            let carries = launchType == nil || !arguments.isEmpty
+            if let note = MacUnityScreen.note(screen, game: game.name) {
+                GameLog.note(carries ? note : "Mac version of \(game.name): several launch options, Steam's own way – no switch")
+            }
+            let withScreen = carries ? MacUnityScreen.arguments(arguments, screen) : arguments
+            // steam://run/<id>//<arguments>: the extra part goes to the game.
+            let extra = withScreen.isEmpty ? ""
+                : "//" + (withScreen.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? "")
             let watcher = LaunchWatcher(steamRoot: MacSteam.root, appID: game.appID)
             let launchStarted = Date()
             // With several launch options Steam asks which one, in a window that didn't come forward
             // (Drawful 2: standalone or the Jackbox Megapicker, 8.11.). steam://launch starts Steam's
             // first straight away; it passes no arguments, so with the player's own Steam asks as before.
-            let command = launchType.flatMap { arguments.isEmpty ? "launch/\(appID)/\($0)" : nil } ?? "run/\(appID)" + extra
+            let command = launchType.flatMap { withScreen.isEmpty ? "launch/\(appID)/\($0)" : nil } ?? "run/\(appID)" + extra
             // Options steam://launch has no name for ("none", no type), or the player's own arguments:
             // -applaunch starts the first and takes arguments, with no question. Tried once; a resend
             // (Steam didn't note it) goes the old way, where Steam may ask.
@@ -3806,7 +3934,7 @@ final class LibraryModel: ObservableObject {
                 hintDuringStart(L10n.t("The newer save was copied over only in part (%@). The saves from before are in %@.",
                                        error.reason, error.backup.path))
             } catch {
-                hintDuringStart(L10n.t("The newer save couldn't be copied over (%@). %@ starts with its own.", error.localizedDescription, game.name))
+                hintDuringStart(L10n.t("The newer save couldn't be copied over (%@). %@ starts with its own.", RosettaSupport.playerText(error), game.name))
             }
         }
         _ = await Task.detached(priority: .userInitiated) {
@@ -4672,6 +4800,11 @@ final class LibraryModel: ObservableObject {
         Engine.noteGameActivity()  // the quit script waits for cloud saves if Nightforge quits soon after (Engine.steamShutdownScript)
         if needsEpicSignIn(game) { return }
         if game.platform == .mac {
+            // A Mac version made for Intel runs on Rosetta too.
+            if Self.startNeedsRosetta(platform: .mac, provider: game.provider, macAppleSilicon: game.macAppleSilicon),
+               !rosettaReady(for: "the start of \(game.name)", then: { [weak self] in self?.launch(game, d3dMetalChecked: d3dMetalChecked) }) {
+                return
+            }
             switch game.provider {
             case .gog: launchGOGMac(game)
             case .battlenet: launchBattleNetMac(game)
@@ -4679,11 +4812,9 @@ final class LibraryModel: ObservableObject {
             }
             return
         }
-        // Past macOS 27 Rosetta may be gone, and nothing below can start a Windows game without it.
-        if RosettaSupport.isGoneHere {
-            errorMessage = RosettaSupport.notice
-            return
-        }
+        // Wine is x86_64: without Rosetta nothing below can start, and the start isn't begun (nothing on its way's account).
+        guard rosettaReady(for: "the start of \(game.name)", then: { [weak self] in self?.launch(game, d3dMetalChecked: d3dMetalChecked) })
+        else { return }
         // DirectX 12 only, and Apple's D3DMetal isn't in the engine: asked once, before anything starts.
         if !d3dMetalChecked, askAboutD3DMetalBeforeStart(game) { return }
         let viaSteam = game.provider == .steam
@@ -4720,15 +4851,29 @@ final class LibraryModel: ObservableObject {
                 launchPhase = nil
             }
             // A Steam that is still signing in starts the game offline ("Steam is currently in
-            // Offline Mode"): wait for it, and start it afresh if it doesn't get there.
-            if viaSteam, game.bottle.isBuiltIn, Engine.isSteamSignedIn, !Engine.steamSignedIn, let wine = await Engine.installedWine() {
+            // Offline Mode"): wait for it while it comes along (steamSignInStep). One that is stuck is
+            // restarted once, together with a restart the game's settings need anyway (restartsSteamForStart).
+            var steamStuck = false
+            if viaSteam, game.bottle.isBuiltIn, Engine.isSteamSignedIn, !Engine.steamSignedIn {
                 launchPhase = .signingIn
-                var waited = 0
-                while !Engine.steamSignedIn, waited < 45 {
-                    try? await Task.sleep(for: .seconds(1))
-                    waited += 1
+                let began = Date()
+                waiting: while true {
+                    let quiet = await Engine.offMain { Engine.steamLogsQuiet() }
+                    switch Self.steamSignInStep(signedIn: Engine.steamSignedIn, running: Engine.isSteamRunning,
+                                                waited: Date().timeIntervalSince(began), quietFor: quiet) {
+                    case .signedIn:
+                        break waiting
+                    case .stuck:
+                        steamStuck = true
+                        GameLog.note("Steam isn't signed in after \(Int(Date().timeIntervalSince(began))) s"
+                                     + (Engine.isSteamRunning ? ", nothing in its logs for \(Int(min(quiet, 9999))) s" : ", and it isn't running")
+                                     + ": it's restarted once, before the game")
+                        break waiting
+                    case .wait:
+                        try? await Task.sleep(for: .seconds(1))
+                        if Task.isCancelled { return }
+                    }
                 }
-                if !Engine.steamSignedIn { _ = await restartStuckSteam(wine) }
                 launchPhase = nil
             }
             if viaSteam, game.bottle.isBuiltIn { await waitForSteamCloud(Engine.steamRoot) }
@@ -4938,20 +5083,28 @@ final class LibraryModel: ObservableObject {
                                                  kosmicKrisp: Engine.kosmicKrispReady ? Engine.kosmicKrispNow : nil)
                 // A session has msync or doesn't: a game joining one that runs takes it as it is.
                 let msyncWanted = anyRunning(.windows) ? nil : Engine.msyncWanted(profile: profile)
-                if viaSteam, game.bottle.isBuiltIn,
-                   Engine.prepareLaunchEnvironment(avx: recipe.avx, d3dMetal: layer == .d3dmetal,
+                let environmentChanged = viaSteam && game.bottle.isBuiltIn &&
+                   (Engine.prepareLaunchEnvironment(avx: recipe.avx, d3dMetal: layer == .d3dmetal,
                                                    frameLimit: frameLimit, upscaling: options.effectiveUpscaling(profile: profile),
                                                    retina: options.retina(profile: profile, layer: layer, analysis: analysis),
                                                    environment: GameEnvironment.wanted(for: game.gameID, profile: profile),
                                                    vulkan: vulkan,
                                                    vulkanLoader: Engine.vulkanLoaderEnvironment(layer: layer, d3d9: analysis?.usesD3D9 == true,
                                                                                                 wine: runner.map(URL.init(fileURLWithPath:))),
-                                                   msyncWanted: msyncWanted) || programChanged || debugChanged || frameLogChanged,
-                   Engine.isSteamRunning, !anyRunning(.windows), let runner {
-                    launchPhase = .signingIn
+                                                   msyncWanted: msyncWanted) || programChanged || debugChanged || frameLogChanged)
+                // One restart at most: the settings the game takes from Steam's environment, and a Steam that got stuck
+                // signing in, together (F3, 21.11.2026: the stuck one's restart and the settings' made two in a row).
+                if viaSteam, game.bottle.isBuiltIn, let runner,
+                   Self.restartsSteamForStart(environmentChanged: environmentChanged, stuck: steamStuck,
+                                              running: Engine.isSteamRunning, gamesRunning: anyRunning(.windows)) {
+                    launchPhase = .restartingSteam
+                    GameLog.note("Steam restarts for \(game.name)" + (steamStuck ? ": it got stuck signing in" : "")
+                                 + (environmentChanged ? (steamStuck ? ", and " : ": ") + "the game's settings come with its environment" : ""))
                     _ = await restartStuckSteam(URL(fileURLWithPath: runner))
+                    steamStuck = false  // restarted: the next way of this start finds it fresh
                     launchPhase = nil
                 }
+                if Task.isCancelled { return }
                 if viaSteam, game.bottle.isBuiltIn, layer == .d3dmetal {
                     GameLog.note(GameLog.d3dMetalStart(game.name, environment: Engine.steamEnvironment, retina: Engine.launchRetina))
                 }
@@ -5007,6 +5160,9 @@ final class LibraryModel: ObservableObject {
                     let capture = await Engine.offMain { GameProcesses.captureNote() }
                     GameLog.note("Displays at the start of \(game.name): \(capture)")
                 }
+                // "Back to Nightforge" while Steam came up ends the start here: nothing goes to Steam after it. Up to
+                // 21.11.2026 the game started seconds after the player had gone back (F3).
+                if Task.isCancelled { return }
                 raiseCurtain(for: game)
                 let started = viaSteam
                     ? await start(game, runner: runner, options: options, profile: profile, recipe: recipe, frameLimit: frameLimit)
@@ -5412,7 +5568,7 @@ final class LibraryModel: ObservableObject {
                                     frameLimit: frameLimit, recipe: recipe)
             }.value
         } catch {
-            errorMessage = error.localizedDescription
+            startFailed(game, error) { RosettaSupport.playerText(error) }
             return false
         }
 
@@ -5672,7 +5828,7 @@ final class LibraryModel: ObservableObject {
             command = game.provider == .gog ? try gog.launchCommand(for: game) : try await epic.launchCommand(for: game)
         } catch {
             launchPhase = nil
-            if !Task.isCancelled { errorMessage = L10n.t("%@ couldn't start: %@", game.name, error.localizedDescription) }
+            if !Task.isCancelled { startFailed(game, error) { L10n.t("%@ couldn't start: %@", game.name, RosettaSupport.playerText(error)) } }
             return false
         }
         launchPhase = nil
@@ -5693,7 +5849,7 @@ final class LibraryModel: ObservableObject {
                                           usesD3D9: usesD3D9)
             }.value
         } catch {
-            errorMessage = error.localizedDescription
+            startFailed(game, error) { RosettaSupport.playerText(error) }
             return false
         }
         if game.provider == .gog { gog.recordStart(game) } else { epic.recordStart(game) }
@@ -5925,7 +6081,7 @@ final class LibraryModel: ObservableObject {
                 Toasts.shared.show(L10n.t("%@ is in Applications now – Spotlight finds it", game.name),
                                    action: .init(label: L10n.t("Show")) { NSWorkspace.shared.activateFileViewerSelecting([app]) })
             } catch {
-                errorMessage = L10n.t("%@ couldn't be added to Applications: %@", game.name, error.localizedDescription)
+                errorMessage = L10n.t("%@ couldn't be added to Applications: %@", game.name, RosettaSupport.playerText(error))
             }
         }
     }
@@ -6155,7 +6311,7 @@ final class LibraryModel: ObservableObject {
                 guard let wine = await Engine.installedWine(), let leftover = game.windowsLeftoverDir else { return }
                 try await Engine.uninstall(appID: game.appID, installDir: leftover, wine: wine)
             } catch {
-                errorMessage = L10n.t("%@ could not be uninstalled: %@", game.name, error.localizedDescription)
+                errorMessage = L10n.t("%@ could not be uninstalled: %@", game.name, RosettaSupport.playerText(error))
             }
         }
     }
@@ -6199,7 +6355,7 @@ final class LibraryModel: ObservableObject {
                 StoreChoice.forget(card.gameIDs)
             }
         } catch {
-            errorMessage = L10n.t("%@ could not be uninstalled: %@", game.name, error.localizedDescription)
+            errorMessage = L10n.t("%@ could not be uninstalled: %@", game.name, RosettaSupport.playerText(error))
         }
     }
 
@@ -6248,7 +6404,7 @@ final class LibraryModel: ObservableObject {
                 try await Engine.offMain { _ = try SteamLibraries.forget(drive: name, appID: appID, steamRoot: macRoot, bottle: macBottle) }
             }
         } catch {
-            errorMessage = L10n.t("%@ couldn't be forgotten: %@", name, error.localizedDescription)
+            errorMessage = L10n.t("%@ couldn't be forgotten: %@", name, RosettaSupport.playerText(error))
             return false
         }
         if game == nil || game?.provider == .epic { epic.forgetDrive(name, only: game?.gameID.id) }
@@ -6277,12 +6433,13 @@ final class LibraryModel: ObservableObject {
 
     /// Opens Steam in Nightforge's prefix, e.g. to install a game.
     func openSteam() {
+        guard rosettaReady(for: "Steam's window", then: { [weak self] in self?.openSteam() }) else { return }
         Task {
             guard let wine = await Engine.installedWine() else { return }
             do {
                 try await Engine.startSteamOffMain(wine)
             } catch {
-                errorMessage = error.localizedDescription
+                errorMessage = RosettaSupport.playerText(error)
             }
         }
     }

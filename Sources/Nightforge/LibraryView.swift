@@ -172,6 +172,21 @@ struct LibraryView: View {
                     .padFocus("error.ok", cornerRadius: 21, preferred: true, activate: { model.errorMessage = nil })
             }
         }
+        // Rosetta is missing (LibraryModel.rosettaReady): its install – macOS asks for the password – then what the player wanted.
+        .sheet(item: $model.rosettaQuestion) { question in
+            GlassQuestion(L10n.t("Rosetta is missing"),
+                          message: L10n.t("Windows games need Rosetta from Apple. macOS asks for your password once to install it; by installing you accept Apple's Rosetta license."),
+                          id: "rosetta") {
+                Button(L10n.t("Cancel")) { model.rosettaQuestion = nil }
+                    .buttonStyle(GlassTextButtonStyle())
+                    .keyboardShortcut(.cancelAction)
+                    .padFocus("rosetta.cancel", cornerRadius: 21, activate: { model.rosettaQuestion = nil })
+                Button(L10n.t("Install Rosetta")) { model.installRosetta(question) }
+                    .buttonStyle(GlassTextButtonStyle(prominent: true))
+                    .keyboardShortcut(.defaultAction)
+                    .padFocus("rosetta.install", cornerRadius: 21, preferred: true, activate: { model.installRosetta(question) })
+            }
+        }
         .sheet(isPresented: $model.showingSettings) {
             SettingsView(tab: model.settingsStart)
         }

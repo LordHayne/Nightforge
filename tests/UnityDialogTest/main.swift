@@ -172,7 +172,8 @@ struct UnityDialogTest {
     /// Both starts of a Windows game bring the program along, after the game's own start.
     static func starts() {
         let launcher = (try? String(contentsOf: URL(fileURLWithPath: "Sources/Nightforge/Launcher.swift"), encoding: .utf8)) ?? ""
-        let starts = launcher.components(separatedBy: "try process.run()\n").dropFirst()
+        // Through RosettaSupport.run since 21.11.2026: error 86 becomes "Rosetta is missing".
+        let starts = launcher.components(separatedBy: "try RosettaSupport.run(process)\n").dropFirst()
         check(starts.count == 2, "Launcher has two starts (\(starts.count))")
         check(starts.allSatisfy { $0.contains("UnityDialog.start(for: game, profile: profile, wine: runner)\n        return process") },
               "each starts the program right after the game")
