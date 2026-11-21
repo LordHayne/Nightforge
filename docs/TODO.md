@@ -368,6 +368,14 @@ oder ein Bildschirmfoto.
   Der Wechsel von einer Mac-Version (Steam für Mac) zu einem Windows-Spiel kostet dort deshalb rund 70 s. Aufzeichnung
   dafür: ein Befehl, der Steams Meilensteine des letzten Starts in die Zwischenablage legt (im Bericht der Session,
   am Entwicklungs-Mac geprüft: hier 2 s bis Steams erste Zeile, „System startup time: 5.23 seconds“).
+  **Zwei Aufzeichnungen vom neuen MacBook (22.11., Steam-Start 00:14:28), Meilenstein für Meilenstein neben diesem Mac:**
+  Wine/Rosetta bis zu Steams erster Zeile 1 s (hier 2 s); Verbindungstest und IPv6-Test wie hier (IPv6 läuft auf beiden in
+  die Zeitüberschreitung, daran liegt es nicht); Steams Oberfläche („SP Shared JS Context … LoadEnd“) nach 7,1 s statt
+  2,2 s; Anmeldefenster angelegt nach 13,8 s statt 3,3 s; dann „SetLoginState: WaitingForNetwork“ um 00:14:45, die
+  Bibliothek auf dem Laufwerk geladen um 00:14:46 („Loaded 8 apps from … Z:\Volumes\Games\Nightforge Games“), und der
+  erste Verbindungsversuch erst um 00:15:05 – 20 s in „WaitingForNetwork“, wo dieser Mac in derselben Sekunde weitergeht.
+  „System startup time“: 38,51 s dort, 5,23 s hier, gleiche Client-Version. Ursache offen. Nächste Proben, je ein Start:
+  ohne angestecktes Laufwerk; am Netzteil; nachdem Steam einmal lange ungestört lief (Updates der übernommenen Spiele fertig).
 
 ## 0.3.3: Release (21.11., der Nutzer: „bringen wir das release online dann kann ich update und alles prüfen und etwaige bugs bügeln wir in .4 aus“)
 
