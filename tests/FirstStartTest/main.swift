@@ -69,6 +69,15 @@ struct FirstStartTest {
         check(R.stateHere(probe: { false }) != .ready, "after a Bad CPU type: probed again, missing")
         check(R.stateHere(probe: { true }) == .ready, "while missing every ask probes: the install counts at once")
         R.forget()
+        // The hidden test switch: "missing" on a Mac with Rosetta, until Install Rosetta is pressed this session.
+        let switched = UserDefaults(suiteName: "first-start-rosetta-\(UUID().uuidString)")!
+        switched.set(true, forKey: R.testMissingRosettaKey)
+        check(R.stateHere(probe: { true }, defaults: switched) == .missing, "the switch: missing, though Rosetta is there")
+        check(R.stateHere(probe: { true }) == .ready, "without it: as the probe says")
+        R.noteInstallAsked()
+        check(R.stateHere(probe: { true }, defaults: switched) == .ready, "Install Rosetta pressed: as the probe says again")
+        check(R.testMissingRosettaKey.utf8.count > 15, "the key is text in an optimized build, for the release check")
+        R.forget()
         // Error 86 in every shape it comes in, and never in the system's words for the player.
         let posix = NSError(domain: NSPOSIXErrorDomain, code: Int(EBADARCH))
         let wrapped = NSError(domain: NSCocoaErrorDomain, code: 4, userInfo: [NSUnderlyingErrorKey: posix])

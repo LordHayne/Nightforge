@@ -39,7 +39,10 @@ enum RosettaSupport {
     /// Once per session while it's there; at each ask while it's missing, so an install counts at once. A fresh
     /// Mac has none: the user's MacBook Pro on 21.11.2026 signed in through the launcher cards, never reached the
     /// first start's Rosetta step, and Windows Steam failed with "Bad CPU type in executable".
-    static func stateHere(probe: () -> Bool = { Engine.isRosettaInstalled }) -> State {
+    static func stateHere(probe: () -> Bool = { Engine.isRosettaInstalled }, defaults: UserDefaults = .standard) -> State {
+        if testsMissing(defaults: defaults) {
+            return state(macOSMajor: ProcessInfo.processInfo.operatingSystemVersion.majorVersion, installed: { false })
+        }
         if seen.withLock({ $0 }) { return .ready }
         let state = state(macOSMajor: ProcessInfo.processInfo.operatingSystemVersion.majorVersion, installed: probe)
         if state == .ready { seen.withLock { $0 = true } }
@@ -94,11 +97,35 @@ enum RosettaSupport {
         }
     }
 
+    // MARK: - The hidden test switch
+
+    /// "Install Rosetta" pressed this session: the test switch says "missing" no longer.
+    private static let installAsked = OSAllocatedUnfairLock(initialState: false)
+
+    static func noteInstallAsked() { installAsked.withLock { $0 = true } }
+
+    /// Nightforge's own test switch (`defaults write io.github.lordhayne.nightforge gameTest.missingRosetta -bool true`):
+    /// the probe says Rosetta is missing until "Install Rosetta" is pressed in this session, so a Mac with Rosetta shows
+    /// what a new one without it does – the first start's step, the question before a Windows game, and the start after
+    /// it. The install runs as ever: on a Mac with Rosetta macOS asks for the password and is done at once. No entry in
+    /// the interface; `defaults delete io.github.lordhayne.nightforge gameTest.missingRosetta` ends it. A build made with
+    /// NIGHTFORGE_RELEASE has no such switch (as WindowsRoots.testsQuestion): neither its key – 23 bytes, text in an
+    /// optimized build, which the release workflow looks for – nor anything that reads it.
+    #if NIGHTFORGE_RELEASE
+    static func testsMissing(defaults: UserDefaults = .standard) -> Bool { false }
+    #else
+    static let testMissingRosettaKey = "gameTest.missingRosetta"
+    static func testsMissing(defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: testMissingRosettaKey) && !installAsked.withLock { $0 }
+    }
+    #endif
+
     // MARK: - The install
 
     /// macOS's own password prompt for a system install; Rosetta itself comes from Apple. The player accepts its
     /// licence with the button that leads here ("by installing you accept Apple's Rosetta license"). True when done.
     static func install() async -> Bool {
+        noteInstallAsked()
         let script = #"do shell script "/usr/sbin/softwareupdate --install-rosetta --agree-to-license" with administrator privileges"#
         let ok = await Task.detached { () -> Bool in
             var error: NSDictionary?
