@@ -1049,7 +1049,7 @@ final class LibraryModel: ObservableObject {
     /// Another app came to the front over the page: if the game's picture went with it and nobody asked
     /// for that, the curtain comes this moment (`GameStage.pictureWent`).
     private func frontMoved(to front: pid_t) {
-        guard pictureWentAt == nil, !stagePids.isEmpty,
+        guard pictureWentAt == nil, stageHintSince == nil, !stagePids.isEmpty,
               CurtainEscape.mayRaiseForEnd(gamePlaying: !playing.isEmpty, comingBack: comingBackSince != nil)
         else { return }
         let look = GameStage.Look(gameFront: stagePids.contains(front), windowHere: GameProcesses.showsWindow(stagePids), windowAnywhere: false,
@@ -1068,6 +1068,8 @@ final class LibraryModel: ObservableObject {
         comingBackSince = Date()
         // The stage is over: what comes to the front from now on says nothing about a game (Tomb Raider, 8.11.).
         pictureWentAt = nil
+        stageHintSince = nil
+        fullScreenHint = nil
         stagePids = []
         stageAskers = []
         MacSteam.hide()
@@ -1232,6 +1234,8 @@ final class LibraryModel: ObservableObject {
 
     /// A game whose own full screen hides its picture under the curtain, and where its setting is (fullScreenWords).
     private var fullScreenHint: (game: Game, setting: String?)?
+    /// The stage raised the curtain again for it, after the start's curtain had gone (fullScreenOnStage).
+    private var stageHintSince: Date?
 
     /// The start on the curtain the player may leave, and why (CurtainEscape).
     private var curtainEscape: (game: Game, reason: CurtainEscape.Reason)?
@@ -1247,7 +1251,7 @@ final class LibraryModel: ObservableObject {
     private var comingBackSince: Date?
 
     private var curtainOwners: CurtainEscape.Owners {
-        CurtainEscape.Owners(starting: launchingID != nil || judging != nil, watching: curtainWatches > 0,
+        CurtainEscape.Owners(starting: launchingID != nil || judging != nil, watching: curtainWatches > 0 || stageHintSince != nil,
                              playing: CurtainEscape.playingOwns(gamePlaying: !playing.isEmpty, upFor: GameBackdrop.upFor),
                              comingBack: comingBackSince.map { Date().timeIntervalSince($0) < CurtainEscape.comingBackHoldsFor } ?? false)
     }
@@ -1340,6 +1344,7 @@ final class LibraryModel: ObservableObject {
         GameBackdrop.mayCapture = false  // until this start's game runs (watchCurtain)
         raisedForExit = false
         pictureWentAt = nil
+        stageHintSince = nil
         stuckAskedAt = nil
         comingBackSince = nil
         stagePids = []
@@ -1841,6 +1846,7 @@ final class LibraryModel: ObservableObject {
         var askers = Set<pid_t>()
         var listed = Date.distantPast
         var noted = ""
+        var handedBack = false
         func goesOn() -> Bool {
             launchingID == game.id || startedHere.contains(game.id) || playing.contains(game.id) || judging?.id == game.id
                 || GameBackdrop.isRaised
@@ -1850,7 +1856,7 @@ final class LibraryModel: ObservableObject {
             guard !Task.isCancelled, goesOn() else { return }
             // The curtain that came for a picture that went is this watch's own to take away again.
             if pictureWentAt != nil, !GameBackdrop.isReturning { pictureWentAt = nil }
-            guard !GameBackdrop.isRaised || pictureWentAt != nil else { continue }
+            guard !GameBackdrop.isRaised || pictureWentAt != nil || stageHintSince != nil else { continue }
             let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
             let inFront = front.map(pids.contains) ?? false
             if !inFront || Date().timeIntervalSince(listed) > 30 {
@@ -1892,11 +1898,18 @@ final class LibraryModel: ObservableObject {
                 GameLog.note("Stage: the window over \(game.name) has gone")
             }
             reachWindowOverGame(touched: false)
-            let step = stage.step(GameStage.Look(gameFront: gameFront, windowHere: windows.here, windowAnywhere: windows.anywhere,
-                                                 handsOff: GameOverlay.isOpen || askerFront || over != nil,
-                                                 // A swipe to another Space moves no key and no click.
-                                                 playerActed: !windowWent && (Self.playerActed() || GameBackdrop.spaceJustChanged),
-                                                 guarded: curtainGuards, now: Date()))
+            let stageLook = GameStage.Look(gameFront: gameFront, windowHere: windows.here, windowAnywhere: windows.anywhere,
+                                           handsOff: GameOverlay.isOpen || askerFront || over != nil,
+                                           // A swipe to another Space moves no key and no click.
+                                           playerActed: !windowWent && (Self.playerActed() || GameBackdrop.spaceJustChanged),
+                                           guarded: curtainGuards, now: Date())
+            // Its own full screen hiding its picture after the curtain went (GameStage.hiddenByOwnFullScreen): one more
+            // read of the window list, only while it's in front with no picture.
+            let onlyOwnShield = gameFront && !windows.here
+                ? await Task.detached(priority: .utility) { GameProcesses.onlyShield(known) }.value : false
+            if await fullScreenOnStage(game, hides: stage.hiddenByOwnFullScreen(stageLook, onlyOwnShield: onlyOwnShield),
+                                       gameFront: gameFront, pictureHere: windows.here, pids: pids, handedBack: &handedBack) { continue }
+            let step = stage.step(stageLook)
             let name = front.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName } ?? "nobody"
             let look = "\(name) in front, picture \(windows.here ? "here" : windows.anywhere ? "elsewhere" : "none")"
                 + (gameFront ? " (the game's)" : "") + (stage.left ? ", the player went elsewhere" : "")
@@ -1914,6 +1927,51 @@ final class LibraryModel: ObservableObject {
                 GameLog.note("Stage: \(game.name) didn't come back, the player has the Dock, Switch to Game and the overlay")
             }
         }
+    }
+
+    /// The stage's part in the full-screen hint (GameStage.hiddenByOwnFullScreen), when the game's own full screen
+    /// hides its picture only after the start's curtain went (Overwatch, 21.11.2026: 60 Hz half a minute later). The
+    /// curtain comes up again with the words and the pad's Restart it has during the start (fullScreenWords), goes
+    /// behind the game once its picture is back, and after the player's ⌘-Tab – Wine gives the display back then and
+    /// hides the game – hands the game the front once, as the curtain's watch does. Only the window list and the
+    /// display's state, as ever: nothing at the game's process (Overwatch's cheat protection). True while the hint
+    /// stands: the stage fetches nothing meanwhile.
+    private func fullScreenOnStage(_ game: Game, hides: Bool, gameFront: Bool, pictureHere: Bool, pids: Set<pid_t>,
+                                   handedBack: inout Bool) async -> Bool {
+        guard stageHintSince != nil else {
+            guard hides, !GameOverlay.isOpen else { return false }
+            stageHintSince = Date()
+            handedBack = false
+            let setting = await ProfileStore.shared.profile(for: game.gameID)?.fullscreenHint(german: AppLanguage.current.resolved == .german)
+            let capture = await Engine.offMain { GameProcesses.captureNote() }
+            fullScreenHint = (game, setting)
+            GameLog.note("Stage: \(game.name)'s own full screen hides its picture after the curtain went – only its capture's shield"
+                         + " on the screen (\(capture)); the curtain says so again, ⌘-Tab or the pad's Restart")
+            GameBackdrop.raise(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.gameOnStage == true }
+            let words = Self.fullScreenWords(setting: setting)
+            let restart = controllerConnected ? [CurtainButton(symbol: padSymbols.confirm, label: L10n.t("Restart"))] : []
+            GameBackdrop.setStatus(words.line, detail: words.sentence, buttons: restart)
+            return true
+        }
+        if fullScreenHint == nil {
+            // Restarted with the pad (restartsHiddenGame): the new start's curtain has it from here.
+            stageHintSince = nil
+            return true
+        }
+        if gameFront, pictureHere {
+            stageHintSince = nil
+            fullScreenHint = nil
+            GameBackdrop.lower()
+            input.parkPointerForGame()
+            GameLog.note("Stage: \(game.name)'s picture is back, the curtain goes behind it")
+            return false
+        }
+        if !gameFront, !handedBack {
+            handedBack = true
+            GameLog.note("Stage: another app in front under the full-screen hint (the player's ⌘-Tab), \(game.name) gets the front again")
+            await handFocus(to: pids)
+        }
+        return true
     }
 
     enum MacOSTurn: Equatable { case none, makeWay, giveUp, answered }
@@ -2064,6 +2122,7 @@ final class LibraryModel: ObservableObject {
     func restartsHiddenGame() -> Bool {
         guard let game = fullScreenHint?.game, GameBackdrop.isRaised, !GameOverlay.isOpen else { return false }
         fullScreenHint = nil
+        GameBackdrop.setStatus(nil, detail: nil)  // "Starting …" until the new start says its own
         GameLog.note("Curtain: the player restarts \(game.name) with the pad – its full screen hid its picture")
         let marker = game.platform == .mac ? nil : game.windowsFolderMarker
         let folder = game.platform == .mac ? game.installDir.path : nil

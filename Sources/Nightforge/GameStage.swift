@@ -69,6 +69,28 @@ struct GameStage {
     private(set) var tries = 0
     private var awaySince: Date?
     private var lastTry: Date?
+    /// Since when the game has had the front with only its own capture's shield on the screen.
+    private var shieldOnlySince: Date?
+
+    /// How long only the game's own shield stands, the game in front, before the curtain says its full screen hides it.
+    static let hiddenPatience: TimeInterval = 10
+
+    /// The game's own full screen hides its picture after the curtain went down (`onlyOwnShield`: its capture's shield
+    /// on the screen and no window of its over it, GameProcesses.onlyShield). Overwatch on 21.11.2026 switched to
+    /// 60 Hz about 25 s after the curtain sank, and its picture never came; the curtain's watch had ended, and the
+    /// stage fetched it once and said nothing (LibraryModel.fullScreenWords then, as under the curtain).
+    /// Not a game in proper full screen: its window lies over its shield (windowHere). Not one the player sent away:
+    /// it isn't in front then, and a ⌘ or a click starts the count again. Not while the curtain's watch still
+    /// guards the front, which says it itself, nor under the overlay or a question.
+    mutating func hiddenByOwnFullScreen(_ look: Look, onlyOwnShield: Bool) -> Bool {
+        guard sawPicture, look.gameFront, !look.windowHere, onlyOwnShield, !look.handsOff, !look.playerActed, !look.guarded else {
+            shieldOnlySince = nil
+            return false
+        }
+        let since = shieldOnlySince ?? look.now
+        shieldOnlySince = since
+        return look.now.timeIntervalSince(since) >= Self.hiddenPatience
+    }
 
     /// The curtain sank over the game's picture.
     mutating func pictureSeen() { sawPicture = true }
