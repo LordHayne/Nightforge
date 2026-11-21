@@ -327,6 +327,21 @@ daraus kommen in 0.3.4.
 - **Schritte:** Kette lokal → Push → PR nach `main` → `ci.yml` grün → Merge (wie #43 als Merge-Commit) →
   `scripts/sign-lists.sh main` (Nutzer) → Tag `v0.3.3` → `release.yml` legt den Entwurf an →
   `scripts/sign-release.sh v0.3.3 --publish` (Nutzer) → Landingpage, Download-Zahlen, `main` zurück in den Arbeitszweig.
+- **Veröffentlicht am 21.11.2026, 18:57 (17:57 UTC):** Merge-Commit `3cb9ac8` (#45), Listen signiert `5c9b068`, Tag `v0.3.3`
+  darauf, `release.yml` grün, vom Nutzer signiert und veröffentlicht. Nachgeprüft an der veröffentlichten Datei:
+  Update-Signatur mit dem Hauptschlüssel gültig, App 0.3.3, Code-Signatur mit dem Nightforge-Zertifikat (gleiche
+  Anforderung wie 0.3.2), keine Testschalter, kein `pad-answer.exe`. Ausgangswert der Downloads direkt danach: 0.3.3 = 0;
+  0.3.2 DMG 2 / Zip 3; 0.3.1 DMG 2 / Zip 2; 1 Stern.
+- **Offen nach dem Release:**
+  - [ ] Landingpage und README: PR #46 (`claude/site-033`), Merge mit OK des Nutzers; danach die Seite live ansehen.
+  - [ ] Der Nutzer prüft nach dem Update auf dem neuen MacBook Pro (Liste oben); Fehler → 0.3.4.
+  - [ ] `scripts/fetch-geforce-now.py` bekommt auf GitHub seit dem 20.11. HTTP 403, „Update game profiles“ ist rot,
+    nächtlich und auf `main`. Ursache ansehen; kein Umgehen über einen fremden User-Agent.
+  - [ ] Der Merge hat ein Grafik-Paket mit `dxmt-0.80-prepare-shaders.patch` und ein Controller-Paket gebaut. Vor einem
+    Manifest-Eintrag: kurzer Test des Shader-Pakets (`ablauf.sh test`), dann Bot-PR #41 lesen, signieren, mergen.
+  - [ ] Bot-PRs #39–#41 und der neue für `pad-answer.exe`; Dependabot #21–#26.
+  - [ ] Sessions archivieren, sobald ihre Live-Punkte gesehen sind (Audit, Startrezept C, Laufwerk); ARM64-Entscheidungen.
+  - Arbeitszweig für 0.3.4: `claude/staging-034` von `main` (`5c9b068`), lokal.
 
 ## 0.3.3: Abschlussliste (15.11., auf Wunsch des Nutzers: „schau mal das wir alles zusammenhaben für den 0.3.3 release“)
 
