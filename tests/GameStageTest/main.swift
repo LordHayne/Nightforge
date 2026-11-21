@@ -170,11 +170,50 @@ struct GameStageTest {
         check(!exit(others: true), "another game still runs")
     }
 
+    /// The game's own full screen hides its picture after the curtain went (Overwatch, 21.11.2026).
+    static func ownFullScreen() {
+        let wait = GameStage.hiddenPatience
+        var hidden = playing()
+        check(!hidden.hiddenByOwnFullScreen(look(30), onlyOwnShield: true), "only its shield: not at once")
+        check(!hidden.hiddenByOwnFullScreen(look(30 + wait - 1), onlyOwnShield: true), "not yet")
+        check(hidden.hiddenByOwnFullScreen(look(30 + wait), onlyOwnShield: true), "its shield alone for \(wait) s, the game in front: said")
+        check(hidden.hiddenByOwnFullScreen(look(30 + wait + 5), onlyOwnShield: true), "and as long as it stands")
+
+        var proper = playing()
+        check(!proper.hiddenByOwnFullScreen(look(40, here: true), onlyOwnShield: false)
+              && !proper.hiddenByOwnFullScreen(look(40 + wait, here: true), onlyOwnShield: false),
+              "proper full screen: its window over its shield, picture here – never")
+        var away = playing()
+        check(!away.hiddenByOwnFullScreen(look(40, front: false), onlyOwnShield: true)
+              && !away.hiddenByOwnFullScreen(look(40 + wait, front: false), onlyOwnShield: true),
+              "the player sent it away (⌘-Tab, another app in front): never")
+        var acted = playing()
+        _ = acted.hiddenByOwnFullScreen(look(40), onlyOwnShield: true)
+        check(!acted.hiddenByOwnFullScreen(look(45, acted: true), onlyOwnShield: true)
+              && !acted.hiddenByOwnFullScreen(look(40 + wait), onlyOwnShield: true)
+              && !acted.hiddenByOwnFullScreen(look(45 + wait), onlyOwnShield: true)
+              && acted.hiddenByOwnFullScreen(look(40 + 2 * wait), onlyOwnShield: true), "a ⌘ or a click: the count starts again at the next look")
+        var blink = playing()
+        _ = blink.hiddenByOwnFullScreen(look(40), onlyOwnShield: true)
+        _ = blink.hiddenByOwnFullScreen(look(44, here: true), onlyOwnShield: false)
+        check(!blink.hiddenByOwnFullScreen(look(40 + wait), onlyOwnShield: true), "its picture back in between: from the start again")
+        var guarded = playing()
+        check(!guarded.hiddenByOwnFullScreen(look(40, guarded: true), onlyOwnShield: true)
+              && !guarded.hiddenByOwnFullScreen(look(40 + wait, guarded: true), onlyOwnShield: true),
+              "the curtain's watch still guards the front: it says it itself")
+        var overlay = playing()
+        check(!overlay.hiddenByOwnFullScreen(look(40 + wait, handsOff: true), onlyOwnShield: true), "under the overlay: nothing")
+        var never = GameStage()
+        check(!never.hiddenByOwnFullScreen(look(0), onlyOwnShield: true) && !never.hiddenByOwnFullScreen(look(wait), onlyOwnShield: true),
+              "no picture yet: the curtain's watch has it")
+    }
+
     static func main() {
         stage()
         page()
         underGame()
         ending()
+        ownFullScreen()
         print(failures == 0 ? "GameStageTest: all good" : "GameStageTest: \(failures) failed")
         exit(failures == 0 ? 0 : 1)
     }
