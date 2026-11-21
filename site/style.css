@@ -130,6 +130,7 @@ b { font-weight: 600; color: var(--text); }
 .nav-links { display: none; gap: 28px; margin-left: 36px; }
 .nav-links a { color: var(--text-2); font-size: 13px; letter-spacing: -0.01em; transition: color 0.2s ease; }
 .nav-links a:hover { color: var(--text); text-decoration: none; }
+.nav-links a[aria-current="page"] { color: var(--text); }
 .nav-end { display: flex; align-items: center; gap: 12px; margin-left: auto; }
 @media (min-width: 900px) { .nav-links { display: flex; } }
 /* Small phones: the hero's own Download button is right below, so the bar keeps name and language. */
@@ -411,6 +412,10 @@ b { font-weight: 600; color: var(--text); }
 .tested-list .tg { font-weight: 600; font-size: 16px; }
 .tested-list .tw { color: var(--text-3); font-size: 14px; }
 .tested-list .tr { color: var(--text-2); font-size: 15px; }
+/* The list's own page (geprueft/): the heading above it, and room before the footer. */
+.tested-page { padding-bottom: clamp(72px, 9vw, 120px); }
+.tested-page .lede { margin-top: 20px; }
+.tested-page .tested { margin-top: clamp(32px, 4vw, 48px); }
 @media (min-width: 834px) {
   .tested-list li { grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.9fr) minmax(0, 1.5fr); align-items: baseline; }
 }
