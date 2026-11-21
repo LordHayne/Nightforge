@@ -343,7 +343,7 @@ oder ein Bildschirmfoto.
   Hintergrund melden ein fehlendes Rosetta nur im Protokoll. Entscheidung des Nutzers offen: Die Frage kommt einmal je
   Sitzung auch bei Spielern, die nur Mac-Spiele haben (Empfehlung der Session: so lassen).
 
-- [ ] **F1 gebaut (21.11. nachts, `claude/mac-vollbild-034` c881d15, im Arbeitszweig seit 10e0bd0, Kette grün):** Eine
+- [x] **F1 gebaut und live bestätigt (der Nutzer am 22.11., Testbuild 9f32973: „valheim startete im vollbild“; gebaut 21.11. nachts, `claude/mac-vollbild-034` c881d15, im Arbeitszweig seit 10e0bd0, Kette grün):** Eine
   Unity-Mac-Version ohne eigenen gespeicherten Bildschirmmodus startet mit `-screen-fullscreen 1` (`MacUnityScreen.swift`);
   danach gilt, was das Spiel speichert. Belegt: Valheims Vorgabe ist ein Fenster von 1366×768
   (`com.coffeestain.valheim-steam`, „Screenmanager Fullscreen mode Default“ = 3). Nicht Unity und unverändert: Asphalt
@@ -358,6 +358,16 @@ oder ein Bildschirmfoto.
   zurück – die Zeile „starts on D3DMetal“ steht jeweils direkt danach. Auftrag an diagnose-start
   (`claude/steam-geduld-034`): ein Steam, das vorankommt, nicht neu starten; kein doppelter Neustart; „Hängt es?“ erst
   nach der erklärenden Phase; klären, ob „Zurück“ den Start beendet.
+  **Gebaut (`claude/steam-geduld-034` a2797f6, im Arbeitszweig seit 9f32973, Kette grün):** bis 120 s warten, solange
+  Steam vorankommt (Prozess da, Protokolle bewegen sich); höchstens ein Neustart je Start; „Hängt es?“ zählt nicht in
+  Phasen, die das Warten erklären; „Zurück“ beendet den Start; der Neustart heißt „Steam wird neu gestartet …“. Live am
+  22.11.: Wukong startete nach dem Wechsel von Valheim von selbst, „ca 70 sekunden bis zum ersten bild“.
+- [ ] **F4 – Windows-Steam braucht auf dem neuen MacBook rund 40 s bis „Logged On“, auf dem Entwicklungs-Mac 6–9 s**
+  (gemessen 21./22.11.; dort M5 Pro, 24 GB, frisch eingerichtet). Das Netz ist es nicht (1 s vom ersten
+  Verbindungsversuch bis zur Anmeldung); die cryptnet-Wiederholungen stehen hier genauso im Protokoll. Ursache offen.
+  Der Wechsel von einer Mac-Version (Steam für Mac) zu einem Windows-Spiel kostet dort deshalb rund 70 s. Aufzeichnung
+  dafür: ein Befehl, der Steams Meilensteine des letzten Starts in die Zwischenablage legt (im Bericht der Session,
+  am Entwicklungs-Mac geprüft: hier 2 s bis Steams erste Zeile, „System startup time: 5.23 seconds“).
 
 ## 0.3.3: Release (21.11., der Nutzer: „bringen wir das release online dann kann ich update und alles prüfen und etwaige bugs bügeln wir in .4 aus“)
 
