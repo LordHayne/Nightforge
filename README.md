@@ -128,7 +128,6 @@ No dates – just an honest sort.
 
 **Coming soon** – in the works, arriving with one of the next updates:
 
-- **Search with a controller.** Jump to a first letter or use an on-screen keyboard – then search works without a keyboard too.
 - **Games stay up to date.** Updates download in the background while Nightforge is open – like on a console.
 - **Download queue.** Set the order, pause and resume, and download only at night if you like.
 
