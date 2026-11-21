@@ -70,7 +70,7 @@ final class MacSteamSetup: ObservableObject, Identifiable {
             return
         } catch {
             progress = nil
-            phase = .failed(error.localizedDescription)
+            phase = .failed(RosettaSupport.playerText(error))
         }
     }
 

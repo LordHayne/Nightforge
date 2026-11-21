@@ -302,7 +302,7 @@ final class SetupModel: ObservableObject {
         }
         do {
             phase = .running(.rosetta)
-            guard Engine.isRosettaInstalled else {
+            guard RosettaSupport.stateHere() == .ready else {
                 phase = Self.phaseWithoutRosetta(macOSMajor: ProcessInfo.processInfo.operatingSystemVersion.majorVersion)
                 return
             }
@@ -395,7 +395,7 @@ final class SetupModel: ObservableObject {
             }
         } catch {
             progress = nil
-            phase = .failed(step, error.localizedDescription)
+            phase = .failed(step, RosettaSupport.playerText(error))
         }
     }
 
@@ -406,14 +406,8 @@ final class SetupModel: ObservableObject {
 
     /// Opens the password prompt macOS uses for system installs; Rosetta itself comes from Apple.
     func installRosetta() {
-        let script = #"do shell script "/usr/sbin/softwareupdate --install-rosetta --agree-to-license" with administrator privileges"#
         Task {
-            let ok = await Task.detached { () -> Bool in
-                var error: NSDictionary?
-                NSAppleScript(source: script)?.executeAndReturnError(&error)
-                return error == nil
-            }.value
-            if ok {
+            if await RosettaSupport.install() {
                 phase = .idle
                 start()
             } else {

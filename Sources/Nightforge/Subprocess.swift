@@ -55,7 +55,7 @@ enum Subprocess {
 
         var outcome = Outcome()
         do {
-            try process.run()
+            try RosettaSupport.run(process)
         } catch {
             pipe?.fileHandleForReading.readabilityHandler = nil
             outcome.launched = false

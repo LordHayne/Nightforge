@@ -467,7 +467,7 @@ final class GOGStore: ObservableObject, StoreProvider, AccountStore {
         } catch {
             wanted.removeAll { $0 == job }
             save(wanted, to: Self.wantedFile)
-            downloadFailed(title(of: job.id), error.localizedDescription)
+            downloadFailed(title(of: job.id), RosettaSupport.playerText(error))
             changed()
         }
     }

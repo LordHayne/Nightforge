@@ -647,7 +647,7 @@ enum Launcher {
         let log = game.bottle.isBuiltIn ? GameLog.handleForSteam() : nil
         process.standardOutput = log ?? FileHandle.nullDevice
         process.standardError = log ?? FileHandle.nullDevice
-        try process.run()
+        try RosettaSupport.run(process)
         if startsSteam { Engine.lastSteamStart = (runner, Date()) }
         // Unity's configuration window, should the game show it (only for Nightforge's own Steam).
         UnityDialog.start(for: game, profile: profile, wine: runner)
@@ -698,7 +698,7 @@ enum Launcher {
         let log = GameLog.handleForSteam()
         process.standardOutput = log ?? FileHandle.nullDevice
         process.standardError = log ?? FileHandle.nullDevice
-        try process.run()
+        try RosettaSupport.run(process)
         UnityDialog.start(for: game, profile: profile, wine: runner)
         return process
     }

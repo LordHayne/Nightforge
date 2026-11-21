@@ -357,6 +357,71 @@ final class LibraryModel: ObservableObject {
 
     /// Nothing to show and Nightforge's own Steam isn't ready yet.
     var needsSetup: Bool { allGames.isEmpty && !SetupModel.isComplete }
+
+    // MARK: - Rosetta
+
+    /// Rosetta is missing where macOS still has it: the question with its install, and what the player wanted
+    /// (`then`) done after it.
+    struct RosettaQuestion: Identifiable {
+        let id = UUID()
+        let then: (@MainActor () -> Void)?
+    }
+
+    @Published var rosettaQuestion: RosettaQuestion?
+    /// The question came without a start this session (`askAboutRosettaOnce`).
+    private var rosettaAskedOnce = false
+
+    /// Whether x86_64 code can run now. If not it says so: the install offered, `then` after it – or past macOS 27
+    /// that Windows games can't run here (RosettaSupport.notice). Checked before anything starts, so a start never
+    /// fails for want of Rosetta and nothing counts against its way (LaunchHealth, start-evidence).
+    func rosettaReady(for what: String, then: (@MainActor () -> Void)?) -> Bool {
+        let state = RosettaSupport.stateHere()
+        guard state != .ready else { return true }
+        GameLog.note("Rosetta \(state == .gone ? "isn't available on this macOS" : "is missing"): \(what) waits")
+        if state == .gone { errorMessage = RosettaSupport.notice } else { rosettaQuestion = RosettaQuestion(then: then) }
+        return false
+    }
+
+    /// Once a session, without a start: the library has games and the first start's Rosetta step never came – the
+    /// way through Settings › Launchers › Manage (the gear is there during the first start too) signs in to Epic,
+    /// GOG or Steam for Mac, and with games in the list `needsSetup` is false (the user's new Mac, 21.11.2026).
+    func askAboutRosettaOnce() {
+        guard !rosettaAskedOnce, rosettaQuestion == nil, !setup.isActive, !needsSetup else { return }
+        rosettaAskedOnce = true
+        guard Self.asksAboutRosetta(RosettaSupport.stateHere(), setupActive: setup.isActive, needsSetup: needsSetup) else { return }
+        GameLog.note("Rosetta is missing and the first start's step never came: asked now")
+        rosettaQuestion = RosettaQuestion(then: nil)
+    }
+
+    /// The question without a start: Rosetta missing where Apple still installs it, a library there, and the first
+    /// start not running – that asks in its own step (SetupModel's `.needsRosetta`), and with no games yet it's
+    /// still to come. Past macOS 27 the notice comes with the first start of a Windows game.
+    nonisolated static func asksAboutRosetta(_ state: RosettaSupport.State, setupActive: Bool, needsSetup: Bool) -> Bool {
+        state == .missing && !setupActive && !needsSetup
+    }
+
+    /// A start that failed after all for want of Rosetta ("Bad CPU type", RosettaSupport.Missing): the question,
+    /// and the start again after the install – the start loop has ended without a verdict, nothing on the way's
+    /// account. Any other error as before (`say`).
+    private func startFailed(_ game: Game, _ error: Error, say: () -> String) {
+        guard RosettaSupport.isBadCPUType(error) else { return errorMessage = say() }
+        GameLog.note("\(game.name) couldn't start: Rosetta is missing – asked, the start comes again after the install")
+        rosettaQuestion = RosettaQuestion(then: { [weak self] in self?.launch(game) })
+    }
+
+    /// Whether a start runs x86_64 code: every Windows game (Wine), and a Mac version Steam says is made for Intel.
+    nonisolated static func startNeedsRosetta(platform: Platform, provider: Provider, macAppleSilicon: Bool) -> Bool {
+        platform != .mac || (provider == .steam && !macAppleSilicon)
+    }
+
+    /// "Install Rosetta" in the question: macOS's password prompt, then what the player wanted.
+    func installRosetta(_ question: RosettaQuestion) {
+        rosettaQuestion = nil
+        Task {
+            guard await RosettaSupport.install(), RosettaSupport.stateHere() == .ready else { return }
+            question.then?()
+        }
+    }
     /// Home shows the first start (SetupView): until the setup is done, then until "Let's Play".
     var showsFirstStart: Bool { setup.isActive || needsSetup }
 
@@ -469,7 +534,7 @@ final class LibraryModel: ObservableObject {
                 reload(quiet: true)
                 Toasts.shared.show(L10n.t("Epic Games is connected – your games are in the library"))
             } catch {
-                errorMessage = error.localizedDescription
+                errorMessage = RosettaSupport.playerText(error)
             }
         }
     }
@@ -531,7 +596,7 @@ final class LibraryModel: ObservableObject {
                 reload(quiet: true)
                 Toasts.shared.show(L10n.t("GOG is connected – your games are in the library"))
             } catch {
-                errorMessage = error.localizedDescription
+                errorMessage = RosettaSupport.playerText(error)
             }
         }
     }
@@ -627,7 +692,7 @@ final class LibraryModel: ObservableObject {
             do {
                 try await gog.launchMac(game, extraArguments: arguments)
             } catch {
-                errorMessage = L10n.t("%@ couldn't start: %@", game.name, error.localizedDescription)
+                errorMessage = L10n.t("%@ couldn't start: %@", game.name, RosettaSupport.playerText(error))
                 return
             }
             gog.recordStart(game)
@@ -2676,6 +2741,7 @@ final class LibraryModel: ObservableObject {
         downloadLooks = 0
         measureDownloads()
         libraryLoaded = true
+        askAboutRosettaOnce()
         let finished = found.filter { $0.isInstalled && wasDownloading.contains($0.id) }
         for game in finished { prepare(game) }
         if !finished.isEmpty || !spaceLooked { refreshLowSpace() }
@@ -3145,7 +3211,7 @@ final class LibraryModel: ObservableObject {
             do {
                 if try await steam.addDemoLicense(game) { reload(quiet: true) }
             } catch {
-                errorMessage = error.localizedDescription
+                errorMessage = RosettaSupport.playerText(error)
             }
         }
     }
@@ -3169,7 +3235,7 @@ final class LibraryModel: ObservableObject {
             } catch {
                 updating = false
                 if case Updater.Failure.notWritable = error { NSWorkspace.shared.open(update.page) }
-                errorMessage = error.localizedDescription
+                errorMessage = RosettaSupport.playerText(error)
             }
         }
     }
@@ -3328,13 +3394,17 @@ final class LibraryModel: ObservableObject {
             downloadMac(game, drive: drive)
             return
         }
+        // Windows Steam downloads it, and Windows Steam is x86_64 (Epic's and GOG's downloaders aren't).
+        if game.provider == .steam, !rosettaReady(for: "the download of \(game.name)", then: { [weak self] in self?.download(game, drive: drive) }) {
+            return
+        }
         Task {
             do {
                 var context = StoreContext(busy: !running.isEmpty || launchingID != nil) { self.reload(quiet: true) }
                 context.drive = drive
                 try await store(for: game).install(game, context: context)
             } catch {
-                errorMessage = error.localizedDescription
+                errorMessage = RosettaSupport.playerText(error)
             }
         }
     }
@@ -3598,7 +3668,7 @@ final class LibraryModel: ObservableObject {
                 reload(quiet: true)
                 await watchMacDownloadStart(game)
             } catch {
-                errorMessage = error.localizedDescription
+                errorMessage = RosettaSupport.playerText(error)
             }
         }
     }
@@ -3806,7 +3876,7 @@ final class LibraryModel: ObservableObject {
                 hintDuringStart(L10n.t("The newer save was copied over only in part (%@). The saves from before are in %@.",
                                        error.reason, error.backup.path))
             } catch {
-                hintDuringStart(L10n.t("The newer save couldn't be copied over (%@). %@ starts with its own.", error.localizedDescription, game.name))
+                hintDuringStart(L10n.t("The newer save couldn't be copied over (%@). %@ starts with its own.", RosettaSupport.playerText(error), game.name))
             }
         }
         _ = await Task.detached(priority: .userInitiated) {
@@ -4672,6 +4742,11 @@ final class LibraryModel: ObservableObject {
         Engine.noteGameActivity()  // the quit script waits for cloud saves if Nightforge quits soon after (Engine.steamShutdownScript)
         if needsEpicSignIn(game) { return }
         if game.platform == .mac {
+            // A Mac version made for Intel runs on Rosetta too.
+            if Self.startNeedsRosetta(platform: .mac, provider: game.provider, macAppleSilicon: game.macAppleSilicon),
+               !rosettaReady(for: "the start of \(game.name)", then: { [weak self] in self?.launch(game, d3dMetalChecked: d3dMetalChecked) }) {
+                return
+            }
             switch game.provider {
             case .gog: launchGOGMac(game)
             case .battlenet: launchBattleNetMac(game)
@@ -4679,11 +4754,9 @@ final class LibraryModel: ObservableObject {
             }
             return
         }
-        // Past macOS 27 Rosetta may be gone, and nothing below can start a Windows game without it.
-        if RosettaSupport.isGoneHere {
-            errorMessage = RosettaSupport.notice
-            return
-        }
+        // Wine is x86_64: without Rosetta nothing below can start, and the start isn't begun (nothing on its way's account).
+        guard rosettaReady(for: "the start of \(game.name)", then: { [weak self] in self?.launch(game, d3dMetalChecked: d3dMetalChecked) })
+        else { return }
         // DirectX 12 only, and Apple's D3DMetal isn't in the engine: asked once, before anything starts.
         if !d3dMetalChecked, askAboutD3DMetalBeforeStart(game) { return }
         let viaSteam = game.provider == .steam
@@ -5412,7 +5485,7 @@ final class LibraryModel: ObservableObject {
                                     frameLimit: frameLimit, recipe: recipe)
             }.value
         } catch {
-            errorMessage = error.localizedDescription
+            startFailed(game, error) { RosettaSupport.playerText(error) }
             return false
         }
 
@@ -5672,7 +5745,7 @@ final class LibraryModel: ObservableObject {
             command = game.provider == .gog ? try gog.launchCommand(for: game) : try await epic.launchCommand(for: game)
         } catch {
             launchPhase = nil
-            if !Task.isCancelled { errorMessage = L10n.t("%@ couldn't start: %@", game.name, error.localizedDescription) }
+            if !Task.isCancelled { startFailed(game, error) { L10n.t("%@ couldn't start: %@", game.name, RosettaSupport.playerText(error)) } }
             return false
         }
         launchPhase = nil
@@ -5693,7 +5766,7 @@ final class LibraryModel: ObservableObject {
                                           usesD3D9: usesD3D9)
             }.value
         } catch {
-            errorMessage = error.localizedDescription
+            startFailed(game, error) { RosettaSupport.playerText(error) }
             return false
         }
         if game.provider == .gog { gog.recordStart(game) } else { epic.recordStart(game) }
@@ -5925,7 +5998,7 @@ final class LibraryModel: ObservableObject {
                 Toasts.shared.show(L10n.t("%@ is in Applications now – Spotlight finds it", game.name),
                                    action: .init(label: L10n.t("Show")) { NSWorkspace.shared.activateFileViewerSelecting([app]) })
             } catch {
-                errorMessage = L10n.t("%@ couldn't be added to Applications: %@", game.name, error.localizedDescription)
+                errorMessage = L10n.t("%@ couldn't be added to Applications: %@", game.name, RosettaSupport.playerText(error))
             }
         }
     }
@@ -6155,7 +6228,7 @@ final class LibraryModel: ObservableObject {
                 guard let wine = await Engine.installedWine(), let leftover = game.windowsLeftoverDir else { return }
                 try await Engine.uninstall(appID: game.appID, installDir: leftover, wine: wine)
             } catch {
-                errorMessage = L10n.t("%@ could not be uninstalled: %@", game.name, error.localizedDescription)
+                errorMessage = L10n.t("%@ could not be uninstalled: %@", game.name, RosettaSupport.playerText(error))
             }
         }
     }
@@ -6199,7 +6272,7 @@ final class LibraryModel: ObservableObject {
                 StoreChoice.forget(card.gameIDs)
             }
         } catch {
-            errorMessage = L10n.t("%@ could not be uninstalled: %@", game.name, error.localizedDescription)
+            errorMessage = L10n.t("%@ could not be uninstalled: %@", game.name, RosettaSupport.playerText(error))
         }
     }
 
@@ -6248,7 +6321,7 @@ final class LibraryModel: ObservableObject {
                 try await Engine.offMain { _ = try SteamLibraries.forget(drive: name, appID: appID, steamRoot: macRoot, bottle: macBottle) }
             }
         } catch {
-            errorMessage = L10n.t("%@ couldn't be forgotten: %@", name, error.localizedDescription)
+            errorMessage = L10n.t("%@ couldn't be forgotten: %@", name, RosettaSupport.playerText(error))
             return false
         }
         if game == nil || game?.provider == .epic { epic.forgetDrive(name, only: game?.gameID.id) }
@@ -6277,12 +6350,13 @@ final class LibraryModel: ObservableObject {
 
     /// Opens Steam in Nightforge's prefix, e.g. to install a game.
     func openSteam() {
+        guard rosettaReady(for: "Steam's window", then: { [weak self] in self?.openSteam() }) else { return }
         Task {
             guard let wine = await Engine.installedWine() else { return }
             do {
                 try await Engine.startSteamOffMain(wine)
             } catch {
-                errorMessage = error.localizedDescription
+                errorMessage = RosettaSupport.playerText(error)
             }
         }
     }
