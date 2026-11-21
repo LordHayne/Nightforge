@@ -3065,6 +3065,17 @@ pixelgleich mit vorher, außer den Korrekturen unten. In der echten App prüfen:
 
 ## Ideen für später
 
+- **Tastatur für den Controller auch außerhalb von Nightforge** (der Nutzer, 21.11.2026, in der Live-Runde, nachdem
+  „Touchpad als Maus“ den ganzen Mac bedienbar machte: „was echt cool wäre … bildschirmtastatur von nightforge
+  auserhalb von nightforge für eine schnelle browser suche oder so“). Was es schon gibt: die Tastatur ohne Ansicht
+  (`PadKeyboard`), das Lesen des Pads mit einem anderen Programm vorn (`shouldMonitorBackgroundEvents`), das Recht
+  „Bedienungshilfen“ für Klicks (dasselbe Recht deckt getippte Zeichen), Fenster über fremden Programmen (Vorhang,
+  Overlay). Was fehlt: ein schwebendes Fenster für die Tastatur, das dem Programm vorn den Fokus lässt; getippte
+  Zeichen als Tastendrücke an das Feld vorn schicken; ein Knopf, der sie außerhalb öffnet und schließt; Regeln, wann
+  sie nicht aufgeht (Spiel vorn, Overlay, Vorhang, Frage von macOS). Heute schließt sie, sobald Nightforge nicht vorn
+  ist (`PadRules.keyboardStays`). Erst ein Board (wie sie über einem fremden Programm aussieht, welcher Knopf),
+  dann bauen. Kandidat für 0.3.4.
+
 - **Mauszeiger blitzt beim Spielstart kurz auf** (Nutzer, 1.11.: „detailarbeit für irgendwann mal“): Mit dem
   Pad bleibt der Zeiger im Ladebildschirm, im Spiel, nach „Zum Spiel wechseln“ und beim Beenden weg (TV-Zweig
   72a8432, live bestätigt). Nur im Ladebildschirm ist er einen Moment zu sehen, bis `hidePointerOverGame` greift,
