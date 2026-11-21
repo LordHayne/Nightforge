@@ -301,6 +301,25 @@ scheitert und sich nicht schnell beheben lässt, wird ausgeschaltet oder herausg
 - **Abschluss wie 0.3.2:** Audit- und Testrunde, Profilliste signieren (Nutzer), Zusammenführen auf `main` (OK des
   Nutzers), Release-Notizen, Bot-PRs #39–#41 entscheiden.
 
+## 0.3.4: Befunde nach dem Release von 0.3.3 (ab 21.11., neues MacBook Pro M5 Pro, alles frisch installiert)
+
+Der Nutzer prüft 0.3.3 auf dem zweiten Mac; sein Protokoll sieht der Koordinator nicht, die Einträge sind seine Beobachtung
+oder ein Bildschirmfoto.
+
+- [x] **Laufwerk am zweiten Mac (Teil B):** „spieleerkennung am neuen mac die platte angesteckt funktioniert!“ (21.11.,
+  ~20:00, Release 0.3.3 nach dem Update). Welche Läden und ob die Zeile „… sind wieder da“ kam, ist nicht notiert.
+- [ ] **F1 – Mac-Fassung mit Unity startet auf einem frischen Mac im kleinen Fenster** (Valheim, Bildschirmfoto 21.11.
+  20:01): Das Spiel läuft in einem Fenster mit Titelleiste über dem Ladescreen („Nightforge wartet hier, bis du fertig
+  bist.“), Menüleiste und Dock sind zu sehen. Gelesen im Code: `GameResolution.swift` stellt Vollbild und Größe nur für
+  Windows-Spiele ein (Registry, `GameUserSettings.ini`) und nur, wo das Spiel selbst Vollbild gewählt hat. Für
+  Mac-Fassungen fasst Nightforge den Bildschirmmodus nicht an; Unity nimmt beim allerersten Start seinen Vorgabewert, bei
+  Valheim ein Fenster. Auf dem Entwicklungs-Mac fiel das nie auf, weil dort Vollbild längst gespeichert war.
+  Richtung für die Abhilfe: vor dem ersten Start einer Unity-Mac-Fassung, die noch keinen eigenen Wert geschrieben hat,
+  Unitys Vollbild-Fenster in die Einstellungen des Spiels schreiben (wie `ControllerCompatibility.swift` es für den
+  Controller-Schlüssel tut); was der Spieler später im Spiel wählt, bleibt. Zu klären: Schlüssel und Domäne je
+  Unity-Fassung, Erkennen von Unity an der App, andere Engines (Feral, Unreal). Bis dahin hilft im Spiel einmal
+  „Vollbild“ in den Grafikeinstellungen.
+
 ## 0.3.3: Release (21.11., der Nutzer: „bringen wir das release online dann kann ich update und alles prüfen und etwaige bugs bügeln wir in .4 aus“)
 
 **Stand:** Testzweig `08ec62c` plus dieser Commit (Version 0.3.3, Release-Notizen ohne Arbeitskommentare). Die Live-Runde
@@ -333,7 +352,7 @@ daraus kommen in 0.3.4.
   Anforderung wie 0.3.2), keine Testschalter, kein `pad-answer.exe`. Ausgangswert der Downloads direkt danach: 0.3.3 = 0;
   0.3.2 DMG 2 / Zip 3; 0.3.1 DMG 2 / Zip 2; 1 Stern.
 - **Offen nach dem Release:**
-  - [ ] Landingpage und README: PR #46 (`claude/site-033`), Merge mit OK des Nutzers; danach die Seite live ansehen.
+  - [x] Landingpage und README: #46 und #47 gemergt und live angesehen; #48 „Geprüft auf dem Mac“ als eigene Seite mit Tab, ohne die „ehrlich“-Überschriften (main da92cae). Offen: Textdurchgang der Seite (Zweig `claude/site-texte`, Vorher/Nachher an den Nutzer).
   - [ ] Der Nutzer prüft nach dem Update auf dem neuen MacBook Pro (Liste oben); Fehler → 0.3.4.
   - [ ] `scripts/fetch-geforce-now.py` bekommt auf GitHub seit dem 20.11. HTTP 403, „Update game profiles“ ist rot,
     nächtlich und auf `main`. Ursache ansehen; kein Umgehen über einen fremden User-Agent.
