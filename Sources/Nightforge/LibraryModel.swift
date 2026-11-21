@@ -688,9 +688,16 @@ final class LibraryModel: ObservableObject {
             await leftStartEnded()
             guard !Task.isCancelled, await beforeGOGStart(game) else { return }
             let installDir = game.installDir
-            await Task.detached(priority: .userInitiated) { ControllerCompatibility.prepare(installDir: installDir) }.value
+            let playerArguments = arguments.joined(separator: " ")
+            let screen = await Task.detached(priority: .userInitiated) { () -> MacUnityScreen.Decision in
+                ControllerCompatibility.prepare(installDir: installDir)
+                return MacUnityScreen.look(installDir: installDir, playerArguments: playerArguments)
+            }.value
+            // A Unity Mac version's first start in full screen (MacUnityScreen).
+            if let note = MacUnityScreen.note(screen, game: game.name) { GameLog.note(note) }
+            let withScreen = Launcher.splitArguments(MacUnityScreen.arguments(playerArguments, screen))
             do {
-                try await gog.launchMac(game, extraArguments: arguments)
+                try await gog.launchMac(game, extraArguments: withScreen)
             } catch {
                 errorMessage = L10n.t("%@ couldn't start: %@", game.name, RosettaSupport.playerText(error))
                 return
@@ -3750,24 +3757,32 @@ final class LibraryModel: ObservableObject {
             launchPhase = nil
             await waitForSteamCloud(MacSteam.root)
             if Task.isCancelled { return }  // no saves taken along for a start that's over
-            // steam://run/<id>//<arguments>: the extra part goes to the game.
-            let extra = arguments.isEmpty ? ""
-                : "//" + (arguments.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? "")
             await takeSavesAlong(game, to: .mac)
             let installDir = game.installDir  // the library it's really in, an external drive's included
             let appID = game.appID
-            let macLaunch = await Task.detached(priority: .userInitiated) { () -> [SteamCatalog.LaunchEntry] in
+            let (macLaunch, screen) = await Task.detached(priority: .userInitiated) { () -> ([SteamCatalog.LaunchEntry], MacUnityScreen.Decision) in
                 ControllerCompatibility.prepare(installDir: installDir)
                 MacGameHUD.prepare(folder: installDir)
-                return SteamCatalog.macLaunchEntries(appID: appID, steamRoot: MacSteam.root)
+                return (SteamCatalog.macLaunchEntries(appID: appID, steamRoot: MacSteam.root),
+                        MacUnityScreen.look(installDir: installDir, playerArguments: arguments))
             }.value
             let launchType = SteamProgram.macLaunchType(macLaunch)
+            // A Unity Mac version's first start in full screen (MacUnityScreen), where steam://run carries the switch:
+            // not with several launch options, which go by steam://launch without arguments.
+            let carries = launchType == nil || !arguments.isEmpty
+            if let note = MacUnityScreen.note(screen, game: game.name) {
+                GameLog.note(carries ? note : "Mac version of \(game.name): several launch options, Steam's own way – no switch")
+            }
+            let withScreen = carries ? MacUnityScreen.arguments(arguments, screen) : arguments
+            // steam://run/<id>//<arguments>: the extra part goes to the game.
+            let extra = withScreen.isEmpty ? ""
+                : "//" + (withScreen.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? "")
             let watcher = LaunchWatcher(steamRoot: MacSteam.root, appID: game.appID)
             let launchStarted = Date()
             // With several launch options Steam asks which one, in a window that didn't come forward
             // (Drawful 2: standalone or the Jackbox Megapicker, 8.11.). steam://launch starts Steam's
             // first straight away; it passes no arguments, so with the player's own Steam asks as before.
-            let command = launchType.flatMap { arguments.isEmpty ? "launch/\(appID)/\($0)" : nil } ?? "run/\(appID)" + extra
+            let command = launchType.flatMap { withScreen.isEmpty ? "launch/\(appID)/\($0)" : nil } ?? "run/\(appID)" + extra
             // Options steam://launch has no name for ("none", no type), or the player's own arguments:
             // -applaunch starts the first and takes arguments, with no question. Tried once; a resend
             // (Steam didn't note it) goes the old way, where Steam may ask.
