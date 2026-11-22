@@ -19,11 +19,11 @@ enum CurtainPreview {
     #if NIGHTFORGE_RELEASE
     static func startIfAsked() {}
     #else
-    static let key = "gameTest.curtainPreview"
+    static let previewKey = "gameTest.curtainPreview"
     static let shownFor: TimeInterval = 45
 
     static func startIfAsked(defaults: UserDefaults = .standard) {
-        guard let kind = defaults.string(forKey: key) else { return }
+        guard let kind = defaults.string(forKey: previewKey) else { return }
         isUp = true
         GameLog.note("Curtain preview (test switch): \(kind), \(Int(shownFor)) s")
         let name = "Black Myth: Wukong Benchmark Tool"
