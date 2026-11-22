@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>C · Nachtglut</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.board{width:1480px;box-sizing:border-box;padding:44px 48px 52px;display:flex;flex-direction:column;gap:20px;background:#0f141c;color:#f3f1ec;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-serif}
+h1{margin:0;font-size:30px;font-weight:800;font-stretch:expanded}
+.lead{margin:0;font-size:14px;line-height:21px;color:#d6d9de;max-width:1300px}
+.pick{align-self:flex-start;padding:4px 11px;border-radius:999px;font-size:12px;font-weight:700;background:#ffb347;color:#0f141c}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px}
+.cap{font-size:12px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#9aa3af;margin-bottom:8px}
+.screen{position:relative;aspect-ratio:16/10;border-radius:12px;overflow:hidden;background:radial-gradient(ellipse 70% 55% at 50% 42%,#14223d 0%,#0b1018 60%,#06080b 100%);box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);display:flex;flex-direction:column;align-items:center;justify-content:center}
+.mark{position:relative;width:120px;height:120px}
+.mark svg{position:absolute;inset:0}
+.word{margin-top:22px;font-size:24px;font-weight:300;letter-spacing:9px;padding-left:9px;color:#e6e6e6;font-stretch:expanded}
+.game{margin-top:10px;font-size:12px;letter-spacing:5px;padding-left:5px;color:#8ca8db;font-stretch:expanded}
+.status{margin-top:20px;font-size:13px;color:#9aa3af;min-height:18px}
+.sent{margin-top:6px;font-size:11px;color:rgba(154,163,175,.75);max-width:420px;text-align:center;min-height:15px}
+.tip{position:absolute;bottom:18px;font-size:11.5px;color:rgba(140,168,219,.85);display:flex;gap:7px;align-items:center}
+.glyph{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:9px;border:1px solid rgba(243,241,236,.45);font-size:10px;font-weight:700;color:#f3f1ec}
+.dock{position:absolute;bottom:6px;left:50%;transform:translateX(-50%);display:flex;gap:6px;padding:5px 8px;border-radius:12px;background:rgba(200,205,215,.22)}
+.dock i{width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,#8aa,#456)}
+.menubar{position:absolute;top:0;left:0;right:0;height:14px;background:rgba(200,205,215,.18)}
+.note{font-size:12.5px;line-height:18px;color:#9aa3af;margin-top:8px}
+.bad{color:#ffd59a}
+.good{color:#bfe6cc}
+.bar{margin-top:16px;width:240px;height:3px;border-radius:2px;background:rgba(255,255,255,.12);overflow:hidden}
+.bar>i{display:block;height:100%;width:42%;background:#2e7aff}
+.qbar{position:absolute;left:0;right:0;bottom:0;height:46px;background:rgba(6,8,11,.78);border-top:1px solid rgba(255,255,255,.08);display:flex;gap:26px;align-items:center;justify-content:center;font-size:11.5px;color:#8ca8db}
+.steamwin{width:300px;height:150px;border-radius:8px;background:#1b2838;box-shadow:0 0 0 2px #2e7aff,0 0 22px rgba(46,122,255,.55);display:flex;flex-direction:column;gap:8px;padding:14px;box-sizing:border-box;font-size:11px;color:#c7d5e0;margin-top:-30px}
+.steamwin .t{font-weight:700;font-size:12px}
+.steamwin .b{margin-top:auto;display:flex;gap:8px;justify-content:flex-end}
+.steamwin .b span{padding:4px 10px;border-radius:3px;background:#2a475e}
+.steamwin .b span.p{background:#5c7e10}
+.top{position:absolute;top:18px;font-size:11px;letter-spacing:4px;color:#8ca8db}
+.cursor{position:absolute;width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:14px solid #fff;transform:rotate(-25deg);left:58%;top:56%}
+table{border-collapse:collapse;width:100%;font-size:12.5px;line-height:18px}
+td,th{padding:8px 10px;border-bottom:1px solid rgba(154,163,175,.15);vertical-align:top;text-align:left}
+th{font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:#9aa3af}
+td.o{color:#c9ced6}
+td.n{color:#bfdeff}
+.small{font-size:11.5px;color:#7f8894;font-style:italic}
+.nmetal{fill:url(#metal)}
+.seam{stroke:#2e7aff;stroke-width:3;stroke-linecap:round;filter:drop-shadow(0 0 4px #2e7aff)}
+@keyframes runA{0%{offset-distance:0%}100%{offset-distance:100%}}
+.lightA{position:absolute;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;background:radial-gradient(circle,#eaf3ff 0%,rgba(46,122,255,.65) 35%,transparent 70%);mix-blend-mode:screen;offset-path:path('M 38 98 L 82 22');animation:runA 2.2s linear infinite;left:0;top:0}
+@keyframes breathe{0%,100%{opacity:.6}50%{opacity:1}}
+.breathe{animation:breathe 2.6s ease-in-out infinite}
+@keyframes glide{0%{transform:translateX(-110px)}50%{transform:translateX(110px)}100%{transform:translateX(-110px)}}
+.track{margin-top:18px;width:300px;height:2px;background:rgba(255,255,255,.07);border-radius:1px;position:relative;overflow:hidden}
+.track>i{position:absolute;left:110px;width:80px;height:2px;border-radius:1px;background:linear-gradient(90deg,transparent,#2e7aff,#cfe2ff,#2e7aff,transparent);animation:glide 3.4s ease-in-out infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.orbit{position:absolute;inset:-34px;border-radius:50%}
+.orbit.ring{box-shadow:inset 0 0 0 1.5px rgba(140,168,219,.10)}
+.orbit.arc{background:conic-gradient(from 0deg,transparent 0deg,transparent 260deg,rgba(46,122,255,.15) 290deg,#2e7aff 345deg,#e6f0ff 359deg,transparent 360deg);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 calc(100% - 2.5px));mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 calc(100% - 2.5px));animation:spin 3.2s linear infinite;filter:drop-shadow(0 0 6px rgba(46,122,255,.8))}
+@keyframes drift1{0%{transform:translate(-30%,-10%)}50%{transform:translate(25%,8%)}100%{transform:translate(-30%,-10%)}}
+@keyframes drift2{0%{transform:translate(30%,15%)}50%{transform:translate(-20%,-12%)}100%{transform:translate(30%,15%)}}
+@keyframes drift3{0%{transform:translate(0,30%)}50%{transform:translate(10%,-25%)}100%{transform:translate(0,30%)}}
+.glow{position:absolute;width:55%;height:60%;border-radius:50%;filter:blur(40px);opacity:.55}
+.g1{background:#1d4fb8;left:10%;top:10%;animation:drift1 26s ease-in-out infinite}
+.g2{background:#0f3a8a;right:5%;bottom:5%;animation:drift2 34s ease-in-out infinite}
+.g3{background:#2e7aff;left:35%;top:30%;width:30%;height:35%;opacity:.25;animation:drift3 21s ease-in-out infinite}
+@media (prefers-reduced-motion: reduce){.lightA,.track>i,.glow{animation:none}.orbit.arc{animation:none}}
+</style>
+</helmet>
+<div class="board">
+<h1>C · Nachtglut</h1>
+<p class="lead">Hinter dem N ziehen drei unscharfe blaue Lichtwolken sehr langsam über die Nacht (21–34 s je Bahn), die Naht atmet. Am ruhigsten und stimmungsvollsten, aber am wenigsten eindeutig als „lädt“. Drei große Bilder in Bewegung: vor dem Bauen den Aufwand im Fensterserver messen. „Bewegung reduzieren“: Wolken stehen.</p>
+<div class="grid">
+<div><div class="cap">Start, beliebig lang</div><div class="screen"><div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div><div class="mark"><svg viewBox="0 0 120 120"><defs><linearGradient id="metal" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d9dde3"/><stop offset=".45" stop-color="#8d949e"/><stop offset=".7" stop-color="#c4c9d0"/><stop offset="1" stop-color="#5d636c"/></linearGradient></defs><path class="nmetal" d="M22 104 V16 H40 L80 76 V16 H98 V104 H80 L40 44 V104 Z"/><line class="seam breathe" x1="38" y1="98" x2="82" y2="22"/></svg></div><div class="word">NIGHTFORGE</div><div class="game">BLACK MYTH: WUKONG BENCHMARK</div><div class="status"></div><div class="sent"></div></div><div class="note">Läuft gleichmäßig weiter, ob 5 s oder 2 min. Kein Ziel, also nie „fast fertig“ und dann Stillstand.</div></div>
+<div><div class="cap">Beenden („Zurück zu Nightforge“)</div><div class="screen"><div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div><div class="mark"><svg viewBox="0 0 120 120"><defs><linearGradient id="metal" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d9dde3"/><stop offset=".45" stop-color="#8d949e"/><stop offset=".7" stop-color="#c4c9d0"/><stop offset="1" stop-color="#5d636c"/></linearGradient></defs><path class="nmetal" d="M22 104 V16 H40 L80 76 V16 H98 V104 H80 L40 44 V104 Z"/><line class="seam breathe" x1="38" y1="98" x2="82" y2="22"/></svg></div><div class="word">NIGHTFORGE</div><div class="game">BLACK MYTH: WUKONG BENCHMARK</div><div class="status"></div><div class="sent"></div></div><div class="note">Dieselbe Bewegung, kein Text. Höchstens 10 s, dann die Spielseite.</div></div>
+<div><div class="cap">Nach 90 s ohne Spielprozess</div><div class="screen"><div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div><div class="mark"><svg viewBox="0 0 120 120"><defs><linearGradient id="metal" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d9dde3"/><stop offset=".45" stop-color="#8d949e"/><stop offset=".7" stop-color="#c4c9d0"/><stop offset="1" stop-color="#5d636c"/></linearGradient></defs><path class="nmetal" d="M22 104 V16 H40 L80 76 V16 H98 V104 H80 L40 44 V104 Z"/><line class="seam breathe" x1="38" y1="98" x2="82" y2="22"/></svg></div><div class="word">NIGHTFORGE</div><div class="game">BLACK MYTH: WUKONG BENCHMARK</div><div class="status"></div><div class="sent"></div><div class="tip"><span class='glyph'>B</span> Zurück zu Nightforge</div></div><div class="note">Leise unten, erst ab 90 s; B wirkt schon ab 30 s.</div></div>
+<div><div class="cap">Update (echter Fortschritt)</div><div class="screen"><div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div><div class="mark"><svg viewBox="0 0 120 120"><defs><linearGradient id="metal" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d9dde3"/><stop offset=".45" stop-color="#8d949e"/><stop offset=".7" stop-color="#c4c9d0"/><stop offset="1" stop-color="#5d636c"/></linearGradient></defs><path class="nmetal" d="M22 104 V16 H40 L80 76 V16 H98 V104 H80 L40 44 V104 Z"/><line class="seam breathe" x1="38" y1="98" x2="82" y2="22"/></svg></div><div class="word">NIGHTFORGE</div><div class="game">BLACK MYTH: WUKONG BENCHMARK</div><div class="bar"><i></i></div><div class="status">Update · 42 %</div><div class="sent"></div></div><div class="note">Der einzige Balken: echte Prozent, wie eine Konsole sie beim Patch zeigt (Frage 2).</div></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1480,"height":1500}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>
