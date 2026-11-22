@@ -385,7 +385,22 @@ enum Engine {
         wanted = wanted.filter { name, value in (value.isEmpty ? nil : value) != gameEnvironment[name] }
         let session = msyncWanted ?? launch.msync
         launchSettings.withLock { [wanted] in $0 = (wanted, retina, session) }
-        return wanted != launch.environment || retina != launch.retina || session != launch.msync
+        let changed = changedParts(environment: launch.environment, to: wanted, retina: launch.retina, to: retina,
+                                   msync: launch.msync, to: session)
+        lastLaunchChanges.withLock { $0 = changed }
+        return !changed.isEmpty
+    }
+
+    /// What `prepareLaunchEnvironment` changed last time, by name only (for "Steam restarts for …").
+    static var launchChanges: [String] { lastLaunchChanges.withLock { $0 } }
+    private static let lastLaunchChanges = LockedValue<[String]>([])
+
+    /// The parts of Steam's settings that differ, by name and never by value: a variable's name, "retina", "msync".
+    /// Values can carry paths with the user's name; names come from Nightforge's own lists.
+    static func changedParts(environment old: [String: String], to new: [String: String], retina oldRetina: Bool, to newRetina: Bool,
+                             msync oldMsync: Bool, to newMsync: Bool) -> [String] {
+        let names = Set(old.keys).union(new.keys).filter { old[$0] != new[$0] }.sorted()
+        return names + (oldRetina != newRetina ? ["retina"] : []) + (oldMsync != newMsync ? ["msync"] : [])
     }
 
     /// Puts Wine's Retina mode where `launchRetina` wants it, with Steam down. Wine shows a session
