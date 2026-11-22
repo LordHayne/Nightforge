@@ -125,6 +125,8 @@ final class LibraryModel: ObservableObject {
     @Published private(set) var launchNeedsConfirmation = false
     /// That question is Steam's licence: the frame comes at once and says so (SteamLicence).
     private var launchAsksLicence = false
+    /// Steam's name for the step it waits on (LaunchWatcher.questionTask): the curtain's heading (SteamQuestion.kind).
+    private var launchQuestionTask: String?
     /// What the launch is busy with when it's more than waiting for Steam ("Restarting Steam …"). Each one in the
     /// log as it begins, with what the curtain no longer says (LaunchPhase.curtainTitle).
     @Published private(set) var launchPhase: LaunchPhase? {
@@ -1445,12 +1447,13 @@ final class LibraryModel: ObservableObject {
         }
     }
 
-    /// How the player can answer Steam's licence, for the bar on the curtain.
-    private var licenceLook: GameBackdrop.LicenceLook {
+    /// What Steam asks and how the player can answer it, for the heading and the bar on the curtain.
+    private var questionLook: GameBackdrop.QuestionLook {
         let inHand = GCController.current?.extendedGamepad ?? GCController.controllers().compactMap(\.extendedGamepad).first
         let pad = SteamLicence.pad(inHandHasTouchpad: inHand.map { Touchpad($0) != nil })
-        return GameBackdrop.LicenceLook(answering: SteamLicence.answering(pad: pad, pointerOn: Prefs.padPointer, mayClick: PadPointerAccess.granted),
-                                        click: PadPart.r2.name(padSymbols.layout))
+        return GameBackdrop.QuestionLook(kind: SteamQuestion.kind(licence: launchAsksLicence, task: launchQuestionTask, phase: launchPhase),
+                                         answering: SteamLicence.answering(pad: pad, pointerOn: Prefs.padPointer, mayClick: PadPointerAccess.granted),
+                                         click: PadPart.r2.name(padSymbols.layout))
     }
 
     /// Steam's question is over. `yes`: it was the licence, answered by the player, and the curtain thanks them.
@@ -1458,6 +1461,7 @@ final class LibraryModel: ObservableObject {
         launchNeedsConfirmation = false
         if launchAsksLicence, yes { launchPhase = .licenceAnswered }
         launchAsksLicence = false
+        launchQuestionTask = nil
     }
 
     private func watchCurtain(_ game: Game) async {
@@ -1552,7 +1556,7 @@ final class LibraryModel: ObservableObject {
                     if GameOverlay.asksWayOut { GameOverlay.close() }
                     if Self.steamAsksOnCurtain(savesToChoose: saveChoice != nil, battleNet: game.provider == .battlenet) {
                         steamWindowSeen = Date()
-                        GameBackdrop.setSteamAsks(true, licence: launchAsksLicence ? licenceLook : nil)
+                        GameBackdrop.setSteamAsks(true, question: questionLook)
                         offerWayOut(game, reason: .steamAsks)
                         GameLog.note("Curtain stays for \(game.name): Steam asks something, on the curtain")
                     } else {
@@ -1564,15 +1568,15 @@ final class LibraryModel: ObservableObject {
                 case .wait:
                     guard let seen = steamWindowSeen else { continue }
                     let steamWindows = await steamWindowsOnScreen(game)
-                    if launchAsksLicence {
-                        if GameBackdrop.licenceStillToSay { GameBackdrop.sayLicence(licenceLook) }
-                        let number = SteamLicence.windowToFrame(frontToBack: steamWindows)
-                        let frame = await Engine.offMain { number.flatMap { GameProcesses.frame(ofWindow: $0) } }
-                        GameBackdrop.frameSteamWindow(frame)
-                        if let number, let frame, pointerBroughtTo != number {
-                            pointerBroughtTo = number
-                            InputRouter.bringPointer(into: frame)
-                        }
+                    // Every question of Steam's alike: what it is at the top, its window framed, the pad's pointer brought
+                    // into it once. Only a licence comes before its window, so only it waits longer for one (below).
+                    GameBackdrop.sayQuestion(questionLook)
+                    let number = SteamLicence.windowToFrame(frontToBack: steamWindows)
+                    let frame = await Engine.offMain { number.flatMap { GameProcesses.frame(ofWindow: $0) } }
+                    GameBackdrop.frameSteamWindow(frame)
+                    if let number, let frame, pointerBroughtTo != number {
+                        pointerBroughtTo = number
+                        InputRouter.bringPointer(into: frame)
                     }
                     switch Self.steamOnCurtainStep(lowest: steamWindows.last, sinceSeen: Date().timeIntervalSince(seen), savesToChoose: saveChoice != nil,
                                                    patience: launchAsksLicence ? Self.licenceWindowPatience : Self.steamWindowPatience) {
@@ -3989,6 +3993,7 @@ final class LibraryModel: ObservableObject {
     private func waitForMacStart(_ game: Game, watcher: LaunchWatcher, send: () -> Void) async -> MacStart {
         var watcher = watcher
         launchAsksLicence = false
+        launchQuestionTask = nil
         defer { if launchPhase == .licenceAnswered { launchPhase = nil } }
         let folders = Self.processFolders([game])
         var quietSeconds = 0
@@ -4045,6 +4050,7 @@ final class LibraryModel: ObservableObject {
             case .needsConfirmation?:
                 askingSince = askingSince ?? seconds
                 quietSeconds = 0
+                launchQuestionTask = watcher.questionTask
             case .licence?:
                 askingSince = askingSince ?? seconds
                 quietSeconds = 0
@@ -5573,6 +5579,7 @@ final class LibraryModel: ObservableObject {
         var watcher = LaunchWatcher(steamRoot: game.steamRoot, appID: game.appID)
         var licenceLog = SteamLicenceLog(steamRoot: game.steamRoot, appID: game.appID)
         launchAsksLicence = false
+        launchQuestionTask = nil
         // Running, signed in and done starting: Steam logs the command within a second (SteamCommands).
         var steamWasReady = game.bottle.isBuiltIn && Engine.isSteamRunning && Engine.steamSignedIn
             && Engine.startupFinished(steamRoot: Engine.steamRoot)
@@ -5683,6 +5690,7 @@ final class LibraryModel: ObservableObject {
             case .needsConfirmation?:
                 askingSince = askingSince ?? totalSeconds
                 quietSeconds = 0
+                launchQuestionTask = watcher.questionTask
             case .licence?:
                 // A question from its first word on: the 3 + 5 s below are for steps that answer themselves.
                 askingSince = askingSince ?? totalSeconds

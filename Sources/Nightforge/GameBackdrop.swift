@@ -35,16 +35,17 @@ enum GameBackdrop {
         @Published var progress: Double?
         /// Steam's window stands on the curtain: the mark gives way, a bar at the bottom says what to do.
         @Published var steamAsks = false
-        /// That question is its licence: said so at the top, with a seam round its window (`seam`) and the way to answer.
-        @Published var licence: LicenceLook?
+        /// What it asks, said at the top, with a seam round its window (`seam`) and the way to answer (SteamQuestion).
+        @Published var question: QuestionLook?
         /// Steam's window on the curtain, in the curtain's coordinates, once it's there.
         @Published var seam: CGRect?
         /// The pad's buttons for what the player has to do now (CurtainButton), in the tip's place: the rule of 15.11.2026.
         @Published var buttons: [CurtainButton] = []
     }
 
-    /// What the bar under Steam's licence says.
-    struct LicenceLook: Equatable {
+    /// What the curtain says about Steam's question: its kind at the top, the way to answer in the bar.
+    struct QuestionLook: Equatable {
+        var kind: SteamQuestion.Kind
         var answering: SteamLicence.Answering
         /// R2 or RT, for a pad without a touchpad.
         var click: String
@@ -118,24 +119,28 @@ enum GameBackdrop {
         if state.detail != shown { state.detail = shown }
     }
 
-    static func setSteamAsks(_ asks: Bool, licence: LicenceLook? = nil) {
+    static func setSteamAsks(_ asks: Bool, question: QuestionLook? = nil) {
         if state.steamAsks != asks { state.steamAsks = asks }
-        if state.licence != licence { state.licence = licence }
+        if state.question != question { state.question = question }
+        // The pointer Nightforge put into Steam's window holds no click once the question has gone.
+        if !asks { PointerDriver.placedAt = nil }
         if state.seam != nil { state.seam = nil }
     }
 
-    /// Steam's window under the licence's frame (screen coordinates, y down); nil while it isn't there.
+    /// Steam's window under the question's frame (screen coordinates, y down); nil while it isn't there.
     static func frameSteamWindow(_ frame: CGRect?) {
-        guard let window, state.licence != nil else { return }
+        guard let window, state.question != nil else { return }
         let curtain = appKitFrame(bounds: window.frame, mainHeight: CGDisplayBounds(CGMainDisplayID()).height)
         let seam = frame.flatMap { SteamLicence.seam(window: $0, curtain: curtain) }
         if state.seam != seam { state.seam = seam }
     }
 
-    /// A question already on the curtain turned out to be the licence (SteamLicence.framesLate).
-    static var licenceStillToSay: Bool { SteamLicence.framesLate(steamAsks: state.steamAsks, framed: state.licence != nil) }
-
-    static func sayLicence(_ look: LicenceLook) { state.licence = look }
+    /// What the question on the curtain turned out to be, or how it's answered now (a pad picked up meanwhile):
+    /// a question first seen as another step can be the licence: Steam logged another step first. Only while one stands.
+    static func sayQuestion(_ look: QuestionLook) {
+        guard state.steamAsks, state.question != look else { return }
+        state.question = look
+    }
 
     static func setWayOut(_ tip: LaunchTip?) {
         if state.wayOut != tip { state.wayOut = tip }
@@ -359,7 +364,7 @@ enum GameBackdrop {
             state.progress = nil
             state.buttons = []
             state.steamAsks = false
-            state.licence = nil
+            state.question = nil
             state.seam = nil
         }
         if stage.raised, stage != state.stage || !isRaised { upSince = Date() }
@@ -550,7 +555,7 @@ struct BackdropView: View {
             BrandNight()
             // One fade each way, between two pages that stand still.
             if state.stage == .starting && state.steamAsks {
-                SteamQuestionFrame(game: state.game, wayOut: state.wayOut, licence: state.licence, seam: state.seam)
+                SteamQuestionFrame(game: state.game, wayOut: state.wayOut, question: state.question, seam: state.seam)
                     .transition(.opacity)
             } else {
                 page.transition(.opacity)
@@ -661,8 +666,8 @@ private struct UpdateBar: View {
 private struct SteamQuestionFrame: View {
     let game: String
     let wayOut: LaunchTip?
-    /// Steam's licence: said so at the top, with `seam` round its window once that's there.
-    var licence: GameBackdrop.LicenceLook?
+    /// What Steam asks, said at the top, with `seam` round its window once that's there; nil: not known yet.
+    var question: GameBackdrop.QuestionLook?
     var seam: CGRect?
     @ObservedObject private var tv = TVLayout.shared
 
@@ -678,7 +683,7 @@ private struct SteamQuestionFrame: View {
                     .transition(.opacity)
             }
             VStack(spacing: 0) {
-                Spaced(text: game.uppercased(with: L10n.locale) + " · " + (licence == nil ? L10n.t("Steam is asking something") : L10n.t("The licence, just once")).uppercased(with: L10n.locale), kern: 6)
+                Spaced(text: game.uppercased(with: L10n.locale) + " · " + SteamQuestion.title(question?.kind ?? .other).uppercased(with: L10n.locale), kern: 6)
                     .fontWidth(.expanded)
                     .font(size: 18)
                     .foregroundStyle(Color(nsColor: BrandArt.tagline))
@@ -686,8 +691,8 @@ private struct SteamQuestionFrame: View {
                     .minimumScaleFactor(0.6)
                     .padding(.top, max(48, Theme.margins.top))
                     .padding(.horizontal, Theme.margins.side)
-                if licence != nil {
-                    Text(L10n.t("Steam only asks this at the first start."))
+                if let note = SteamQuestion.note(question?.kind ?? .other) {
+                    Text(note)
                         .font(size: 15)
                         .foregroundStyle(Theme.muted)
                         .padding(.top, 12)
@@ -699,7 +704,7 @@ private struct SteamQuestionFrame: View {
                     if let wayOut, !wayOut.symbols.isEmpty {
                         HStack(spacing: 10) {
                             ForEach(Array(wayOut.symbols.enumerated()), id: \.offset) { _, symbol in PadGlyph(symbol, size: 20) }
-                            Text(licence == nil ? wayOut.text : L10n.t("Cancel"))
+                            Text(question?.kind == .licence ? L10n.t("Cancel") : wayOut.text)
                         }
                     }
                 }
@@ -716,7 +721,7 @@ private struct SteamQuestionFrame: View {
     }
 
     @ViewBuilder private var answers: some View {
-        switch licence?.answering ?? .mouse {
+        switch question?.answering ?? .mouse {
         case .mouse:
             Text(L10n.t("Answer with the mouse or trackpad"))
         case .touchpad:
@@ -731,7 +736,7 @@ private struct SteamQuestionFrame: View {
                 PadGlyph("r.joystick.fill", size: 20)
                 Text(L10n.t("Right stick moves the pointer"))
             }
-            Text(L10n.t("%@ clicks", licence?.click ?? "R2"))
+            Text(L10n.t("%@ clicks", question?.click ?? "R2"))
         }
     }
 }

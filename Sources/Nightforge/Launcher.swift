@@ -418,6 +418,9 @@ struct LaunchWatcher {
     private(set) var wentOnAfterLicence = false
     /// Steam says so itself: "continues with user response" to the licence. Steam for Mac does.
     private(set) var licenceContinued = false
+    /// The step Steam waits on the player for, by Steam's name ("ShowGameArgs", "ShowEula"), from its last
+    /// "waiting for user response to …" (SteamQuestion.kind gives it a heading on the curtain).
+    private(set) var questionTask: String?
     /// Steam is on the game's install script: the game's own installers, which log nothing here and may
     /// ask the player things (GTA V: Rockstar's launcher, its terms and folder).
     private(set) var runningInstallScript = false
@@ -434,6 +437,7 @@ struct LaunchWatcher {
             try? handle.close()
             let last = tail.split(whereSeparator: \.isNewline).last { $0.contains("GameAction [AppID \(appID),") }
             openQuestion = last?.contains("waiting for user response") ?? false
+            if openQuestion, let last { questionTask = SteamQuestion.task(in: last) }
             // Not told apart in `poll`: the Windows Steam leaves this line last after a yes as well.
             licenceAsked = openQuestion && last?.contains("to ShowEula") == true
         }
@@ -479,6 +483,7 @@ struct LaunchWatcher {
                 wentOnAfterLicence = false
                 event = .licence
             } else if line.contains("waiting for user response") {
+                questionTask = SteamQuestion.task(in: line) ?? questionTask
                 event = .needsConfirmation
             } else if line.contains("continues with user response") {
                 event = .continued
