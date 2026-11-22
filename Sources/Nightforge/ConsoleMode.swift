@@ -54,4 +54,8 @@ enum ConsoleMode {
 
     /// How often console mode looks whether a highlight is due: a dialog opening shows it within this.
     static let focusLook: TimeInterval = 0.25
+
+    /// Whether that look runs at all: in console mode, Nightforge in front, no game on. Behind a game, or with another
+    /// app in front, there's no beat (docs/AUDIT-0.3.5.md, E1); Nightforge's activation starts it again.
+    static func focusWatchRuns(consoleMode: Bool, inFront: Bool, gameOn: Bool) -> Bool { consoleMode && inFront && !gameOn }
 }

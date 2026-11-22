@@ -4275,12 +4275,30 @@ final class LibraryModel: ObservableObject {
     /// each `focusLook` whether a dialog or a panel has come with none – nothing is drawn unless one is placed.
     private func watchConsoleFocus() {
         consoleFocusWatch?.cancel()
-        guard consoleMode else { return consoleFocusWatch = nil }
+        consoleFocusWatch = nil
+        // Activation starts it again, losing the front stops it: no beat while Nightforge is behind a game or another app.
+        if consoleFocusObservers.isEmpty {
+            let center = NotificationCenter.default
+            consoleFocusObservers = [
+                center.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.watchConsoleFocus() }
+                },
+                center.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated {
+                        self?.consoleFocusWatch?.cancel()
+                        self?.consoleFocusWatch = nil
+                    }
+                },
+            ]
+        }
+        guard ConsoleMode.focusWatchRuns(consoleMode: consoleMode, inFront: NSApp.isActive, gameOn: gameOnScreen) else { return }
         consoleFocusWatch = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(ConsoleMode.focusLook))
-                guard let self, self.consoleMode else { return }
-                guard NSApp.isActive, let key = NSApp.keyWindow else { continue }
+                // A game started meanwhile, or the mode went: the beat ends, the next activation brings it back.
+                guard let self, !Task.isCancelled,
+                      ConsoleMode.focusWatchRuns(consoleMode: self.consoleMode, inFront: NSApp.isActive, gameOn: self.gameOnScreen),
+                      let key = NSApp.keyWindow else { return }
                 let main = NSApp.windows.first { $0.title == "Nightforge" }
                 let dialog = key !== main && key.isVisible
                 let panel = self.launcherMenuOpen || self.quickMenu != nil || self.showingOptions
@@ -4294,6 +4312,8 @@ final class LibraryModel: ObservableObject {
             }
         }
     }
+
+    private var consoleFocusObservers: [NSObjectProtocol] = []
 
     /// A or B on a Windows game's question: the helper presses the button in it.
     func answerQuestion(_ choice: PadAnswer.Choice) {

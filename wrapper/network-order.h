@@ -18,4 +18,9 @@ int nightforge_interface_place(int link, int up, int ipv4, int address);
 // entries, then the LATER ones, each in the order they came; LEFT_OUT ones are taken out.
 void nightforge_arrange_interfaces(struct if_nameindex *list, int (*place)(const char *name, void *context), void *context);
 
+// Whether a process orders the list at all: only Wine's device host, `program` (argv[0], which Wine sets to the
+// Windows path) naming winedevice.exe, case and slashes aside. Every other process – Steam, a game, a game with an
+// anti-cheat – gets macOS's list unchanged.
+int nightforge_orders_interfaces(const char *program);
+
 #endif

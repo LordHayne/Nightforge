@@ -118,6 +118,18 @@ int main(void)
     arranged(none, out, sizeof(out));
     check(!strcmp(out, ""), "an empty list stays empty");
 
+    // Only Wine's device host orders the list (docs/AUDIT-0.3.5.md, M1): nothing changes in a game's process.
+    check(nightforge_orders_interfaces("C:\\windows\\system32\\winedevice.exe"), "winedevice.exe, as Wine names it: ordered");
+    check(nightforge_orders_interfaces("c:\\WINDOWS\\SYSTEM32\\WineDevice.EXE"), "case doesn't count");
+    check(nightforge_orders_interfaces("/x/system32/winedevice.exe") && nightforge_orders_interfaces("winedevice.exe"),
+          "a slash, or the name alone");
+    check(!nightforge_orders_interfaces("C:\\Program Files (x86)\\Steam\\steam.exe"), "Steam: macOS's list unchanged");
+    check(!nightforge_orders_interfaces("C:\\Program Files (x86)\\Overwatch\\_retail_\\Overwatch.exe"),
+          "a game with an anti-cheat: unchanged");
+    check(!nightforge_orders_interfaces("C:\\games\\notwinedevice.exe") && !nightforge_orders_interfaces("C:\\x\\winedevice.exe.bak")
+          && !nightforge_orders_interfaces("C:\\x\\winedevice.ex"), "only that file name, whole");
+    check(!nightforge_orders_interfaces(NULL) && !nightforge_orders_interfaces(""), "no name: unchanged");
+
     printf(failures ? "%d failed\n" : "✓ the order Wine gets the network interfaces in\n", failures);
     return failures ? 1 : 0;
 }

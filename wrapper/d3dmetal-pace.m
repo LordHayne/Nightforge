@@ -8,6 +8,10 @@
 // Nightforge wrote for this one game's start (never for one with an anti-cheat or a cheat protection of its own),
 // and Metal's class and methods there. Anything missing: nothing is changed, not even the sync. One line in the
 // log when it takes hold. docs/ENTWURF-D3DMETAL-FPS.md.
+//
+// Metal and QuartzCore aren't linked: the library is in every Wine process, and one without D3DMetal – Steam, its web
+// helpers, a game with an anti-cheat – loads neither for it (docs/AUDIT-0.3.5.md, M1). They're opened here, in a
+// process that has D3DMetal (which has them already), and their classes looked up by name.
 
 #import <Metal/Metal.h>
 #import <QuartzCore/QuartzCore.h>
@@ -25,9 +29,20 @@ static int paceLimit;
 static void (*originalPresent)(id, SEL, id);
 static void (*originalSetDisplaySync)(id, SEL, BOOL);
 
+/// Inside the paced call on this thread: should Metal's presentDrawable:afterMinimumDuration: ever hand on to
+/// presentDrawable: itself, that one goes to Metal's own instead of round again – a loop that would end the game
+/// (docs/AUDIT-0.3.5.md, S1).
+static _Thread_local int insidePaced;
+
 static void pacedPresent(id self, SEL _cmd, id drawable) {
+    if (insidePaced) {
+        originalPresent(self, _cmd, drawable);
+        return;
+    }
+    insidePaced = 1;
     ((void (*)(id, SEL, id, CFTimeInterval))objc_msgSend)(self, @selector(presentDrawable:afterMinimumDuration:),
                                                           drawable, 1.0 / paceLimit);
+    insidePaced = 0;
 }
 
 static void syncedSetDisplaySync(id self, SEL _cmd, BOOL enabled) {
@@ -53,10 +68,14 @@ static void takeHold(void) {
     int limit = nightforge_pace_limit(getenv("D3DM_MAX_FPS"), permit, argv ? argv[0] : NULL);
     free(permit);
     if (!limit) return;
+    if (!dlopen("/System/Library/Frameworks/Metal.framework/Metal", RTLD_NOW | RTLD_NOLOAD)
+        && !dlopen("/System/Library/Frameworks/Metal.framework/Metal", RTLD_NOW)) return;
+    if (!dlopen("/System/Library/Frameworks/QuartzCore.framework/QuartzCore", RTLD_NOW)) return;
     Class buffer = objc_getClass("_MTLCommandBuffer");
+    Class layer = objc_getClass("CAMetalLayer");
     Method present = buffer ? class_getInstanceMethod(buffer, @selector(presentDrawable:)) : NULL;
-    Method sync = class_getInstanceMethod([CAMetalLayer class], @selector(setDisplaySyncEnabled:));
-    if (!present || !sync || ![buffer instancesRespondToSelector:@selector(presentDrawable:afterMinimumDuration:)]) return;
+    Method sync = layer ? class_getInstanceMethod(layer, @selector(setDisplaySyncEnabled:)) : NULL;
+    if (!present || !sync || !class_getInstanceMethod(buffer, @selector(presentDrawable:afterMinimumDuration:))) return;
     paceLimit = limit;
     originalPresent = (void *)method_setImplementation(present, (IMP)pacedPresent);
     originalSetDisplaySync = (void *)method_setImplementation(sync, (IMP)syncedSetDisplaySync);

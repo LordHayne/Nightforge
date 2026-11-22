@@ -26,7 +26,14 @@ clang -arch x86_64 -mmacosx-version-min=11.0 -dynamiclib -framework AppKit -Wall
   -o "$WORK/hide-steam-dock.dylib" wrapper/hide-steam-dock.m wrapper/network-order.c
 clang -arch x86_64 -mmacosx-version-min=11.0 -O2 -Wall -o "$WORK/probe" tests/NetworkOrderTest/probe.c
 "$WORK/probe" > "$WORK/plain"
-DYLD_INSERT_LIBRARIES="$WORK/hide-steam-dock.dylib" "$WORK/probe" > "$WORK/ordered"
+# As Wine's device host, whose argv[0] Wine sets to the Windows path: ordered.
+DYLD_INSERT_LIBRARIES="$WORK/hide-steam-dock.dylib" "$WORK/probe" 'C:\windows\system32\winedevice.exe' > "$WORK/ordered"
+# Any other process (Steam, a game with an anti-cheat): macOS's list unchanged.
+DYLD_INSERT_LIBRARIES="$WORK/hide-steam-dock.dylib" "$WORK/probe" 'C:\games\Overwatch.exe' > "$WORK/other"
+if ! cmp -s "$WORK/plain" "$WORK/other"; then
+  echo "✗ a process other than winedevice.exe got another list than macOS's"
+  exit 1
+fi
 
 # What the library should make of macOS's list: IPv4 first, then the rest but those with no address and
 # either no link or switched off. The probe's columns: name ipv4 link address up.

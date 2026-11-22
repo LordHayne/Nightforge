@@ -54,6 +54,11 @@ struct ConsoleModeTest {
         check(place(focused: true, dialog: true) == .none, "one stands already: left where the player put it")
         check(place(dialog: true, gameOn: true) == .none, "a game on: the pad is the game's")
         check(ConsoleMode.focusLook <= 0.5, "a dialog shows its highlight within half a second")
+        // The look's beat only where it's needed (E1).
+        check(ConsoleMode.focusWatchRuns(consoleMode: true, inFront: true, gameOn: false), "console mode, Nightforge in front: the beat runs")
+        check(!ConsoleMode.focusWatchRuns(consoleMode: true, inFront: true, gameOn: true), "a game on: no beat")
+        check(!ConsoleMode.focusWatchRuns(consoleMode: true, inFront: false, gameOn: false), "another app in front: no beat")
+        check(!ConsoleMode.focusWatchRuns(consoleMode: false, inFront: true, gameOn: false), "outside console mode: none at all")
 
         // Kept in the defaults: on across restarts, asked once.
         let suite = "ConsoleModeTest.\(UUID().uuidString)"

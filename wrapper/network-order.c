@@ -16,10 +16,16 @@
 //   an interface it doesn't know. One that gets a cable later is in the list the next time Wine asks.
 //   Wine adds what's new at the end of its own list and never reorders it: a Wi-Fi that joins only after
 //   Wine first looked (right after logging in) comes last, and the list it comes after is short.
-// Loaded into every Wine process as a part of hide-steam-dock.dylib (DYLD_INSERT_LIBRARIES, DockHider.swift).
+// Loaded into every Wine process as a part of hide-steam-dock.dylib (DYLD_INSERT_LIBRARIES, DockHider.swift), but at
+// work only in winedevice.exe: Wine's nsiproxy.sys, which builds the adapter list every Windows program gets, runs
+// there (22.11.2026: a restart of Steam alone kept the old order, a new winedevice brought the new one). In any other
+// process the list goes through unchanged – nothing is changed in a game, least of all one with an anti-cheat
+// (the user's rule; docs/AUDIT-0.3.5.md, M1).
 //
 // Build: in hide-steam-dock.dylib (build.sh). tests/NetworkOrderTest compiles it with NIGHTFORGE_NETWORK_ORDER_TEST.
 
+#include <crt_externs.h>
+#include <ctype.h>
 #include <errno.h>
 #include <ifaddrs.h>
 #include <net/if.h>
@@ -32,6 +38,22 @@
 #include <unistd.h>
 
 #include "network-order.h"
+
+int nightforge_orders_interfaces(const char *program)
+{
+    static const char wanted[] = "winedevice.exe";
+    size_t length, name, i;
+
+    if (!program) return 0;
+    length = strlen(program);
+    if (length < sizeof(wanted) - 1) return 0;
+    name = length - (sizeof(wanted) - 1);
+    // The file name alone: at the start, or after a backslash or a slash.
+    if (name > 0 && program[name - 1] != '\\' && program[name - 1] != '/') return 0;
+    for (i = 0; wanted[i]; i++)
+        if (tolower((unsigned char)program[name + i]) != wanted[i]) return 0;
+    return 1;
+}
 
 int nightforge_interface_place(int link, int up, int ipv4, int address)
 {
@@ -120,9 +142,17 @@ static struct if_nameindex *nightforge_if_nameindex(void)
     struct if_nameindex *list = if_nameindex();
     struct facts facts = { NULL, -1 };
     int saved = errno;
+    char **argv = *_NSGetArgv();
+
+    // Not Wine's device host: macOS's list as it is.
+    if (!nightforge_orders_interfaces(argv ? argv[0] : NULL)) return list;
 
     // Without the addresses nothing is known for sure: macOS's list as it is.
-    if (!list || getifaddrs(&facts.addresses) != 0) return list;
+    if (!list) return list;
+    if (getifaddrs(&facts.addresses) != 0) {
+        errno = saved;
+        return list;
+    }
     facts.sock = socket(AF_INET, SOCK_DGRAM, 0);
     nightforge_arrange_interfaces(list, place_of, &facts);
     if (facts.sock >= 0) close(facts.sock);
