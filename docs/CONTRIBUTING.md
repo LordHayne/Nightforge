@@ -152,7 +152,7 @@ should depend on x86_64 without need: a new entry in `components/sources.json` s
    Then run the builder's tests and the workflow's own check on the result:
 
    ```bash
-   python3 -m unittest tests/test_build_profiles.py tests/test_fetch_agw.py
+   python3 -m unittest tests/test_build_profiles.py tests/test_fetch_agw.py tests/test_fetch_geforce_now.py
    ```
 
    ```bash

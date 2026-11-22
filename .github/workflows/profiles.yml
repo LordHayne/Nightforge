@@ -24,7 +24,9 @@ on:
       - "scripts/fetch-agw.py"
       - "profiles/agw-notes.json"
       - "scripts/fetch-pcgw.py"
+      - "scripts/fetch-geforce-now.py"
       - "tests/test_build_profiles.py"
+      - "tests/test_fetch_geforce_now.py"
       - ".github/workflows/profiles.yml"
   pull_request:
     paths:
@@ -33,8 +35,10 @@ on:
       - "scripts/fetch-agw.py"
       - "profiles/agw-notes.json"
       - "scripts/fetch-pcgw.py"
+      - "scripts/fetch-geforce-now.py"
       - "tests/test_build_profiles.py"
       - "tests/test_fetch_agw.py"
+      - "tests/test_fetch_geforce_now.py"
 
 permissions:
   contents: read
@@ -54,11 +58,13 @@ jobs:
           python-version: "3.12"
 
       - name: Test the profile builder
-        run: python3 -m unittest tests/test_build_profiles.py tests/test_fetch_agw.py
+        run: python3 -m unittest tests/test_build_profiles.py tests/test_fetch_agw.py tests/test_fetch_geforce_now.py
 
       - name: Fetch umu-protonfixes
         run: git clone --depth 1 https://github.com/Open-Wine-Components/umu-protonfixes.git "$RUNNER_TEMP/umu-protonfixes"
 
+      # GeForce Now's catalog is optional: when it can't be had (403 since 20.11.2026), the script
+      # leaves a warning on the run and writes no file, and the builder keeps the last list's ids.
       - name: Fetch anti-cheat list and GeForce Now catalog
         run: |
           curl -fsSL --retry 3 -o "$RUNNER_TEMP/anticheat.json" https://raw.githubusercontent.com/AreWeAntiCheatYet/AreWeAntiCheatYet/HEAD/games.json

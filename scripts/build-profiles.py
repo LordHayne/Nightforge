@@ -15,6 +15,8 @@ Sources, merged per Steam app ID:
     from STEAM_IDS_BY_SLUG.
   * The GeForce Now catalog (scripts/fetch-geforce-now.py), optional: which blocked games can be
     streamed instead ("geforceNow", the game id its deep links take), and Steam app IDs by name.
+    When --geforcenow names no readable catalog (the fetch failed), the ids of the last list
+    (--out) stay, and sources["geforce-now"]["kept"] says since when.
   * profiles/mac.json: Nightforge's own profiles, tested on Macs. They win over upstream, and
     reach the GOG versions they name ("gog"). "notYet" is the reason a game doesn't start on a Mac
     yet (Nightforge is working on it): it gets a GeForce Now id like the anti-cheat games.
@@ -597,6 +599,34 @@ def geforce_now_ids(games):
     return ids
 
 
+def read_catalog(path: pathlib.Path):
+    """The GeForce Now catalog fetch-geforce-now.py wrote, or None when it wrote none (it couldn't
+    fetch it) or the file isn't a list of games."""
+    try:
+        catalog = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return catalog if isinstance(catalog, list) and all(isinstance(game, dict) for game in catalog) else None
+
+
+def kept_geforce_now(previous):
+    """What the last profiles.json knew from GeForce Now, for a night without the catalog: key →
+    GeForce Now id for every profile that had one (Steam app IDs, "epic.…", "gog.…"), `title_key` →
+    Steam app ID for those Steam games' names (`steam_titles`, as far as the list has them; a name
+    that stands for more than one app is left out), and the date the ids are from."""
+    games = (previous or {}).get("games") or {}
+    cloud = {key: game["geforceNow"] for key, game in games.items()
+             if isinstance(game, dict) and isinstance(game.get("geforceNow"), str) and game["geforceNow"]}
+    ids = {}
+    for key in cloud:
+        if key.isdigit() and title_key(games[key].get("name")):
+            ids.setdefault(title_key(games[key].get("name")), set()).add(key)
+    titles = {title: next(iter(keys)) for title, keys in ids.items() if len(keys) == 1}
+    kept = ((previous or {}).get("sources") or {}).get("geforce-now") or {}
+    since = kept.get("kept") or (previous or {}).get("generated") or "unknown"
+    return cloud, titles, since
+
+
 def starts_without_anticheat(profile) -> bool:
     """Whether a profile's own arguments start its game without the anti-cheat."""
     return any(a.lower() in ANTICHEAT_OFF_ARGUMENTS for a in (profile or {}).get("arguments") or [])
@@ -668,13 +698,24 @@ def main() -> int:
             "license": "BSD-2-Clause",
         },
     }
+    previous = None
+    if options.out.exists():
+        previous = json.loads(options.out.read_text(encoding="utf-8"))
     blocked = 0
     cloud, titles = {}, {}
     if options.anticheat:
         if options.geforcenow:
-            catalog = json.loads(options.geforcenow.read_text(encoding="utf-8"))
-            cloud, titles = geforce_now_ids(catalog), steam_titles(catalog)
-            sources["geforce-now"] = {"url": "https://play.geforcenow.com"}
+            catalog = read_catalog(options.geforcenow)
+            if catalog is not None:
+                cloud, titles = geforce_now_ids(catalog), steam_titles(catalog)
+                sources["geforce-now"] = {"url": "https://play.geforcenow.com"}
+            else:
+                # No catalog this night (fetch-geforce-now.py wrote none): the last list's ids stay,
+                # marked by the date they're from, rather than the night failing or the links vanishing.
+                cloud, titles, since = kept_geforce_now(previous)
+                if cloud:
+                    sources["geforce-now"] = {"url": "https://play.geforcenow.com", "kept": since}
+                print(f"No GeForce Now catalog: kept {len(cloud)} ids from the last list ({since}).", file=sys.stderr)
         anticheat = json.loads(options.anticheat.read_text(encoding="utf-8"))
         for app_id, block in anticheat_blocks(anticheat, titles).items():
             if starts_without_anticheat(games.get(app_id)):
@@ -694,6 +735,8 @@ def main() -> int:
                     profile[field] = block[field]
             if block.get("steam") in cloud:
                 profile["geforceNow"] = cloud[block["steam"]]
+            elif key in cloud:  # only kept ids name Epic keys (kept_geforce_now)
+                profile["geforceNow"] = cloud[key]
             games[key] = profile
             blocked += 1
         sources["areweanticheatyet"] = {"url": "https://areweanticheatyet.com", "license": "MIT"}
@@ -721,9 +764,6 @@ def main() -> int:
             document["reported"].update(same_stack_reports(report_lines(options.highball_reports)))
             document["reported"] = dict(sorted(document["reported"].items(), key=lambda item: int(item[0])))
         document["sources"]["highball"] = {"url": "https://gethighball.com/database", "license": "CC0-1.0"}
-    previous = None
-    if options.out.exists():
-        previous = json.loads(options.out.read_text(encoding="utf-8"))
     # Only touch the date when something changed, so the nightly run doesn't commit noise.
     unchanged = previous and {k: v for k, v in previous.items() if k != "generated"} == document
     document["generated"] = previous["generated"] if unchanged else \
