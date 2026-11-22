@@ -18,7 +18,7 @@ git switch claude/kosmickrisp-livetest
 defaults delete io.github.lordhayne.nightforge vulkanLoader 2>/dev/null; true
 ./build.sh
 bash tests/kosmickrisp/stage-live-test.sh "$HOME/Library/Application Support/Claude/side-session-notes/local_50379bcc-0f0e-4091-a00d-c844cb465b05/kosmickrisp/nightforge-kosmickrisp-27.0.0-devel-44989e5a.tar.gz"
-open build/Nightforge.app
+open build/Nightforge.noindex/Nightforge.app
 ```
 
 - Fehlt der Ordner, geht jeder andere Checkout des Zweigs: `git -C ~/Downloads/Nachtschicht worktree add

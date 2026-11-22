@@ -46,9 +46,10 @@ struct DetachedProcessTest {
         }
         let helper = URL(fileURLWithPath: arguments[1])
         // In the worktree's build folder: under /private/var (the temp folder) Engine.ownProcesses finds
-        // nothing at all, as resolvingSymlinksInPath drops the /private.
+        // nothing at all, as resolvingSymlinksInPath drops the /private. In a folder Spotlight leaves out, so
+        // the helper app made here never shows in Spotlight or Launchpad (build.sh's Nightforge.noindex).
         let home = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-            .appendingPathComponent("build/detached-test-\(UUID().uuidString)")
+            .appendingPathComponent("build/tests.noindex/detached-test-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         DetachedProcess.home = home
 
@@ -174,6 +175,14 @@ struct DetachedProcessTest {
 
         if arguments.contains("--dock") { dockCheck(helper: helper, home: home) }
 
+        // `open` made the helper app known to LaunchServices: forgotten before its folder goes.
+        let forget = Process()
+        forget.executableURL = URL(fileURLWithPath: "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister")
+        forget.arguments = ["-u", app.path]
+        forget.standardOutput = FileHandle.nullDevice
+        forget.standardError = FileHandle.nullDevice
+        try? forget.run()
+        forget.waitUntilExit()
         try? FileManager.default.removeItem(at: home)
         if failures == 0 {
             print("✓ DetachedProcessTest passed")

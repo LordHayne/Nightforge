@@ -9,7 +9,11 @@ cd "$(dirname "$0")"
 . scripts/sdk-lib.sh && nightforge_pick_sdk
 
 APP="Nightforge"
-OUT="build/$APP.app"
+# In a folder Spotlight leaves out (".noindex"): a test build in a worktree never shows up in Spotlight or Launchpad
+# beside the installed Nightforge, and `open -b` doesn't pick it (22.11.2026: three Nightforges to choose from).
+# Only ~/Applications/Nightforge.app (--install) and the release are apps to the Mac.
+OUT="build/Nightforge.noindex/$APP.app"
+LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
 
 echo "▸ Compiling (release, Apple Silicon) …"
 # NIGHTFORGE_RELEASE=1 builds what goes out: without the test switches that record play (GameTest.measuresPlay).
@@ -148,6 +152,12 @@ fi
 
 # Nightforge's own code signing identity when there is one, else ad hoc (scripts/codesign-app.sh).
 scripts/codesign-app.sh "$OUT"
+# Known to LaunchServices once anything opened it: forgotten again – this one, and one left where builds went
+# before (build/$APP.app; only forgotten, it stays where it is).
+if [ -x "$LSREGISTER" ]; then
+  "$LSREGISTER" -u "$PWD/$OUT" >/dev/null 2>&1 || true
+  [ -d "build/$APP.app" ] && { "$LSREGISTER" -u "$PWD/build/$APP.app" >/dev/null 2>&1 || true; }
+fi
 echo "✓ Done: $OUT"
 
 if [ "${1:-}" = "--install" ]; then

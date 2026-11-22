@@ -767,7 +767,7 @@ Die Punkte 1 bis 3 sind seit dem 14.11. gebaut; offen ist, was nur ein Lauf zeig
     # .github/workflows/release.yml, Schritt „Build“
         run: NIGHTFORGE_RELEASE=1 ./build.sh
     # danach, als Beleg im Workflow:
-        run: '! strings -a build/Nightforge.app/Contents/MacOS/Nightforge | grep -q gameTest.measurePlay'
+        run: '! strings -a build/Nightforge.noindex/Nightforge.app/Contents/MacOS/Nightforge | grep -q gameTest.measurePlay'
     ```
 
     Woran ein Release dann sicher zu erkennen ist: Im Programm steht `gameTest.measurePlay` nicht (15.11. nachgesehen:
