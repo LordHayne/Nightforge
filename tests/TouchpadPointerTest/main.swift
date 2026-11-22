@@ -89,6 +89,7 @@ struct TouchpadPointerTest {
         rules()
         overGame()
         driver()
+        placed()
         print(failures == 0 ? "✓ TouchpadPointer" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
     }
@@ -268,6 +269,47 @@ struct TouchpadPointerTest {
         check(watch.contains("defer {") && watch.contains("overGame = nil") && watch.contains("overGameFront = false") && watch.contains("overGameHanded = nil"),
               "the stage watch's end forgets the window: a touch in Nightforge later mustn't give its app the front")
         check(model.contains("overlay: GameOverlay.isOpen),"), "the model says whether the overlay is up")
+    }
+
+    /// Steam's question on the curtain: the pointer comes to its window's top edge, and the first click counts only once
+    /// the player has moved it (R2 is "last game" in Nightforge too, and nothing answers Steam by itself).
+    @MainActor
+    static func placed() {
+        let dialog = CGRect(x: 600, y: 300, width: 480, height: 220)
+        let point = PadPointerRules.questionPointer(in: dialog)
+        check(point.x == dialog.midX && point.y > dialog.minY && point.y <= dialog.minY + 14,
+              "Steam's window: the pointer at the middle of its top edge, where the title is and no button")
+        let thin = CGRect(x: 0, y: 0, width: 200, height: 20)
+        check(thin.contains(PadPointerRules.questionPointer(in: thin)), "inside a low window too")
+        check(PadPointerRules.holdsClick(placedAt: point, at: point), "a click where Nightforge put the pointer is held back")
+        check(PadPointerRules.holdsClick(placedAt: point, at: CGPoint(x: point.x + 1, y: point.y + 1)), "… also a pixel off (rounding)")
+        check(!PadPointerRules.holdsClick(placedAt: point, at: CGPoint(x: point.x + 40, y: point.y)), "moved away: the click goes")
+        check(!PadPointerRules.holdsClick(placedAt: nil, at: point), "nothing placed: every click goes")
+
+        let desk = StandInDesk()
+        desk.hasAccess = true
+        let driver = PointerDriver(desk: desk)
+        desk.location = point
+        PointerDriver.placedAt = point
+        driver.apply([.press(.left, clicks: 1), .release(.left)])
+        check(desk.log.isEmpty, "R2 or a press of the touchpad right after the pointer came: no click, no release")
+        driver.apply([.press(.left, clicks: 1), .release(.left)])
+        check(desk.log.isEmpty && PointerDriver.placedAt == point, "a second one without moving: still nothing")
+        driver.apply([.move(dx: 0, dy: 0)])
+        check(PointerDriver.placedAt == point, "a move of nothing isn't a move")
+        desk.log = []
+        driver.apply([.move(dx: 30, dy: 10), .press(.left, clicks: 1), .release(.left)])
+        check(PointerDriver.placedAt == nil && desk.log == ["post move", "post left down 1", "post left up 1"], "moved by the pad: the click goes")
+        desk.log = []
+        driver.apply([.move(dx: -30, dy: -10), .press(.left, clicks: 1), .release(.left)])
+        check(desk.log == ["post move", "post left down 1", "post left up 1"], "and goes on going, back on the same spot too")
+
+        desk.log = []
+        PointerDriver.placedAt = point
+        desk.location = CGPoint(x: point.x + 200, y: point.y)  // the real mouse moved it, no pad move went through here
+        driver.apply([.press(.left, clicks: 1), .release(.left)])
+        check(desk.log == ["post left down 1", "post left up 1"] && PointerDriver.placedAt == nil, "moved by the mouse: the click goes")
+        PointerDriver.placedAt = nil
     }
 
     @MainActor

@@ -14,13 +14,13 @@ struct SteamLicenceTest {
         }
     }
 
-    /// A question that turns out to be the licence after it stood on the curtain.
+    /// A question that turns out to be the licence after it stood on the curtain: the curtain's watch says what it is
+    /// at every round, and the curtain takes it only while a question stands and when it's news.
     static func late() {
-        check(SteamLicence.framesLate(steamAsks: true, framed: false), "on the curtain without a frame: it comes now")
-        check(!SteamLicence.framesLate(steamAsks: true, framed: true), "framed already: once")
-        check(!SteamLicence.framesLate(steamAsks: false, framed: false), "nothing on the curtain: nothing to frame")
         let model = (try? String(contentsOfFile: "Sources/Nightforge/LibraryModel.swift", encoding: .utf8)) ?? ""
-        check(model.contains("if GameBackdrop.licenceStillToSay { GameBackdrop.sayLicence(licenceLook) }"), "the curtain's watch looks at every round")
+        let backdrop = (try? String(contentsOfFile: "Sources/Nightforge/GameBackdrop.swift", encoding: .utf8)) ?? ""
+        check(model.contains("GameBackdrop.sayQuestion(questionLook)"), "the curtain's watch looks at every round")
+        check(backdrop.contains("guard state.steamAsks, state.question != look else { return }"), "nothing on the curtain: nothing to say; said already: once")
     }
 
     /// The bar goes by the pad in the player's hand.

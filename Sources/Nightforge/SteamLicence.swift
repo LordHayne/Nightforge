@@ -137,10 +137,6 @@ enum SteamLicence {
     enum Answering: Equatable { case mouse, touchpad, stick }
     enum Pad: Equatable { case none, touchpad, stick }
 
-    /// Steam's question stands on the curtain unframed and turns out to be the licence: Steam logged another
-    /// step first. The frame comes now rather than never.
-    static func framesLate(steamAsks: Bool, framed: Bool) -> Bool { steamAsks && !framed }
-
     /// What the pad in the player's hand has; nil: no pad. With two connected only that one counts: the bar
     /// says what to do with it.
     static func pad(inHandHasTouchpad: Bool?) -> Pad {

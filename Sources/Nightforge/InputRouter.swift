@@ -961,11 +961,14 @@ final class InputRouter {
         NSCursor.setHiddenUntilMouseMoves(true)
     }
 
-    /// The pointer into Steam's window for its licence, in the middle of it and on no button: only moved
-    /// (no event, no click), and only for whoever plays with the pad.
+    /// The pointer into Steam's window for its question, at the middle of its top edge and on no button
+    /// (PadPointerRules.questionPointer): only moved (no event, no click), and only for whoever plays with the pad.
+    /// A click there is held back until the player has moved it (PointerDriver.placedAt).
     static func bringPointer(into window: CGRect) {
         guard padUsedLast else { return }
-        CGWarpMouseCursorPosition(CGPoint(x: window.midX, y: window.midY))
+        let point = PadPointerRules.questionPointer(in: window)
+        CGWarpMouseCursorPosition(point)
+        PointerDriver.placedAt = point
         NSCursor.setHiddenUntilMouseMoves(false)
     }
 

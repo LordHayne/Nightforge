@@ -76,7 +76,47 @@ struct LaunchEdgeTest {
         var questioned = LaunchWatcher(steamRoot: steam, appID: 730)
         check(questioned.poll() == .needsConfirmation, "a question open before the start is told at once")
         check(questioned.poll() == nil, "and only once")
+        check(questioned.questionTask == "CloudSync", "… with Steam's name for it")
+        questions(steam)
         licence()
+    }
+
+    /// What Steam asks, by its name for the step: only the heading on the curtain goes by it, never an answer.
+    static func questions(_ steam: URL) {
+        let line = "[2026] GameAction [AppID 730, ActionID 11] : LaunchApp"
+        append("\(line) continues with user response \"CloudSync\"\n", to: log(steam))  // nothing left open from before
+        var watcher = LaunchWatcher(steamRoot: steam, appID: 730)
+        append("\(line) waiting for user response to ShowGameArgs \"\"\n", to: log(steam))
+        check(watcher.poll() == .needsConfirmation && watcher.questionTask == "ShowGameArgs", "the launch option's question, by name (Steam for Mac, 22.11.)")
+        append("\(line) continues with user response \"ShowGameArgs\"\n", to: log(steam))
+        _ = watcher.poll()
+        append("\(line) waiting for user response to SynchronizingCloud \"\"\n", to: log(steam))
+        check(watcher.poll() == .needsConfirmation && watcher.questionTask == "SynchronizingCloud", "the next question: its own name")
+        append("\(line) waiting for user response\n", to: log(steam))
+        check(watcher.poll() == .needsConfirmation && watcher.questionTask == "SynchronizingCloud", "a line without a name keeps the one before")
+
+        check(SteamQuestion.task(in: "x : LaunchApp waiting for user response to ShowEula \"\"") == "ShowEula", "the name ends at the quotes")
+        check(SteamQuestion.task(in: "x : LaunchApp waiting for user response to CloudSync") == "CloudSync", "or at the line's end")
+        check(SteamQuestion.task(in: "x : LaunchApp waiting for user response to ") == nil
+              && SteamQuestion.task(in: "x : LaunchApp changed task to ShowEula") == nil, "no name, or no question: none")
+
+        typealias Q = SteamQuestion
+        check(Q.kind(licence: true, task: "ShowInterstitials", phase: nil) == .licence, "the licence as the watcher saw it")
+        check(Q.kind(licence: false, task: "ShowEula", phase: nil) == .licence, "or by its name")
+        check(Q.kind(licence: false, task: "ShowGameArgs", phase: nil) == .launchOption, "the launch option")
+        check(Q.kind(licence: false, task: "CloudSync", phase: nil) == .cloud && Q.kind(licence: false, task: "SynchronizingCloud", phase: nil) == .cloud,
+              "the cloud, whatever Steam calls the step")
+        check(Q.kind(licence: false, task: "ShowInterstitials", phase: nil) == .other && Q.kind(licence: false, task: nil, phase: nil) == .other,
+              "anything else: \"Steam is asking something\", as before")
+        check(Q.kind(licence: false, task: nil, phase: .signInAgain) == .signIn && Q.kind(licence: false, task: "CloudSync", phase: .signInInSteamWindow) == .signIn,
+              "Steam's sign-in window, whatever step was last")
+        check(Q.title(.other) == L10n.t("Steam is asking something") && Q.title(.licence) == L10n.t("The licence, just once"),
+              "the two headings from before stay as they were")
+        check(Q.note(.licence) == L10n.t("Steam only asks this at the first start.") && Q.note(.cloud) == nil && Q.note(.launchOption) == nil
+              && Q.note(.other) == nil, "a second line only where there's something Steam's window doesn't say")
+        check(Q.note(.signIn)?.contains("QR") == true, "the sign-in: the QR code, never a password")
+        check([Q.Kind.licence, .launchOption, .cloud, .signIn, .other].allSatisfy { !Q.title($0).isEmpty && !Q.title($0).contains("\n") },
+              "one line each")
     }
 
     /// Steam's licence: a question from its first word, and how its end shows in each Steam.
