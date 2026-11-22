@@ -359,10 +359,12 @@ Koordinator-Session, die zuerst das Memory liest.
   `Xcode.app` liegt in `/Applications` (bleibt ungenutzt, solange `xcode-select` auf CLT zeigt). Es fehlen Homebrew,
   `python@3.13` (mit pytest für die Kette), `gh`. `mingw-w64` ist nicht nötig: `build.sh` nimmt die geprüften
   Windows-Helfer aus `wrapper/`.
-- [ ] **Erster Probelauf dort:** `./build.sh`, `scripts/run-tests.sh -P 2`, pytest; dann ein Testbuild mit `--install`.
+- [x] **Erster Probelauf dort:** `./build.sh`, `scripts/run-tests.sh -P 2`, pytest; dann ein Testbuild mit `--install`.
   22.11. nachmittags auf 814b69c (Code = main 66fce01 = 0.3.4): Bau grün in 2 min, 122 Reihen, 0 rot (3,5 min bei -P 2),
-  pytest 286 bestanden – dieselben Zahlen wie zuletzt am alten Mac. Offen: Testbuild mit `--install`, erst wenn das
-  Code-Signing-Zertifikat im Schlüsselbund ist, und nur mit OK, während kein Spiel läuft.
+  pytest 286 bestanden – dieselben Zahlen wie zuletzt am alten Mac. Testbuild mit OK des Nutzers eingespielt
+  (b2beac2, nur Dokumente seit der Kette; `build.sh --install` in 1:41 min): signiert mit B60A2D36
+  („Nightforge Code Signing“, `codesign --verify --deep --strict` ok), Version 0.3.4, läuft aus `~/Applications`;
+  das Release 0.3.4 in `/Applications` bleibt daneben liegen (gleiche Bundle-ID: Testbuild immer per Pfad öffnen).
 - [ ] **Dieser Mac** bleibt Rückfall, bis am neuen ein Release durchgelaufen ist.
 
 ## 0.3.4: Befunde nach dem Release von 0.3.3 (ab 21.11., neues MacBook Pro M5 Pro, alles frisch installiert)
