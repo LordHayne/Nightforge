@@ -499,6 +499,18 @@ oder ein Bildschirmfoto.
   (wie `applyMsyncMode`: nie unter einem Spiel). Live geprüft wird das beim nächsten Einspielen. Ungeprüft: der alte
   Mac, andere Macs, ein WLAN, das erst nach Wines erstem Blick beitritt, Kopierschutz, der den ersten Adapter als
   Geräte-Kennung nimmt. Der erste Adapter außer lo0 ist jetzt en0 statt gif0, der erste mit MAC-Adresse en0 statt anpi1.
+  **In staging-035 seit 22.11. 15:57 (78c2fb2, vorgespult von Heinzel mit Go des Nutzers), eingespielt ~16:01 (Heinzel,
+  Go des Nutzers per Knopf), vom Koordinator nachgeprüft:** Testbuild läuft aus `~/Applications` (B60A2D36),
+  `librarySession` = 1, wine.log „hide-steam-dock.dylib 1 from this Wine session on“, neue Wine-Sitzung um 16:02:10 –
+  `applyLibraryVersion` hat also genau einmal neu gestartet, ohne Hand. Steam: WaitingForNetwork und Anmeldung in
+  derselben Sekunde (16:02:18), **System startup time 5,21 s** (vorher 25,7 s; so schnell wie der alte Mac), keine
+  Rückfrage. Offen bleibt nur das Ungeprüfte oben.
+- [ ] **Bau mit gesetztem `SDKROOT` rot (22.11.):** In Heinzels Sessions ist `SDKROOT` auf das Standard-SDK
+  (`MacOSX.sdk`, 27.2) gesetzt. `build.sh` (Zeile 9) fällt nur bei leerem `SDKROOT` auf `MacOSX26.5.sdk` zurück, mit
+  27.2 fehlen die SwiftUI-Makros („cannot find '$barShown' in scope“). Heinzel baute deshalb mit
+  `DEVELOPER_DIR=/Applications/Xcode.app/…` (eine andere Werkzeugkette als sonst). Abhilfe: `build.sh` soll den
+  Rückfall auch nehmen, wenn `SDKROOT` auf das Standard-SDK der CLT zeigt; bis dahin `env -u SDKROOT` (die Kette
+  `chain-035.sh` im Notizordner tut das schon). Ob künftig mit Xcode statt CLT gebaut wird, entscheidet der Nutzer.
 - [ ] **F5 – Ein Spielstart startet Steam neu, das kostet 10–15 s** (auf beiden Macs, siehe F4 (a)). Steam übernimmt die
   Umgebung des Spiels (D3DMetal, AVX, Rosetta-Bibliothek, msync) nur bei seinem Start (`Engine.prepareLaunchEnvironment`,
   Neustart in `LibraryModel`). Idee, nicht geprüft: Steam im Hintergrund gleich mit der Umgebung starten, die die meisten
