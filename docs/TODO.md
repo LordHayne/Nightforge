@@ -301,6 +301,34 @@ scheitert und sich nicht schnell beheben lässt, wird ausgeschaltet oder herausg
 - **Abschluss wie 0.3.2:** Audit- und Testrunde, Profilliste signieren (Nutzer), Zusammenführen auf `main` (OK des
   Nutzers), Release-Notizen, Bot-PRs #39–#41 entscheiden.
 
+## Umzug der Entwicklung auf das MacBook Pro M5 Pro (vorbereitet 22.11.2026)
+
+Der Nutzer: Das neue MacBook war für erste Tests auf einem frischen Mac gedacht; die Entwicklung zieht ganz dorthin um,
+mit Signierung. Sessions der Claude-App ziehen nicht mit (kein dokumentierter Weg); auf dem neuen Mac beginnt eine neue
+Koordinator-Session, die zuerst das Memory liest.
+
+- [x] **Alle Zweige gesichert:** `nightforge-alle-zweige-2026-11-22.bundle` (17 MB, 223 Zweige, `git bundle verify` ok),
+  darin auch, was nur lokal lag: `claude/staging-035` (diese Liste), `claude/steam-start-probe-035` (F4-Aufzeichnung),
+  `claude/vibrant-meninsky-0f7097` (ARM64-Stand November), `claude/airplay-nvidia-shield-app-b56bc2` (Shield-App),
+  `claude/dxmt-hud-toggle-033`, `claude/direct-probe`. Liegt im Koordinator-Ordner unter `build/handover/`.
+- [ ] **Repo am neuen Mac unter demselben Pfad** (`~/Downloads/Nachtschicht`, gleicher Benutzername `thomas`), damit
+  der Memory-Ordner `~/.claude/projects/-Users-thomas-Downloads-Nachtschicht/memory/` passt:
+  `git clone https://github.com/LordHayne/Nightforge.git ~/Downloads/Nachtschicht`, dann die lokalen Zweige aus dem
+  Bundle: `git -C ~/Downloads/Nachtschicht fetch <bundle> 'refs/heads/claude/*:refs/heads/claude/*' 'refs/heads/backup/*:refs/heads/backup/*'`.
+- [ ] **Memory** (612 KB): `~/.claude/projects/-Users-thomas-Downloads-Nachtschicht/memory/` an dieselbe Stelle.
+- [ ] **Notizordner** (110 MB, `chain-033.sh`, `stackpeek/`, `env-probe/`, `hermes/`, `live-runde-033/`, Shader-Messung …):
+  liegt hier unter `~/Library/Application Support/Claude/side-session-notes/local_50379bcc-…/`. Am neuen Mac bekommt
+  die neue Koordinator-Session eine andere Kennung: an einen festen Ort legen und den Pfad im Memory nachtragen.
+- [ ] **Signierung (nur der Nutzer):** Ed25519-Hauptschlüssel im Schlüsselbund „Anmeldung“ als Kennwort mit Dienst
+  `nightforge-signing-key`, Account `main` (`scripts/signing-lib.sh`); Ersatzschlüssel im Passwort-Manager.
+  Code-Signing-Zertifikat: `.p12` auf „Games“ (`Nightforge-Code-Signing.p12`, Passwort im Passwort-Manager), Import
+  nach `docs/CODESIGNATUR.md` (`security import … -T /usr/bin/codesign`); `scripts/codesign-certificate.sha1` nennt
+  `B60A2D36…`. Danach `security find-identity -p codesigning` und ein Probelauf von `scripts/check-signatures.sh`.
+- [ ] **Werkzeuge:** Command Line Tools (`xcode-select` bleibt auf `/Library/Developer/CommandLineTools`), Homebrew,
+  `python@3.13` (für das DMG in `sign-release.sh`), `gh` mit `gh auth login`, `jq` (bringt macOS mit).
+- [ ] **Erster Probelauf dort:** `./build.sh`, `scripts/run-tests.sh -P 2`, pytest; dann ein Testbuild mit `--install`.
+- [ ] **Dieser Mac** bleibt Rückfall, bis am neuen ein Release durchgelaufen ist.
+
 ## 0.3.4: Befunde nach dem Release von 0.3.3 (ab 21.11., neues MacBook Pro M5 Pro, alles frisch installiert)
 
 Der Nutzer prüft 0.3.3 auf dem zweiten Mac; sein Protokoll sieht der Koordinator nicht, die Einträge sind seine Beobachtung
