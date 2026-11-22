@@ -564,6 +564,16 @@ daraus kommen in 0.3.4.
   - [ ] Der Nutzer prüft nach dem Update auf dem neuen MacBook Pro (Liste oben); Fehler → 0.3.4.
   - [ ] `scripts/fetch-geforce-now.py` bekommt auf GitHub seit dem 20.11. HTTP 403, „Update game profiles“ ist rot,
     nächtlich und auf `main`. Ursache ansehen; kein Umgehen über einen fremden User-Agent.
+    **22.11.:** Ursache: NVIDIA hat das Feld `apps` des GraphQL-Katalogs für anonyme Abfragen gesperrt (403
+    „FORBIDDEN“). In staging-035 seit 2ee81de (556c52d): Der Katalog ist optional, ein Fehlschlag macht den Lauf nicht
+    mehr rot, und die IDs vom 15.11. bleiben. Ein Versuch mit NVIDIAs öffentlicher Liste (`claude/gfn-oeffentliche-liste`,
+    c5b78c8) bleibt ungemergt liegen: Ihre Nummern taugen nicht als Direkt-Link, die App nutzt sie nicht, und NVIDIAs
+    Bedingungen verbieten automatische Abrufe auf ihren Seiten. **Entscheidung des Nutzers (16:27, über Heinzel):** „Wenn
+    wir wenig Nutzen haben, dann brauchen wir es nicht.“ Also kein Merge, keine Anfrage bei NVIDIA, kein allgemeiner
+    GeForce-Now-Hinweis in der Oberfläche.
+  - [ ] **Den nächtlichen GraphQL-Abruf sauber abschalten** (Entscheidung des Nutzers, 22.11.): Kein automatischer Abruf
+    bei NVIDIA mehr. Die GeForce-Now-IDs vom 15.11. bleiben in den Profilen (der Weg dafür aus 556c52d bleibt).
+    `profiles.yml`, Skript und Tests nachziehen. An den nächsten freien Worker.
   - [ ] Der Merge hat ein Grafik-Paket mit `dxmt-0.80-prepare-shaders.patch` und ein Controller-Paket gebaut. Vor einem
     Manifest-Eintrag: kurzer Test des Shader-Pakets (`ablauf.sh test`), dann Bot-PR #41 lesen, signieren, mergen.
   - [ ] Bot-PRs #39–#41 und der neue für `pad-answer.exe`; Dependabot #21–#26.
