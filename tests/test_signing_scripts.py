@@ -31,7 +31,7 @@ def swift_env():
         env["SDKROOT"] = sdk
     return env
 SCRIPTS = ["signing-lib.sh", "signing-tool.swift", "make-signing-keys.sh", "sign-release.sh", "sign-lists.sh",
-           "check-signatures.sh", "codesign-app.sh"]
+           "check-signatures.sh", "codesign-app.sh", "sdk-lib.sh"]
 # The certificate a test pins and has "in the keychain".
 CERT = "0123456789ABCDEF0123456789ABCDEF01234567"
 # The online lists the scripts sign, as scripts/signing-lib.sh names them.
