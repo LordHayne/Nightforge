@@ -89,9 +89,10 @@ else
   echo "▸ No pad-answer.exe yet: A and B won't answer a game's questions in this build."
 fi
 
-# Keeps the background Steam out of the Dock (x86_64, loaded into Wine processes).
+# Keeps the background Steam out of the Dock, and gives Wine the network interfaces in an order
+# Steam's sign-in finds the connected one in (wrapper/network-order.c). x86_64, loaded into Wine processes.
 clang -arch x86_64 -mmacosx-version-min=11.0 -dynamiclib -framework AppKit -Wall \
-  -o "$OUT/Contents/Resources/hide-steam-dock.dylib" wrapper/hide-steam-dock.m
+  -o "$OUT/Contents/Resources/hide-steam-dock.dylib" wrapper/hide-steam-dock.m wrapper/network-order.c
 
 # Starts Wine inside a macOS sandbox when that's switched on (wrapper/nightforge-sandbox.c; x86_64
 # like Wine, for hide-steam-dock.dylib, which reaches it through DYLD_INSERT_LIBRARIES).

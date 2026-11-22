@@ -14,7 +14,7 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SDK = pathlib.Path("/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk")
 HELPERS = {
-    "hide-steam-dock": (["-dynamiclib", "-framework", "AppKit"], ["wrapper/hide-steam-dock.m"]),
+    "hide-steam-dock": (["-dynamiclib", "-framework", "AppKit"], ["wrapper/hide-steam-dock.m", "wrapper/network-order.c"]),
     "nightforge-sandbox": ([], ["wrapper/nightforge-sandbox.c"]),
     "nightforge-vulkan-layer": (["-dynamiclib", "-fvisibility=hidden", "-fobjc-arc", "-I", "wrapper/vulkan-headers", "-I", "wrapper",
                                  "-framework", "Metal", "-framework", "QuartzCore", "-framework", "CoreGraphics", "-weak_framework", "MetalFX"],

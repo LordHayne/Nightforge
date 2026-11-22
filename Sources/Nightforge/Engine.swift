@@ -68,7 +68,9 @@ enum Engine {
 
     /// Settings games inherit from the background Steam. Bump `steamConfigVersion` whenever this
     /// or `steamDLLOverrides` changes, so a running Steam gets restarted with them.
-    static let steamConfigVersion = 11  // 11: every start carries CloserLook.everyStart (step E5)
+    // 11: every start carries CloserLook.everyStart (step E5). 12: hide-steam-dock.dylib orders the network
+    // interfaces (wrapper/network-order.c); Wine's device host loads it only when the session starts.
+    static let steamConfigVersion = 12
     static var gameEnvironment: [String: String] {
         var env = [
             // Compile shaders in the background instead of stalling the frame that first needs them.
@@ -2547,6 +2549,7 @@ enum Engine {
     static func environment(wine: URL) -> [String: String] {
         var env = ProcessInfo.processInfo.environment
         // Keeps Steam's own processes out of the Dock (wrapper/hide-steam-dock.m); games are untouched.
+        // Orders the network interfaces Wine sees, so Steam's sign-in finds the connected one (wrapper/network-order.c).
         // From the data folder: Steam passes this on for days, and Nightforge.app may move meanwhile.
         if let hider = DockHider.path() {
             env["DYLD_INSERT_LIBRARIES"] = hider

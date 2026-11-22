@@ -1,6 +1,7 @@
 import Foundation
 
-/// The library that keeps Steam out of the Dock (wrapper/hide-steam-dock.m), kept in Nightforge's
+/// The library that keeps Steam out of the Dock (wrapper/hide-steam-dock.m) and gives Wine the network
+/// interfaces in an order Steam's sign-in finds the connected one in (wrapper/network-order.c), kept in Nightforge's
 /// data folder rather than inside Nightforge.app. Every Wine process loads it from the path in
 /// DYLD_INSERT_LIBRARIES, and Steam hands that path on to everything it starts for as long as it
 /// runs – for days, long after Nightforge has quit. Once the file is gone from there (Nightforge.app
