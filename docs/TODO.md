@@ -571,9 +571,18 @@ daraus kommen in 0.3.4.
     Bedingungen verbieten automatische Abrufe auf ihren Seiten. **Entscheidung des Nutzers (16:27, über Heinzel):** „Wenn
     wir wenig Nutzen haben, dann brauchen wir es nicht.“ Also kein Merge, keine Anfrage bei NVIDIA, kein allgemeiner
     GeForce-Now-Hinweis in der Oberfläche.
-  - [ ] **Den nächtlichen GraphQL-Abruf sauber abschalten** (Entscheidung des Nutzers, 22.11.): Kein automatischer Abruf
-    bei NVIDIA mehr. Die GeForce-Now-IDs vom 15.11. bleiben in den Profilen (der Weg dafür aus 556c52d bleibt).
-    `profiles.yml`, Skript und Tests nachziehen. An den nächsten freien Worker.
+  - [x] **Den nächtlichen GraphQL-Abruf sauber abschalten** (Entscheidung des Nutzers, 22.11.): Kein automatischer Abruf
+    bei NVIDIA mehr. Die GeForce-Now-IDs vom 15.11. bleiben in den Profilen.
+    **Gebaut auf `claude/gfn-abruf-aus-035`:** Die IDs vom 15.11. liegen in einer festen Datei
+    `profiles/geforce-now.json` (169 IDs, 135 Titel, „from“: 2026-11-15, nur von Hand zu ändern). Sie stammen aus
+    `profiles.json` und wurden einmal über den „kept“-Weg ausgelesen. `build-profiles.py` liest nur noch diese Datei und
+    prüft ihre Form. Der „kept“-Weg über die letzte Liste ist entfallen, `sources["geforce-now"]` sagt jetzt
+    `"from": "2026-11-15"` (eine einmalige Änderung, danach kein nächtlicher Unterschied). `scripts/fetch-geforce-now.py`
+    und sein Test sind gelöscht: Ein Handwerkzeug für einen Endpunkt, den NVIDIA bewusst gesperrt hat, lädt nur zum
+    Gebrauch gegen deren Willen ein. Die Geschichte behält es. Ein Test sichert, dass kein Workflow und kein Skript mehr
+    `games.geforce.com` oder das Skript nennt. Lokaler Probelauf mit den echten übrigen Quellen: 747 Spiele, Prüfung
+    des Workflows „ok“, 168 von 169 Links behalten. Der fehlende ist Overwatch, das in `mac.json` kein `notYet` mehr hat
+    und deshalb keinen Link mehr bekommt; das wäre auch auf dem alten Weg so gewesen.
   - [ ] Der Merge hat ein Grafik-Paket mit `dxmt-0.80-prepare-shaders.patch` und ein Controller-Paket gebaut. Vor einem
     Manifest-Eintrag: kurzer Test des Shader-Pakets (`ablauf.sh test`), dann Bot-PR #41 lesen, signieren, mergen.
   - [ ] Bot-PRs #39–#41 und der neue für `pad-answer.exe`; Dependabot #21–#26.

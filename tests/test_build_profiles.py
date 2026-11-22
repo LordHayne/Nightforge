@@ -415,14 +415,7 @@ class AntiCheatTests(unittest.TestCase):
         self.assertEqual(blocks, {"736220": {"name": "Post Scriptum", "antiCheat": ["Easy Anti-Cheat"]}})
 
     def test_entries_without_steam_id_by_slug_or_exact_name(self):
-        titles = build_profiles.steam_titles([
-            {"id": "a", "title": "Warhammer 40,000: Space Marine 2", "variants": [{"appStore": "STEAM", "storeId": "2183900"}]},
-            {"id": "b", "title": "Counter-Strike 2", "variants": [{"appStore": "STEAM", "storeId": "730"}]},
-            {"id": "c", "title": "Twins", "variants": [{"appStore": "STEAM", "storeId": "1"}]},
-            {"id": "d", "title": "TWINS™", "variants": [{"appStore": "STEAM", "storeId": "2"}]},
-            {"id": "e", "title": "Epic Only", "variants": [{"appStore": "EPIC", "storeId": "06bd"}]},
-        ])
-        self.assertEqual(titles, {"warhammer 40 000 space marine 2": "2183900", "counter strike 2": "730"})
+        titles = {"warhammer 40 000 space marine 2": "2183900", "counter strike 2": "730"}
         blocks = build_profiles.anticheat_blocks([
             {"name": "Warhammer 40,000: Space Marine 2", "slug": "w", "status": "Broken", "anticheats": ["Easy Anti-Cheat"], "storeIds": {}},
             {"name": "EA SPORTS FC™ 26", "slug": "ea-sports-fc26", "status": "Denied", "anticheats": ["EA anticheat"], "storeIds": {}},
@@ -436,12 +429,44 @@ class AntiCheatTests(unittest.TestCase):
             "3405690": {"name": "EA SPORTS FC™ 26", "antiCheat": ["EA anticheat"]},
         })
 
-    def test_geforce_now_ids_come_from_steam_variants(self):
-        ids = build_profiles.geforce_now_ids([
-            {"id": "d176-uuid", "variants": [{"appStore": "EPIC", "storeId": "06bd"}, {"appStore": "STEAM", "storeId": "1085660"}]},
-            {"id": "cb2b-uuid", "variants": [{"appStore": "EA_APP", "storeId": "Origin.OFR.50.0002694"}]},
-        ])
-        self.assertEqual(ids, {"1085660": "d176-uuid"})
+    def test_geforce_now_ids_come_from_the_file_kept_by_hand(self):
+        good = {"from": "2026-11-15", "ids": {"1085660": "d176d1e5-2f3a-4b5c-8d9e-0123456789ab",
+                                              "epic.abc": "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"},
+                "titles": {"destiny 2": "1085660"}}
+        with tempfile.TemporaryDirectory() as folder:
+            path = pathlib.Path(folder) / "geforce-now.json"
+
+            def read(document):
+                path.write_text(json.dumps(document) if not isinstance(document, str) else document)
+                return build_profiles.read_geforce_now(path)
+
+            self.assertEqual(read(good), (good["ids"], good["titles"], "2026-11-15"))
+            for broken in ({**good, "ids": {"1085660": "javascript:alert(1)"}}, {**good, "ids": {"../x": good["ids"]["1085660"]}},
+                           {**good, "titles": {"Destiny 2": "1085660"}}, {**good, "titles": {"destiny 2": "x"}},
+                           {k: v for k, v in good.items() if k != "from"}, "not json", [1, 2]):
+                self.assertIsNone(read(broken), broken)
+            self.assertIsNone(build_profiles.read_geforce_now(pathlib.Path(folder) / "missing.json"))
+
+    def test_the_kept_file_holds_every_id_the_list_has(self):
+        """profiles/geforce-now.json, as the repository has it: readable, and no GeForce Now link of today's list is lost."""
+        kept = build_profiles.read_geforce_now(ROOT / "profiles" / "geforce-now.json")
+        self.assertIsNotNone(kept)
+        ids, _, since = kept
+        self.assertEqual(since, "2026-11-15")
+        listed = json.loads((ROOT / "profiles" / "profiles.json").read_text(encoding="utf-8"))["games"]
+        own = json.loads((ROOT / "profiles" / "mac.json").read_text(encoding="utf-8"))["games"]
+        for key, game in listed.items():
+            # A link profiles/mac.json sets itself comes from there.
+            if game.get("geforceNow") and "geforceNow" not in own.get(key, {}):
+                self.assertEqual(ids.get(key), game["geforceNow"], key)
+
+    def test_nothing_asks_nvidia_any_more(self):
+        """The maintainer's decision of 22.11.2026: no fetch of GeForce Now's catalog, in no workflow and no script."""
+        self.assertFalse((ROOT / "scripts" / "fetch-geforce-now.py").exists())
+        for path in [*(ROOT / ".github" / "workflows").glob("*.yml"), *(ROOT / "scripts").glob("*.py"), *(ROOT / "scripts").glob("*.sh")]:
+            text = path.read_text(encoding="utf-8")
+            self.assertNotIn("games.geforce.com", text, path)
+            self.assertNotIn("fetch-geforce-now", text, path)
 
     def test_mac_profiles_reach_the_gog_versions_they_name(self):
         games = {"50130": {"dllOverrides": {"xaudio2_7": "native"}, "source": "umu"}}
@@ -485,11 +510,10 @@ class BuildTests(unittest.TestCase):
                 {"name": "DRAGON BALL FighterZ", "status": "Broken", "anticheats": ["Easy Anti-Cheat"], "storeIds": {"steam": "678950"}},
                 {"name": "ARC Raiders", "status": "Running", "anticheats": ["Easy Anti-Cheat"], "storeIds": {"steam": "1808500"}},
             ]
-            catalog = [
-                {"id": "gArc", "title": "ARC Raiders", "variants": [{"appStore": "STEAM", "storeId": "1808500"}]},
-                {"id": "gWar", "title": "WARDOGS", "variants": [{"appStore": "STEAM", "storeId": "1867240"}]},
-                {"id": "gOw", "title": "Overwatch", "variants": [{"appStore": "STEAM", "storeId": "2357570"}]},
-            ]
+            arc, war, ow = ("aaaaaaaa-0000-4000-8000-000000000001", "aaaaaaaa-0000-4000-8000-000000000002",
+                            "aaaaaaaa-0000-4000-8000-000000000003")
+            catalog = {"from": "2026-11-15", "ids": {"1808500": arc, "1867240": war, "2357570": ow},
+                       "titles": {"arc raiders": "1808500"}}
             mac = {"games": {"1867240": {"name": "WARDOGS", "antiCheat": ["Elytra"]},
                              "2357570": {"name": "Overwatch", "notYet": "Hangs under Rosetta."}}}
             for name, content in (("anticheat.json", anticheat), ("gfn.json", catalog), ("mac.json", mac)):
@@ -503,12 +527,12 @@ class BuildTests(unittest.TestCase):
         # -eac-nop-loaded starts it without the anti-cheat: it runs, only online play is gone.
         self.assertEqual((games["678950"].get("antiCheat"), games["678950"].get("antiCheatOnline")), (None, ["Easy Anti-Cheat"]))
         self.assertEqual(games["1808500"], {"name": "ARC Raiders", "source": "anticheat", "antiCheatOnline": ["Easy Anti-Cheat"],
-                                            "geforceNow": "gArc"})
+                                            "geforceNow": arc})
         # A block from profiles/mac.json gets its GeForce Now link as well.
-        self.assertEqual(games["1867240"]["geforceNow"], "gWar")
+        self.assertEqual(games["1867240"]["geforceNow"], war)
         # … and a game that doesn't start yet keeps its reason beside it.
         self.assertEqual(games["2357570"], {"name": "Overwatch", "notYet": "Hangs under Rosetta.", "source": "mac",
-                                            "geforceNow": "gOw"})
+                                            "geforceNow": ow})
 
 
 
