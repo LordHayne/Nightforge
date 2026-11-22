@@ -156,3 +156,31 @@ nach Inhalt (Worker A). Wukong bis 2 min zum ersten Bild ist das Spiel selbst (S
 5. **Dock, Stufe 2:** Darf Nightforge im Konsolenmodus die Systemeinstellung „Dock automatisch ausblenden“ setzen und
    zurückstellen?
 6. **Zurück-Hinweis:** Ⓑ wirkt ab 30 s, gezeigt erst ab 90 s – passt das, oder soll er nie stehen, nur die Frage ab 90 s?
+
+## Thomas' Wahl (22.11., 18:56–18:59) und was gebaut ist
+
+Variante **A · Lichtnaht**, „da es sich perfekt ins dezente Design einbinden lässt“. Antworten: 2 Balken mit Prozent bleibt;
+3 Satz ab 60 s; 4 nach 10 s ohne Fenster zurück, nichts wird beendet; 5 Dock-Einstellung erlaubt (Wert merken, beim
+Verlassen und nach Absturz zurück, nie den Wert des Spielers überschreiben, Protokollzeilen); 6 Ⓑ ab 30 s, gezeigt ab 90 s.
+Die Naht sitzt dort, wo sie im echten Logo sitzt; die N-Form in den Canvas-Bildern oben ist nur skizziert.
+
+Gebaut auf `claude/ladescreen-konsole-035`:
+- **Animation A** (`GameBackdrop.BrandMark`, `GlideLine`): Das Licht läuft entlang `BrandArt.seam` (49, 170) → (332, 440) in
+  Entwurfseinheiten, maskiert mit dem Naht-Bild selbst. Ein Lauf dauert 3,7 s ohne Pause, die Naht atmet zwischen 60 und 100 %
+  mit 5,3 s je Richtung, der Lichtstrich unter dem Namen gleitet mit 2,3 s je Richtung. Die Naht ist heller und langsamer, der
+  Strich schwächer (70 %) und schneller; 37, 53 und 23 Zehntelsekunden haben keinen gemeinsamen Teiler. Bei „Bewegung
+  reduzieren“ atmet nur die Naht. Die Seite hinter dem Spiel bewegt sich, sobald sie sichtbar ist (Fensterverdeckung).
+- **Keine Phasentexte** (`LaunchPhase.curtainTitle`, `LaunchRepair.curtainTitle`, `curtainStatus`): Eine Zeile gibt es nur für
+  Anmeldung, Battle.net-Fragen, Updates und das Ende eines Starts. Fragen, Fehlerfenster und das verdeckende Vollbild bleiben
+  wie gehabt.
+- **Erstes Mal**: „Beim ersten Mal dauert es etwas länger.“ ab 60 s bei Einrichten, .NET, Windows-Teilen und Shadern.
+- **Ⓑ** wirkt ab 30 s und wird ab 90 s angezeigt, ohne „Hängt es?“.
+- **Spielende**: Hat das Spiel nach 10 s kein Fenster mehr, kehrt Nightforge zur Spielseite zurück. Das Ende wird im
+  Hintergrund mitgezählt, ohne Vorhang. Kommt ein Fenster zurück, ist es wieder das Spiel.
+- **Dock** (`DockAutoHide`): Startet im Konsolenmodus (vorerst: Nightforge im Vollbild) ein Spiel, wird „Dock automatisch
+  ausblenden“ gesetzt. Zurückgestellt wird beim Verlassen des Vollbilds, beim Beenden und nach einem Absturz beim nächsten
+  Start. Die Einstellung liest das Dock nur bei seinem Start; deshalb wird es mit `killall Dock` neu gestartet, und launchd
+  startet es sofort wieder.
+- **Vorschau ohne Spiel**: `defaults write io.github.lordhayne.nightforge gameTest.curtainPreview -string start`
+  (`returning`, `firsttime`, `update`, `wayout`), dann den Testbuild öffnen. Der Vorhang steht 45 s. Im Release-Build ist der
+  Schalter nicht enthalten.

@@ -913,6 +913,17 @@ struct GameOverlayTest {
         pad.back = "b.circle.fill"
         check(CurtainEscape.tip(.storeQuiet, pad: pad).symbols == ["b.circle.fill"], "with a controller: its B drawn")
         check(CurtainEscape.tip(.storeQuiet, pad: nil).symbols.isEmpty, "without one: Esc in words")
+        // B works from half a minute on, the curtain names it only after a minute and a half (the user, 22.11.2026).
+        check(CurtainEscape.openAfter == 30 && CurtainEscape.tipAfter == 90, "30 s and 90 s")
+        for reason in [CurtainEscape.Reason.storeQuiet, .updating, .updateStuck] {
+            check(!CurtainEscape.tipShows(reason, waited: CurtainEscape.openAfter) && !CurtainEscape.tipShows(reason, waited: CurtainEscape.tipAfter - 1)
+                  && CurtainEscape.tipShows(reason, waited: CurtainEscape.tipAfter), "\(reason): B quietly from 30 s, named from 90 s")
+        }
+        for reason in [CurtainEscape.Reason.ownUpdate, .ownSaves, .steamAsks] {
+            check(CurtainEscape.tipShows(reason, waited: 0), "\(reason): named at once, the player has something to do there")
+        }
+        check(CurtainEscape.tip(.storeQuiet, pad: pad).text == L10n.t("Back to Nightforge")
+              && CurtainEscape.tip(.updating, pad: nil).text == L10n.t("Esc takes you back to Nightforge"), "no “Stuck?” in front of it")
         check(CurtainEscape.title(.updating, game: "Valheim", store: "Steam").contains("Valheim"), "the update's title names the game")
         check(CurtainEscape.title(.storeQuiet, game: "Control", store: "Epic Games").contains("Epic Games"), "whose start it is, not always Steam")
 
@@ -981,7 +992,8 @@ struct GameOverlayTest {
               && !M.restartsSteamForStart(environmentChanged: true, stuck: false, running: false, gamesRunning: false),
               "settings only: not with a Windows game in its session, nor with no Steam running")
         // "Stuck?" counts from the end of Nightforge's own work.
-        for phase in [LaunchPhase.signingIn, .restartingSteam, .startingSteam, .savingToCloud, .settingUp, .settingUpDotNet, .steamNotResponding] {
+        for phase in [LaunchPhase.signingIn, .signingInAgain, .steamCloudSync, .restartingSteam, .restartingSteamForGame, .startingSteam,
+                      .savingToCloud, .settingUp, .settingUpDotNet, .steamNotResponding] {
             check(M.phaseExplainsWait(phase), "\(phase) explains the wait: no \"Stuck?\" meanwhile")
         }
         check(!M.phaseExplainsWait(nil) && !M.phaseExplainsWait(.updating(0.4)) && !M.phaseExplainsWait(.syncingSaves)
@@ -1006,11 +1018,11 @@ struct GameOverlayTest {
         func line(_ phase: String? = nil, shaders: Bool = false, runs: Bool = false) -> String? {
             LibraryModel.curtainStatus(phase: phase, shaders: shaders, gameRuns: runs)
         }
-        check(line() == nil, "nothing known yet: \"Starting …\"")
-        check(line("Starting Steam …") == "Starting Steam …", "the start's own step, from the first look on")
+        check(line() == nil, "nothing known yet: no line, the light on the seam")
+        check(line("Sign in in the Steam window") == "Sign in in the Steam window", "a line the start has (LaunchPhase.curtainTitle), from the first look on")
         check(line("Starting again with WineD3D …", runs: true) == "Starting again with WineD3D …", "a step wins over the game's")
-        check(line(runs: true) == nil, "the game runs, no window yet: still \"Starting …\", one line for the start")
-        check(line(shaders: true, runs: true) == L10n.t("Preparing shaders …"), "its first start with these graphics")
+        check(line(runs: true) == nil, "the game runs, no window yet: no line")
+        check(line(shaders: true, runs: true) == nil, "its first start with these graphics: no line either (the sentence comes after a minute)")
         check(LibraryModel.curtainStatus(phase: "Starting Steam …", shaders: false, gameRuns: true, asks: true)
               == L10n.t("The game is asking something"), "a question on it: said, before any step, one line")
         // The pad's buttons in their own line, not in the sentence (the rule of 15.11.2026).
@@ -1028,21 +1040,34 @@ struct GameOverlayTest {
                                          macOSAsks: true)
               == L10n.t("macOS is asking for permission"),
               "macOS asks: said, before the game's question and any step")
-        func detail(_ sentence: String? = nil, asks: Bool = false, pad: Bool = false, macOSAsks: Bool = false, shaders: Bool = false) -> String? {
-            LibraryModel.curtainDetail(sentence: sentence, asks: asks, pad: pad, macOSAsks: macOSAsks, shaders: shaders)
+        func detail(_ sentence: String? = nil, asks: Bool = false, pad: Bool = false, macOSAsks: Bool = false, firstTime: Bool = false) -> String? {
+            LibraryModel.curtainDetail(sentence: sentence, asks: asks, pad: pad, macOSAsks: macOSAsks, firstTime: firstTime)
         }
         check(detail() == nil, "nothing to add")
         check(detail(macOSAsks: true) == L10n.t("Answer with the mouse or trackpad."), "macOS asks: how to answer")
         check(detail("Its window is open.") == "Its window is open.", "the start's sentence")
         check(detail("Its window is open.", asks: true, pad: true) == nil, "under a question it waits for, with the pad's buttons: no sentence")
-        check(detail(shaders: true) == L10n.t("Only the first time.") && detail("x", shaders: true) == "x", "shaders: only once, after the start's own")
-        // The rule of 15.11.2026: a sentence only where it's true once or the player has a window to answer in.
+        check(detail(firstTime: true) == LaunchPhase.firstTimeSentence && detail("x", firstTime: true) == "x", "a long first start: its sentence, after the start's own")
+        // A long first start's sentence only after a minute, and only for what's done once.
+        let wait = LaunchPhase.firstTimeAfter
+        check(!LibraryModel.longFirstTime(phase: .settingUp, repair: nil, shaders: false, waited: wait - 1)
+              && LibraryModel.longFirstTime(phase: .settingUp, repair: nil, shaders: false, waited: wait)
+              && LibraryModel.longFirstTime(phase: .settingUpWindowsParts("vcredist"), repair: nil, shaders: false, waited: 90)
+              && LibraryModel.longFirstTime(phase: nil, repair: .settingUp, shaders: false, waited: 90)
+              && LibraryModel.longFirstTime(phase: nil, repair: nil, shaders: true, waited: 90), "Windows parts, the repair's piece, shaders: after a minute")
+        check(!LibraryModel.longFirstTime(phase: .startingSteam, repair: nil, shaders: false, waited: 300)
+              && !LibraryModel.longFirstTime(phase: .restartingSteam, repair: nil, shaders: true, waited: 300)
+              && !LibraryModel.longFirstTime(phase: nil, repair: nil, shaders: false, waited: 300), "a long wait that isn't a first time: nothing")
+        // A sentence only where the player has a window to answer in.
         check(LibraryModel.curtainSentence(phase: .startingSteam, repair: nil, confirming: false) == nil
               && LibraryModel.curtainSentence(phase: .signingIn, repair: nil, confirming: false) == nil
               && LibraryModel.curtainSentence(phase: .updating(0.4), repair: nil, confirming: false) == nil, "no why on the curtain")
-        check(LibraryModel.curtainSentence(phase: .settingUpWindowsParts("vcredist"), repair: nil, confirming: false) == L10n.t("Only the first time.")
+        check(LibraryModel.curtainSentence(phase: .settingUpWindowsParts("vcredist"), repair: nil, confirming: false) == nil
               && LibraryModel.curtainSentence(phase: .signInInSteamWindow, repair: nil, confirming: false) == L10n.t("Its window is open."),
-              "once, or a window to answer in")
+              "a window to answer in; setting up says nothing at once")
+        check(LibraryModel.curtainSentence(phase: nil, repair: .onceMore, confirming: false) == nil
+              && LibraryModel.curtainSentence(phase: .startingSteam, repair: .gaveUp, confirming: false) == LaunchRepair.gaveUp.detail,
+              "a try is silent, the end is said even with a phase standing")
         check(LibraryModel.curtainSentence(phase: nil, repair: .gaveUp, confirming: false) == LaunchRepair.gaveUp.detail
               && LibraryModel.curtainSentence(phase: .startingSteam, repair: nil, confirming: true) == LaunchPhase.confirmHint,
               "the honest end; Steam's question before the start")
