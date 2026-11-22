@@ -476,6 +476,18 @@ oder ein Bildschirmfoto.
   SMB-Freigaben unter `/Volumes` kein Kandidat mehr. Offen: welche Windows-Schnittstelle Steams Netz-Warten abfragt
   (Kandidaten: Network List Manager/`netprofm`, NLA über `WSALookupService`, `iphlpapi`-Benachrichtigungen) und warum sie
   hier nie „verbunden“ meldet. Daten im Notizordner unter `f4-2211/`. Weiter in einer eigenen Session.
+  **Ursache 22.11. ~15:30 (Session steam-netz-035, Mitschnitt mit `+iphlpapi,+nsi` um 14:46):** Steams Anmeldung
+  (`steamui.dll`) wartet, bis unter den **ersten zehn** Netzwerkgeräten eines „Connected“ ist. `steamclient64.dll`
+  nennt ein Gerät so, wenn Windows es als „Up“ mit IPv4 meldet. Wine listet alle Schnittstellen von macOS in dessen
+  Reihenfolge und meldet jede eingeschaltete als „Up“, ohne den Link zu prüfen. Hier kommen anpi0–2, en1–en6 und
+  bridge0 von den Thunderbolt-Ports (alle ohne Kabel) vor `en0`, das an 14. Stelle steht. Steam findet es nie und geht
+  nach 20 s weiter. Auf dem M5 mit weniger Ports liegt `en0` unter den ersten zehn. Im Mitschnitt fragt steam.exe in
+  genau diesen 20 s rund 290-mal pro Sekunde `GetAdaptersAddresses` und `GetBestInterface` ab. Der Verbindungstest
+  stand schon um 14:46:24 auf „Connected“. Belege und Adressen in `f4-2211/ursache-netzwerkreihenfolge.md`.
+  **Abhilfe (Zweig `claude/steam-netz-035-ed68c7`):** `wrapper/network-order.c` in `hide-steam-dock.dylib`
+  ersetzt `if_nameindex()`. Schnittstellen mit IPv4 kommen zuerst. Solche ohne Adresse, die keinen Link haben oder
+  aus sind, fallen weg (hier 24 → 10, `en0` direkt hinter `lo0`). Kein Wine-Patch. `steamConfigVersion` 12, damit ein
+  laufendes Steam einmal neu startet.
 - [ ] **F5 – Ein Spielstart startet Steam neu, das kostet 10–15 s** (auf beiden Macs, siehe F4 (a)). Steam übernimmt die
   Umgebung des Spiels (D3DMetal, AVX, Rosetta-Bibliothek, msync) nur bei seinem Start (`Engine.prepareLaunchEnvironment`,
   Neustart in `LibraryModel`). Idee, nicht geprüft: Steam im Hintergrund gleich mit der Umgebung starten, die die meisten
