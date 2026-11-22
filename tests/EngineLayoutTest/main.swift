@@ -705,7 +705,72 @@ struct EngineLayoutTest {
         check(!Engine.applyFileEdits(edits, installDir: game), "a second time there's nothing left to change")
 
         launchMemory()
+        antiCheatPace()
         finish()
+    }
+
+    /// Nightforge's frame limit on D3DMetal (D3DMetalPace): a game with an anti-cheat or a cheat protection of its own
+    /// never runs with D3DM_MAX_FPS, on any way – straight, through a Steam started for it, through a Steam with the
+    /// remembered settings (F5), after a game with a limit – and never gets the permit.
+    static func antiCheatPace() {
+        let defaults = TestDefaults.suite("pace-memory")
+        let before = (Engine.launchEnvironment, Engine.launchRetina, Engine.msync)
+        defer { (Engine.launchEnvironment, Engine.launchRetina, Engine.msync) = before }
+        func limited() -> Bool { Engine.steamEnvironment["D3DM_MAX_FPS"] != nil }
+
+        // Straight (Epic, GOG).
+        check(Engine.directLaunchEnvironment(avx: true, d3dMetal: true, frameLimit: 60, upscaling: false)["D3DM_MAX_FPS"] == "60",
+              "straight on D3DMetal: the limit")
+        check(Engine.directLaunchEnvironment(avx: true, d3dMetal: true, frameLimit: 60, upscaling: false, antiCheat: true)["D3DM_MAX_FPS"] == nil,
+              "straight, an anti-cheat game on D3DMetal: no limit")
+
+        // Through Steam: the anti-cheat game on D3DMetal itself, and one on DXMT after a D3DMetal game with a limit.
+        Engine.launchEnvironment = [:]
+        _ = Engine.prepareLaunchEnvironment(avx: true, d3dMetal: true, frameLimit: 60, upscaling: false, antiCheat: true)
+        check(!limited(), "through Steam, an anti-cheat game on D3DMetal: no limit in Steam's environment")
+        check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: true, frameLimit: 60, upscaling: false) && limited(),
+              "a D3DMetal game with a limit after it: Steam restarts with it")
+        Engine.rememberLaunch(for: "steam:limited", defaults: defaults)
+        check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false, antiCheat: true) && !limited(),
+              "an anti-cheat game on DXMT after it: Steam restarts without the limit (where a game without one keeps it)")
+        check(LibraryModel.restartsSteamForStart(environmentChanged: true, stuck: false, running: true, gamesRunning: false),
+              "… and that restart happens while no game runs in Steam")
+        Engine.rememberLaunch(for: "steam:protected", defaults: defaults)
+        check(Engine.rememberedLaunch(for: "steam:protected", defaults: defaults)?.environment["D3DM_MAX_FPS"] == nil,
+              "what's noted for the anti-cheat game has no limit")
+
+        // F5: a Steam that starts with the remembered settings – the last game's (with a limit), or the anti-cheat game's own.
+        Engine.launchEnvironment = Engine.rememberedLaunch(for: "steam:limited", defaults: defaults)?.environment ?? [:]
+        check(limited(), "a Steam begun with the last game's settings has its limit")
+        check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: true, frameLimit: 60, upscaling: false, antiCheat: true) && !limited(),
+              "the anti-cheat game started in it: Steam restarts without the limit")
+        Engine.launchEnvironment = Engine.rememberedLaunch(for: "steam:limited", defaults: defaults)?.environment ?? [:]
+        check(Engine.takeRememberedLaunch(for: "steam:protected", defaults: defaults) && !limited(),
+              "Steam woken for the anti-cheat game takes its own settings: no limit")
+        check(!Engine.prepareLaunchEnvironment(avx: true, d3dMetal: true, frameLimit: 60, upscaling: false, antiCheat: true) && !limited(),
+              "… and its start finds them so: no restart, no limit")
+
+        // The permit: for this one start of a game without an anti-cheat, on D3DMetal, with a limit – else none.
+        check(D3DMetalPace.permit(limit: 60, gameFolder: #"C:\Games\Test"#, handsOff: false, d3dMetal: true) == "60\nC:\\Games\\Test\n",
+              "the permit: the limit and the game's folder")
+        check(D3DMetalPace.permit(limit: 60, gameFolder: #"C:\Games\Test\"#, handsOff: false, d3dMetal: true) == "60\nC:\\Games\\Test\n",
+              "… without a backslash at its end")
+        check(D3DMetalPace.permit(limit: 60, gameFolder: #"C:\Games\Test"#, handsOff: true, d3dMetal: true) == nil,
+              "an anti-cheat game: no permit")
+        check(D3DMetalPace.permit(limit: 60, gameFolder: #"C:\Games\Test"#, handsOff: false, d3dMetal: false) == nil, "another layer: no permit")
+        check(D3DMetalPace.permit(limit: 0, gameFolder: #"C:\Games\Test"#, handsOff: false, d3dMetal: true) == nil, "no limit: no permit")
+        check(D3DMetalPace.permit(limit: 60, gameFolder: #"C:\"#, handsOff: false, d3dMetal: true) == nil, "a whole drive: no permit")
+        let folder = fm.temporaryDirectory.appendingPathComponent("pace-\(UUID().uuidString)", isDirectory: true)
+        defer { try? fm.removeItem(at: folder) }
+        let file = folder.appendingPathComponent("d3dmetal-pace")
+        let game = Engine.prefix.appendingPathComponent("drive_c/Games/Test", isDirectory: true)
+        D3DMetalPace.prepare(limit: 60, installDir: game, handsOff: false, d3dMetal: true, file: file)
+        check((try? String(contentsOf: file, encoding: .utf8)) == "60\nC:\\Games\\Test\n", "written before a D3DMetal start, as Wine names the folder")
+        D3DMetalPace.prepare(limit: 60, installDir: game, handsOff: true, d3dMetal: true, file: file)
+        check(!fm.fileExists(atPath: file.path), "an anti-cheat game's start takes it away")
+        D3DMetalPace.prepare(limit: 60, installDir: game, handsOff: false, d3dMetal: true, file: file)
+        D3DMetalPace.prepare(limit: 60, installDir: game, handsOff: false, d3dMetal: false, file: file)
+        check(!fm.fileExists(atPath: file.path), "a start on another layer takes it away too")
     }
 
     /// F5: Steam starts with what a game had at its last start, so that start needs no second Steam start.

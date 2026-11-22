@@ -1,6 +1,6 @@
 # Entwurf: Bildraten-Sperre unter D3DMetal (0.3.5)
 
-Stand 22.11.2026. Vorschlag, nichts gebaut. Auftrag: Nightforges Sperre (z. B. 60 FPS) soll auch auf D3DMetal greifen,
+Stand 22.11.2026. Weg A gebaut (OK des Koordinators), Zweig `claude/d3dmetal-fps-035`; Messung offen. Auftrag: Nightforges Sperre (z. B. 60 FPS) soll auch auf D3DMetal greifen,
 gleichmäßig und ohne spürbare Eingabeverzögerung. Spiele mit Anti-Cheat bleiben unberührt.
 
 ## Befund
@@ -85,3 +85,22 @@ Wukong Benchmark Tool (D3DMetal, ohne Anti-Cheat), Sperre 60, Messung über die 
 2. Gegenprobe ein DXMT-Spiel mit 60 (OxyRail): Streuung vergleichbar?
 3. Thomas' Eindruck zu Eingabe und Gleichmäßigkeit; wenn träge, A2 nachziehen;
 4. Overwatch und andere Anti-Cheat-Spiele: im Protokoll kein Einhängen (eine Zeile im wine.log nur, wenn eingehängt wird).
+
+## Gebaut (Weg A)
+
+- `wrapper/d3dmetal-pace.m` (+ Regeln in `d3dmetal-pace-rules.c`, in `hide-steam-dock.dylib`): Der Prozess beobachtet
+  das Laden nur, wenn `D3DM_MAX_FPS` gesetzt ist. Er hängt sich ein, wenn D3DMetal.framework lädt, die Freigabedatei
+  `~/Library/Application Support/Nightforge/d3dmetal-pace` („<Limit>\n<Windows-Ordner des Spiels>“) dasselbe Limit
+  nennt, `argv[0]` (Wines Windows-Pfad des Programms) in diesem Ordner liegt und `_MTLCommandBuffer`
+  `presentDrawable:` sowie `presentDrawable:afterMinimumDuration:` hat. Sonst ändert sich nichts, auch nicht der Sync.
+  Dabei entsteht eine Protokollzeile je Prozess.
+- Anti-Cheat auf allen Wegen: `prepareLaunchEnvironment(antiCheat:)` und `directLaunchEnvironment(antiCheat:)` geben einem
+  Spiel mit `NextStart.handsOff` nie `D3DM_MAX_FPS`. Hat Steam die Variable noch, startet es neu. Das gilt auch für die
+  gemerkte Umgebung aus F5, denn gemerkt wird nach `prepare`. Läuft schon ein anderes Spiel in Steam und kann es
+  deshalb nicht neu starten, fehlt die Freigabe: `D3DMetalPace.prepare` löscht sie bei jedem Start eines Anti-Cheat-Spiels
+  und bei jedem Start auf einer anderen Schicht.
+- `DockHider.sessionVersion` 2: Die Wine-Sitzung startet einmal neu und lädt die neue Bibliothek.
+- Tests: `tests/D3DMetalPaceTest` (Regeln, dazu die Bibliothek mit der Bauzeile aus build.sh in einem x86_64-Programm
+  mit Bild unter D3DMetals Namen; sieben Fälle) und `EngineLayoutTest.antiCheatPace` (alle Wege und die Freigabe).
+- Bleibt: `GameTestMeasure` und die Läuft-Liste zählen D3DMetal weiter als „hält kein Limit“, bis die Messung zeigt,
+  dass die Sperre hält. A2 (vorher auf der CPU warten) ist eine Notiz für nach der Messung.
