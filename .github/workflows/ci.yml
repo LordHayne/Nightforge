@@ -39,7 +39,7 @@ jobs:
         run: tests/ProcessListLive/run.sh
 
       - name: Profile builder tests
-        run: python3 -m unittest tests/test_build_profiles.py tests/test_fetch_geforce_now.py
+        run: python3 -m unittest tests/test_build_profiles.py
 
       # Against stand-ins for the Keychain, the clipboard and GitHub: no key, no network.
       - name: Signing scripts
