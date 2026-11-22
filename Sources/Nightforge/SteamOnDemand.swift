@@ -167,12 +167,13 @@ extension LibraryModel {
     }
 
     /// Steam back up if it's asleep: the player came back, or wants to play (`forStart`).
-    func wakeSteam(forStart: Bool = false) {
-        if steamOnDemand.wakeNow() { startSteamAgain(forStart: forStart) }
+    /// `game`: the game (GameID.key, and its name for the log) it wakes for, whose settings Steam then starts with (F5).
+    func wakeSteam(forStart: Bool = false, game: (key: String, name: String)? = nil) {
+        if steamOnDemand.wakeNow() { startSteamAgain(forStart: forStart, game: game) }
     }
 
     /// Queued like any other start of Steam, so a game's start waits for it.
-    private func startSteamAgain(forStart: Bool) {
+    private func startSteamAgain(forStart: Bool, game: (key: String, name: String)? = nil) {
         let previous = steamStartup
         steamStartup = Task {
             await previous?.value
@@ -189,6 +190,18 @@ extension LibraryModel {
                 break
             }
             GameLog.note("Steam wakes")
+            // For a game: Steam starts with what that game had at its last start, not with the last game's, so the
+            // start needs no second Steam start for its settings (F5). Its Wine session with them too – msync and
+            // Retina as the game had them; `ensureSteamRunning` leaves those alone while a start is under way.
+            if let game, await Engine.offMain({ !Engine.isSteamRunning && Engine.windowsGameRunningKnown == false }) {
+                if Engine.takeRememberedLaunch(for: game.key) {
+                    GameLog.note("Steam starts with the settings \(game.name) had at its last start")
+                }
+                await Engine.offMain {
+                    Engine.applyMsyncMode(wine)
+                    Engine.applyRetinaMode(wine)
+                }
+            }
             try? await Engine.ensureSteamRunning(wine, busy: gameUnderWay)
             watchWokenSteam(wine)
         }

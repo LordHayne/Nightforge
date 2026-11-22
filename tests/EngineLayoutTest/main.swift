@@ -693,7 +693,82 @@ struct EngineLayoutTest {
         check((try? String(contentsOf: escape, encoding: .utf8)) == "a", "nothing outside the game folder is touched")
         check(!Engine.applyFileEdits(edits, installDir: game), "a second time there's nothing left to change")
 
+        launchMemory()
         finish()
+    }
+
+    /// F5: Steam starts with what a game had at its last start, so that start needs no second Steam start.
+    static func launchMemory() {
+        let defaults = TestDefaults.suite("launch-memory")
+        let before = (Engine.launchEnvironment, Engine.launchRetina, Engine.msync)
+        defer { (Engine.launchEnvironment, Engine.launchRetina, Engine.msync) = before }
+        check(Engine.rememberedLaunch(for: nil, defaults: defaults) == nil, "nothing noted yet: Steam starts as before")
+
+        // The whole way: a D3DMetal game with Retina wants a restart once; noted, the next run's Steam starts with it.
+        Engine.launchEnvironment = [:]
+        Engine.launchRetina = false
+        Engine.msync = true
+        let prepare = {
+            Engine.prepareLaunchEnvironment(avx: true, d3dMetal: true, frameLimit: 60, upscaling: true, retina: true,
+                                            environment: ["WINE_SIMULATE_WRITECOPY": "1"], msyncWanted: true)
+        }
+        check(prepare(), "the game's first start this run: its settings differ from Steam's")
+        Engine.setCloserLook(true)
+        Engine.rememberLaunch(for: "steam:1", defaults: defaults)
+        let noted = Engine.rememberedLaunch(for: "steam:1", defaults: defaults, msyncAllowed: true)
+        check(noted?.environment["D3DM_MAX_FPS"] == "60" && noted?.environment["WINE_SIMULATE_WRITECOPY"] == "1"
+              && noted?.retina == true && noted?.msync == true, "noted: its environment, Retina and msync")
+        check(noted?.environment["WINEDEBUG"] == nil, "… without a closer look's channels")
+        Engine.setCloserLook(false)
+        Engine.launchEnvironment = [:]
+        Engine.launchRetina = false
+        check(Engine.takeRememberedLaunch(for: "steam:1", defaults: defaults), "Steam asleep, Play: its settings are taken")
+        check(!prepare(), "… and the start finds them as it wants them: no restart")
+        check(!Engine.takeRememberedLaunch(for: "steam:1", defaults: defaults), "taken twice: nothing changes")
+        check(!Engine.takeRememberedLaunch(for: "steam:2", defaults: defaults), "a game never started: Steam's settings stay")
+        Engine.setCloserLook(true)
+        Engine.launchEnvironment = ["WINEDEBUG": CloserLook.wineDebug]
+        check(Engine.takeRememberedLaunch(for: "steam:1", defaults: defaults) && Engine.wineDebug == CloserLook.wineDebug,
+              "a closer look this Play stays when they're taken")
+        Engine.setCloserLook(false)
+
+        // The last one is the one a Steam started before any game begins with.
+        Engine.launchEnvironment = ["ROSETTA_ADVERTISE_AVX": ""]
+        Engine.launchRetina = false
+        Engine.msync = false
+        Engine.rememberLaunch(for: "steam:3", defaults: defaults)
+        check(Engine.rememberedLaunch(for: nil, defaults: defaults)?.environment == ["ROSETTA_ADVERTISE_AVX": ""],
+              "nil: the game started last")
+
+        // What doesn't hold any more is not taken.
+        check(Engine.rememberedLaunch(for: "steam:1", defaults: defaults, msyncAllowed: false) == nil,
+              "msync noted, the engine test's switch off: not taken")
+        Engine.launchEnvironment = ["CX_LIBVULKAN": "/gone/libvulkan.1.dylib", "MESA_SHADER_CACHE_DIR": "/not/yet/made"]
+        Engine.rememberLaunch(for: "steam:4", defaults: defaults)
+        check(Engine.rememberedLaunch(for: "steam:4", defaults: defaults) == nil, "a file it names is gone (KosmicKrisp replaced): not taken")
+        check(Engine.rememberedLaunch(for: "steam:4", defaults: defaults, exists: { $0.hasSuffix(".dylib") }) != nil,
+              "… there: taken; a cache folder doesn't have to be")
+        Engine.launchEnvironment = ["VK_ADD_IMPLICIT_LAYER_PATH": "/layers"]
+        Engine.rememberLaunch(for: "steam:5", defaults: defaults)
+        check(Engine.rememberedLaunch(for: "steam:5", defaults: defaults, exists: { _ in true }) == nil,
+              "the engine test's Vulkan loader, its switch off since: not taken")
+        let old = try? JSONSerialization.data(withJSONObject: [
+            "games": ["steam:6": ["version": Engine.steamConfigVersion - 1, "environment": [String: String](), "retina": false, "msync": false]],
+            "order": ["steam:6"]])
+        let stale = TestDefaults.suite("launch-memory-old")
+        stale.set(old, forKey: Engine.launchMemoryKey)
+        check(Engine.rememberedLaunch(for: "steam:6", defaults: stale) == nil, "from an older Nightforge's settings: not taken")
+        stale.set(Data("nonsense".utf8), forKey: Engine.launchMemoryKey)
+        check(Engine.rememberedLaunch(for: nil, defaults: stale) == nil, "an unreadable note: Steam starts as before")
+
+        // Kept for the last games only.
+        Engine.launchEnvironment = [:]
+        for game in 0..<(Engine.launchMemoryLimit + 6) { Engine.rememberLaunch(for: "many:\(game)", defaults: defaults) }
+        check(Engine.rememberedLaunch(for: "many:0", defaults: defaults) == nil
+              && Engine.rememberedLaunch(for: "many:\(Engine.launchMemoryLimit + 5)", defaults: defaults) != nil
+              && Engine.rememberedLaunch(for: "many:6", defaults: defaults) != nil
+              && Engine.rememberedLaunch(for: "many:5", defaults: defaults) == nil,
+              "the last \(Engine.launchMemoryLimit) games are kept, older ones go")
     }
 
     static func finish() -> Never {
