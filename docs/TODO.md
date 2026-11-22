@@ -388,6 +388,10 @@ oder ein Bildschirmfoto.
   Einlesen der Bibliothek auf „Games“. Nächste Probe dort: ein Steam-Start mit abgestecktem „Games“ und einer mit
   angestecktem, je danach die letzte „System startup time“; dazu `mdutil -s /Volumes/Games` (indiziert Spotlight die
   Platte auf dem frischen Mac noch?).
+  **Ergebnis 22.11. 11:38:** ohne angestecktes „Games“ 26,18 s – das Laufwerk ist es nicht (der Nutzer hatte es
+  vermutet). Nächste Probe: wie lange das Auflösen des eigenen Rechnernamens dauert (`gethostbyname`; hier schlägt es in
+  0,1 s fehl, ein Stillstand von rund 20 s wäre die typische Zeitüberschreitung einer Namensauflösung), und ob
+  Nightforge unter Datenschutz › Lokales Netzwerk steht und erlaubt ist.
 - [ ] **F5 – Ein Spielstart startet Steam neu, das kostet 10–15 s** (auf beiden Macs, siehe F4 (a)). Steam übernimmt die
   Umgebung des Spiels (D3DMetal, AVX, Rosetta-Bibliothek, msync) nur bei seinem Start (`Engine.prepareLaunchEnvironment`,
   Neustart in `LibraryModel`). Idee, nicht geprüft: Steam im Hintergrund gleich mit der Umgebung starten, die die meisten
