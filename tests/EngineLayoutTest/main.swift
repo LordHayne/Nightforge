@@ -44,6 +44,90 @@ struct EngineLayoutTest {
         try? data.write(to: url)
     }
 
+    /// The session goes by the library's content in the data folder, not by its version number (22.11.2026: the
+    /// release in /Applications put its older library there and began a session with it; the test build, same
+    /// number, kept that session and Steam waited 20 s for the network).
+    static func libraryContent(_ work: URL) {
+        let wine = URL(fileURLWithPath: "/nonexistent/bin/wine")
+        let homeBefore = DockHider.home, bundledBefore = DockHider.bundled
+        defer { DockHider.home = homeBefore; DockHider.bundled = bundledBefore }
+        let data = work.appendingPathComponent("library-data", isDirectory: true)
+        let ours = work.appendingPathComponent("library-ours/hide-steam-dock.dylib")
+        let older = Data("the release's older library".utf8), newer = Data("this build's library with the network order".utf8)
+        write(newer, ours)
+        DockHider.home = data
+        DockHider.bundled = ours
+        let installed = data.appendingPathComponent(DockHider.name)
+
+        // DockHider: another copy renames its own library over ours (as `install` does), or writes it in place.
+        check(DockHider.path() == installed.path && (try? Data(contentsOf: installed)) == newer, "library put into the data folder")
+        let ourFingerprint = DockHider.fingerprint()
+        check(ourFingerprint == DockHider.hash(newer) && ourFingerprint?.count == 32, "its fingerprint: SHA-256 of the content")
+        let foreign = data.appendingPathComponent(".other-copy")
+        write(older, foreign)
+        check(rename(foreign.path, installed.path) == 0, "(the other copy's library renamed over ours)")
+        check(DockHider.path() == installed.path && (try? Data(contentsOf: installed)) == newer,
+              "replaced by another Nightforge's copy: put back from this one's bundle before anything starts with it")
+        check(DockHider.fingerprint() == ourFingerprint, "… and the fingerprint is this build's again")
+        try? older.write(to: installed)
+        _ = DockHider.path()
+        check((try? Data(contentsOf: installed)) == newer, "written over in place by another copy: put back as well")
+        try? fm.removeItem(at: installed)
+        _ = DockHider.path()
+        check((try? Data(contentsOf: installed)) == newer, "gone: put back")
+
+        // The decision alone.
+        let wanted = Engine.librarySessionValue(fingerprint: ourFingerprint)
+        check(Engine.librarySessionEnds(noted: nil, wanted: wanted), "a session from before anything was noted ends")
+        check(Engine.librarySessionEnds(noted: DockHider.sessionVersion, wanted: wanted),
+              "a session noted with a version number (Nightforge up to 0.3.4, the release included) ends: same number, other code")
+        check(Engine.librarySessionEnds(noted: Engine.librarySessionValue(fingerprint: DockHider.hash(older)), wanted: wanted),
+              "a session begun with another library's content ends")
+        check(!Engine.librarySessionEnds(noted: wanted, wanted: wanted), "a session begun with this library stays")
+        check(Engine.librarySessionEnds(noted: Engine.librarySessionValue(fingerprint: nil), wanted: wanted),
+              "a session begun without a library ends once there is one")
+        check(UserDefaults(suiteName: TestDefaults.domain("library-int")).map { suite -> Bool in
+            suite.set(wanted, forKey: "librarySession")
+            return suite.integer(forKey: "librarySession") == 0
+        } == true, "what's noted now reads as version 0 to Nightforge up to 0.3.4: the release ends this session too, and notes its own")
+
+        // The whole step: the release began the session with its library and noted "2".
+        let defaults = TestDefaults.suite("library-content")
+        defaults.set(DockHider.sessionVersion, forKey: "librarySession")
+        var ended = 0
+        let running: () -> [(pid: pid_t, command: String)]? = { [(pid: 4242, command: #"c:\windows\system32\winedevice.exe"#)] }
+        FakeProcesses.installEmpty()
+        Engine.applyLibraryVersion(wine, defaults: defaults, session: { nil }) { _ in ended += 1 }
+        check(ended == 0 && defaults.object(forKey: "librarySession") as? Int == DockHider.sessionVersion,
+              "release's session without a process list: not ended, not noted")
+        Engine.applyLibraryVersion(wine, defaults: defaults, session: running) { _ in ended += 1 }
+        check(ended == 1 && defaults.string(forKey: "librarySession") == wanted, "release's session: ended, and this library noted")
+        Engine.applyLibraryVersion(wine, defaults: defaults, session: running) { _ in ended += 1 }
+        _ = DockHider.path()
+        Engine.applyLibraryVersion(wine, defaults: defaults, session: running) { _ in ended += 1 }
+        check(ended == 1, "… exactly once: the next starts keep the session")
+        // Another copy put its library in, but began no session: it's put back, and the session (begun with ours) stays.
+        write(older, foreign)
+        _ = rename(foreign.path, installed.path)
+        Engine.applyLibraryVersion(wine, defaults: defaults, session: running) { _ in ended += 1 }
+        check(ended == 1 && (try? Data(contentsOf: installed)) == newer, "library replaced without a new session: put back, session stays")
+        // This build's own library changes (a new build): the session ends once more.
+        let nextBuild = work.appendingPathComponent("library-next-build/hide-steam-dock.dylib")
+        write(older, nextBuild)
+        DockHider.bundled = nextBuild
+        Engine.applyLibraryVersion(wine, defaults: defaults, session: running) { _ in ended += 1 }
+        check(ended == 2 && defaults.string(forKey: "librarySession") == Engine.librarySessionValue(fingerprint: DockHider.hash(older)),
+              "new content in this build's bundle: the session ends once more")
+        // Whether a game runs can't be told (no process list): nothing ends, nothing is noted. (A game the list shows
+        // takes a process from inside the data folder, which a test can't fake; the guard is applyMsyncMode's.)
+        defaults.set(DockHider.sessionVersion, forKey: "librarySession")
+        FakeProcesses.installDown()
+        Engine.applyLibraryVersion(wine, defaults: defaults, session: running) { _ in ended += 1 }
+        check(ended == 2 && defaults.object(forKey: "librarySession") as? Int == DockHider.sessionVersion,
+              "not when it can't be told whether a game runs")
+        FakeProcesses.installEmpty()
+    }
+
     static func main() {
         TestDefaults.useWorkFolder()
         folderNames()
@@ -316,8 +400,9 @@ struct EngineLayoutTest {
         check(librarySession.object(forKey: "librarySession") == nil, "library version without a process list: not noted, the next start looks again")
         FakeProcesses.installEmpty()
         Engine.applyLibraryVersion(URL(fileURLWithPath: "/nonexistent/bin/wine"), defaults: librarySession)
-        check(librarySession.integer(forKey: "librarySession") == DockHider.sessionVersion && DockHider.sessionVersion >= 1,
-              "… with a list that shows no process: noted")
+        check(librarySession.string(forKey: "librarySession") == Engine.librarySessionValue(fingerprint: DockHider.fingerprint())
+              && DockHider.sessionVersion >= 1, "… with a list that shows no process: noted")
+        libraryContent(work)
         // Every Steam start that brings its own session settings – also the one woken for Play (F5) – takes all three:
         // a session begun with another msync or an older library is noted as fresh only after it.
         let wokenSession = TestDefaults.suite("woken-session")
@@ -326,7 +411,7 @@ struct EngineLayoutTest {
         Engine.msync = true
         Engine.applySessionSettings(URL(fileURLWithPath: "/nonexistent/bin/wine"), defaults: wokenSession)
         check(wokenSession.object(forKey: "msyncSession") as? Bool == true
-              && wokenSession.integer(forKey: "librarySession") == DockHider.sessionVersion,
+              && wokenSession.string(forKey: "librarySession") == Engine.librarySessionValue(fingerprint: DockHider.fingerprint()),
               "session settings for a Steam start: msync and the library version together")
         Engine.msync = msyncBefore
         check(Engine.steamConfigSignature.hasPrefix("\(Engine.steamConfigVersion)-lib\(DockHider.sessionVersion)-"),
