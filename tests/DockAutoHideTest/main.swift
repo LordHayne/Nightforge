@@ -76,6 +76,13 @@ struct DockAutoHideTest {
         check(DockAutoHide.restore(changed.system, defaults: defaults) == .playerChanged && changed.writes == [true] && changed.restarts == 1
               && defaults.object(forKey: DockAutoHide.restoreKey) == nil, "the player's change meanwhile wins")
 
+        // The Dock restarts only where the value changed, each time with its line in the log.
+        for mac in [players, crashed, nextStart, changed] {
+            check(mac.restarts == mac.writes.count, "a restart of the Dock only with a change of the setting")
+        }
+        check(DockAutoHide.Outcome.set.logLine?.contains("killall Dock") == true && DockAutoHide.Outcome.putBack.logLine?.contains("killall Dock") == true
+              && DockAutoHide.Outcome.playersAlready.logLine?.contains("killall") == false
+              && DockAutoHide.Outcome.playerChanged.logLine?.contains("killall") == false, "each restart of the Dock in the log, no other")
         // A line in the log when something happens, none when nothing does.
         check(DockAutoHide.Outcome.set.logLine != nil && DockAutoHide.Outcome.putBack.logLine != nil
               && DockAutoHide.Outcome.playersAlready.logLine != nil && DockAutoHide.Outcome.playerChanged.logLine != nil

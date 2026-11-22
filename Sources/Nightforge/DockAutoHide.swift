@@ -39,9 +39,9 @@ enum DockAutoHide {
         /// For the log; nil where nothing happened.
         var logLine: String? {
             switch self {
-            case .set: return "Console mode: the Dock hides itself while games are played (macOS's setting, put back afterwards)"
+            case .set: return "Console mode: the Dock hides itself while games are played (macOS's setting, put back afterwards); the Dock restarts to read it (killall Dock)"
             case .playersAlready: return "Console mode: the Dock hides itself already, the player's own setting – left as it is"
-            case .putBack: return "Console mode over: the Dock's setting is back as it was (shown)"
+            case .putBack: return "Console mode over: the Dock's setting is back as it was (shown); the Dock restarts to read it (killall Dock)"
             case .playerChanged: return "Console mode over: the player changed the Dock's setting meanwhile – left as it is"
             case .oursAlready, .nothing: return nil
             }
