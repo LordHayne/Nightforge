@@ -308,6 +308,18 @@ struct EngineLayoutTest {
         FakeProcesses.installEmpty()
         Engine.applyMsyncMode(URL(fileURLWithPath: "/nonexistent/bin/wine"), defaults: msyncSession)
         check(msyncSession.object(forKey: "msyncSession") as? Bool == true, "… with a list that shows no process: noted")
+        // The same for a session begun with an older hide-steam-dock.dylib (network order, 22.11.2026): its device
+        // host keeps the old library until the session ends, so a new version restarts Steam and ends the session.
+        let librarySession = TestDefaults.suite("library-session")
+        FakeProcesses.installDown()
+        Engine.applyLibraryVersion(URL(fileURLWithPath: "/nonexistent/bin/wine"), defaults: librarySession)
+        check(librarySession.object(forKey: "librarySession") == nil, "library version without a process list: not noted, the next start looks again")
+        FakeProcesses.installEmpty()
+        Engine.applyLibraryVersion(URL(fileURLWithPath: "/nonexistent/bin/wine"), defaults: librarySession)
+        check(librarySession.integer(forKey: "librarySession") == DockHider.sessionVersion && DockHider.sessionVersion >= 1,
+              "… with a list that shows no process: noted")
+        check(Engine.steamConfigSignature.hasPrefix("\(Engine.steamConfigVersion)-lib\(DockHider.sessionVersion)-"),
+              "a new library version changes Steam's signature: Steam restarts, and with it the session")
         check(Engine.steamShutdownScript.contains(#"MSYNC="${7:-1}""#) && Engine.steamShutdownScript.contains(#"WINEMSYNC="$MSYNC""#),
               "the quit script's Wine agrees with the session (msync on when it isn't told)")
         check(GameLog.extraChannels("+loaddll,+timestamp,warn+msync") == "+loaddll,+timestamp,warn+msync"

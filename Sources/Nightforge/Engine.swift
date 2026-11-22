@@ -69,7 +69,8 @@ enum Engine {
     /// Settings games inherit from the background Steam. Bump `steamConfigVersion` whenever this
     /// or `steamDLLOverrides` changes, so a running Steam gets restarted with them.
     // 11: every start carries CloserLook.everyStart (step E5). 12: hide-steam-dock.dylib orders the network
-    // interfaces (wrapper/network-order.c); Wine's device host loads it only when the session starts.
+    // interfaces (wrapper/network-order.c). Wine's device host loads it only when the session starts, so from
+    // then on the signature carries DockHider.sessionVersion, and a new one ends the session too.
     static let steamConfigVersion = 12
     static var gameEnvironment: [String: String] {
         var env = [
@@ -185,7 +186,8 @@ enum Engine {
     /// Changes whenever the background Steam has to restart to hand games different settings.
     static var steamConfigSignature: String {
         let launch = launchSettings.withLock { $0 }
-        return "\(steamConfigVersion)-hud\(Prefs.performanceHUD ? 1 : 0)-gamemode\(Prefs.gameMode ? 1 : 0)-"
+        // The library's version: a new one restarts Steam, and that ends a session begun with the old (applyLibraryVersion).
+        return "\(steamConfigVersion)-lib\(DockHider.sessionVersion)-hud\(Prefs.performanceHUD ? 1 : 0)-gamemode\(Prefs.gameMode ? 1 : 0)-"
             + launch.environment.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
             + (launch.retina ? "-retina" : "") + (WineSandbox.enabled ? "-sandbox" : "")
             + (msync ? "" : "-nomsync") + (GameLog.extraWineDebug.map { "-debug" + $0 } ?? "")
@@ -2546,6 +2548,23 @@ enum Engine {
         GameLog.note("msync \(wanted ? "on" : "off") from this Wine session on")
     }
 
+    private static let librarySessionKey = "librarySession"
+
+    /// Ends the Wine session when it began with an older hide-steam-dock.dylib than this Nightforge brings
+    /// (DockHider.sessionVersion; 0 for a session from before this was noted). Each Wine process loads the
+    /// library at its start, and Wine's device host (winedevice.exe, nsiproxy) runs from the session's start
+    /// to its end: a Steam restart in the session keeps the old one there. So after the network order came
+    /// (wrapper/network-order.c), Steam restarted at 15:13 on 22.11.2026 and still waited 20 s for the network.
+    /// Never under a running game, nor when that can't be told; with Steam down, before it starts again.
+    static func applyLibraryVersion(_ wine: URL, defaults: UserDefaults = .standard) {
+        guard defaults.integer(forKey: librarySessionKey) != DockHider.sessionVersion, windowsGameRunningKnown == false else { return }
+        // Not known whether a session runs: none is ended, and the version isn't noted – the next start looks again.
+        guard let session = ownProcessesKnown() else { return }
+        if !session.isEmpty { stopAll(wine) }
+        defaults.set(DockHider.sessionVersion, forKey: librarySessionKey)
+        GameLog.note("hide-steam-dock.dylib \(DockHider.sessionVersion) from this Wine session on")
+    }
+
     static func environment(wine: URL) -> [String: String] {
         var env = ProcessInfo.processInfo.environment
         // Keeps Steam's own processes out of the Dock (wrapper/hide-steam-dock.m); games are untouched.
@@ -2664,6 +2683,7 @@ enum Engine {
             if !busy {
                 applyMsyncMode(wine)
                 applyRetinaMode(wine)
+                applyLibraryVersion(wine)
             }
             try startSteam(wine, arguments: ["-silent"])
         }
@@ -2883,6 +2903,7 @@ enum Engine {
         try await stopSteam(wine)
         applyMsyncMode(wine)
         applyRetinaMode(wine)
+        applyLibraryVersion(wine)
         try startSteam(wine, arguments: ["-silent"])
         UserDefaults.standard.set(steamConfigSignature, forKey: "steamConfigSignature")
     }
@@ -2899,6 +2920,7 @@ enum Engine {
         await offMain { stopAll(wine) }
         applyMsyncMode(wine)
         applyRetinaMode(wine)
+        applyLibraryVersion(wine)
         try startSteam(wine, arguments: ["-silent"])
         UserDefaults.standard.set(steamConfigSignature, forKey: "steamConfigSignature")
     }
