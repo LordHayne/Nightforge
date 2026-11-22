@@ -311,27 +311,43 @@ Koordinator-Session, die zuerst das Memory liest.
   darin auch, was nur lokal lag: `claude/staging-035` (diese Liste), `claude/steam-start-probe-035` (F4-Aufzeichnung),
   `claude/vibrant-meninsky-0f7097` (ARM64-Stand November), `claude/airplay-nvidia-shield-app-b56bc2` (Shield-App),
   `claude/dxmt-hud-toggle-033`, `claude/direct-probe`. Liegt im Koordinator-Ordner unter `build/handover/`.
-- [ ] **Repo am neuen Mac: der vorhandene Klon `~/Development/nightforge`** (22.11.: `~/development` ist dort derselbe
+- [x] **Repo am neuen Mac: der vorhandene Klon `~/Development/nightforge`** – erledigt 22.11. nachmittags: `main` per
+  `pull --ff-only` auf 66fce01; 15 tote Worktree-Einträge mit Pfaden des alten Macs mit `git worktree prune` entfernt
+  (sie ließen den Fetch scheitern: „refusing to fetch into branch … checked out at /Users/thomas/Downloads/Nachtschicht/…“);
+  dann der Fetch unten: 7 Zweige neu, 1 vorgespult, keiner abgelehnt; alle 222 `claude/`- und `backup/`-Zweige gleich dem
+  Bundle. Achtung: Das Bundle trägt ein veraltetes `refs/heads/main` (785c65d) – nie von dort holen.
+  Arbeitszweig wieder als Worktree `build/staging-035`.
+  Ursprünglicher Plan: (22.11.: `~/development` ist dort derselbe
   Ordner wie `~/Development` – Groß- und Kleinschreibung zählen nicht – und enthält andere Projekte; Nightforge liegt
   schon geklont darin, `main` ohne eigene Änderungen, 1079 Commits hinter GitHub). Aktualisieren statt neu klonen:
   `git -C ~/Development/nightforge pull`, dann die lokalen Zweige aus dem Bundle (ohne `+`: vorhandene, abweichende
   Zweige werden nicht überschrieben, sondern abgelehnt):
   `git -C ~/Development/nightforge fetch <bundle> 'refs/heads/claude/*:refs/heads/claude/*' 'refs/heads/backup/*:refs/heads/backup/*'`.
-- [ ] **Memory** (612 KB): Claude Code legt es nach dem Pfad des Repos ab, wie die App ihn sieht (jedes Zeichen außer
+- [x] **Memory** – erledigt 22.11.: aus `nightforge-memory-2026-11-22.zip` nach
+  `~/.claude/projects/-Users-thomas-Development-nightforge/memory/` (81 Dateien; der Ordner war leer, nichts beiseite gelegt).
+  Ursprünglicher Plan (612 KB): Claude Code legt es nach dem Pfad des Repos ab, wie die App ihn sieht (jedes Zeichen außer
   Buchstaben und Ziffern wird zu `-`), vermutlich `~/.claude/projects/-Users-thomas-Development-nightforge/memory/`.
   Den Namen aus `pwd -P` im Repo bilden; liegt dort schon ein `memory/` (frühere Arbeit am alten Klon), erst beiseite
   legen. Vor dem Start der neuen Session entpacken. Pfade im Memory, die auf `~/Downloads/Nachtschicht` zeigen, gelten
   dort sinngemäß für `~/Development/nightforge`.
-- [ ] **Notizordner** (110 MB, `chain-033.sh`, `stackpeek/`, `env-probe/`, `hermes/`, `live-runde-033/`, Shader-Messung …):
-  liegt hier unter `~/Library/Application Support/Claude/side-session-notes/local_50379bcc-…/`. Am neuen Mac bekommt
-  die neue Koordinator-Session eine andere Kennung: an einen festen Ort legen und den Pfad im Memory nachtragen.
+- [x] **Notizordner** (110 MB, `chain-033.sh`, `stackpeek/`, `env-probe/`, `hermes/`, `live-runde-033/`, Shader-Messung …):
+  lag am alten Mac unter `~/Library/Application Support/Claude/side-session-notes/local_50379bcc-…/`. Erledigt 22.11.:
+  beide Teile entpackt nach `~/Library/Application Support/Claude/side-session-notes/local_755bf7fe-d220-412c-ad3d-843646eb80ad/`
+  (Kennung der neuen Koordinator-Session), Pfad im Memory eingetragen. Dazu `chain-035.sh` (Kette für diesen Mac;
+  meldet pytest als übersprungen, solange `python@3.13` fehlt).
 - [ ] **Signierung (nur der Nutzer):** Ed25519-Hauptschlüssel im Schlüsselbund „Anmeldung“ als Kennwort mit Dienst
   `nightforge-signing-key`, Account `main` (`scripts/signing-lib.sh`); Ersatzschlüssel im Passwort-Manager.
   Code-Signing-Zertifikat: `.p12` auf „Games“ (`Nightforge-Code-Signing.p12`, Passwort im Passwort-Manager), Import
   nach `docs/CODESIGNATUR.md` (`security import … -T /usr/bin/codesign`); `scripts/codesign-certificate.sha1` nennt
   `B60A2D36…`. Danach `security find-identity -p codesigning` und ein Probelauf von `scripts/check-signatures.sh`.
+  Stand 22.11. nachmittags (nur gelesen): 0 Code-Signing-Identitäten, kein Schlüsselbund-Eintrag `nightforge-signing-key`;
+  „Games“ war nicht angesteckt.
 - [ ] **Werkzeuge:** Command Line Tools (`xcode-select` bleibt auf `/Library/Developer/CommandLineTools`), Homebrew,
   `python@3.13` (für das DMG in `sign-release.sh`), `gh` mit `gh auth login`, `jq` (bringt macOS mit).
+  Stand 22.11. nachmittags: da sind CLT 27.2 (`xcode-select -p` = CLT), Swift 6.4.2, git 2.54, jq 1.7.1, Rosetta;
+  `Xcode.app` liegt in `/Applications` (bleibt ungenutzt, solange `xcode-select` auf CLT zeigt). Es fehlen Homebrew,
+  `python@3.13` (mit pytest für die Kette), `gh`. `mingw-w64` ist nicht nötig: `build.sh` nimmt die geprüften
+  Windows-Helfer aus `wrapper/`.
 - [ ] **Erster Probelauf dort:** `./build.sh`, `scripts/run-tests.sh -P 2`, pytest; dann ein Testbuild mit `--install`.
 - [ ] **Dieser Mac** bleibt Rückfall, bis am neuen ein Release durchgelaufen ist.
 
