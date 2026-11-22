@@ -2806,6 +2806,7 @@ enum Engine {
             if !busy {
                 applySessionSettings(wine)
             }
+            await waitForSteamToEnd()
             try startSteam(wine, arguments: ["-silent"])
         }
         UserDefaults.standard.set(steamConfigSignature, forKey: key)
@@ -3023,6 +3024,7 @@ enum Engine {
     static func restartSteamInBackground(_ wine: URL) async throws {
         try await stopSteam(wine)
         applySessionSettings(wine)
+        await waitForSteamToEnd()
         try startSteam(wine, arguments: ["-silent"])
         UserDefaults.standard.set(steamConfigSignature, forKey: "steamConfigSignature")
     }
@@ -3038,6 +3040,7 @@ enum Engine {
         }
         await offMain { stopAll(wine) }
         applySessionSettings(wine)
+        await waitForSteamToEnd()
         try startSteam(wine, arguments: ["-silent"])
         UserDefaults.standard.set(steamConfigSignature, forKey: "steamConfigSignature")
     }
@@ -3071,7 +3074,7 @@ enum Engine {
 
     /// `endWait`: seconds Steam gets for its "-shutdown" – `filesEndWait` where its files are touched after.
     static func stopSteam(_ wine: URL, endWait: Int = 20) async throws {
-        try await stopSteam(wine, running: { isSteamRunning },
+        try await stopSteam(wine, running: { isSteamRunning }, leftovers: { steamLeftovers },
                             installing: { SteamBootstrap(steamRoot: steamRoot) == .installing },
                             shutdown: { try startSteam(sessionWine() ?? $0, arguments: ["-shutdown"]) },
                             hardStop: { wine in
@@ -3093,9 +3096,14 @@ enum Engine {
     /// (`wineserver -k`) when Steam hasn't ended `endWait` pauses after it, as it sometimes doesn't. After
     /// that up to `goneWait` pauses until it's gone: a process ended a moment ago can still be listed, and
     /// the caller that looks right after took it for a Steam started again (The Forest's move, 5.11.2026).
-    static func stopSteam(_ wine: URL, running: () -> Bool, installing: () -> Bool, shutdown: (URL) throws -> Void,
-                          hardStop: (URL) -> Void, pause: Duration = .seconds(1), installWait: Int = 120,
-                          endWait: Int = 20, goneWait: Int = 10) async throws {
+    /// Then, once steam.exe is gone, up to `leftoverWait` pauses for the rest of Steam to end by itself
+    /// (`steamProcessNames`; `leftovers` nil: no process list, no wait): a Steam started 2–5 s after the last one
+    /// ended took 27–32 s instead of 5–6 s on 22.11.2026 (16:37, 16:40), its driver query and web helper slow and
+    /// port 27036 still taken – parts of the old one were still running. Nothing is ended for it.
+    static func stopSteam(_ wine: URL, running: () -> Bool, leftovers: () -> [String]? = { [] }, installing: () -> Bool,
+                          shutdown: (URL) throws -> Void, hardStop: (URL) -> Void, pause: Duration = .seconds(1),
+                          installWait: Int = 120, endWait: Int = 20, goneWait: Int = 10, leftoverWait: Int = steamLeftoverWait,
+                          serviceWait: Int = steamServiceWait, log: (String) -> Void = GameLog.note) async throws {
         guard running() else { return }
         // A client update going in finishes first (up to 2 min): cut off, Steam would start it over.
         var waited = 0
@@ -3107,13 +3115,72 @@ enum Engine {
         guard running() else { return }
         try shutdown(wine)
         for _ in 0..<endWait {
-            guard running() else { return }
+            guard running() else {
+                return try await waitForSteamLeftovers(leftovers, pause: pause, limit: leftoverWait, serviceLimit: serviceWait, log: log)
+            }
             try await Task.sleep(for: pause)
         }
         hardStop(wine)
         for _ in 0..<goneWait {
-            guard running() else { return }
+            guard running() else {
+                return try await waitForSteamLeftovers(leftovers, pause: pause, limit: leftoverWait, serviceLimit: serviceWait, log: log)
+            }
             try await Task.sleep(for: pause)
+        }
+    }
+
+    /// Steam's programs still running in Nightforge's session (`steamProcessNames`), nil without a process list.
+    static var steamLeftovers: [String]? { ownProcessesKnown().map { steamProcessNames(in: $0.map(\.command)) } }
+
+    /// Before Steam starts again in the background: what is left of the last one – ended by "-shutdown" or with its
+    /// Wine session (stopAll, a new session for msync, Retina or the library) – ends first, as after `stopSteam`.
+    /// On 22.11.2026 at 19:32 the session ended at :23 and Steam started at :24 (13.8 s, at 19:01 5.65 s).
+    static func waitForSteamToEnd() async {
+        try? await waitForSteamLeftovers({ steamLeftovers }, pause: .seconds(1), limit: steamLeftoverWait,
+                                         serviceLimit: steamServiceWait, log: GameLog.note)
+    }
+
+    /// How long a stop of Steam waits for its last processes after steam.exe, in pauses (seconds), and for Steam's
+    /// service alone: a Windows service, which may stay longer than the client that started it.
+    static let steamLeftoverWait = 15
+    static let steamServiceWait = 5
+
+    /// The programs of a Steam that end with it, by name (lower-cased): the client, its web helpers (Nightforge's
+    /// wrapper and Valve's), its service and its driver queries.
+    static let steamProgramNames: Set<String> = ["steam.exe", "steamwebhelper.exe", "steamwebhelper_real.exe", "steamservice.exe",
+                                                  "gldriverquery.exe", "gldriverquery64.exe", "vulkandriverquery.exe",
+                                                  "vulkandriverquery64.exe"]
+
+    /// Which of `steamProgramNames` run in `commands` (as ps shows Wine's processes: the Windows path, then the
+    /// arguments), each once and sorted. Only the program's file name counts – up to its ".exe" – never an argument.
+    static func steamProcessNames(in commands: [String]) -> [String] {
+        Set(commands.compactMap { command -> String? in
+            let lower = command.lowercased()
+            guard let end = lower.range(of: ".exe") else { return nil }
+            let path = lower[..<end.upperBound]
+            let name = String(path[(path.lastIndex { $0 == "\\" || $0 == "/" }.map(path.index(after:)) ?? path.startIndex)...])
+            return steamProgramNames.contains(name) ? name : nil
+        }).sorted()
+    }
+
+    /// Waits until none of Steam's programs is left (`leftovers`), Steam's service alone at most `serviceLimit`
+    /// pauses, everything at most `limit`; then goes on as before, with a line in the log. Never ends anything.
+    static func waitForSteamLeftovers(_ leftovers: () -> [String]?, pause: Duration, limit: Int, serviceLimit: Int,
+                                      log: (String) -> Void) async throws {
+        var waited = 0
+        while true {
+            guard let left = leftovers() else { return }  // no process list: as before
+            if left.isEmpty {
+                if waited > 0 { log("Steam's last processes ended \(waited) s after steam.exe") }
+                return
+            }
+            let serviceOnly = left == ["steamservice.exe"]
+            if waited >= limit || (serviceOnly && waited >= serviceLimit) {
+                log("Steam's processes still there \(waited) s after steam.exe: \(left.joined(separator: ", ")) – Steam goes on without waiting longer")
+                return
+            }
+            try await Task.sleep(for: pause)
+            waited += 1
         }
     }
 

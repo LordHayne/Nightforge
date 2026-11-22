@@ -67,7 +67,60 @@ struct SteamStopTest {
                                     pause: .milliseconds(1), installWait: installWait, endWait: endWait, goneWait: goneWait)
     }
 
+    /// After steam.exe: the rest of Steam ends by itself, and a new Steam waits for that (22.11.2026: started 2–5 s
+    /// after the last one ended, Steam took 27–32 s, its web helper and service still about).
+    static func leftovers() async {
+        let ps = [#"C:\Program Files (x86)\Steam\steam.exe -silent -noverifyfiles"#,
+                  #"C:\Program Files (x86)\Steam\bin\cef\cef.win64\steamwebhelper.exe -lang=de "--user-data-dir=C:\users\x""#,
+                  #"C:\Program Files (x86)\Steam\bin\cef\cef.win64\steamwebhelper_real.exe --type=gpu-process"#,
+                  #"C:\Program Files (x86)\Common Files\Steam\SteamService.exe /RunAsService"#,
+                  #"C:\Program Files (x86)\Steam\bin\gldriverquery64.exe"#,
+                  #"C:\Program Files (x86)\Steam\bin\vulkandriverquery.exe"#,
+                  #"C:\Program Files (x86)\Steam\steamapps\common\Game\game.exe --steam.exe"#,
+                  #"C:\windows\system32\services.exe"#, "/opt/wine/bin/wineserver",
+                  #"C:\Program Files (x86)\Steam\notsteam.exe steamservice.exe"#]
+        check(Engine.steamProcessNames(in: ps) == ["gldriverquery64.exe", "steam.exe", "steamservice.exe", "steamwebhelper.exe",
+                                                    "steamwebhelper_real.exe", "vulkandriverquery.exe"],
+              "Steam's programs by their file name, each once; a game, Wine's services and an argument that names one don't count")
+        check(Engine.steamProcessNames(in: []).isEmpty, "nothing running: none")
+
+        func run(_ lists: [[String]?], limit: Int = 15, service: Int = 5) async -> (looks: Int, log: [String]) {
+            var lists = lists, looks = 0, log: [String] = []
+            let steam = FakeSteam()
+            try? await Engine.stopSteam(URL(fileURLWithPath: "/nonexistent/wine"), running: steam.running,
+                                        leftovers: { looks += 1; return lists.count > 1 ? lists.removeFirst() : lists.first ?? [] },
+                                        installing: steam.installing, shutdown: { _ in steam.shutdown() },
+                                        hardStop: { _ in steam.hardStop() }, pause: .milliseconds(1),
+                                        leftoverWait: limit, serviceWait: service, log: { log.append($0) })
+            check(steam.hardStops == 0, "(nothing hard: Steam ended when asked)")
+            return (looks, log)
+        }
+        let clean = await run([[]])
+        check(clean.looks == 1 && clean.log.isEmpty, "nothing left of it: Steam goes on at once, no line")
+        let helper = await run([["steamwebhelper.exe", "steamservice.exe"], ["steamwebhelper.exe"], []])
+        check(helper.looks == 3 && helper.log == ["Steam's last processes ended 2 s after steam.exe"],
+              "its web helper ends 2 s later: waited for, and said how long")
+        let never = await run([["steamwebhelper.exe"]], limit: 6)
+        check(never.looks == 7 && never.log == ["Steam's processes still there 6 s after steam.exe: steamwebhelper.exe – Steam goes on without waiting longer"],
+              "one that doesn't end: the limit, then on as before, with the names – nothing ended")
+        let service = await run([["steamservice.exe"]], limit: 15, service: 3)
+        check(service.looks == 4 && service.log.first?.contains("3 s after steam.exe: steamservice.exe") == true,
+              "Steam's service alone (a Windows service, it may stay): its own shorter limit")
+        let both = await run([["steamservice.exe", "steamwebhelper.exe"]], limit: 8, service: 3)
+        check(both.looks == 9, "the service beside the web helper: the whole limit")
+        let blind = await run([nil])
+        check(blind.looks == 1 && blind.log.isEmpty, "no process list: no wait, as before")
+
+        // Every start of Steam in the background after one ended – by "-shutdown", with its session (stopAll, a new
+        // session for msync, Retina or the library) – waits the same way first (19:32 on 22.11.: ended :23, started :24).
+        let engine = (try? String(contentsOfFile: "Sources/Nightforge/Engine.swift", encoding: .utf8)) ?? ""
+        let silentStarts = engine.components(separatedBy: "try startSteam(wine, arguments: [\"-silent\"])").dropLast()
+        check(silentStarts.count == 3 && silentStarts.allSatisfy { $0.hasSuffix("await waitForSteamToEnd()\n            ") || $0.hasSuffix("await waitForSteamToEnd()\n        ") },
+              "each of the three background starts after an end waits for the last Steam first (\(silentStarts.count))")
+    }
+
     static func main() async {
+        await leftovers()
         // Not running: nothing is done – above all no "-shutdown", which would start a Steam.
         let off = FakeSteam(lifetime: 0)
         await stop(off)
