@@ -330,8 +330,9 @@ enum Engine {
     }
 
     /// Sets what a game needs from Steam's environment: Rosetta's AVX hint, and D3DMetal's
-    /// settings, which it only takes from there (Apple's readme): D3DM_MAX_FPS caps the frame rate,
-    /// D3DM_ENABLE_METALFX hands DLSS to MetalFX. A game on another layer leaves D3DMetal's as they
+    /// settings, which it only takes from there (Apple's readme): D3DM_ENABLE_METALFX hands DLSS to MetalFX.
+    /// D3DM_MAX_FPS is Nightforge's own: D3DMetal 3.0 doesn't know it, hide-steam-dock.dylib holds the limit with
+    /// it (D3DMetalPace), never for a game with an anti-cheat (`antiCheat`). A game on another layer leaves D3DMetal's as they
     /// are, so going back and forth costs no restart. `retina`: Wine's Retina mode, which the
     /// session has to start with as well. `environment`: the game's own Wine switches
     /// (GameEnvironment), which the game before it may have had others of. `vulkan`: the driver its
@@ -343,7 +344,8 @@ enum Engine {
     static func prepareLaunchEnvironment(avx: Bool, d3dMetal: Bool, frameLimit: Int, upscaling: Bool,
                                          retina: Bool = false, environment: [String: String] = [:],
                                          vulkan: VulkanDriver? = nil, vulkanLoader: [String: String] = [:],
-                                         msyncWanted: Bool? = nil, defaults: UserDefaults = .standard) -> Bool {
+                                         msyncWanted: Bool? = nil, antiCheat: Bool = false,
+                                         defaults: UserDefaults = .standard) -> Bool {
         let launch = launchSettings.withLock { $0 }
         var wanted = launch.environment
         wanted["ROSETTA_ADVERTISE_AVX"] = avx ? nil : ""
@@ -352,6 +354,10 @@ enum Engine {
             wanted["D3DM_MAX_FPS"] = frameLimit > 0 ? String(frameLimit) : ""
             wanted["D3DM_ENABLE_METALFX"] = upscaling ? "1" : ""
         }
+        // The frame limit on D3DMetal is held by Nightforge's library in the game's process (D3DMetalPace): a game
+        // with an anti-cheat or a cheat protection of its own never gets the variable that lets it in, whatever its
+        // layer – a Steam that has it from the game before restarts.
+        if antiCheat { wanted["D3DM_MAX_FPS"] = "" }
         switch vulkan {
         case .kosmicKrisp(let folder):
             wanted.merge(kosmicKrispEnvironment(folder)) { _, new in new }
@@ -402,11 +408,12 @@ enum Engine {
     /// What a game started straight by Nightforge (not through Steam) gets on top of `gameEnvironment`:
     /// the same as `prepareLaunchEnvironment` hands Steam ("" takes a variable away).
     static func directLaunchEnvironment(avx: Bool, d3dMetal: Bool, frameLimit: Int, upscaling: Bool,
-                                        vulkan: VulkanDriver? = nil) -> [String: String] {
+                                        vulkan: VulkanDriver? = nil, antiCheat: Bool = false) -> [String: String] {
         var environment = gameEnvironment
         if !avx { environment["ROSETTA_ADVERTISE_AVX"] = nil }
         if d3dMetal {
-            if frameLimit > 0 { environment["D3DM_MAX_FPS"] = String(frameLimit) }
+            // Never for a game with an anti-cheat (D3DMetalPace).
+            if frameLimit > 0, !antiCheat { environment["D3DM_MAX_FPS"] = String(frameLimit) }
             if upscaling { environment["D3DM_ENABLE_METALFX"] = "1" }
         }
         if case .kosmicKrisp(let folder) = vulkan { environment.merge(kosmicKrispEnvironment(folder)) { _, new in new } }

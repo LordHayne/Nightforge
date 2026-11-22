@@ -89,10 +89,12 @@ else
   echo "▸ No pad-answer.exe yet: A and B won't answer a game's questions in this build."
 fi
 
-# Keeps the background Steam out of the Dock, and gives Wine the network interfaces in an order
-# Steam's sign-in finds the connected one in (wrapper/network-order.c). x86_64, loaded into Wine processes.
-clang -arch x86_64 -mmacosx-version-min=11.0 -dynamiclib -framework AppKit -Wall \
-  -o "$OUT/Contents/Resources/hide-steam-dock.dylib" wrapper/hide-steam-dock.m wrapper/network-order.c
+# Keeps the background Steam out of the Dock, gives Wine the network interfaces in an order Steam's
+# sign-in finds the connected one in (wrapper/network-order.c), and holds the frame limit on D3DMetal
+# (wrapper/d3dmetal-pace.m). x86_64, loaded into Wine processes.
+clang -arch x86_64 -mmacosx-version-min=11.0 -dynamiclib -framework AppKit -framework Metal -framework QuartzCore -Wall \
+  -o "$OUT/Contents/Resources/hide-steam-dock.dylib" wrapper/hide-steam-dock.m wrapper/network-order.c \
+  wrapper/d3dmetal-pace.m wrapper/d3dmetal-pace-rules.c
 
 # Starts Wine inside a macOS sandbox when that's switched on (wrapper/nightforge-sandbox.c; x86_64
 # like Wine, for hide-steam-dock.dylib, which reaches it through DYLD_INSERT_LIBRARIES).

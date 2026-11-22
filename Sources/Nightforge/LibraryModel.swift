@@ -4905,6 +4905,15 @@ final class LibraryModel: ObservableObject {
             await macSourcesAtHand()
             let insight = await insight(of: game)
             let analysis = insight?.analysis
+            // A game with an anti-cheat or a cheat protection of its own (NextStart.handsOff): nothing of Nightforge's
+            // in its process – no frame limit on D3DMetal either (D3DMetalPace), on any way it starts.
+            let handsOff: Bool
+            if game.bottle.isBuiltIn {
+                let block = game.antiCheatBlock, installDir = game.installDir
+                handsOff = await Engine.offMain { NextStart.handsOff(profile: profile, block: block, installDir: installDir) }
+            } else {
+                handsOff = false
+            }
             let refreshRate = GameDisplay.screen?.maximumFramesPerSecond ?? 60
             Hardware.refresh()  // the screen the game opens on, Low Power Mode: the automatic choices follow them
             // A preset fixes frame limit and MetalFX; "Most compatible" tries the safest way first.
@@ -5091,7 +5100,8 @@ final class LibraryModel: ObservableObject {
                                                    vulkan: vulkan,
                                                    vulkanLoader: Engine.vulkanLoaderEnvironment(layer: layer, d3d9: analysis?.usesD3D9 == true,
                                                                                                 wine: runner.map(URL.init(fileURLWithPath:))),
-                                                   msyncWanted: msyncWanted) || programChanged || debugChanged || frameLogChanged)
+                                                   msyncWanted: msyncWanted, antiCheat: handsOff)
+                    || programChanged || debugChanged || frameLogChanged)
                 // What Steam's next start for this game begins with (F5): its settings as they are now.
                 if viaSteam, game.bottle.isBuiltIn { Engine.rememberLaunch(for: game.gameID.key) }
                 // One restart at most: the settings the game takes from Steam's environment, and a Steam that got stuck
@@ -5165,11 +5175,17 @@ final class LibraryModel: ObservableObject {
                 // "Back to Nightforge" while Steam came up ends the start here: nothing goes to Steam after it. Up to
                 // 21.11.2026 the game started seconds after the player had gone back (F3).
                 if Task.isCancelled { return }
+                // The permit for Nightforge's frame limit on D3DMetal: this game's start only, never one with an anti-cheat.
+                if game.bottle.isBuiltIn {
+                    let installDir = game.installDir, d3dMetal = layer == .d3dmetal
+                    await Engine.offMain { D3DMetalPace.prepare(limit: frameLimit, installDir: installDir, handsOff: handsOff, d3dMetal: d3dMetal) }
+                }
                 raiseCurtain(for: game)
                 let started = viaSteam
                     ? await start(game, runner: runner, options: options, profile: profile, recipe: recipe, frameLimit: frameLimit)
                     : await startDirect(game, runner: runner, options: options, profile: profile, recipe: recipe,
-                                        frameLimit: frameLimit, layer: layer, vulkan: vulkan, usesD3D9: analysis?.usesD3D9 == true)
+                                        frameLimit: frameLimit, layer: layer, vulkan: vulkan, usesD3D9: analysis?.usesD3D9 == true,
+                                        handsOff: handsOff)
                 // Step C: a store's game has the channels from its own start; Steam's settings don't keep them.
                 if !viaSteam, closerLook { Engine.setCloserLook(false) }
                 // … and the frame log is back at what Steam has: the next game through Steam then asks for its
@@ -5817,7 +5833,7 @@ final class LibraryModel: ObservableObject {
     /// `survivesFirstSeconds` sees. `usesD3D9`: from the start's analysis (`insight`).
     private func startDirect(_ game: Game, runner: String?, options: GameOptions, profile: GameProfile?,
                              recipe: StartRecipe, frameLimit: Int, layer: GraphicsLayer, vulkan: Engine.VulkanDriver?,
-                             usesD3D9: Bool) async -> Bool {
+                             usesD3D9: Bool, handsOff: Bool) async -> Bool {
         guard let runner else {
             errorMessage = L10n.t("Nightforge's engine isn't installed yet. Open Settings › Stores, or restart Nightforge to set it up.")
             return false
@@ -5837,7 +5853,7 @@ final class LibraryModel: ObservableObject {
         guard !Task.isCancelled else { return false }
         let environment = Engine.directLaunchEnvironment(avx: recipe.avx, d3dMetal: layer == .d3dmetal,
                                                          frameLimit: frameLimit, upscaling: options.effectiveUpscaling(profile: profile),
-                                                         vulkan: vulkan)
+                                                         vulkan: vulkan, antiCheat: handsOff)
         if layer == .d3dmetal {
             let switches = GameEnvironment.wanted(for: game.gameID, profile: profile)
             GameLog.note(GameLog.d3dMetalStart(game.name, environment: environment.merging(switches) { _, game in game },

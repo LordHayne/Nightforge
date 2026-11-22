@@ -15,7 +15,8 @@ enum DockHider {
     static let name = "hide-steam-dock.dylib"
     /// Raised when a change of the library has to reach a session that runs already: Steam restarts, and
     /// the session it ran in ends (Engine.applyLibraryVersion). 1: the network order (wrapper/network-order.c).
-    static let sessionVersion = 1
+    /// 2: the frame limit on D3DMetal (wrapper/d3dmetal-pace.m).
+    static let sessionVersion = 2
     private static let lock = NSLock()
     /// The library put in place from `bundled`: once per run of Nightforge, whether it worked or not.
     private static var prepared: (source: URL?, ready: Bool)?
