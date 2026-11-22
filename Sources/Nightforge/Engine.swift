@@ -187,7 +187,8 @@ enum Engine {
     static var steamConfigSignature: String {
         let launch = launchSettings.withLock { $0 }
         // The library's version: a new one restarts Steam, and that ends a session begun with the old (applyLibraryVersion).
-        return "\(steamConfigVersion)-lib\(DockHider.sessionVersion)-hud\(Prefs.performanceHUD ? 1 : 0)-gamemode\(Prefs.gameMode ? 1 : 0)-"
+        // Its content as well: another Nightforge may have put an older one into the data folder and started Steam with it.
+        return "\(steamConfigVersion)-lib\(DockHider.sessionVersion)\(DockHider.fingerprint().map { "." + $0 } ?? "")-hud\(Prefs.performanceHUD ? 1 : 0)-gamemode\(Prefs.gameMode ? 1 : 0)-"
             + launch.environment.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
             + (launch.retina ? "-retina" : "") + (WineSandbox.enabled ? "-sandbox" : "")
             + (msync ? "" : "-nomsync") + (GameLog.extraWineDebug.map { "-debug" + $0 } ?? "")
@@ -2640,19 +2641,36 @@ enum Engine {
 
     private static let librarySessionKey = "librarySession"
 
-    /// Ends the Wine session when it began with an older hide-steam-dock.dylib than this Nightforge brings
-    /// (DockHider.sessionVersion; 0 for a session from before this was noted). Each Wine process loads the
-    /// library at its start, and Wine's device host (winedevice.exe, nsiproxy) runs from the session's start
-    /// to its end: a Steam restart in the session keeps the old one there. So after the network order came
-    /// (wrapper/network-order.c), Steam restarted at 15:13 on 22.11.2026 and still waited 20 s for the network.
+    /// What `librarySession` holds for a session begun with the library `fingerprint` (nil: none installed). A
+    /// string that reads as no number: Nightforge up to 0.3.4 kept the version there (an integer) and reads this as
+    /// 0, so it ends a session begun here once and notes its own version – which reads as another session here.
+    static func librarySessionValue(fingerprint: String?) -> String { "sha256:" + (fingerprint ?? "none") }
+
+    /// Whether a session noted as `noted` (librarySession: nil before 0.3.2, an integer from Nightforge up to 0.3.4,
+    /// else `librarySessionValue`) began with another library than `wanted`.
+    static func librarySessionEnds(noted: Any?, wanted: String) -> Bool { noted as? String != wanted }
+
+    /// Ends the Wine session when it began with another hide-steam-dock.dylib than the one in the data folder now,
+    /// as `DockHider.path()` leaves it before Steam starts. Each Wine process loads the library at its start, and
+    /// Wine's device host (winedevice.exe, nsiproxy) runs from the session's start to its end: a Steam restart in
+    /// the session keeps the old one there. So after the network order came (wrapper/network-order.c), Steam
+    /// restarted at 15:13 on 22.11.2026 and still waited 20 s for the network. The session is noted by the
+    /// library's content, not by `DockHider.sessionVersion`: later that day the release in /Applications put
+    /// its older library into the data folder and began a session with it, and the test build, seeing the same
+    /// version number, kept that session – without the network order (F4).
     /// Never under a running game, nor when that can't be told; with Steam down, before it starts again.
-    static func applyLibraryVersion(_ wine: URL, defaults: UserDefaults = .standard) {
-        guard defaults.integer(forKey: librarySessionKey) != DockHider.sessionVersion, windowsGameRunningKnown == false else { return }
-        // Not known whether a session runs: none is ended, and the version isn't noted – the next start looks again.
-        guard let session = ownProcessesKnown() else { return }
-        if !session.isEmpty { stopAll(wine) }
-        defaults.set(DockHider.sessionVersion, forKey: librarySessionKey)
-        GameLog.note("hide-steam-dock.dylib \(DockHider.sessionVersion) from this Wine session on")
+    /// `session` and `end` stand in for the process list and `stopAll` in tests.
+    static func applyLibraryVersion(_ wine: URL, defaults: UserDefaults = .standard,
+                                    session ownSession: () -> [(pid: pid_t, command: String)]? = { ownProcessesKnown() },
+                                    end: (URL) -> Void = stopAll) {
+        let wanted = librarySessionValue(fingerprint: DockHider.fingerprint())
+        guard librarySessionEnds(noted: defaults.object(forKey: librarySessionKey), wanted: wanted),
+              windowsGameRunningKnown == false else { return }
+        // Not known whether a session runs: none is ended, and the library isn't noted – the next start looks again.
+        guard let session = ownSession() else { return }
+        if !session.isEmpty { end(wine) }
+        defaults.set(wanted, forKey: librarySessionKey)
+        GameLog.note("hide-steam-dock.dylib \(DockHider.sessionVersion) (\(wanted)) from this Wine session on")
     }
 
     static func environment(wine: URL) -> [String: String] {
