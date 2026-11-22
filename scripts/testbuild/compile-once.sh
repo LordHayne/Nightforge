@@ -6,10 +6,8 @@ compile_app_once() {
   local jobs="$1" folder rc=0 started=$SECONDS
   shift
   [ -z "${NIGHTFORGE_TEST_FULL_BUILDS:-}" ] || return 0
-  local clt_sdk="/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk"
-  if [ -z "${SDKROOT:-}" ] && [ "$(xcode-select -p)" = "/Library/Developer/CommandLineTools" ] && [ -d "$clt_sdk" ]; then
-    export SDKROOT="$clt_sdk"
-  fi
+  # shellcheck source=scripts/sdk-lib.sh
+  . scripts/sdk-lib.sh && nightforge_pick_sdk
   NIGHTFORGE_REAL_SWIFTC="$(xcrun -f swiftc)" || return 0
   export NIGHTFORGE_REAL_SWIFTC
   folder="$(scripts/testbuild/swiftc --prepare build/test-objects "$jobs" "$@")" || rc=$?

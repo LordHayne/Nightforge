@@ -12,7 +12,7 @@ SIGNING_REPO="${NIGHTFORGE_REPO:-LordHayne/Nightforge}"
 SIGNED_LISTS=(components/manifest.json profiles/profiles.json profiles/agw.json)
 # What signing builds and runs, always from this checkout, never from the branch being signed.
 SIGNING_SOURCES=(scripts/signing-tool.swift Sources/Nightforge/Signature.swift Sources/Nightforge/SigningKeys.swift
-  scripts/signing-lib.sh scripts/sign-lists.sh scripts/check-signatures.sh)
+  scripts/signing-lib.sh scripts/sign-lists.sh scripts/check-signatures.sh scripts/sdk-lib.sh)
 
 # Builds scripts/signing-tool.swift from the tree in $1 (its Signature.swift and SigningKeys.swift,
 # so the tool knows that tree's keys) into the folder $2, and sets TOOL. NIGHTFORGE_SIGNING_TOOL
@@ -22,10 +22,8 @@ build_signing_tool() {
     TOOL="$NIGHTFORGE_SIGNING_TOOL"
     return
   fi
-  local clt_sdk="/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk"
-  if [ -z "${SDKROOT:-}" ] && [ "$(xcode-select -p 2>/dev/null)" = "/Library/Developer/CommandLineTools" ] && [ -d "$clt_sdk" ]; then
-    export SDKROOT="$clt_sdk"
-  fi
+  # shellcheck source=sdk-lib.sh
+  . "$1/scripts/sdk-lib.sh" && nightforge_pick_sdk
   TOOL="$2/signing-tool"
   swiftc -O -parse-as-library -o "$TOOL" "$1/scripts/signing-tool.swift" \
     "$1/Sources/Nightforge/Signature.swift" "$1/Sources/Nightforge/SigningKeys.swift" \

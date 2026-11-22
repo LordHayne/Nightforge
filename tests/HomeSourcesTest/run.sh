@@ -3,10 +3,8 @@
 # and that the page can be used with the pad: tests/HomeSourcesTest/run.sh
 set -euo pipefail
 cd "$(dirname "$0")/../.."
-CLT_SDK="/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk"
-if [ -z "${SDKROOT:-}" ] && [ "$(xcode-select -p)" = "/Library/Developer/CommandLineTools" ] && [ -d "$CLT_SDK" ]; then
-  export SDKROOT="$CLT_SDK"
-fi
+# shellcheck source=scripts/sdk-lib.sh
+. scripts/sdk-lib.sh && nightforge_pick_sdk
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT  # the test program goes with it
 OUT="$WORK/home-sources-test"
