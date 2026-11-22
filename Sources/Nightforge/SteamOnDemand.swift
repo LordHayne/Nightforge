@@ -192,15 +192,13 @@ extension LibraryModel {
             GameLog.note("Steam wakes")
             // For a game: Steam starts with what that game had at its last start, not with the last game's, so the
             // start needs no second Steam start for its settings (F5). Its Wine session with them too – msync and
-            // Retina as the game had them; `ensureSteamRunning` leaves those alone while a start is under way.
+            // Retina as the game had them, the library version this Nightforge brings; `ensureSteamRunning` leaves
+            // those alone while a start is under way.
             if let game, await Engine.offMain({ !Engine.isSteamRunning && Engine.windowsGameRunningKnown == false }) {
                 if Engine.takeRememberedLaunch(for: game.key) {
                     GameLog.note("Steam starts with the settings \(game.name) had at its last start")
                 }
-                await Engine.offMain {
-                    Engine.applyMsyncMode(wine)
-                    Engine.applyRetinaMode(wine)
-                }
+                await Engine.offMain { Engine.applySessionSettings(wine) }
             }
             try? await Engine.ensureSteamRunning(wine, busy: gameUnderWay)
             watchWokenSteam(wine)

@@ -318,6 +318,17 @@ struct EngineLayoutTest {
         Engine.applyLibraryVersion(URL(fileURLWithPath: "/nonexistent/bin/wine"), defaults: librarySession)
         check(librarySession.integer(forKey: "librarySession") == DockHider.sessionVersion && DockHider.sessionVersion >= 1,
               "… with a list that shows no process: noted")
+        // Every Steam start that brings its own session settings – also the one woken for Play (F5) – takes all three:
+        // a session begun with another msync or an older library is noted as fresh only after it.
+        let wokenSession = TestDefaults.suite("woken-session")
+        wokenSession.set(false, forKey: "msyncSession")
+        let msyncBefore = Engine.msync
+        Engine.msync = true
+        Engine.applySessionSettings(URL(fileURLWithPath: "/nonexistent/bin/wine"), defaults: wokenSession)
+        check(wokenSession.object(forKey: "msyncSession") as? Bool == true
+              && wokenSession.integer(forKey: "librarySession") == DockHider.sessionVersion,
+              "session settings for a Steam start: msync and the library version together")
+        Engine.msync = msyncBefore
         check(Engine.steamConfigSignature.hasPrefix("\(Engine.steamConfigVersion)-lib\(DockHider.sessionVersion)-"),
               "a new library version changes Steam's signature: Steam restarts, and with it the session")
         check(Engine.steamShutdownScript.contains(#"MSYNC="${7:-1}""#) && Engine.steamShutdownScript.contains(#"WINEMSYNC="$MSYNC""#),

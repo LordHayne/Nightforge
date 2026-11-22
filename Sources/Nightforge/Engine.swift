@@ -2622,6 +2622,15 @@ enum Engine {
         GameLog.note("msync \(wanted ? "on" : "off") from this Wine session on")
     }
 
+    /// What a Wine session has to begin with before Steam starts in it: msync, Retina and the library version as
+    /// Steam's settings want them – each one ends the session where it began otherwise (and never under a game).
+    /// One place for every Steam start that brings its own session settings (F5: also the one woken for Play).
+    static func applySessionSettings(_ wine: URL, defaults: UserDefaults = .standard) {
+        applyMsyncMode(wine, defaults: defaults)
+        applyRetinaMode(wine, defaults: defaults)
+        applyLibraryVersion(wine, defaults: defaults)
+    }
+
     private static let librarySessionKey = "librarySession"
 
     /// Ends the Wine session when it began with an older hide-steam-dock.dylib than this Nightforge brings
@@ -2755,9 +2764,7 @@ enum Engine {
             try await restartSteamInBackground(wine)
         } else {
             if !busy {
-                applyMsyncMode(wine)
-                applyRetinaMode(wine)
-                applyLibraryVersion(wine)
+                applySessionSettings(wine)
             }
             try startSteam(wine, arguments: ["-silent"])
         }
@@ -2975,9 +2982,7 @@ enum Engine {
     /// Quits Steam politely (so it saves its state) and starts it again hidden.
     static func restartSteamInBackground(_ wine: URL) async throws {
         try await stopSteam(wine)
-        applyMsyncMode(wine)
-        applyRetinaMode(wine)
-        applyLibraryVersion(wine)
+        applySessionSettings(wine)
         try startSteam(wine, arguments: ["-silent"])
         UserDefaults.standard.set(steamConfigSignature, forKey: "steamConfigSignature")
     }
@@ -2992,9 +2997,7 @@ enum Engine {
             waited += 1
         }
         await offMain { stopAll(wine) }
-        applyMsyncMode(wine)
-        applyRetinaMode(wine)
-        applyLibraryVersion(wine)
+        applySessionSettings(wine)
         try startSteam(wine, arguments: ["-silent"])
         UserDefaults.standard.set(steamConfigSignature, forKey: "steamConfigSignature")
     }
