@@ -349,8 +349,8 @@ Koordinator-Session, die zuerst das Memory liest.
   unbeaufsichtigt nur `NIGHTFORGE_AD_HOC=1 ./build.sh`.
 - [x] **Werkzeuge** – erledigt 22.11. nachmittags: Homebrew (Nutzer), `python@3.13` 3.13.18, `gh` 2.105.0, `gh auth login`
   (Nutzer, HTTPS). pytest läuft aus einem venv neben dem Hauptklon: `build/pytest-venv` (Homebrews python3.13 + pytest 9.2).
-  Offen beim Nutzer: Homebrew in `~/.zprofile` eintragen (`eval "$(/opt/homebrew/bin/brew shellenv)"`), sonst findet
-  eine neue Shell `brew`, `python3.13` und `gh` nicht (auch `sign-release.sh` sucht python3.13).
+  Der Installer trägt Homebrew in `/etc/paths.d/homebrew` ein: Jede neue Login-Shell findet `brew`, `python3.13` und
+  `gh`, ein Eintrag in `~/.zprofile` ist nicht nötig.
   Ursprünglicher Plan: Command Line Tools (`xcode-select` bleibt auf `/Library/Developer/CommandLineTools`), Homebrew,
   `python@3.13` (für das DMG in `sign-release.sh`), `gh` mit `gh auth login`, `jq` (bringt macOS mit).
   Stand 22.11. nachmittags: da sind CLT 27.2 (`xcode-select -p` = CLT), Swift 6.4.2, git 2.54, jq 1.7.1, Rosetta;
