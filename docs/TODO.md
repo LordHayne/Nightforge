@@ -515,6 +515,18 @@ oder ein Bildschirmfoto.
   Umgebung des Spiels (D3DMetal, AVX, Rosetta-Bibliothek, msync) nur bei seinem Start (`Engine.prepareLaunchEnvironment`,
   Neustart in `LibraryModel`). Idee, nicht geprüft: Steam im Hintergrund gleich mit der Umgebung starten, die die meisten
   Spiele brauchen, und nur bei echten Abweichungen neu starten.
+  **Ursache (22.11., Zweig `claude/f5-steam-ohne-neustart`):** Die Umgebung, mit der Steam läuft, stand nur im Speicher
+  (`Engine.launchSettings`) und war nach jedem Nightforge-Start leer. Beim ersten Spiel eines Laufs weckt „Steam bei
+  Bedarf“ Steam ohne die Werte des Spiels, die Startlogik wartet auf die Anmeldung, rechnet dann erst die Umgebung aus
+  und startet Steam ein zweites Mal („Steam restarts for …: the game's settings come with its environment“, im Protokoll
+  vom 21./22.11. bei Wukong und Overwatch). **Gebaut:** Nightforge merkt sich nach jedem Steam-Spielstart dessen
+  Einstellungen (Umgebung ohne Closer-Look-Kanäle, Retina, msync; die letzten 64 Spiele, `steamLaunchMemory`). Ein
+  im Hintergrund gestartetes Steam beginnt mit denen des zuletzt gespielten Spiels, ein für „Spielen“ gewecktes mit
+  denen dieses Spiels, msync und Retina vorher gesetzt. Hält eine Notiz nicht mehr (andere `steamConfigVersion`, eine
+  Datei fehlt, msync- oder Vulkan-Loader-Schalter aus), startet Steam wie bisher. Kommt der Start anders heraus (anderer
+  Weg, anderes Spiel bei schon laufendem Steam), startet Steam neu wie bisher. **Offen:** Messung live (erster Start
+  eines Laufs, zweimal dasselbe Spiel; erwartet: kein „Steam restarts for“, 10–15 s weniger). Spielwechsel bei
+  laufendem Steam kostet weiter einen Neustart, wenn die Umgebungen verschieden sind.
 
 ## 0.3.3: Release (21.11., der Nutzer: „bringen wir das release online dann kann ich update und alles prüfen und etwaige bugs bügeln wir in .4 aus“)
 

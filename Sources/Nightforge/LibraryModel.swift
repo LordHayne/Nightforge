@@ -4837,7 +4837,7 @@ final class LibraryModel: ObservableObject {
                                                     restartWindows: { await self.restartWindowsSteam() })
                 launchPhase = nil
             }
-            if viaSteam, game.bottle.isBuiltIn { wakeSteam(forStart: true) }
+            if viaSteam, game.bottle.isBuiltIn { wakeSteam(forStart: true, game: (game.gameID.key, game.name)) }
             if viaSteam, game.bottle.isBuiltIn, let startup = steamStartup {
                 if !Engine.isSteamRunning { launchPhase = .startingSteam }
                 await startup.value
@@ -5092,6 +5092,8 @@ final class LibraryModel: ObservableObject {
                                                    vulkanLoader: Engine.vulkanLoaderEnvironment(layer: layer, d3d9: analysis?.usesD3D9 == true,
                                                                                                 wine: runner.map(URL.init(fileURLWithPath:))),
                                                    msyncWanted: msyncWanted) || programChanged || debugChanged || frameLogChanged)
+                // What Steam's next start for this game begins with (F5): its settings as they are now.
+                if viaSteam, game.bottle.isBuiltIn { Engine.rememberLaunch(for: game.gameID.key) }
                 // One restart at most: the settings the game takes from Steam's environment, and a Steam that got stuck
                 // signing in, together (F3, 21.11.2026: the stuck one's restart and the settings' made two in a row).
                 if viaSteam, game.bottle.isBuiltIn, let runner,

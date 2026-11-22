@@ -246,7 +246,81 @@ enum Engine {
     /// All of them, under one lock: prepareLaunchEnvironment sets them on the main actor, a Steam start reads
     /// them in a task of its own (startSteamOffMain, stopSessionNow → steamEnvironment), and a
     /// Dictionary read while it's being replaced can crash.
-    private static let launchSettings = LockedValue<(environment: [String: String], retina: Bool, msync: Bool)>(([:], false, msyncSwitch))
+    /// Starts with what the last game through Steam had (F5, `rememberedLaunch`), so a Steam started before any
+    /// game this run – in the background, or for that same game – needs no restart for it.
+    private static let launchSettings = LockedValue<(environment: [String: String], retina: Bool, msync: Bool)>(
+        rememberedLaunch(for: nil).map { ($0.environment, $0.retina, $0.msync) } ?? ([:], false, msyncSwitch))
+
+    /// What a game through Steam had of Steam's settings at its last start (F5, 22.11.2026). Up to then each
+    /// first start of a game in a Nightforge run started Steam twice: once with nothing of the game's (Steam on
+    /// demand wakes before the start knows its way), then again for the game's settings – 10–15 s on both Macs.
+    /// Steam now starts with what the game had last time; a start that comes out otherwise restarts it as before.
+    struct RememberedLaunch: Codable, Equatable {
+        var version: Int
+        var environment: [String: String]
+        var retina: Bool
+        var msync: Bool
+    }
+
+    private struct LaunchMemory: Codable {
+        var games: [String: RememberedLaunch] = [:]
+        /// Oldest first; the last one is the game started last.
+        var order: [String] = []
+    }
+
+    static let launchMemoryKey = "steamLaunchMemory"
+    static let launchMemoryLimit = 64
+
+    private static func launchMemory(_ defaults: UserDefaults) -> LaunchMemory {
+        defaults.data(forKey: launchMemoryKey).flatMap { try? JSONDecoder().decode(LaunchMemory.self, from: $0) } ?? LaunchMemory()
+    }
+
+    /// Notes Steam's settings as they are now as `game`'s (GameID.key), right after its start prepared them. A
+    /// closer look's channels (WINEDEBUG) stay out: they're for one Play.
+    static func rememberLaunch(for game: String, defaults: UserDefaults = .standard) {
+        let launch = launchSettings.withLock { $0 }
+        var environment = launch.environment
+        environment["WINEDEBUG"] = nil
+        var memory = launchMemory(defaults)
+        memory.games[game] = RememberedLaunch(version: steamConfigVersion, environment: environment, retina: launch.retina, msync: launch.msync)
+        memory.order.removeAll { $0 == game }
+        memory.order.append(game)
+        while memory.order.count > launchMemoryLimit { memory.games[memory.order.removeFirst()] = nil }
+        if let data = try? JSONEncoder().encode(memory) { defaults.set(data, forKey: launchMemoryKey) }
+    }
+
+    /// What `game` had last time (nil: the game started last), if it still holds: from this Nightforge's
+    /// settings (steamConfigVersion), msync not where the engine test's switch is off, every file it names
+    /// still there (an engine or KosmicKrisp replaced since), the engine test's Vulkan loader only while its
+    /// switch is on. Otherwise nil, and Steam starts as before.
+    static func rememberedLaunch(for game: String?, defaults: UserDefaults = .standard,
+                                 msyncAllowed: Bool = msyncSwitch,
+                                 exists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }) -> RememberedLaunch? {
+        let memory = launchMemory(defaults)
+        guard let key = game ?? memory.order.last, let remembered = memory.games[key],
+              remembered.version == steamConfigVersion, !remembered.msync || msyncAllowed else { return nil }
+        for (name, value) in remembered.environment where value.hasPrefix("/") && !name.hasSuffix("CACHE_DIR") && !name.hasSuffix("CACHE_PATH") {
+            if !exists(value) { return nil }
+        }
+        if remembered.environment["VK_ADD_IMPLICIT_LAYER_PATH"]?.isEmpty == false, !vulkanLoaderSwitchedOn(defaults: defaults) { return nil }
+        return remembered
+    }
+
+    /// Before a Steam that isn't running starts for `game`: Steam's settings become what the game had last time
+    /// (`rememberedLaunch`), so the start that follows finds them as it wants them. A closer look's channels
+    /// stay as they are. True when something changed.
+    @discardableResult
+    static func takeRememberedLaunch(for game: String, defaults: UserDefaults = .standard) -> Bool {
+        guard let remembered = rememberedLaunch(for: game, defaults: defaults) else { return false }
+        return launchSettings.withLock { settings in
+            var environment = remembered.environment
+            environment["WINEDEBUG"] = settings.environment["WINEDEBUG"]
+            guard environment != settings.environment || remembered.retina != settings.retina || remembered.msync != settings.msync
+            else { return false }
+            settings = (environment, remembered.retina, remembered.msync)
+            return true
+        }
+    }
 
     /// The environment the background Steam starts with, and its games with it.
     static var steamEnvironment: [String: String] {
@@ -2548,6 +2622,15 @@ enum Engine {
         GameLog.note("msync \(wanted ? "on" : "off") from this Wine session on")
     }
 
+    /// What a Wine session has to begin with before Steam starts in it: msync, Retina and the library version as
+    /// Steam's settings want them – each one ends the session where it began otherwise (and never under a game).
+    /// One place for every Steam start that brings its own session settings (F5: also the one woken for Play).
+    static func applySessionSettings(_ wine: URL, defaults: UserDefaults = .standard) {
+        applyMsyncMode(wine, defaults: defaults)
+        applyRetinaMode(wine, defaults: defaults)
+        applyLibraryVersion(wine, defaults: defaults)
+    }
+
     private static let librarySessionKey = "librarySession"
 
     /// Ends the Wine session when it began with an older hide-steam-dock.dylib than this Nightforge brings
@@ -2681,9 +2764,7 @@ enum Engine {
             try await restartSteamInBackground(wine)
         } else {
             if !busy {
-                applyMsyncMode(wine)
-                applyRetinaMode(wine)
-                applyLibraryVersion(wine)
+                applySessionSettings(wine)
             }
             try startSteam(wine, arguments: ["-silent"])
         }
@@ -2901,9 +2982,7 @@ enum Engine {
     /// Quits Steam politely (so it saves its state) and starts it again hidden.
     static func restartSteamInBackground(_ wine: URL) async throws {
         try await stopSteam(wine)
-        applyMsyncMode(wine)
-        applyRetinaMode(wine)
-        applyLibraryVersion(wine)
+        applySessionSettings(wine)
         try startSteam(wine, arguments: ["-silent"])
         UserDefaults.standard.set(steamConfigSignature, forKey: "steamConfigSignature")
     }
@@ -2918,9 +2997,7 @@ enum Engine {
             waited += 1
         }
         await offMain { stopAll(wine) }
-        applyMsyncMode(wine)
-        applyRetinaMode(wine)
-        applyLibraryVersion(wine)
+        applySessionSettings(wine)
         try startSteam(wine, arguments: ["-silent"])
         UserDefaults.standard.set(steamConfigSignature, forKey: "steamConfigSignature")
     }
