@@ -398,6 +398,17 @@ zuvor.“ Und um 18:34, als Teilschritt zu 0.4 „Wie eine Konsole“:
   Bibliothek, F4-Timeout. Abhilfe: `librarySession` per Inhalt der Bibliothek (Worker A,
   `claude/library-session-035`, bestellt). Für die Testphase: Release aus `/Applications` nehmen (OK des Nutzers
   offen).
+- [x] **F5 live bestätigt (22.11., 19:32–19:38, Stand dcf1183, Messung des Nutzers):** Beim zweiten Start kein
+  Steam-Neustart, spürbar schneller. Der erste Start nach dem Öffnen war noch lang (Analyse bei Worker A, zusammen mit
+  dem Steam-Ende-Punkt). Beim zweiten Beenden stand das Dock vor dem Ladebildschirm und das Beenden dauerte zu lange
+  (gehört zum Lichtnaht-Bau, Worker B).
+- [ ] **Bau-Ausgaben in Spotlight und Launchpad:** Der Nutzer sieht drei Nightforge-Apps (Release „Test-Pause“ in
+  `/Applications`, Testbuild in `~/Applications`, `build/staging-035/build/Nightforge.app`). Jede `build/Nightforge.app`
+  in einem Worktree wird gefunden und bei LaunchServices angemeldet. Abhilfe: Bau-Ausgabe unsichtbar machen (Ordner mit
+  `.noindex`, oder nach dem Bau `lsregister -u`), einmal alle vorhandenen abmelden. Nächster freier Worker.
+- [ ] **Nebenbefund der Starter-Probe (22.11.):** Unter Wine meldet `IsProcessorFeaturePresent(AVX)` immer 0, auch wenn
+  CPUID AVX zeigt (`docs/probes/starter-umgebung/`). Spiele, die so fragen, sehen kein AVX. Bei Profilen mit
+  AVX-Problemen bedenken.
 - [ ] `stopSteam` soll warten, bis alle Steam-Prozesse weg sind (langsame Starts 26–31 s kamen 2–5 s nach dem
   Ende des vorigen Steam; erst prüfen beim nächsten Neustart).
 - [x] **Bau mit gesetztem `SDKROOT`:** gebaut auf `claude/build-sdkroot-035` (`scripts/sdk-lib.sh`), geprüft,
