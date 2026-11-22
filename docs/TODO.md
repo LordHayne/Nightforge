@@ -406,6 +406,19 @@ zuvor.“ Und um 18:34, als Teilschritt zu 0.4 „Wie eine Konsole“:
   `/Applications`, Testbuild in `~/Applications`, `build/staging-035/build/Nightforge.app`). Jede `build/Nightforge.app`
   in einem Worktree wird gefunden und bei LaunchServices angemeldet. Abhilfe: Bau-Ausgabe unsichtbar machen (Ordner mit
   `.noindex`, oder nach dem Bau `lsregister -u`), einmal alle vorhandenen abmelden. Nächster freier Worker.
+- [ ] **Aus dem Audit vor 0.3.5 (`docs/AUDIT-0.3.5.md`, Zweig `claude/audit-035`), für später:**
+  - S2: Zwei Nightforge-Kopien (Release + Testbuild) beenden sich gegenseitig die Wine-Sitzung (librarySession als
+    Text, 0.3.4 als Zahl); Steam startet jedes Mal neu, nie unter einem Spiel. Betrifft nur Testphasen.
+  - S3: `waitForSteamToEnd` wartet bis zu 15 s vor einem Steam-Start. Live beobachten, wie oft das voll ausgeschöpft
+    wird („Steam's processes still there …“ im Protokoll).
+  - L1: Das F5-Gedächtnis (`steamLaunchMemory`) enthält Pfade mit dem Benutzernamen (lokal, nicht im Protokoll):
+    gehört auf die Liste „nie in einen Problembericht“.
+  - L2: `if_nameindex` fragt bei jedem Aufruf alle Schnittstellen ab (nur noch in winedevice.exe).
+  - Umbau für später: `hide-steam-dock.dylib` bindet AppKit, und das lädt Metal und QuartzCore in jeden Wine-Prozess
+    mit (Wine selbst lädt AppKit über winemac.drv ohnehin). Ganz verhindern ließe es sich nur mit einer Bibliothek
+    ohne AppKit.
+  - Erledigt auf `claude/audit-fixes-035` (d673835): M1 (Netzwerk-Reihenfolge nur in winedevice.exe, Metal/QuartzCore
+    nicht mehr gebunden), S1 (Wiedereintritts-Sperre in der 60-FPS-Umlenkung), E1 (Fokus-Takt nicht im Spiel), L3.
 - [ ] **Nebenbefund der Starter-Probe (22.11.):** Unter Wine meldet `IsProcessorFeaturePresent(AVX)` immer 0, auch wenn
   CPUID AVX zeigt (`docs/probes/starter-umgebung/`). Spiele, die so fragen, sehen kein AVX. Bei Profilen mit
   AVX-Problemen bedenken.
