@@ -1,0 +1,40 @@
+== control-without (outer ROSETTA_ADVERTISE_AVX=none)
+unix NF_PROBE=(none)
+unix ROSETTA_ADVERTISE_AVX=(none)
+exit 7
+windows NF_PROBE=(none)
+windows ROSETTA_ADVERTISE_AVX=(none)
+cpuid avx=0 osxsave=0
+IsProcessorFeaturePresent(AVX)=0
+== control-with (outer ROSETTA_ADVERTISE_AVX=1)
+unix NF_PROBE=(none)
+unix ROSETTA_ADVERTISE_AVX=1
+exit 7
+windows NF_PROBE=(none)
+windows ROSETTA_ADVERTISE_AVX=1
+cpuid avx=1 osxsave=1
+IsProcessorFeaturePresent(AVX)=0
+== starter-sets (outer ROSETTA_ADVERTISE_AVX=none)
+unix NF_PROBE=(none)
+unix ROSETTA_ADVERTISE_AVX=(none)
+exit 7
+windows NF_PROBE=from-the-starter
+windows ROSETTA_ADVERTISE_AVX=1
+cpuid avx=0 osxsave=0
+IsProcessorFeaturePresent(AVX)=0
+== starter-unsets (outer ROSETTA_ADVERTISE_AVX=1)
+unix NF_PROBE=(none)
+unix ROSETTA_ADVERTISE_AVX=1
+exit 7
+windows NF_PROBE=from-the-starter
+windows ROSETTA_ADVERTISE_AVX=(none)
+cpuid avx=1 osxsave=1
+IsProcessorFeaturePresent(AVX)=0
+== starter-keeps (outer ROSETTA_ADVERTISE_AVX=1)
+unix NF_PROBE=(none)
+unix ROSETTA_ADVERTISE_AVX=1
+exit 7
+windows NF_PROBE=from-the-starter
+windows ROSETTA_ADVERTISE_AVX=1
+cpuid avx=1 osxsave=1
+IsProcessorFeaturePresent(AVX)=0
