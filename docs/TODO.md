@@ -466,6 +466,16 @@ oder ein Bildschirmfoto.
   Leistung), also nicht gedrosselt. Ausgeschlossen: Laufwerk, Netz, IPv6, Lokales Netzwerk, Namensauflösung,
   System- und Rosetta-Stand, Energiemodus. Bleibt der Blick in den Steam-Prozess während der stillen 20 s (`sample`,
   Windows-Stapel über stackpeek aus dem Notizordner), als Skript, das der Nutzer einmal startet.
+  **Ergebnis 22.11. 14:23, jetzt direkt auf dem neuen MacBook (Entwicklungs-Mac seit dem Umzug), Probe nur mit `sample`:**
+  Steam wartet nicht auf etwas Langsames, sondern auf ein Signal, das nie kommt: `[ WaitingForNetwork ] Timed out
+  waiting for network` (steamui_login) nach 19 s, danach sofort LogOn. Alle Threads warten untätig; nur `IPC:CSteamEngine`
+  geht wiederholt über den wineserver in ein Geräte-`ioctl` (`server_ioctl_file`), `winedevice.exe` (darin `nsiproxy`)
+  rechnet mit 4–17 % eines Kerns. Wines `ipconfig /all` im Prefix sieht `en0` mit IPv4 und Standard-Gateway, dazu
+  viele weitere Schnittstellen (anpi0–2, en1–en6, bridge0, ap1, awdl0, llw0, nan0, utun0–5), `lo0` als
+  „Ethernet adapter“ mit Gateway 127.0.0.1, auf `en0` eine ULA-IPv6-Adresse ohne IPv6-Route. Damit sind auch die beiden
+  SMB-Freigaben unter `/Volumes` kein Kandidat mehr. Offen: welche Windows-Schnittstelle Steams Netz-Warten abfragt
+  (Kandidaten: Network List Manager/`netprofm`, NLA über `WSALookupService`, `iphlpapi`-Benachrichtigungen) und warum sie
+  hier nie „verbunden“ meldet. Daten im Notizordner unter `f4-2211/`. Weiter in einer eigenen Session.
 - [ ] **F5 – Ein Spielstart startet Steam neu, das kostet 10–15 s** (auf beiden Macs, siehe F4 (a)). Steam übernimmt die
   Umgebung des Spiels (D3DMetal, AVX, Rosetta-Bibliothek, msync) nur bei seinem Start (`Engine.prepareLaunchEnvironment`,
   Neustart in `LibraryModel`). Idee, nicht geprüft: Steam im Hintergrund gleich mit der Umgebung starten, die die meisten
