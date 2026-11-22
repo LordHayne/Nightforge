@@ -375,14 +375,21 @@ zuvor.“ Und um 18:34, als Teilschritt zu 0.4 „Wie eine Konsole“:
 - [ ] **Dock im Spielmodus komplett unsichtbar**, nie zu sehen.
 - [ ] **Keine Technik- oder Fehlertexte in normalen Phasen** („hängen geblieben“ nur bei einem echten Hänger,
   „Hängt es?“ nicht in erklärenden Phasen; der Cloud-Text nur bei `sessionReplaced`).
-- [ ] **Immer sichtbare Bewegung:** am besten ein echter Fortschrittsbalken über die echten Schritte (Wine startet →
-  Steam meldet sich an → Spiel lädt → Bild da), ähnlich dem Download-Balken; sonst eine Ladeanimation. Das gilt
-  auch für den Vorhang beim Beenden (am 22.11. stand er 1–2 min, während ein Hilfsprozess des Wukong-Benchmarks
-  noch lief).
+- [ ] **Immer sichtbare Bewegung, als schöne Animation** (Entscheidung 18:42, ersetzt den Fortschrittsbalken):
+  „Bei einer Konsole will niemand wissen, was technisch passiert.“ Ruhig, im Nightforge-Stil, immer in Bewegung,
+  auch beim Vorhang beim Beenden (am 22.11. stand er 1–2 min). Keine Phasentexte im Vordergrund, Technik nur ins
+  Protokoll; Text nur, wenn der Spieler handeln muss.
 - Vorgehen: erst ein Entwurf mit Vorher/Nachher-Bildern für den Nutzer (Abgleich mit `docs/AUDIT-LADESCREEN.md`,
   `docs/ENTWURF-WARTEZEIT-STARTSEITE.md`, `docs/ENTWURF-KONSOLE.md`), dann bauen. Bestellt bei Heinzel als Worker B
   (Zweig `claude/ladescreen-konsole-035`). Vorlage: die uncommitteten Phasentext-Änderungen eines abgebrochenen
   Workers in `.claude/worktrees/f5-steam-ohne-neustart`.
+
+**Entscheidungen des Nutzers zu 0.4 „Wie eine Konsole“ (22.11., 18:42, über Heinzel):**
+1. Controller-only ist hart: alles muss einwandfrei mit dem Pad gehen, auch Steams Abfragen.
+2. Zielzeiten: keine Zahlen – „maximal verbessern, was geht“.
+3. „Konsolenmodus“: eine Anfrage, sobald ein Controller erkannt wird; ersetzt die heutige Vollbild-Anfrage.
+4. Ladeanzeige: schöne Animation, kein Fortschrittsbalken mit Technikschritten.
+5. Overlay in 0.4.0, Klänge später in 0.4.x.
 
 **Aus derselben Runde, technisch:**
 - [ ] **Zwei Nightforge-Kopien mit gleicher Kennung** (Release in `/Applications`, Testbuild in `~/Applications`,
