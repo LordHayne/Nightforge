@@ -187,11 +187,13 @@ final class LibraryModel: ObservableObject {
     @Published var showingSettings = false
     /// Waiting for the user to confirm removing this game (or its download).
     @Published var pendingUninstall: Game?
-    @Published var offersFullScreen = false
+    /// The request "Console mode?" is up (ConsoleMode.offers).
+    @Published var offersConsoleMode = false
+    /// Console mode (ConsoleMode): full screen on every screen, the Dock away while games are played.
+    @Published private(set) var consoleMode = ConsoleMode.isOn()
     /// The Windows game that stands at a question now: A and B answer it (PadAnswer).
     private(set) var windowsQuestion: Game?
     private var padAnswered: Date?
-    private var fullScreenOffered = false
     /// Sleeping the Mac or quitting, waiting for its "are you sure" (PowerMenu).
     @Published var pendingPower: PowerMenu.Entry?
     /// Waiting for the user to confirm removing the Windows version of a game that now runs its Mac one.
@@ -468,6 +470,7 @@ final class LibraryModel: ObservableObject {
             return GameProcesses.showsWindow(Set(playing.compactMap { self.running[$0] }), anySpace: true)
         }
         GameBackdrop.frontMoved = { [weak self] front in self?.frontMoved(to: front) }
+        FullScreen.endConsoleMode = { [weak self] in self?.setConsoleMode(false, by: "the full-screen switch") }
         DarkWatch.shared.begin(with: self)
         // A screen plugged in or pulled: whether the lid matters changes with it.
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
@@ -894,7 +897,7 @@ final class LibraryModel: ObservableObject {
                 await lookAtSteamOnDemand()
                 lookAtDrives()
                 lookAtWakeCatchUp()
-                offerFullScreenIfDue()
+                offerConsoleModeIfDue()
                 input.takeHomeButton()
                 DarkWatch.shared.look()
                 watchExits(found)
@@ -1434,7 +1437,7 @@ final class LibraryModel: ObservableObject {
         if !GameBackdrop.isRaised { macOSQuestionsBefore = nil }
         GameBackdrop.mayCapture = false  // until this start's game runs (watchCurtain)
         // Console mode (Nightforge in its full screen): the Dock stays out of sight while the game runs, in a window too.
-        if FullScreen.isOn { DockAutoHide.run({ DockAutoHide.engage($0) }) }
+        if consoleMode { DockAutoHide.run({ DockAutoHide.engage($0) }) }
         raisedForExit = false
         pictureWentAt = nil
         stageHintSince = nil
@@ -3739,7 +3742,7 @@ final class LibraryModel: ObservableObject {
         pendingLeftoverRemoval = nil
         // Two it didn't know (14.11.): either one up, and no quit got past it.
         pendingPower = nil
-        offersFullScreen = false
+        offersConsoleMode = false
     }
 
     /// The sheets over the library that are up, each by the state that holds it: what wine.log names when
@@ -3752,7 +3755,7 @@ final class LibraryModel: ObservableObject {
          ("saveChoice", saveChoice != nil), ("pendingDemoLicense", pendingDemoLicense != nil), ("d3dMetalDialog", d3dMetalDialog != nil),
          ("pendingCloudGame", pendingCloudGame != nil), ("pendingUninstall", pendingUninstall != nil),
          ("pendingLeftoverRemoval", pendingLeftoverRemoval != nil), ("pendingPower", pendingPower != nil),
-         ("offersFullScreen", offersFullScreen)].filter(\.1).map(\.0)
+         ("offersConsoleMode", offersConsoleMode)].filter(\.1).map(\.0)
     }
 
     /// From the setup sheet: this game keeps to its Windows version.
@@ -4223,22 +4226,45 @@ final class LibraryModel: ObservableObject {
         searchFocusRequest += 1
     }
 
-    /// A controller at the MacBook: the full screen is offered, once per start (FullScreenOffer).
-    private func offerFullScreenIfDue() {
+    /// A controller connected: console mode is asked for, once overall (ConsoleMode.offers).
+    private func offerConsoleModeIfDue() {
         guard let window = NSApp.windows.first(where: { $0.title == "Nightforge" }) else { return }
         let open = window.attachedSheet != nil || NSApp.modalWindow != nil || launcherMenuOpen || quickMenu != nil || padKeyboard != nil
-        guard FullScreenOffer.offers(alreadyOffered: fullScreenOffered, padConnected: controllerConnected, inFront: NSApp.isActive,
-                                     fullScreen: FullScreen.isOn, onBuiltInScreen: window.screen.map(GameDisplay.isBuiltIn) ?? false,
-                                     firstStart: showsFirstStart, gameOn: gameOnScreen, somethingOpen: open) else { return }
-        fullScreenOffered = true
-        offersFullScreen = true
+        guard ConsoleMode.offers(asked: ConsoleMode.asked(), on: consoleMode, padConnected: controllerConnected, inFront: NSApp.isActive,
+                                 firstStart: showsFirstStart, gameOn: gameOnScreen, somethingOpen: open) else { return }
+        UserDefaults.standard.set(true, forKey: ConsoleMode.askedKey)
+        GameLog.note("Console mode: asked, a controller is connected")
+        offersConsoleMode = true
     }
 
     func askForHomeButton() { input.askForHomeButton() }
 
-    func acceptFullScreen() {
-        offersFullScreen = false
-        FullScreen.toggle()
+    /// "Console Mode" in the request.
+    func acceptConsoleMode() {
+        offersConsoleMode = false
+        setConsoleMode(true, by: "the request")
+    }
+
+    /// "Not Now" in the request: not asked again by itself; the small menu and Settings › Controller have it.
+    func declineConsoleMode() {
+        offersConsoleMode = false
+        GameLog.note("Console mode: not now")
+    }
+
+    /// Console mode on or off (`by`: for the log). On: full screen at once, the Dock's setting at the next game's start
+    /// (raiseCurtain). Off: the window as before, the Dock's setting back as the player had it (DockAutoHide), a line.
+    func setConsoleMode(_ on: Bool, by: String) {
+        guard on != consoleMode else { return }
+        consoleMode = on
+        UserDefaults.standard.set(on, forKey: ConsoleMode.onKey)
+        UserDefaults.standard.set(true, forKey: ConsoleMode.askedKey)
+        GameLog.note("Console mode \(on ? "on" : "off") (\(by))")
+        if let window = NSApp.windows.first(where: { $0.title == "Nightforge" }) {
+            FullScreen.set(on, window)
+            GameDisplay.fullScreenChosen(on, window)
+        }
+        if !on { DockAutoHide.run({ DockAutoHide.restore($0) }) }
+        Toasts.shared.show(on ? L10n.t("Console mode on. Leave it from the small menu at the top right.") : L10n.t("Console mode off."))
     }
 
     /// A or B on a Windows game's question: the helper presses the button in it.

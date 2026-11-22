@@ -197,6 +197,12 @@ enum GameDisplay {
     }
 
     private static func place() async {
+        defer {
+            // Console mode: full screen on whichever screen the window ends up on, at the start and after a move.
+            if let window, !running, ConsoleMode.wantsFullScreen(consoleMode: ConsoleMode.isOn(), fullScreen: FullScreen.isOn) {
+                setFullScreen(true, window)
+            }
+        }
         let screens = candidates()
         // The Mac's screen alone: as the player left it there.
         if pick(screens) == nil, let window, !running, !FullScreen.isOn, let display = window.screen.flatMap(id),
@@ -237,8 +243,9 @@ enum GameDisplay {
     private static func leaveFullScreenOffTV() async {
         let on = candidates().first { $0.id == window?.screen.flatMap(id) }
         guard let window, !running,
-              leavesFullScreen(madeFullScreen: madeFullScreen, fullScreen: FullScreen.isOn,
-                               windowOn: on, wantsFullScreen: wantsFullScreen(on))
+              ConsoleMode.leavesFullScreenOffTV(consoleMode: ConsoleMode.isOn(),
+                                                wouldLeave: leavesFullScreen(madeFullScreen: madeFullScreen, fullScreen: FullScreen.isOn,
+                                                                             windowOn: on, wantsFullScreen: wantsFullScreen(on)))
         else { return }
         madeFullScreen = false
         placing = true

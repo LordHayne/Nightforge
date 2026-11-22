@@ -69,8 +69,13 @@ enum FullScreen {
         ]
     }
 
-    /// The player's switch: the green button, ⌃⌘F or Esc.
+    /// Ends console mode (LibraryModel.setConsoleMode), set by the model.
+    static var endConsoleMode: (@MainActor () -> Void)?
+
+    /// The player's switch: the green button, ⌃⌘F or Esc. In console mode it ends console mode, not only the full
+    /// screen (ConsoleMode.toggleEndsConsoleMode).
     static func toggle() {
+        if ConsoleMode.toggleEndsConsoleMode(consoleMode: ConsoleMode.isOn()), let endConsoleMode { return endConsoleMode() }
         guard let window else { return }
         set(!isOn, window)
         GameDisplay.fullScreenChosen(isOn, window)
@@ -97,8 +102,6 @@ enum FullScreen {
         } else {
             let saved = windowed ?? defaultFrame(in: screen.visibleFrame)
             windowed = nil
-            // Console mode over: the Dock's setting as the player had it (DockAutoHide).
-            DockAutoHide.run({ DockAutoHide.restore($0) })
             if let pointerWatch { NSEvent.removeMonitor(pointerWatch) }
             pointerWatch = nil
             window.acceptsMouseMovedEvents = movesBefore

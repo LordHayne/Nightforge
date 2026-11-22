@@ -143,3 +143,23 @@ beiden Texten.
    Schreibtisch ohne Controller?
 5. **Fokusrahmen sofort sichtbar** im Konsolenmodus, auch bevor ein Knopf gedrückt wurde: ja?
 6. **Ersteinrichtung mit Controller:** Anfrage direkt nach „Los geht's“ (Vorschlag), oder schon als Teil der Einrichtung?
+
+## Gebaut (Variante A, Thomas' Wahl), Zweig `claude/konsolenmodus-a-035`
+
+Aufgesetzt auf die Lichtnaht (`claude/ladescreen-konsole-035`). `claude/konsolenmodus-035` ist im Worktree eines anderen
+Workers ausgecheckt und blieb unberührt; der Entwurfs-Commit ist übernommen. Für die offenen Fragen 2–6 gelten die
+Vorschläge oben, bis Thomas anders entscheidet.
+
+- `ConsoleMode.swift`: der Schalter (`console.modeOn`, bleibt über Neustarts), „gefragt“ (`console.modeAsked`) und die
+  Regeln als reine Funktionen. Ersetzt `FullScreenOffer`.
+- Die Anfrage (`LibraryView`, Glasblatt): „Konsolenmodus?“ / „Nightforge füllt den Bildschirm und hält das Dock auch beim
+  Spielen fern.“, Knöpfe „Nicht jetzt“ · „Konsolenmodus“ (vorgewählt, Ⓐ). Einmal überhaupt, auf jedem Bildschirm, nach
+  der Ersteinrichtung. Wer „Nicht jetzt“ wählt, wird nicht wieder von selbst gefragt.
+- An: Vollbild sofort, auch beim Start und nach jedem Bildschirmwechsel; ein abgesteckter Fernseher lässt das Vollbild
+  stehen; `DockAutoHide.engage` beim Spielstart hängt jetzt an `consoleMode`. Hinweis: „Konsolenmodus an. Beenden im
+  kleinen Menü oben rechts.“
+- Aus: kleines Menü („Konsolenmodus beenden“), Einstellungen › Controller (Schalter), ⌃⌘F, Ansicht › Vollbild.
+  Esc ganz oben beendet ihn nicht, Ⓑ auch nicht. Das Dock wird dabei zurückgestellt, nicht mehr bei jedem Ende des
+  Vollbilds. Hinweis: „Konsolenmodus aus.“
+- Nicht gebaut: der sofort sichtbare Fokusrahmen (Frage 5) und ein zweites Fragen beim ersten Fernseher (Frage 2).
+- Tests: `tests/ConsoleModeTest` (Regeln), `ModelFlowsTest` (das Blatt heißt `offersConsoleMode`).

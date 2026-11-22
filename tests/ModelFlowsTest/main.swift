@@ -695,10 +695,10 @@ func scansInLine() {
     clean()
     let model = LibraryModel()
     check(model.openSheets.isEmpty, "nothing is up at first: \(model.openSheets)")
-    model.offersFullScreen = true
-    check(model.openSheets == ["offersFullScreen"], "the full-screen offer is named for wine.log: \(model.openSheets)")
+    model.offersConsoleMode = true
+    check(model.openSheets == ["offersConsoleMode"], "the console-mode request is named for wine.log: \(model.openSheets)")
     model.closeAllSheets()
-    check(!model.offersFullScreen, "the full-screen offer for the controller goes with a quit")
+    check(!model.offersConsoleMode, "the console-mode request goes with a quit")
     model.pendingPower = .quitNightforge
     model.closeAllSheets()
     check(model.pendingPower == nil, "and the small menu's own \"Quit Nightforge?\"")
