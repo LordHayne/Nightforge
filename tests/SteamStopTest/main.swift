@@ -110,6 +110,13 @@ struct SteamStopTest {
         check(both.looks == 9, "the service beside the web helper: the whole limit")
         let blind = await run([nil])
         check(blind.looks == 1 && blind.log.isEmpty, "no process list: no wait, as before")
+
+        // Every start of Steam in the background after one ended – by "-shutdown", with its session (stopAll, a new
+        // session for msync, Retina or the library) – waits the same way first (19:32 on 22.11.: ended :23, started :24).
+        let engine = (try? String(contentsOfFile: "Sources/Nightforge/Engine.swift", encoding: .utf8)) ?? ""
+        let silentStarts = engine.components(separatedBy: "try startSteam(wine, arguments: [\"-silent\"])").dropLast()
+        check(silentStarts.count == 3 && silentStarts.allSatisfy { $0.hasSuffix("await waitForSteamToEnd()\n            ") || $0.hasSuffix("await waitForSteamToEnd()\n        ") },
+              "each of the three background starts after an end waits for the last Steam first (\(silentStarts.count))")
     }
 
     static func main() async {

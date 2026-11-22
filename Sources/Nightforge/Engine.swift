@@ -2791,6 +2791,7 @@ enum Engine {
             if !busy {
                 applySessionSettings(wine)
             }
+            await waitForSteamToEnd()
             try startSteam(wine, arguments: ["-silent"])
         }
         UserDefaults.standard.set(steamConfigSignature, forKey: key)
@@ -3008,6 +3009,7 @@ enum Engine {
     static func restartSteamInBackground(_ wine: URL) async throws {
         try await stopSteam(wine)
         applySessionSettings(wine)
+        await waitForSteamToEnd()
         try startSteam(wine, arguments: ["-silent"])
         UserDefaults.standard.set(steamConfigSignature, forKey: "steamConfigSignature")
     }
@@ -3023,6 +3025,7 @@ enum Engine {
         }
         await offMain { stopAll(wine) }
         applySessionSettings(wine)
+        await waitForSteamToEnd()
         try startSteam(wine, arguments: ["-silent"])
         UserDefaults.standard.set(steamConfigSignature, forKey: "steamConfigSignature")
     }
@@ -3056,8 +3059,7 @@ enum Engine {
 
     /// `endWait`: seconds Steam gets for its "-shutdown" – `filesEndWait` where its files are touched after.
     static func stopSteam(_ wine: URL, endWait: Int = 20) async throws {
-        try await stopSteam(wine, running: { isSteamRunning },
-                            leftovers: { ownProcessesKnown().map { steamProcessNames(in: $0.map(\.command)) } },
+        try await stopSteam(wine, running: { isSteamRunning }, leftovers: { steamLeftovers },
                             installing: { SteamBootstrap(steamRoot: steamRoot) == .installing },
                             shutdown: { try startSteam(sessionWine() ?? $0, arguments: ["-shutdown"]) },
                             hardStop: { wine in
@@ -3110,6 +3112,17 @@ enum Engine {
             }
             try await Task.sleep(for: pause)
         }
+    }
+
+    /// Steam's programs still running in Nightforge's session (`steamProcessNames`), nil without a process list.
+    static var steamLeftovers: [String]? { ownProcessesKnown().map { steamProcessNames(in: $0.map(\.command)) } }
+
+    /// Before Steam starts again in the background: what is left of the last one – ended by "-shutdown" or with its
+    /// Wine session (stopAll, a new session for msync, Retina or the library) – ends first, as after `stopSteam`.
+    /// On 22.11.2026 at 19:32 the session ended at :23 and Steam started at :24 (13.8 s, at 19:01 5.65 s).
+    static func waitForSteamToEnd() async {
+        try? await waitForSteamLeftovers({ steamLeftovers }, pause: .seconds(1), limit: steamLeftoverWait,
+                                         serviceLimit: steamServiceWait, log: GameLog.note)
     }
 
     /// How long a stop of Steam waits for its last processes after steam.exe, in pauses (seconds), and for Steam's
