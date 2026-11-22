@@ -311,11 +311,13 @@ Koordinator-Session, die zuerst das Memory liest.
   darin auch, was nur lokal lag: `claude/staging-035` (diese Liste), `claude/steam-start-probe-035` (F4-Aufzeichnung),
   `claude/vibrant-meninsky-0f7097` (ARM64-Stand November), `claude/airplay-nvidia-shield-app-b56bc2` (Shield-App),
   `claude/dxmt-hud-toggle-033`, `claude/direct-probe`. Liegt im Koordinator-Ordner unter `build/handover/`.
-- [ ] **Repo am neuen Mac unter demselben Pfad** (`~/Downloads/Nachtschicht`, gleicher Benutzername `thomas`), damit
-  der Memory-Ordner `~/.claude/projects/-Users-thomas-Downloads-Nachtschicht/memory/` passt:
-  `git clone https://github.com/LordHayne/Nightforge.git ~/Downloads/Nachtschicht`, dann die lokalen Zweige aus dem
-  Bundle: `git -C ~/Downloads/Nachtschicht fetch <bundle> 'refs/heads/claude/*:refs/heads/claude/*' 'refs/heads/backup/*:refs/heads/backup/*'`.
-- [ ] **Memory** (612 KB): `~/.claude/projects/-Users-thomas-Downloads-Nachtschicht/memory/` an dieselbe Stelle.
+- [ ] **Repo am neuen Mac in `~/development`** (der Nutzer, 22.11.: „repo wird jetzt in user/thomas/development sein“):
+  `git clone https://github.com/LordHayne/Nightforge.git ~/development`, dann die lokalen Zweige aus dem Bundle:
+  `git -C ~/development fetch <bundle> 'refs/heads/claude/*:refs/heads/claude/*' 'refs/heads/backup/*:refs/heads/backup/*'`.
+- [ ] **Memory** (612 KB): Claude Code legt es nach dem Pfad des Repos ab (jedes Zeichen außer Buchstaben und Ziffern
+  wird zu `-`). Für `~/development` also `~/.claude/projects/-Users-thomas-development/memory/` (für
+  `~/development/Nightforge` wäre es `-Users-thomas-development-Nightforge`). Vor dem Start der neuen Session dort
+  entpacken. Pfade im Memory, die noch auf `~/Downloads/Nachtschicht` zeigen, gelten dort sinngemäß für `~/development`.
 - [ ] **Notizordner** (110 MB, `chain-033.sh`, `stackpeek/`, `env-probe/`, `hermes/`, `live-runde-033/`, Shader-Messung …):
   liegt hier unter `~/Library/Application Support/Claude/side-session-notes/local_50379bcc-…/`. Am neuen Mac bekommt
   die neue Koordinator-Session eine andere Kennung: an einen festen Ort legen und den Pfad im Memory nachtragen.
