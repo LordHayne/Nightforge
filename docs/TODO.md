@@ -311,13 +311,17 @@ Koordinator-Session, die zuerst das Memory liest.
   darin auch, was nur lokal lag: `claude/staging-035` (diese Liste), `claude/steam-start-probe-035` (F4-Aufzeichnung),
   `claude/vibrant-meninsky-0f7097` (ARM64-Stand November), `claude/airplay-nvidia-shield-app-b56bc2` (Shield-App),
   `claude/dxmt-hud-toggle-033`, `claude/direct-probe`. Liegt im Koordinator-Ordner unter `build/handover/`.
-- [ ] **Repo am neuen Mac in `~/development`** (der Nutzer, 22.11.: „repo wird jetzt in user/thomas/development sein“):
-  `git clone https://github.com/LordHayne/Nightforge.git ~/development`, dann die lokalen Zweige aus dem Bundle:
-  `git -C ~/development fetch <bundle> 'refs/heads/claude/*:refs/heads/claude/*' 'refs/heads/backup/*:refs/heads/backup/*'`.
-- [ ] **Memory** (612 KB): Claude Code legt es nach dem Pfad des Repos ab (jedes Zeichen außer Buchstaben und Ziffern
-  wird zu `-`). Für `~/development` also `~/.claude/projects/-Users-thomas-development/memory/` (für
-  `~/development/Nightforge` wäre es `-Users-thomas-development-Nightforge`). Vor dem Start der neuen Session dort
-  entpacken. Pfade im Memory, die noch auf `~/Downloads/Nachtschicht` zeigen, gelten dort sinngemäß für `~/development`.
+- [ ] **Repo am neuen Mac: der vorhandene Klon `~/Development/nightforge`** (22.11.: `~/development` ist dort derselbe
+  Ordner wie `~/Development` – Groß- und Kleinschreibung zählen nicht – und enthält andere Projekte; Nightforge liegt
+  schon geklont darin, `main` ohne eigene Änderungen, 1079 Commits hinter GitHub). Aktualisieren statt neu klonen:
+  `git -C ~/Development/nightforge pull`, dann die lokalen Zweige aus dem Bundle (ohne `+`: vorhandene, abweichende
+  Zweige werden nicht überschrieben, sondern abgelehnt):
+  `git -C ~/Development/nightforge fetch <bundle> 'refs/heads/claude/*:refs/heads/claude/*' 'refs/heads/backup/*:refs/heads/backup/*'`.
+- [ ] **Memory** (612 KB): Claude Code legt es nach dem Pfad des Repos ab, wie die App ihn sieht (jedes Zeichen außer
+  Buchstaben und Ziffern wird zu `-`), vermutlich `~/.claude/projects/-Users-thomas-Development-nightforge/memory/`.
+  Den Namen aus `pwd -P` im Repo bilden; liegt dort schon ein `memory/` (frühere Arbeit am alten Klon), erst beiseite
+  legen. Vor dem Start der neuen Session entpacken. Pfade im Memory, die auf `~/Downloads/Nachtschicht` zeigen, gelten
+  dort sinngemäß für `~/Development/nightforge`.
 - [ ] **Notizordner** (110 MB, `chain-033.sh`, `stackpeek/`, `env-probe/`, `hermes/`, `live-runde-033/`, Shader-Messung …):
   liegt hier unter `~/Library/Application Support/Claude/side-session-notes/local_50379bcc-…/`. Am neuen Mac bekommt
   die neue Koordinator-Session eine andere Kennung: an einen festen Ort legen und den Pfad im Memory nachtragen.
