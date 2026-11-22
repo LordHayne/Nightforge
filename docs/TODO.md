@@ -542,6 +542,10 @@ oder ein Bildschirmfoto.
   `applyLibraryVersion` hat also genau einmal neu gestartet, ohne Hand. Steam: WaitingForNetwork und Anmeldung in
   derselben Sekunde (16:02:18), **System startup time 5,21 s** (vorher 25,7 s; so schnell wie der alte Mac), keine
   Rückfrage. Offen bleibt nur das Ungeprüfte oben.
+  **Weitere Steam-Starts am M5 Pro (System startup time, ohne „Timed out“):** 5,21 s (16:02, 78c2fb2), 6,15 s
+  (16:52, 187f905 nach vollem Neustart), 5,65 s (19:01, 871c0c8 mit Sitzungsprüfung per Inhalt). Die Runde 16:47–16:51
+  mit 26–40 s lief mit dem Release 0.3.4 aus `/Applications` (über Launchpad/Spotlight geöffnet), nicht mit dem
+  Testbuild – kein Rückfall von F4.
 - [ ] **Bau mit gesetztem `SDKROOT` rot (22.11.):** In Heinzels Sessions ist `SDKROOT` auf das Standard-SDK
   (`MacOSX.sdk`, 27.2) gesetzt. `build.sh` (Zeile 9) fällt nur bei leerem `SDKROOT` auf `MacOSX26.5.sdk` zurück, mit
   27.2 fehlen die SwiftUI-Makros („cannot find '$barShown' in scope“). Heinzel baute deshalb mit
