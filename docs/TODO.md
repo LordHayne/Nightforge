@@ -488,6 +488,17 @@ oder ein Bildschirmfoto.
   ersetzt `if_nameindex()`. Schnittstellen mit IPv4 kommen zuerst. Solche ohne Adresse, die keinen Link haben oder
   aus sind, fallen weg (hier 24 → 10, `en0` direkt hinter `lo0`). Kein Wine-Patch. `steamConfigVersion` 12, damit ein
   laufendes Steam einmal neu startet.
+  **Messung 22.11., Testbuild a56a3d7 (signiert):** Nach dem Einspielen um 15:13 startete Nightforge nur Steam neu.
+  Die Wine-Sitzung blieb, und ihr `winedevice.exe` hatte die alte Bibliothek seit 14:46 geladen. Ergebnis: wieder
+  „Timed out waiting for network“, 25,75 s. Nach einem vollen Neustart um 15:18 (Nightforge beendet, Steam
+  `-shutdown`, die Sitzung endete von selbst) kamen „WaitingForNetwork“ und „Initiating LogOn“ in derselben Sekunde
+  (15:18:37), ohne Zeitüberschreitung. **System startup time 8,70 s statt 25,75 s.** Die Anmeldung lief ohne Rückfrage:
+  `LogOnResponse 'OK'`, kein `WaitingForCredentials`, kein Steam Guard. Wines `ipconfig` in der Sitzung zeigt lo0, en0,
+  utun0, awdl0, llw0, utun1–5. Deshalb trägt Steams Signatur seit dem nächsten Commit `DockHider.sessionVersion`.
+  `Engine.applyLibraryVersion` beendet beim Steam-Neustart einmal eine Sitzung, die mit einer älteren Bibliothek begann
+  (wie `applyMsyncMode`: nie unter einem Spiel). Live geprüft wird das beim nächsten Einspielen. Ungeprüft: der alte
+  Mac, andere Macs, ein WLAN, das erst nach Wines erstem Blick beitritt, Kopierschutz, der den ersten Adapter als
+  Geräte-Kennung nimmt. Der erste Adapter außer lo0 ist jetzt en0 statt gif0, der erste mit MAC-Adresse en0 statt anpi1.
 - [ ] **F5 – Ein Spielstart startet Steam neu, das kostet 10–15 s** (auf beiden Macs, siehe F4 (a)). Steam übernimmt die
   Umgebung des Spiels (D3DMetal, AVX, Rosetta-Bibliothek, msync) nur bei seinem Start (`Engine.prepareLaunchEnvironment`,
   Neustart in `LibraryModel`). Idee, nicht geprüft: Steam im Hintergrund gleich mit der Umgebung starten, die die meisten
