@@ -161,5 +161,6 @@ Vorschläge oben, bis Thomas anders entscheidet.
 - Aus: kleines Menü („Konsolenmodus beenden“), Einstellungen › Controller (Schalter), ⌃⌘F, Ansicht › Vollbild.
   Esc ganz oben beendet ihn nicht, Ⓑ auch nicht. Das Dock wird dabei zurückgestellt, nicht mehr bei jedem Ende des
   Vollbilds. Hinweis: „Konsolenmodus aus.“
-- Nicht gebaut: der sofort sichtbare Fokusrahmen (Frage 5) und ein zweites Fragen beim ersten Fernseher (Frage 2).
+- Fokusrahmen sofort (Frage 5, entschieden 23.11.): im Konsolenmodus steht er ohne Tastendruck in Dialogen und Blättern, im kleinen Menü, im Schnellmenü und in den Spieloptionen. In Bibliothek und Startseite bleibt die Spielauswahl die Markierung des Pads (ein Ring auf einem Knopf nähme dem Pad die Spiele). Außerhalb des Konsolenmodus wie bisher.
+- Nicht gebaut: ein zweites Fragen beim ersten Fernseher (Frage 2, so entschieden).
 - Tests: `tests/ConsoleModeTest` (Regeln), `ModelFlowsTest` (das Blatt heißt `offersConsoleMode`).

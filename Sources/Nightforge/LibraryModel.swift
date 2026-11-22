@@ -471,6 +471,7 @@ final class LibraryModel: ObservableObject {
         }
         GameBackdrop.frontMoved = { [weak self] front in self?.frontMoved(to: front) }
         FullScreen.endConsoleMode = { [weak self] in self?.setConsoleMode(false, by: "the full-screen switch") }
+        watchConsoleFocus()  // console mode kept from the last session
         DarkWatch.shared.begin(with: self)
         // A screen plugged in or pulled: whether the lid matters changes with it.
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
@@ -4264,7 +4265,34 @@ final class LibraryModel: ObservableObject {
             GameDisplay.fullScreenChosen(on, window)
         }
         if !on { DockAutoHide.run({ DockAutoHide.restore($0) }) }
+        watchConsoleFocus()
         Toasts.shared.show(on ? L10n.t("Console mode on. Leave it from the small menu at the top right.") : L10n.t("Console mode off."))
+    }
+
+    private var consoleFocusWatch: Task<Void, Never>?
+
+    /// Console mode's highlight at once (ConsoleMode.focusPlace): while it's on and Nightforge is in front, a short look
+    /// each `focusLook` whether a dialog or a panel has come with none – nothing is drawn unless one is placed.
+    private func watchConsoleFocus() {
+        consoleFocusWatch?.cancel()
+        guard consoleMode else { return consoleFocusWatch = nil }
+        consoleFocusWatch = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(ConsoleMode.focusLook))
+                guard let self, self.consoleMode else { return }
+                guard NSApp.isActive, let key = NSApp.keyWindow else { continue }
+                let main = NSApp.windows.first { $0.title == "Nightforge" }
+                let dialog = key !== main && key.isVisible
+                let panel = self.launcherMenuOpen || self.quickMenu != nil || self.showingOptions
+                let focused = PadFocus.shared.focusedItem(in: key).map { dialog || $0.zone == .panel } ?? false
+                switch ConsoleMode.focusPlace(consoleMode: true, focused: focused, dialogInFront: dialog, panelOpen: panel,
+                                              gameOn: self.gameOnScreen) {
+                case .dialog: PadFocus.shared.placeAtOnce(in: key)
+                case .panel: PadFocus.shared.placeAtOnce(in: key, within: .panel)
+                case .none: break
+                }
+            }
+        }
     }
 
     /// A or B on a Windows game's question: the helper presses the button in it.

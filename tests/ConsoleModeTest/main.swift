@@ -41,6 +41,20 @@ struct ConsoleModeTest {
         check(!ConsoleMode.wantsFullScreen(consoleMode: true, fullScreen: true) && !ConsoleMode.wantsFullScreen(consoleMode: false, fullScreen: false),
               "full screen already, or no console mode: nothing to do")
 
+        // The highlight at once in console mode, where it's the pad's only mark (23.11.2026).
+        func place(on: Bool = true, focused: Bool = false, dialog: Bool = false, panel: Bool = false, gameOn: Bool = false) -> ConsoleMode.FocusPlace {
+            ConsoleMode.focusPlace(consoleMode: on, focused: focused, dialogInFront: dialog, panelOpen: panel, gameOn: gameOn)
+        }
+        check(place(dialog: true) == .dialog, "a dialog or sheet in front: its highlight stands before any press")
+        check(place(panel: true) == .panel, "the small menu, the quick menu, a game's options: theirs too")
+        check(place(dialog: true, panel: true) == .dialog, "a dialog over an open panel: the dialog, which has the keys")
+        check(place() == .none, "the library and Home: the selected game is the pad's mark, no ring on a button")
+        check(place(on: false, dialog: true) == .none && place(on: false, panel: true) == .none,
+              "outside console mode: as before, once the pad moved")
+        check(place(focused: true, dialog: true) == .none, "one stands already: left where the player put it")
+        check(place(dialog: true, gameOn: true) == .none, "a game on: the pad is the game's")
+        check(ConsoleMode.focusLook <= 0.5, "a dialog shows its highlight within half a second")
+
         // Kept in the defaults: on across restarts, asked once.
         let suite = "ConsoleModeTest.\(UUID().uuidString)"
         guard let defaults = UserDefaults(suiteName: suite) else { return print("✗ no defaults suite") }
