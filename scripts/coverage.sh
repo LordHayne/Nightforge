@@ -15,10 +15,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 ROOT="$PWD"
 
-CLT_SDK="/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk"
-if [ -z "${SDKROOT:-}" ] && [ "$(xcode-select -p)" = "/Library/Developer/CommandLineTools" ] && [ -d "$CLT_SDK" ]; then
-  export SDKROOT="$CLT_SDK"
-fi
+# shellcheck source=scripts/sdk-lib.sh
+. scripts/sdk-lib.sh && nightforge_pick_sdk
 
 HTML=0
 FILES=0

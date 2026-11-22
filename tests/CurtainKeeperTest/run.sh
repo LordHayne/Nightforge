@@ -2,10 +2,8 @@
 # Checks that a curtain never stays with nobody to take it away (Tomb Raider, 8.11.): tests/CurtainKeeperTest/run.sh
 set -euo pipefail
 cd "$(dirname "$0")/../.."
-CLT_SDK="/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk"
-if [ -z "${SDKROOT:-}" ] && [ "$(xcode-select -p)" = "/Library/Developer/CommandLineTools" ] && [ -d "$CLT_SDK" ]; then
-  export SDKROOT="$CLT_SDK"
-fi
+# shellcheck source=scripts/sdk-lib.sh
+. scripts/sdk-lib.sh && nightforge_pick_sdk
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT  # the test program goes with it
 OUT="$WORK/curtain-keeper-test"

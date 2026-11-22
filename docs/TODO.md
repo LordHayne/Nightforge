@@ -511,6 +511,10 @@ oder ein Bildschirmfoto.
   `DEVELOPER_DIR=/Applications/Xcode.app/…` (eine andere Werkzeugkette als sonst). Abhilfe: `build.sh` soll den
   Rückfall auch nehmen, wenn `SDKROOT` auf das Standard-SDK der CLT zeigt; bis dahin `env -u SDKROOT` (die Kette
   `chain-035.sh` im Notizordner tut das schon). Ob künftig mit Xcode statt CLT gebaut wird, entscheidet der Nutzer.
+  **Gebaut auf `claude/build-sdkroot-035`, wartet auf den Merge:** `scripts/sdk-lib.sh` (`nightforge_pick_sdk`) nimmt den
+  Rückfall auch, wenn `SDKROOT` auf ein CLT-SDK zeigt, das SwiftUI-Makros braucht, und sagt das in einer Zeile; Xcode
+  (xcode-select oder `DEVELOPER_DIR`) und SDKs außerhalb der CLT bleiben unberührt. build.sh, Signier-Skripte,
+  coverage.sh, compile-once.sh und alle `tests/*/run.sh` fragen die Funktion; Test `tests/test_sdk_choice.py`.
 - [ ] **F5 – Ein Spielstart startet Steam neu, das kostet 10–15 s** (auf beiden Macs, siehe F4 (a)). Steam übernimmt die
   Umgebung des Spiels (D3DMetal, AVX, Rosetta-Bibliothek, msync) nur bei seinem Start (`Engine.prepareLaunchEnvironment`,
   Neustart in `LibraryModel`). Idee, nicht geprüft: Steam im Hintergrund gleich mit der Umgebung starten, die die meisten
