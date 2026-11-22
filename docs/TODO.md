@@ -335,7 +335,9 @@ Koordinator-Session, die zuerst das Memory liest.
   beide Teile entpackt nach `~/Library/Application Support/Claude/side-session-notes/local_755bf7fe-d220-412c-ad3d-843646eb80ad/`
   (Kennung der neuen Koordinator-Session), Pfad im Memory eingetragen. Dazu `chain-035.sh` (Kette für diesen Mac;
   meldet pytest als übersprungen, solange `python@3.13` fehlt).
-- [ ] **Signierung (nur der Nutzer):** Ed25519-Hauptschlüssel im Schlüsselbund „Anmeldung“ als Kennwort mit Dienst
+- [x] **Signierung (nur der Nutzer)** – erledigt 22.11. nachmittags: Zertifikat importiert (unten), Hauptschlüssel vom
+  alten Mac per Zwischenablage in den Schlüsselbund (`security -i`, `-T ""`); geprüft vom Nutzer mit
+  `security find-generic-password … -w | build/signing-tool/signing-tool which` → „main“. Plan war: Ed25519-Hauptschlüssel im Schlüsselbund „Anmeldung“ als Kennwort mit Dienst
   `nightforge-signing-key`, Account `main` (`scripts/signing-lib.sh`); Ersatzschlüssel im Passwort-Manager.
   Code-Signing-Zertifikat: `.p12` auf „Games“ (`Nightforge-Code-Signing.p12`, Passwort im Passwort-Manager), Import
   nach `docs/CODESIGNATUR.md` (`security import … -T /usr/bin/codesign`); `scripts/codesign-certificate.sha1` nennt
@@ -343,7 +345,7 @@ Koordinator-Session, die zuerst das Memory liest.
   Stand 22.11. nachmittags: **Zertifikat importiert** (Nutzer, `security import` von „Games“): `find-identity -p
   codesigning` zeigt B60A2D36… „Nightforge Code Signing“ (CSSMERR_TP_NOT_TRUSTED, wie erwartet), gleich
   `scripts/codesign-certificate.sha1`. `scripts/check-signatures.sh` grün (rc 0, alle drei Listen mit dem Hauptschlüssel).
-  **Offen: der Hauptschlüssel** – kein Schlüsselbund-Eintrag `nightforge-signing-key`/`main`; Weg: am alten Mac in den
+  Hauptschlüssel: zuerst kein Schlüsselbund-Eintrag `nightforge-signing-key`/`main`; Weg: am alten Mac in den
   Passwort-Manager, hier mit `security -i` aus der Zwischenablage (wie `make-signing-keys.sh`). Beim ersten Bau mit dem
   Zertifikat fragt macOS, ob `codesign` den Schlüssel nutzen darf („Immer erlauben“, `docs/CODESIGNATUR.md`); bis dahin
   unbeaufsichtigt nur `NIGHTFORGE_AD_HOC=1 ./build.sh`.
