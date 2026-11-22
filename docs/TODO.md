@@ -396,6 +396,10 @@ oder ein Bildschirmfoto.
   Nightforge Game). Rechnername dort „MacBook-Pro-von-Thomas.local“, in 0,00 s gefunden. Beides ist es nicht. Nächste
   Prüfung: Energiesparmodus (die Oberfläche lädt dort 3–4× langsamer); danach ein `sample` des Steam-Prozesses während
   der 20 stillen Sekunden, als Skript für den Nutzer (kein Anti-Cheat-Spiel beteiligt).
+  **Ergebnis 22.11. ~12:00:** macOS 27.2.1 und Rosetta 1793943009 wie hier; Energiemodus dort `powermode 2` (hohe
+  Leistung), also nicht gedrosselt. Ausgeschlossen: Laufwerk, Netz, IPv6, Lokales Netzwerk, Namensauflösung,
+  System- und Rosetta-Stand, Energiemodus. Bleibt der Blick in den Steam-Prozess während der stillen 20 s (`sample`,
+  Windows-Stapel über stackpeek aus dem Notizordner), als Skript, das der Nutzer einmal startet.
 - [ ] **F5 – Ein Spielstart startet Steam neu, das kostet 10–15 s** (auf beiden Macs, siehe F4 (a)). Steam übernimmt die
   Umgebung des Spiels (D3DMetal, AVX, Rosetta-Bibliothek, msync) nur bei seinem Start (`Engine.prepareLaunchEnvironment`,
   Neustart in `LibraryModel`). Idee, nicht geprüft: Steam im Hintergrund gleich mit der Umgebung starten, die die meisten
