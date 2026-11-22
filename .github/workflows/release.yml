@@ -67,7 +67,7 @@ jobs:
       - name: No test switches in a release
         run: |
           for key in gameTest.measurePlay gameTest.testFinding testRootQuestion gameTest.missingRosetta; do
-            if strings -a build/Nightforge.app/Contents/MacOS/Nightforge | grep -q "$key"; then
+            if strings -a build/Nightforge.noindex/Nightforge.app/Contents/MacOS/Nightforge | grep -q "$key"; then
               echo "::error::The release build has the test switch $key"
               exit 1
             fi
@@ -75,7 +75,7 @@ jobs:
 
       - name: Package
         run: |
-          app=build/Nightforge.app
+          app=build/Nightforge.noindex/Nightforge.app
           codesign --verify --deep "$app"
           ditto -c -k --sequesterRsrc --keepParent "$app" "Nightforge-$VERSION.zip"
           # The drag-to-Applications window: background and icon positions in scripts/dmg-settings.py.
