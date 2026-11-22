@@ -392,6 +392,10 @@ oder ein Bildschirmfoto.
   vermutet). Nächste Probe: wie lange das Auflösen des eigenen Rechnernamens dauert (`gethostbyname`; hier schlägt es in
   0,1 s fehl, ein Stillstand von rund 20 s wäre die typische Zeitüberschreitung einer Namensauflösung), und ob
   Nightforge unter Datenschutz › Lokales Netzwerk steht und erlaubt ist.
+  **Ergebnis 22.11. 11:45–11:50:** Lokales Netzwerk auf beiden Macs freigegeben (Steam, Steam Helper, Nightforge Helper,
+  Nightforge Game). Rechnername dort „MacBook-Pro-von-Thomas.local“, in 0,00 s gefunden. Beides ist es nicht. Nächste
+  Prüfung: Energiesparmodus (die Oberfläche lädt dort 3–4× langsamer); danach ein `sample` des Steam-Prozesses während
+  der 20 stillen Sekunden, als Skript für den Nutzer (kein Anti-Cheat-Spiel beteiligt).
 - [ ] **F5 – Ein Spielstart startet Steam neu, das kostet 10–15 s** (auf beiden Macs, siehe F4 (a)). Steam übernimmt die
   Umgebung des Spiels (D3DMetal, AVX, Rosetta-Bibliothek, msync) nur bei seinem Start (`Engine.prepareLaunchEnvironment`,
   Neustart in `LibraryModel`). Idee, nicht geprüft: Steam im Hintergrund gleich mit der Umgebung starten, die die meisten
