@@ -367,6 +367,36 @@ Koordinator-Session, die zuerst das Memory liest.
   das Release 0.3.4 in `/Applications` bleibt daneben liegen (gleiche Bundle-ID: Testbuild immer per Pfad öffnen).
 - [ ] **Dieser Mac** bleibt Rückfall, bis am neuen ein Release durchgelaufen ist.
 
+## 0.3.5: Ladebildschirm und Wartephasen „wie eine Konsole“ (22.11.2026, Entscheidung des Nutzers)
+
+Der Nutzer nach der Messrunde: „Mit der Optik sind wir wieder ein Stück weiter weg vom Konsolen-Feeling als
+zuvor.“ Und um 18:34, als Teilschritt zu 0.4 „Wie eine Konsole“:
+
+- [ ] **Dock im Spielmodus komplett unsichtbar**, nie zu sehen.
+- [ ] **Keine Technik- oder Fehlertexte in normalen Phasen** („hängen geblieben“ nur bei einem echten Hänger,
+  „Hängt es?“ nicht in erklärenden Phasen; der Cloud-Text nur bei `sessionReplaced`).
+- [ ] **Immer sichtbare Bewegung:** am besten ein echter Fortschrittsbalken über die echten Schritte (Wine startet →
+  Steam meldet sich an → Spiel lädt → Bild da), ähnlich dem Download-Balken; sonst eine Ladeanimation. Das gilt
+  auch für den Vorhang beim Beenden (am 22.11. stand er 1–2 min, während ein Hilfsprozess des Wukong-Benchmarks
+  noch lief).
+- Vorgehen: erst ein Entwurf mit Vorher/Nachher-Bildern für den Nutzer (Abgleich mit `docs/AUDIT-LADESCREEN.md`,
+  `docs/ENTWURF-WARTEZEIT-STARTSEITE.md`, `docs/ENTWURF-KONSOLE.md`), dann bauen. Bestellt bei Heinzel als Worker B
+  (Zweig `claude/ladescreen-konsole-035`). Vorlage: die uncommitteten Phasentext-Änderungen eines abgebrochenen
+  Workers in `.claude/worktrees/f5-steam-ohne-neustart`.
+
+**Aus derselben Runde, technisch:**
+- [ ] **Zwei Nightforge-Kopien mit gleicher Kennung** (Release in `/Applications`, Testbuild in `~/Applications`,
+  beide „0.3.4“): Launchpad/Spotlight/Finder öffnen das Release, und das ersetzt `hide-steam-dock.dylib` im
+  Datenordner durch seine alte. `librarySession` (nur Versionsnummer) merkt das nicht → Sitzung mit alter
+  Bibliothek, F4-Timeout. Abhilfe: `librarySession` per Inhalt der Bibliothek (Worker A,
+  `claude/library-session-035`, bestellt). Für die Testphase: Release aus `/Applications` nehmen (OK des Nutzers
+  offen).
+- [ ] `stopSteam` soll warten, bis alle Steam-Prozesse weg sind (langsame Starts 26–31 s kamen 2–5 s nach dem
+  Ende des vorigen Steam; erst prüfen beim nächsten Neustart).
+- [x] **Bau mit gesetztem `SDKROOT`:** gebaut auf `claude/build-sdkroot-035` (`scripts/sdk-lib.sh`), geprüft,
+  Kette grün, wartet auf das Merge-Go. Achtung für main: `sdk-lib.sh` ist jetzt eine Signier-Datei, alte
+  Bot-PRs (#40, #41) müssen danach neu erzeugt werden.
+
 ## 0.3.4: Befunde nach dem Release von 0.3.3 (ab 21.11., neues MacBook Pro M5 Pro, alles frisch installiert)
 
 Der Nutzer prüft 0.3.3 auf dem zweiten Mac; sein Protokoll sieht der Koordinator nicht, die Einträge sind seine Beobachtung
