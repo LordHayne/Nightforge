@@ -340,8 +340,13 @@ Koordinator-Session, die zuerst das Memory liest.
   Code-Signing-Zertifikat: `.p12` auf „Games“ (`Nightforge-Code-Signing.p12`, Passwort im Passwort-Manager), Import
   nach `docs/CODESIGNATUR.md` (`security import … -T /usr/bin/codesign`); `scripts/codesign-certificate.sha1` nennt
   `B60A2D36…`. Danach `security find-identity -p codesigning` und ein Probelauf von `scripts/check-signatures.sh`.
-  Stand 22.11. nachmittags (nur gelesen): 0 Code-Signing-Identitäten, kein Schlüsselbund-Eintrag `nightforge-signing-key`;
-  „Games“ war nicht angesteckt.
+  Stand 22.11. nachmittags: **Zertifikat importiert** (Nutzer, `security import` von „Games“): `find-identity -p
+  codesigning` zeigt B60A2D36… „Nightforge Code Signing“ (CSSMERR_TP_NOT_TRUSTED, wie erwartet), gleich
+  `scripts/codesign-certificate.sha1`. `scripts/check-signatures.sh` grün (rc 0, alle drei Listen mit dem Hauptschlüssel).
+  **Offen: der Hauptschlüssel** – kein Schlüsselbund-Eintrag `nightforge-signing-key`/`main`; Weg: am alten Mac in den
+  Passwort-Manager, hier mit `security -i` aus der Zwischenablage (wie `make-signing-keys.sh`). Beim ersten Bau mit dem
+  Zertifikat fragt macOS, ob `codesign` den Schlüssel nutzen darf („Immer erlauben“, `docs/CODESIGNATUR.md`); bis dahin
+  unbeaufsichtigt nur `NIGHTFORGE_AD_HOC=1 ./build.sh`.
 - [x] **Werkzeuge** – erledigt 22.11. nachmittags: Homebrew (Nutzer), `python@3.13` 3.13.18, `gh` 2.105.0, `gh auth login`
   (Nutzer, HTTPS). pytest läuft aus einem venv neben dem Hauptklon: `build/pytest-venv` (Homebrews python3.13 + pytest 9.2).
   Offen beim Nutzer: Homebrew in `~/.zprofile` eintragen (`eval "$(/opt/homebrew/bin/brew shellenv)"`), sonst findet
