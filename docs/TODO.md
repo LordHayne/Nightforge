@@ -376,6 +376,22 @@ oder ein Bildschirmfoto.
   erste Verbindungsversuch erst um 00:15:05 – 20 s in „WaitingForNetwork“, wo dieser Mac in derselben Sekunde weitergeht.
   „System startup time“: 38,51 s dort, 5,23 s hier, gleiche Client-Version. Ursache offen. Nächste Proben, je ein Start:
   ohne angestecktes Laufwerk; am Netzteil; nachdem Steam einmal lange ungestört lief (Updates der übernommenen Spiele fertig).
+  **Nachtrag 22.11. (Steams eigene „System startup time“ aus `console_log`):** Neues MacBook, 24 Starts vom 21./22.11.:
+  im Leerlauf gleichbleibend 25–26 s, bei Spielstarts 37–45 s. Entwicklungs-Mac, 522 Starts: 260 unter 8 s, 168 mit
+  8–15 s, 90 mit 15–30 s, 4 darüber (bei Spielstarts am 15.11. oft 13–20 s). **Zwei getrennte Teile:** (a) ein
+  Spielstart kostet auf beiden Macs rund 10–15 s mehr als ein Leerlauf-Start – Steam startet mit der Umgebung des
+  Spiels neu (F5); (b) das neue MacBook liegt bei jedem Start rund 20 s über diesem Mac.
+  **Spur zu (b), am Entwicklungs-Mac belegt:** Am 7./8.11. stand Steam hier dreimal 11, 19 und 47 s zwischen
+  „SetLoginState: WaitingForNetwork“ und „LogOn() called“, ohne eine einzige Protokollzeile, und die Zeilen danach
+  waren das Einlesen der Bibliotheken, darunter „Install folder Z:\Volumes\Nightforge Games\… not mounted“ (eine
+  Bibliothek auf einem nicht angesteckten Laufwerk). Auf dem neuen MacBook steht Steam 19 s still direkt nach dem
+  Einlesen der Bibliothek auf „Games“. Nächste Probe dort: ein Steam-Start mit abgestecktem „Games“ und einer mit
+  angestecktem, je danach die letzte „System startup time“; dazu `mdutil -s /Volumes/Games` (indiziert Spotlight die
+  Platte auf dem frischen Mac noch?).
+- [ ] **F5 – Ein Spielstart startet Steam neu, das kostet 10–15 s** (auf beiden Macs, siehe F4 (a)). Steam übernimmt die
+  Umgebung des Spiels (D3DMetal, AVX, Rosetta-Bibliothek, msync) nur bei seinem Start (`Engine.prepareLaunchEnvironment`,
+  Neustart in `LibraryModel`). Idee, nicht geprüft: Steam im Hintergrund gleich mit der Umgebung starten, die die meisten
+  Spiele brauchen, und nur bei echten Abweichungen neu starten.
 
 ## 0.3.3: Release (21.11., der Nutzer: „bringen wir das release online dann kann ich update und alles prüfen und etwaige bugs bügeln wir in .4 aus“)
 
