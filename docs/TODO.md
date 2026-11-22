@@ -342,13 +342,20 @@ Koordinator-Session, die zuerst das Memory liest.
   `B60A2D36…`. Danach `security find-identity -p codesigning` und ein Probelauf von `scripts/check-signatures.sh`.
   Stand 22.11. nachmittags (nur gelesen): 0 Code-Signing-Identitäten, kein Schlüsselbund-Eintrag `nightforge-signing-key`;
   „Games“ war nicht angesteckt.
-- [ ] **Werkzeuge:** Command Line Tools (`xcode-select` bleibt auf `/Library/Developer/CommandLineTools`), Homebrew,
+- [x] **Werkzeuge** – erledigt 22.11. nachmittags: Homebrew (Nutzer), `python@3.13` 3.13.18, `gh` 2.105.0, `gh auth login`
+  (Nutzer, HTTPS). pytest läuft aus einem venv neben dem Hauptklon: `build/pytest-venv` (Homebrews python3.13 + pytest 9.2).
+  Offen beim Nutzer: Homebrew in `~/.zprofile` eintragen (`eval "$(/opt/homebrew/bin/brew shellenv)"`), sonst findet
+  eine neue Shell `brew`, `python3.13` und `gh` nicht (auch `sign-release.sh` sucht python3.13).
+  Ursprünglicher Plan: Command Line Tools (`xcode-select` bleibt auf `/Library/Developer/CommandLineTools`), Homebrew,
   `python@3.13` (für das DMG in `sign-release.sh`), `gh` mit `gh auth login`, `jq` (bringt macOS mit).
   Stand 22.11. nachmittags: da sind CLT 27.2 (`xcode-select -p` = CLT), Swift 6.4.2, git 2.54, jq 1.7.1, Rosetta;
   `Xcode.app` liegt in `/Applications` (bleibt ungenutzt, solange `xcode-select` auf CLT zeigt). Es fehlen Homebrew,
   `python@3.13` (mit pytest für die Kette), `gh`. `mingw-w64` ist nicht nötig: `build.sh` nimmt die geprüften
   Windows-Helfer aus `wrapper/`.
 - [ ] **Erster Probelauf dort:** `./build.sh`, `scripts/run-tests.sh -P 2`, pytest; dann ein Testbuild mit `--install`.
+  22.11. nachmittags auf 814b69c (Code = main 66fce01 = 0.3.4): Bau grün in 2 min, 122 Reihen, 0 rot (3,5 min bei -P 2),
+  pytest 286 bestanden – dieselben Zahlen wie zuletzt am alten Mac. Offen: Testbuild mit `--install`, erst wenn das
+  Code-Signing-Zertifikat im Schlüsselbund ist, und nur mit OK, während kein Spiel läuft.
 - [ ] **Dieser Mac** bleibt Rückfall, bis am neuen ein Release durchgelaufen ist.
 
 ## 0.3.4: Befunde nach dem Release von 0.3.3 (ab 21.11., neues MacBook Pro M5 Pro, alles frisch installiert)
