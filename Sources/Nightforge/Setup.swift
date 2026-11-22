@@ -595,7 +595,7 @@ final class SetupModel: ObservableObject {
     /// Before the sign-in nothing is in it.
     private func restartSteam(_ wine: URL) async throws {
         detail = L10n.t("Restarting Steam …")
-        await Engine.offMain { Engine.stopAll(wine) }
+        await Engine.offMain { Engine.stopAll(wine, reason: "Steam restarts during setup") }
         var waited = 0
         while waited < 40, await Engine.offMain({ !Engine.ownProcesses().isEmpty }) {
             try await Task.sleep(for: .milliseconds(250))

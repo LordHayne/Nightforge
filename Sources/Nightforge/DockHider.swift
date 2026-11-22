@@ -154,9 +154,10 @@ enum DockHider {
     /// Steam once more, the way it always starts, but with a new Wine session: Wine's own services
     /// were started with the old path as well, and the next device that connects would start a
     /// process from them. For a moment when nothing needs Steam (LibraryModel.watchDockHider).
-    static func restartSteam(_ wine: URL) async throws {
+    /// `reason`: for the log line of the session's end.
+    static func restartSteam(_ wine: URL, reason: String) async throws {
         try await Engine.stopSteam(wine)
-        Engine.stopAll(wine)
+        Engine.stopAll(wine, reason: reason)
         try await Engine.restartSteamInBackground(wine)
     }
 }

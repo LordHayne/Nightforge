@@ -399,7 +399,7 @@ enum Engine {
         // and the next start tries again (review B2).
         guard importRegistry("[HKEY_CURRENT_USER\\Software\\Wine\\Mac Driver]\n\"RetinaMode\"=" + (launchRetina ? "\"y\"" : "-"),
                              wine: wine) else { return }
-        stopAll(wine)
+        stopAll(wine, reason: "Retina mode changes")
         defaults.set(launchRetina, forKey: key)
     }
 
@@ -673,7 +673,10 @@ enum Engine {
 
     /// Ends every Windows process in Nightforge's prefix – through the wineserver that runs, which
     /// is another engine's while a game is held back on one (EngineRollback).
-    static func stopAll(_ wine: URL) {
+    /// `reason`: why, in the log ("Wine session ends: …") – a name for the cause, never a value or a path. The end of a
+    /// session used to leave no line: at 19:32 on 22.11.2026 Steam ended with its session and nothing said why.
+    static func stopAll(_ wine: URL, reason: String) {
+        GameLog.note("Wine session ends: \(reason)")
         let wine = sessionWine() ?? wine
         // `wineserver -k` asks the server to end and waits for it. A server that doesn't (a process of
         // the session stuck in the kernel) must not hold up what comes after – Steam's restart, the
@@ -933,7 +936,7 @@ enum Engine {
             guard ownProcessesKnown(under: dir)?.isEmpty != true else { continue }
             guard let old = wineBinary(in: dir) else { continue }
             if gameRunning || windowsGameRunning { return old }
-            stopAll(old)
+            stopAll(old, reason: "a session of an older engine")
         }
         if !gameRunning, !windowsGameRunning { applyMsyncMode(wine) }
         // On winecx, D3DMetal takes the engine's Direct3D builtins and DXMT and DXVK move into the
@@ -1452,7 +1455,7 @@ enum Engine {
             }
             await switching()
             try? await stopSteam(session)
-            await offMain { stopAll(session) }
+            await offMain { stopAll(session, reason: "engine switch") }
         }
         let (wine, held) = (target.wine, target.held)
         let (graphics, dxvk, d3d9) = (target.graphics, target.dxvk, target.d3d9)
@@ -1501,7 +1504,7 @@ enum Engine {
         else { return wine }
         if let session = sessionWine(), session.standardizedFileURL.path != heldWine.standardizedFileURL.path {
             guard !windowsGameRunning else { return session }
-            stopAll(session)
+            stopAll(session, reason: "a game held back on another engine")
         }
         useHeld(held, wine: heldWine)
         return heldWine
@@ -1844,7 +1847,7 @@ enum Engine {
         // With the old wineserver, before it's replaced. A session that can't be told about (no process list)
         // is not left with half the pair: nothing is swapped, the stamp isn't written, the next start does it.
         guard let session = ownProcessesKnown() else { throw SetupError.sessionUnknown }
-        if !session.isEmpty { stopAll(wine) }
+        if !session.isEmpty { stopAll(wine, reason: "engine parts replaced") }
         for (source, pair) in zip(sources, pairs) {
             let original = pair.1.appendingPathExtension("engine")
             if available, !fm.fileExists(atPath: original.path) { try fm.copyItem(at: pair.1, to: original) }
@@ -2624,7 +2627,7 @@ enum Engine {
         // Not known whether a session runs (no process list): it isn't ended, and the switch isn't noted as
         // if it had been – the next start looks again.
         guard let session = ownProcessesKnown() else { return }
-        if !session.isEmpty { stopAll(wine) }
+        if !session.isEmpty { stopAll(wine, reason: "msync changes") }
         let wanted = msync
         defaults.set(wanted, forKey: msyncSessionKey)
         GameLog.note("msync \(wanted ? "on" : "off") from this Wine session on")
@@ -2662,7 +2665,7 @@ enum Engine {
     /// `session` and `end` stand in for the process list and `stopAll` in tests.
     static func applyLibraryVersion(_ wine: URL, defaults: UserDefaults = .standard,
                                     session ownSession: () -> [(pid: pid_t, command: String)]? = { ownProcessesKnown() },
-                                    end: (URL) -> Void = stopAll) {
+                                    end: (URL) -> Void = { stopAll($0, reason: "another hide-steam-dock.dylib") }) {
         let wanted = librarySessionValue(fingerprint: DockHider.fingerprint())
         guard librarySessionEnds(noted: defaults.object(forKey: librarySessionKey), wanted: wanted),
               windowsGameRunningKnown == false else { return }
@@ -2782,7 +2785,7 @@ enum Engine {
         // path (…\steamapps\common\…) also says "steam"; while one runs, its session stays.
         let ours = ownProcesses().map { $0.command.lowercased() }
         if !isSteamRunning, !gameKeepsSession(ours), ours.contains(where: { $0.contains("steam") }) {
-            stopAll(wine)
+            stopAll(wine, reason: "Steam's processes without a running Steam")
         }
         if isSteamRunning {
             guard !current, !busy else { return }
@@ -3023,7 +3026,7 @@ enum Engine {
             try await Task.sleep(for: .seconds(1))
             waited += 1
         }
-        await offMain { stopAll(wine) }
+        await offMain { stopAll(wine, reason: "Steam stopped taking commands") }
         applySessionSettings(wine)
         await waitForSteamToEnd()
         try startSteam(wine, arguments: ["-silent"])
@@ -3053,7 +3056,7 @@ enum Engine {
                 left -= 1
             }
         }
-        stopAll(wine)
+        stopAll(wine, reason: "the session settles (sandbox)")
         return true
     }
 
@@ -3067,7 +3070,7 @@ enum Engine {
                                 guard windowsGameRunningKnown == false else {
                                     return GameLog.note("Steam didn't end, and a game runs in its session: it's left as it is")
                                 }
-                                stopAll(wine)
+                                stopAll(wine, reason: "Steam didn't end after -shutdown")
                             }, endWait: endWait)
     }
 

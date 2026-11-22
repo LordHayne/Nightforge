@@ -119,8 +119,38 @@ struct SteamStopTest {
               "each of the three background starts after an end waits for the last Steam first (\(silentStarts.count))")
     }
 
+    /// Every end of the Wine session says why in the log ("Wine session ends: …"), by a name, never a value: at 19:32
+    /// on 22.11.2026 Steam ended with its session and no line said why. Read from the sources – stopAll itself ends
+    /// real processes, so it isn't called here.
+    static func sessionEndReasons() {
+        let folder = URL(fileURLWithPath: "Sources/Nightforge")
+        let files = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []
+        var calls = 0, without: [String] = [], reasons: [String] = []
+        let call = try! NSRegularExpression(pattern: #"stopAll\(([^()]*(\([^()]*\))?[^()]*)\)"#)
+        let reason = try! NSRegularExpression(pattern: #"reason: "([^"]*)""#)
+        for file in files where file.pathExtension == "swift" {
+            let text = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
+            let ns = text as NSString
+            for match in call.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
+                let inside = ns.substring(with: match.range(at: 1))
+                if inside.hasPrefix("_ wine: URL") { continue }  // the declaration
+                calls += 1
+                if let found = reason.firstMatch(in: inside, range: NSRange(location: 0, length: (inside as NSString).length)) {
+                    reasons.append((inside as NSString).substring(with: found.range(at: 1)))
+                } else if !inside.contains("reason: reason") {
+                    without.append(file.lastPathComponent + ": stopAll(" + inside + ")")
+                }
+            }
+        }
+        check(calls >= 14 && without.isEmpty, "every end of the session names its reason (\(calls) calls; without: \(without))")
+        check(reasons.allSatisfy { !$0.isEmpty && !$0.contains("\\(") && !$0.contains("/") }, "a reason is a name: no value, no path")
+        let engine = (try? String(contentsOfFile: "Sources/Nightforge/Engine.swift", encoding: .utf8)) ?? ""
+        check(engine.contains(#"GameLog.note("Wine session ends: \(reason)")"#), "and stopAll writes it down first")
+    }
+
     static func main() async {
         await leftovers()
+        sessionEndReasons()
         // Not running: nothing is done – above all no "-shutdown", which would start a Steam.
         let off = FakeSteam(lifetime: 0)
         await stop(off)
