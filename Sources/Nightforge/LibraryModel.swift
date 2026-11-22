@@ -3018,7 +3018,7 @@ final class LibraryModel: ObservableObject {
             let downloading = allGames.contains { Self.isDownloading($0.install) || Self.isDownloading($0.macPending) }
             if !gameUnderWay, !downloading, !launchNeedsConfirmation,
                !(await Engine.offMain { Engine.windowsGameRunning }) {
-                _ = await restartStuckSteam(wine, freshSession: true)
+                _ = await restartStuckSteam(wine, freshSession: "Steam runs with another hide-steam-dock.dylib")
                 return
             }
             try? await Task.sleep(for: .seconds(60))
@@ -3138,15 +3138,16 @@ final class LibraryModel: ObservableObject {
     /// `hung`: it stopped taking commands, so it's ended with its Wine session (no game may run).
     /// Not up again because of its engine (steamStartFailed), it starts once more on the previous
     /// one when nothing waits on it; a start under way gets the previous engine with its next try.
-    private func restartStuckSteam(_ wine: URL, freshSession: Bool = false, hung: Bool = false, again: Bool = true) async -> Bool {
+    /// `freshSession`: with a new Wine session, for the reason it names (the log line of the session's end); nil: none.
+    private func restartStuckSteam(_ wine: URL, freshSession: String? = nil, hung: Bool = false, again: Bool = true) async -> Bool {
         let previous = steamStartup
         let began = Date()
         let restart = Task {
             await previous?.value
             if hung {
                 try? await Engine.restartHungSteam(wine)
-            } else if freshSession {
-                try? await DockHider.restartSteam(wine)
+            } else if let freshSession {
+                try? await DockHider.restartSteam(wine, reason: freshSession)
             } else {
                 try? await Engine.restartSteamInBackground(wine)
             }
@@ -5039,7 +5040,7 @@ final class LibraryModel: ObservableObject {
                 if viaSteam, game.bottle.isBuiltIn, !anyRunning(.windows), let runner,
                    await Engine.offMain({ DockHider.runningSteamState() }) == .missing {
                     launchPhase = .startingSteam
-                    _ = await restartStuckSteam(URL(fileURLWithPath: runner), freshSession: true)
+                    _ = await restartStuckSteam(URL(fileURLWithPath: runner), freshSession: "Steam's hide-steam-dock.dylib is gone")
                     launchPhase = nil
                 }
                 // The screens changed since Wine's session began (a TV plugged in, mirroring on): Wine
@@ -5049,11 +5050,11 @@ final class LibraryModel: ObservableObject {
                     launchPhase = .startingSteam
                     let wine = URL(fileURLWithPath: runner)
                     if viaSteam {
-                        _ = await restartStuckSteam(wine, freshSession: true)
+                        _ = await restartStuckSteam(wine, freshSession: "the screens changed since the session began")
                     } else {
                         // A store's game starts its own session; Steam comes back when it's needed.
                         try? await Engine.stopSteam(wine)
-                        await Engine.offMain { Engine.stopAll(wine) }
+                        await Engine.offMain { Engine.stopAll(wine, reason: "the screens changed since the session began") }
                     }
                     launchPhase = nil
                 }
