@@ -884,7 +884,9 @@ enum GameProcesses {
     /// through CFUserNotification, which UserNotificationCenter draws (Tomb Raider's on its drive lay
     /// under the curtain on 2.11.), or through AuthorizationPromptService – Accessibility's
     /// (universalAccessAuthWarn), location's (CoreLocationAgent), Gatekeeper's for an app from the
-    /// internet (CoreServicesUIAgent), a password or Touch ID (SecurityAgent, coreautha).
+    /// internet (CoreServicesUIAgent), a password or Touch ID (SecurityAgent, coreautha). The firewall's "accept
+    /// incoming network connections?" is UserNotificationCenter's too: socketfilterfw (/usr/libexec/ApplicationFirewall)
+    /// puts it up with CFUserNotificationCreate and draws no window of its own (its imports, macOS 27.2, 22.11.2026).
     nonisolated static let macOSAskers = [
         "/System/Library/CoreServices/UserNotificationCenter.app/",
         "/System/Library/CoreServices/AuthorizationPromptService.app/",
