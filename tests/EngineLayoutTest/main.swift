@@ -44,6 +44,49 @@ struct EngineLayoutTest {
         try? data.write(to: url)
     }
 
+    /// "Steam restarts for …" says which parts of Steam's settings changed, by name only: the cost of a switch between
+    /// games can be counted from the log (claude/spielwechsel-035), and no value – a path with the user's name – goes in.
+    static func restartNames() {
+        let environment = Engine.launchEnvironment, retina = Engine.launchRetina, msync = Engine.msync
+        defer { Engine.launchEnvironment = environment; Engine.launchRetina = retina; Engine.msync = msync }
+        Engine.launchEnvironment = [:]
+        Engine.launchRetina = false
+        Engine.msync = true
+        // Black Myth: Wukong on D3DMetal, limit 60 and MetalFX, after nothing.
+        check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: true, frameLimit: 60, upscaling: true)
+              && Engine.launchChanges == ["D3DM_ENABLE_METALFX", "D3DM_MAX_FPS"], "a D3DMetal game: its two variables, sorted")
+        check(!Engine.prepareLaunchEnvironment(avx: true, d3dMetal: true, frameLimit: 60, upscaling: true) && Engine.launchChanges.isEmpty,
+              "the same game again: nothing, no restart")
+        // A DXMT game without AVX: D3DMetal's variables stay (they do nothing there), AVX goes.
+        check(Engine.prepareLaunchEnvironment(avx: false, d3dMetal: false, frameLimit: 60, upscaling: false)
+              && Engine.launchChanges == ["ROSETTA_ADVERTISE_AVX"], "a DXMT game without AVX after it: only Rosetta's AVX")
+        check(Engine.prepareLaunchEnvironment(avx: false, d3dMetal: false, frameLimit: 60, upscaling: false,
+                                              retina: true, environment: ["WINE_SIMULATE_WRITECOPY": "1"], msyncWanted: false)
+              && Engine.launchChanges == ["WINE_SIMULATE_WRITECOPY", "retina", "msync"], "a profile's switch, Retina and msync: by name")
+        check(Engine.prepareLaunchEnvironment(avx: false, d3dMetal: false, frameLimit: 60, upscaling: false, retina: true,
+                                              vulkan: .kosmicKrisp(URL(fileURLWithPath: "/Users/someone/kk")), msyncWanted: false)
+              && Engine.launchChanges.contains("CX_LIBVULKAN") && Engine.launchChanges.contains("WINE_SIMULATE_WRITECOPY")
+              && !Engine.launchChanges.contains { $0.contains("/") || $0.contains("someone") },
+              "KosmicKrisp: the variables' names, never their paths")
+        // A game with a cheat protection after a D3DMetal game: the limit's variable goes, and the line says so.
+        _ = Engine.prepareLaunchEnvironment(avx: true, d3dMetal: true, frameLimit: 60, upscaling: true, retina: true, msyncWanted: false)
+        check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: true, frameLimit: 60, upscaling: true, retina: true, msyncWanted: false,
+                                              antiCheat: true) && Engine.launchChanges == ["D3DM_MAX_FPS"],
+              "a game with a cheat protection after it: D3DM_MAX_FPS goes, by name")
+
+        check(Engine.changedParts(environment: ["A": "1", "B": "x"], to: ["B": "y", "C": "2"], retina: false, to: false, msync: true, to: true)
+              == ["A", "B", "C"], "gone, changed, new: each once, sorted")
+        check(Engine.changedParts(environment: [:], to: [:], retina: true, to: true, msync: false, to: false).isEmpty, "nothing changed: nothing")
+        check(LibraryModel.restartParts(settings: ["D3DM_MAX_FPS"], program: true, debug: true, frameLog: true)
+              == ["D3DM_MAX_FPS", "program", "debug", "framelog"], "the program, a closer look and the frame log after the settings")
+        check(LibraryModel.restartReason(stuck: false, parts: ["D3DM_MAX_FPS", "retina"])
+              == ": the game's settings come with its environment (D3DM_MAX_FPS, retina)", "the line names them")
+        check(LibraryModel.restartReason(stuck: true, parts: ["program"])
+              == ": it got stuck signing in, and the game's settings come with its environment (program)", "… after a stuck sign-in")
+        check(LibraryModel.restartReason(stuck: true, parts: []) == ": it got stuck signing in" && LibraryModel.restartReason(stuck: false, parts: []).isEmpty,
+              "without a change: as before")
+    }
+
     /// The session goes by the library's content in the data folder, not by its version number (22.11.2026: the
     /// release in /Applications put its older library there and began a session with it; the test build, same
     /// number, kept that session and Steam waited 20 s for the network).
@@ -403,6 +446,7 @@ struct EngineLayoutTest {
         check(librarySession.string(forKey: "librarySession") == Engine.librarySessionValue(fingerprint: DockHider.fingerprint())
               && DockHider.sessionVersion >= 1, "… with a list that shows no process: noted")
         libraryContent(work)
+        restartNames()
         // Every Steam start that brings its own session settings – also the one woken for Play (F5) – takes all three:
         // a session begun with another msync or an older library is noted as fresh only after it.
         let wokenSession = TestDefaults.suite("woken-session")

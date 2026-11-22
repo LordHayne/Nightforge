@@ -3103,6 +3103,18 @@ final class LibraryModel: ObservableObject {
 
     /// One Steam restart for a start: the game's settings that come with Steam's environment (only while no Windows
     /// game runs in it), or a Steam stuck signing in – both at once in one.
+    /// What a start changes of Steam's settings, by name: `settings` from Engine.launchChanges, then the program in
+    /// the game's LaunchOptions, a closer look's channels and the frame log.
+    nonisolated static func restartParts(settings: [String], program: Bool, debug: Bool, frameLog: Bool) -> [String] {
+        settings + (program ? ["program"] : []) + (debug ? ["debug"] : []) + (frameLog ? ["framelog"] : [])
+    }
+
+    /// The end of the log line "Steam restarts for <game>": why, and what changed by name.
+    nonisolated static func restartReason(stuck: Bool, parts: [String]) -> String {
+        (stuck ? ": it got stuck signing in" : "")
+            + (parts.isEmpty ? "" : (stuck ? ", and " : ": ") + "the game's settings come with its environment (" + parts.joined(separator: ", ") + ")")
+    }
+
     nonisolated static func restartsSteamForStart(environmentChanged: Bool, stuck: Bool, running: Bool, gamesRunning: Bool) -> Bool {
         stuck || (environmentChanged && running && !gamesRunning)
     }
@@ -5098,7 +5110,7 @@ final class LibraryModel: ObservableObject {
                                                  kosmicKrisp: Engine.kosmicKrispReady ? Engine.kosmicKrispNow : nil)
                 // A session has msync or doesn't: a game joining one that runs takes it as it is.
                 let msyncWanted = anyRunning(.windows) ? nil : Engine.msyncWanted(profile: profile)
-                let environmentChanged = viaSteam && game.bottle.isBuiltIn &&
+                let settingsChanged = viaSteam && game.bottle.isBuiltIn &&
                    (Engine.prepareLaunchEnvironment(avx: recipe.avx, d3dMetal: layer == .d3dmetal,
                                                    frameLimit: frameLimit, upscaling: options.effectiveUpscaling(profile: profile),
                                                    retina: options.retina(profile: profile, layer: layer, analysis: analysis),
@@ -5106,8 +5118,11 @@ final class LibraryModel: ObservableObject {
                                                    vulkan: vulkan,
                                                    vulkanLoader: Engine.vulkanLoaderEnvironment(layer: layer, d3d9: analysis?.usesD3D9 == true,
                                                                                                 wine: runner.map(URL.init(fileURLWithPath:))),
-                                                   msyncWanted: msyncWanted, antiCheat: handsOff)
-                    || programChanged || debugChanged || frameLogChanged)
+                                                   msyncWanted: msyncWanted, antiCheat: handsOff))
+                // By name, for the log: which of them the restart below is for (the cost of a switch between games).
+                let changedParts = Self.restartParts(settings: settingsChanged ? Engine.launchChanges : [], program: programChanged,
+                                                     debug: debugChanged, frameLog: frameLogChanged)
+                let environmentChanged = !changedParts.isEmpty
                 // What Steam's next start for this game begins with (F5): its settings as they are now.
                 if viaSteam, game.bottle.isBuiltIn { Engine.rememberLaunch(for: game.gameID.key) }
                 // One restart at most: the settings the game takes from Steam's environment, and a Steam that got stuck
@@ -5116,8 +5131,7 @@ final class LibraryModel: ObservableObject {
                    Self.restartsSteamForStart(environmentChanged: environmentChanged, stuck: steamStuck,
                                               running: Engine.isSteamRunning, gamesRunning: anyRunning(.windows)) {
                     launchPhase = .restartingSteam
-                    GameLog.note("Steam restarts for \(game.name)" + (steamStuck ? ": it got stuck signing in" : "")
-                                 + (environmentChanged ? (steamStuck ? ", and " : ": ") + "the game's settings come with its environment" : ""))
+                    GameLog.note("Steam restarts for \(game.name)" + Self.restartReason(stuck: steamStuck, parts: changedParts))
                     _ = await restartStuckSteam(URL(fileURLWithPath: runner))
                     steamStuck = false  // restarted: the next way of this start finds it fresh
                     launchPhase = nil
