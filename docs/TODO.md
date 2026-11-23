@@ -396,7 +396,8 @@ zuvor.“ Und um 18:34, als Teilschritt zu 0.4 „Wie eine Konsole“:
   auf Steams Controller-Abgleich, den dieses Steam nie macht (bis zu 20 s je Start kurz nach einem Steam-Start), und
   Zeitmarken „Start phases of …“ im Protokoll. Offen: die 6-s-Lücke mit den Zeitmarken messen (drei Starts heute
   Abend, Liste im Dokument), Vorhang nach dem ersten Bild (~2,5 s) als Wahl für den Nutzer, Befunde im Dokument.
-- [ ] **Steams Abfragen mit dem Pad (Entscheidung 1, 23.11.):** Bestand und Wege in `docs/ENTWURF-STEAM-PAD.md`
+- [ ] **Steams Abfragen mit dem Pad (Entscheidung 1, 23.11.; Probe B vorbereitet: 1157602 `--warten`/`--jetzt`,
+  Lesart 5e88238e in `docs/probes/steam-pad-keys/README.md`):** Bestand und Wege in `docs/ENTWURF-STEAM-PAD.md`
   (Zweig `claude/steam-dialoge-pad-04`). Heute nur der Pad-Zeiger, der ohne „Bedienungshilfen“ nicht klickt; Ⓐ/Ⓑ wirken
   bei Steams Fragen nicht. Zur Wahl: Erlaubnis in die Konsolenmodus-Anfrage, Probe „Tasten im Windows-Steam per Wine“
   (Weg B), Leistentext ohne Erlaubnis, Startoption in Nightforge. Noch nichts gebaut.
@@ -418,7 +419,8 @@ zuvor.“ Und um 18:34, als Teilschritt zu 0.4 „Wie eine Konsole“:
   wine.log. Messen: Schalter an, spielen, „Hang watch:“ suchen. Danach Wahl des Angebots im Overlay (A/B/C).
 
 **Aus derselben Runde, technisch:**
-- [ ] **Zwei Nightforge-Kopien mit gleicher Kennung** (Release in `/Applications`, Testbuild in `~/Applications`,
+- [x] **Zwei Nightforge-Kopien mit gleicher Kennung** (erledigt 23.11.: `claude/library-session-035` nach Inhalt, dazu S2
+  `claude/zwei-kopien-035` 1e23c1c – die Sitzung trägt ihre Kennung, siehe Audit-Liste unten) (Release in `/Applications`, Testbuild in `~/Applications`,
   beide „0.3.4“): Launchpad/Spotlight/Finder öffnen das Release, und das ersetzt `hide-steam-dock.dylib` im
   Datenordner durch seine alte. `librarySession` (nur Versionsnummer) merkt das nicht → Sitzung mit alter
   Bibliothek, F4-Timeout. Abhilfe: `librarySession` per Inhalt der Bibliothek (Worker A,
@@ -428,12 +430,12 @@ zuvor.“ Und um 18:34, als Teilschritt zu 0.4 „Wie eine Konsole“:
   Steam-Neustart, spürbar schneller. Der erste Start nach dem Öffnen war noch lang (Analyse bei Worker A, zusammen mit
   dem Steam-Ende-Punkt). Beim zweiten Beenden stand das Dock vor dem Ladebildschirm und das Beenden dauerte zu lange
   (gehört zum Lichtnaht-Bau, Worker B).
-- [ ] **Bau-Ausgaben in Spotlight und Launchpad:** Der Nutzer sieht drei Nightforge-Apps (Release „Test-Pause“ in
+- [x] **Bau-Ausgaben in Spotlight und Launchpad** (erledigt: 7449c1b2, `build/Nightforge.noindex/`): Der Nutzer sieht drei Nightforge-Apps (Release „Test-Pause“ in
   `/Applications`, Testbuild in `~/Applications`, `build/staging-035/build/Nightforge.app`). Jede `build/Nightforge.app`
   in einem Worktree wird gefunden und bei LaunchServices angemeldet. Abhilfe: Bau-Ausgabe unsichtbar machen (Ordner mit
   `.noindex`, oder nach dem Bau `lsregister -u`), einmal alle vorhandenen abmelden. Nächster freier Worker.
 - [ ] **Aus dem Audit vor 0.3.5 (`docs/AUDIT-0.3.5.md`, Zweig `claude/audit-035`), für später:**
-  - S2: Zwei Nightforge-Kopien (Release + Testbuild) beenden sich gegenseitig die Wine-Sitzung (librarySession als
+  - [x] S2 (erledigt 23.11., 1e23c1c, in staging): Zwei Nightforge-Kopien (Release + Testbuild) beenden sich gegenseitig die Wine-Sitzung (librarySession als
     Text, 0.3.4 als Zahl); Steam startet jedes Mal neu, nie unter einem Spiel. Betrifft nur Testphasen.
     **23.11., Zweig `claude/zwei-kopien-035`:** Befund: Das echte Release 0.3.4 (main) notiert gar nichts; die Zahl
     kam aus frühen 0.3.5-Testbauten. Beginnt eine Kopie ohne Notiz (0.3.4) eine Sitzung mit ihrer Bibliothek, sieht
@@ -459,7 +461,7 @@ zuvor.“ Und um 18:34, als Teilschritt zu 0.4 „Wie eine Konsole“:
     Bibliothek, der nächste erst nach der Pause: 3 s mit Nightforge vorn, 10 s dahinter, 30 s, wenn niemand am Mac ist
     (so morgens, ~6,7 h ohne Eingabe). Jetzt bricht das Einlesen der Bibliothek die Pause ab
     (`IdleRest.pausesBeforeNextLook`, `lookNow`). Live bestätigt 23.11. (Koordinator): Steam-Start 1–2 s nach dem Öffnen bei sechs Einspielungen 07:04–08:18, Steam danach 5,07–5,47 s; vorher 23–31 s.
-  - L1: Das F5-Gedächtnis (`steamLaunchMemory`) enthält Pfade mit dem Benutzernamen (lokal, nicht im Protokoll):
+  - [x] L1 (erledigt 23.11., e0422f8 und c8c5e42, `GameLog.outbound`): Das F5-Gedächtnis (`steamLaunchMemory`) enthält Pfade mit dem Benutzernamen (lokal, nicht im Protokoll):
     gehört auf die Liste „nie in einen Problembericht“.
     **23.11., Zweig `claude/bericht-ohne-pfade-035`:** Wege nach außen gibt es zwei: der Problembericht („Läuft
     nicht?“, Link und Zwischenablage, `ProblemReportText`) und „Bericht teilen …“ (`CompatReport`). Einen Log-Export
@@ -490,7 +492,9 @@ zuvor.“ Und um 18:34, als Teilschritt zu 0.4 „Wie eine Konsole“:
     `dlopen`/`dlsym` umleiten. Gegen bdbd92a schlägt der Test an.
   - Erledigt auf `claude/audit-fixes-035` (d673835): M1 (Netzwerk-Reihenfolge nur in winedevice.exe, Metal/QuartzCore
     nicht mehr gebunden), S1 (Wiedereintritts-Sperre in der 60-FPS-Umlenkung), E1 (Fokus-Takt nicht im Spiel), L3.
-- [ ] **Nightforge öffnete sich während einer Testkette wieder (23.11., 06:56, Zweig `claude/tests-ohne-app-035`):**
+- [x] **Nightforge öffnete sich während einer Testkette wieder (23.11., 06:56, Zweig `claude/tests-ohne-app-035`, b30028d;
+  Nachbesserung 54713395 auf `claude/tests-ohne-steam-035`: „unbekannt“ ist beim Beenden kein Spiel, Windows-Spiele zählen
+  im Skript nur als Nightforges eigene Prozesse):**
   Kein Test öffnet die App. Laut Systemprotokoll startete ein `/usr/bin/open` aus dem Beenden-Skript der eben beendeten
   Nightforge (Hilfsprogramm 26117, 7 s nach dem Beenden) sie neu: Der Zweig „Spiel endet: zurück zu Nightforge“ hielt
   einen Testprozess für ein Spiel, denn `has_process` sucht in jedem Prozess des Macs nach `\steamapps\common\` bzw.
@@ -500,14 +504,27 @@ zuvor.“ Und um 18:34, als Teilschritt zu 0.4 „Wie eine Konsole“:
   Zusätzlich öffnet ein Programm ohne App-Bündel sich nie über Launch Services (`NSApplication.opensItself`), und
   MacVersionTest nennt seine Stellvertreter nur noch über den `ps`-Ersatz. Gilt erst mit dem neuen Bau: Die
   eingespielte App hat noch das alte Skript, also bis dahin keine Kette, solange ihr Beenden-Skript wartet.
+- [x] **Am 23.11. erledigt, ohne eigenen Eintrag bisher:**
+  - Problembericht ohne Pfade (L1) und ohne Benutzerordner unter fremdem Namen: e0422f8, c8c5e42.
+  - Tests hinterlassen nichts in `~/Library/Preferences`: aa99b8a (MacSourcesTest), 6a50690f (sieben Reihen), Wächter
+    `tests/test_tests_leave_nothing.py`.
+  - Kein Test öffnet die echte App über Launch Services (`NSApplication.opensItself`): b30028d.
+  - Kein Test findet oder erreicht die echte Wine-Sitzung (`TestGuard`, `tests/TestGuardTest`, Wächter
+    `tests/test_tests_reach_no_session.py`): b09c6857. Die 12:06-Ereignisse waren Steams eigener Schlaf nach 30 min.
+  - Vorhang blieb nach der Vorschau als Waise stehen und Nightforge kam alle 19 s nach vorn (Ausblenden wartete auf eine
+    Animation, die bei schlafendem Bildschirm nie endet): a78dacc2, `GameBackdrop.fade`, Wächter `tests/test_no_awaited_animations.py`.
+  - Zwei Textfelder unter Einstellungen › Stores mit Pad-Fokus, Wächter `tests/test_pad_reach.py`: fc8319d.
+  - Hänger-Erkennung Stufe 1 (nur Protokoll, Testschalter `gameTest.hangWatch`): c2bbc885.
 - [ ] **AVX-Meldung unter Wine (23.11., `docs/ENTWURF-AVX.md`, Zweig `claude/avx-meldung-04`):** `IsProcessorFeaturePresent(AVX)`
   zeigt für die ganze Sitzung, was ihr erster Prozess hatte (Probe `docs/probes/avx-sitzung/`; Wine füllt `KUSER_SHARED_DATA` nur
   in `start_wineboot`). In Nightforge beginnt eine Sitzung mal mit, mal ohne AVX (regedit, winetricks, Helfer ohne). Zur Wahl:
   AVX als Sitzungseinstellung wie Retina (Vorschlag), Engine-Patch, nichts.
-- [ ] **Nebenbefund der Starter-Probe (22.11.):** Unter Wine meldet `IsProcessorFeaturePresent(AVX)` immer 0, auch wenn
+- [x] **Nebenbefund der Starter-Probe (22.11.)** (geklärt 23.11., 84d4e583: kein „immer 0“, sondern der erste Prozess der
+  Sitzung entscheidet; Wahl im Eintrag „AVX-Meldung unter Wine“ oben): Unter Wine meldet `IsProcessorFeaturePresent(AVX)` immer 0, auch wenn
   CPUID AVX zeigt (`docs/probes/starter-umgebung/`). Spiele, die so fragen, sehen kein AVX. Bei Profilen mit
   AVX-Problemen bedenken.
-- [ ] `stopSteam` soll warten, bis alle Steam-Prozesse weg sind (langsame Starts 26–31 s kamen 2–5 s nach dem
+- [x] `stopSteam` soll warten, bis alle Steam-Prozesse weg sind (erledigt: `waitForSteamLeftovers`, `waitForSteamToEnd`,
+  zuletzt 59172838) (langsame Starts 26–31 s kamen 2–5 s nach dem
   Ende des vorigen Steam; erst prüfen beim nächsten Neustart).
 - [x] **Bau mit gesetztem `SDKROOT`:** gebaut auf `claude/build-sdkroot-035` (`scripts/sdk-lib.sh`), geprüft,
   Kette grün, wartet auf das Merge-Go. Achtung für main: `sdk-lib.sh` ist jetzt eine Signier-Datei, alte
