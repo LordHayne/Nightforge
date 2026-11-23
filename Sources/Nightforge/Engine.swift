@@ -277,13 +277,21 @@ enum Engine {
         defaults.data(forKey: launchMemoryKey).flatMap { try? JSONDecoder().decode(LaunchMemory.self, from: $0) } ?? LaunchMemory()
     }
 
-    /// Every path the memory holds (values that start with "/", parts of a list with ":" included), for
-    /// GameLog.outbound to take out of whatever leaves the Mac: they name the home folder (audit L1). The memory
-    /// itself stays in the settings and never goes into wine.log (`changedParts` names variables only).
-    static func launchMemoryPaths(defaults: UserDefaults = .standard) -> [String] {
+    /// The paths the memory holds that can carry something of the player's (values and the parts of a list with ":"),
+    /// for GameLog.outbound to take out of whatever leaves the Mac (audit L1): under the home folder, /Users/,
+    /// /Volumes/ (a drive's name) or /private/ (an account's temp folder). System paths (/usr/lib, /System/…) stay
+    /// readable: taking them out would cost a report its use and protect nothing. The memory itself stays in the
+    /// settings and never goes into wine.log (`changedParts` names variables only).
+    static func launchMemoryPaths(defaults: UserDefaults = .standard, home: String = NSHomeDirectory()) -> [String] {
         let values = launchMemory(defaults).games.values.flatMap { $0.environment.values }
         return Array(Set(values.flatMap { value in [value] + value.split(separator: ":").map(String.init) }
-            .filter { $0.hasPrefix("/") }))
+            .filter { mayBePrivate($0, home: home) }))
+    }
+
+    /// Whether a path can name the player, their drives or their account: see `launchMemoryPaths`.
+    static func mayBePrivate(_ path: String, home: String) -> Bool {
+        let roots = ["/Users/", "/Volumes/", "/private/"] + (home.count > 1 ? [home.hasSuffix("/") ? home : home + "/"] : [])
+        return roots.contains { path.hasPrefix($0) } || (home.count > 1 && path == home)
     }
 
     /// Notes Steam's settings as they are now as `game`'s (GameID.key), right after its start prepared them. A

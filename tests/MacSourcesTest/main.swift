@@ -299,11 +299,21 @@ struct MacSourcesTest {
         defer { memory.removePersistentDomain(forName: "nightforge-test-launch-memory-\(getpid())") }
         let icd = "/Users/jane/Library/Application Support/Nightforge/kosmickrisp/icd.json"
         let layer = "/Users/jane/Library/Application Support/Nightforge/loader/layers"
+        let drive = "/Volumes/Janes Disk/Nightforge Games", temp = "/private/var/folders/ab/xyz/T/nf"
         let stored = #"{"games":{"steam.1":{"version":12,"environment":{"VK_ICD_FILENAMES":"\#(icd)","DXVK_HUD":"fps","#
-            + #""VK_ADD_IMPLICIT_LAYER_PATH":"/opt/x:\#(layer)"},"retina":false,"msync":true}},"order":["steam.1"]}"#
+            + #""VK_ADD_IMPLICIT_LAYER_PATH":"/usr/lib/x:\#(layer)","DYLD_FALLBACK_LIBRARY_PATH":"/usr/lib:/System/Library/Frameworks","#
+            + #""GAME_DIR":"\#(drive)","TMP_DIR":"\#(temp)","HOME_COPY":"/Users/jane"},"retina":false,"msync":true}},"order":["steam.1"]}"#
         memory.set(Data(stored.utf8), forKey: Engine.launchMemoryKey)
-        let keptPaths = Engine.launchMemoryPaths(defaults: memory)
-        check(Set(keptPaths) == [icd, layer, "/opt/x", "/opt/x:" + layer], "the memory's paths, a list's parts too: \(keptPaths)")
+        let keptPaths = Engine.launchMemoryPaths(defaults: memory, home: "/Users/jane")
+        check(Set(keptPaths) == [icd, layer, drive, temp, "/Users/jane"],
+              "the memory's paths that can carry something private, a list's parts too; system paths not: \(keptPaths)")
+        check(Engine.launchMemoryPaths(defaults: memory, home: "/Users/jane").allSatisfy { !$0.hasPrefix("/usr/") && !$0.hasPrefix("/System/") },
+              "…/usr/lib and /System/Library stay readable in a report")
+        check(Engine.mayBePrivate("/Users/janet/x", home: "/Users/jane") && Engine.mayBePrivate("/opt/home/jane/x", home: "/opt/home/jane")
+              && Engine.mayBePrivate("/opt/home/jane", home: "/opt/home/jane") && !Engine.mayBePrivate("/opt/home/janet", home: "/opt/home/jane")
+              && !Engine.mayBePrivate("/opt/x", home: "/opt/home/jane"), "a HOME set elsewhere counts, its neighbours don't")
+        check(GameLog.outbound("dlopen /usr/lib/libvulkan.dylib failed", user: "", kept: keptPaths) == "dlopen /usr/lib/libvulkan.dylib failed",
+              "a system path in an error line stays as it is")
         check(Engine.launchMemoryPaths(defaults: UserDefaults(suiteName: "nightforge-test-launch-memory-none-\(getpid())")!).isEmpty,
               "no memory: no paths")
         let leaky = ProblemReportText(gameName: "Some Game", facts: [("Game", "Some Game"), ("Diagnosis", "vulkan in " + layer)],
