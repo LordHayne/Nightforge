@@ -292,6 +292,27 @@ struct SteamSwitchTest {
         let once = quiet + ["[2026-11-08 03:00:02] [AppID 241100] Starting sync (eval,)", "[2026-11-08 03:00:02] [AppID 241100] Eval complete"]
         check(wait(once + begun, "14:55:39"), "a Steam that did it after an earlier start: it waits as before")
         check(!wait(quiet + begun, "14:56:10"), "and never past its time")
+        // N5: counting stops at `quietStarts`, and says what taking the log apart said.
+        for starts in 0...5 {
+            let log = Substring(String(repeating: "[2026-11-08 01:00:00] Client version: 1\r\n", count: starts))
+            check(SteamCloudStart.neverSyncs(log) == (starts >= SteamCloudStart.quietStarts), "\(starts) starts before")
+        }
+        // The file: what was said about the starts before is kept for this start, and asked anew after the next one.
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("cloud-start-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try? FileManager.default.createDirectory(at: root.appendingPathComponent("logs"), withIntermediateDirectories: true)
+        let cloudLog = root.appendingPathComponent("logs/cloud_log.txt")
+        func write(_ lines: [String]) { try? Data(lines.joined(separator: "\r\n").utf8).write(to: cloudLog) }
+        // Same length before this start, with the sync in it.
+        let synced = quiet.map { $0.replacingOccurrences(of: "[AppID 7] Starting sync (init,)", with: "[AppID 241100] Starting sy(in,)") }
+        check(synced.map(\.utf8.count) == quiet.map(\.utf8.count) && synced != quiet, "the stand-in keeps every line's length")
+        write(quiet + begun)
+        check(!SteamCloudStart.shouldWait(steamRoot: root, now: at("14:55:39")), "from the file: the game goes at once")
+        write(synced + begun)
+        check(!SteamCloudStart.shouldWait(steamRoot: root, now: at("14:55:39")), "kept for this start: the log isn't taken apart again")
+        let next = ["[2026-11-08 14:55:38] Client version: 1792618285", "[2026-11-08 14:55:38] [AppID 7] Starting sync (init,)"]
+        write(synced + begun + next)
+        check(SteamCloudStart.shouldWait(steamRoot: root, now: at("14:55:39")), "a new start is asked anew")
     }
 
     @MainActor

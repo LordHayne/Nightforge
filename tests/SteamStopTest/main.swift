@@ -221,6 +221,41 @@ struct SteamStopTest {
         check(!Engine.sessionBootBroken(log: quiet + "\n" + good, age: 60), "a newer session that came up whole counts, not the one before")
         check(!Engine.sessionBootBroken(log: "", age: 60) && !Engine.sessionBootBroken(log: "Steam started", age: 60),
               "without loaddll lines (another WINEDEBUG) only Steam's own line tells")
+        // N4: a game inherits Steam's stderr and loads steamclient64.dll, so after a game's first program the line may be its own.
+        let game = #"0120:0124:trace:loaddll:build_module Loaded L"C:\\Program Files (x86)\\Steam\\steamapps\\common\\Game\\game.exe" at 0000000140000000: native"#
+        let helper = #"00cc:00d0:trace:loaddll:build_module Loaded L"C:\\Program Files (x86)\\Steam\\bin\\cef\\cef.win64\\steamwebhelper.exe" at 0000000140000000: native"#
+        let good2 = (boot + [loaded("0044", #"drivers\\nsiproxy.sys"#), steam, helper]).joined(separator: "\n")
+        check(Engine.sessionBootBroken(log: good2 + "\n" + said, age: 60), "after Steam's own programs the line is still Steam's")
+        check(!Engine.sessionBootBroken(log: good2 + "\n" + game + "\n" + said, age: 60), "after a game's first program: not counted")
+        check(Engine.sessionBootBroken(log: said + "\n" + game, age: 1), "said before the game came: counted")
+        check(Engine.SessionBootScan.wineOrSteam(Substring(loaded("0028", "WINEBOOT.EXE"))), "Wine's folder in any case")
+        // N3: read in pieces it says what the whole says, and a look reads only what came since the last one.
+        for text in [broken, quiet, good, good2 + "\n" + game + "\n" + said, quiet + "\n" + good] {
+            var pieces = Engine.SessionBootScan()
+            for line in text.split(separator: "\n") { pieces.read(line: line) }
+            check(pieces.broken(age: 60) == Engine.sessionBootBroken(log: text, age: 60), "line by line as a whole")
+        }
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("boot-scan-\(UUID().uuidString).log")
+        defer { try? FileManager.default.removeItem(at: file) }
+        let head = (boot + [steam]).joined(separator: "\n") + "\n"
+        try? Data((head + "src\\common\\net_misc.cpp (252) : Assertion Failed: CalcUnIPThisBox - GetAdaptersAdd").utf8).write(to: file)
+        var state = Engine.scanGrowth(of: file, state: (mark: 0, readTo: 0, scan: Engine.SessionBootScan()))
+        check(state.readTo == UInt64(head.utf8.count) && !state.scan.broken(age: 1), "half a line waits for the next look")
+        if let handle = try? FileHandle(forWritingTo: file) {
+            _ = try? handle.seekToEnd()
+            try? handle.write(contentsOf: Data("resses returned 2\n".utf8))
+            try? handle.close()
+        }
+        state = Engine.scanGrowth(of: file, state: state)
+        check(state.scan.broken(age: 1), "the next look reads the rest of the line")
+        let size = UInt64((try? FileManager.default.attributesOfItem(atPath: file.path)[.size] as? Int) ?? 0)
+        check(state.readTo == size, "and stands at the end")
+        try? Data((loaded("0028", "wineboot.exe") + "\n").utf8).write(to: file)
+        state = Engine.scanGrowth(of: file, state: state)
+        check(!state.scan.broken(age: 60) && state.readTo < size, "a shorter log is a fresh one: read anew")
+        let engineSource = (try? String(contentsOfFile: "Sources/Nightforge/Engine.swift", encoding: .utf8)) ?? ""
+        check(engineSource.contains("bootScan.withLock") && !engineSource.contains("sessionBootBroken(log: GameLog.text(since: mark)"),
+              "steamSessionBroken keeps its scan instead of reading 4 MB each look")
         check(LibraryModel.steamSignInStep(signedIn: false, running: true, waited: 0, quietFor: 0, sessionBroken: true) == .stuck,
               "before a game: a broken session is stuck at once")
         check(LibraryModel.steamSignInStep(signedIn: true, running: true, waited: 0, quietFor: 0, sessionBroken: true) == .signedIn,
