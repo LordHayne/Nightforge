@@ -419,6 +419,12 @@ zuvor.“ Und um 18:34, als Teilschritt zu 0.4 „Wie eine Konsole“:
     weiter, sobald steam.exe weg ist: Schlaf, Steam für Mac, neue Sitzung für einen Spielstart, Engine-Wechsel. Vor einem
     Start wird 4-mal je Sekunde geschaut statt einmal. Die Protokollzeile nennt, was zuletzt ging. Die Grenzen (15 s,
     Dienst allein 5 s) bleiben.
+    **Größer waren die 23–31 s vom Öffnen bis zum Steam-Start** (06:31, 06:37, 06:48; Steam selbst danach 5–6 s). Gemessen
+    um 06:48: Dazwischen lief kein Wine-Programm, und `sample` zeigt Nightforge wartend. `startBackgroundSteam` wartet
+    auf den ersten Blick auf die laufenden Spiele, der die Spiele kennt. Der erste Blick kam vor dem Einlesen der
+    Bibliothek, der nächste erst nach der Pause: 3 s mit Nightforge vorn, 10 s dahinter, 30 s, wenn niemand am Mac ist
+    (so morgens, ~6,7 h ohne Eingabe). Jetzt bricht das Einlesen der Bibliothek die Pause ab
+    (`IdleRest.pausesBeforeNextLook`, `lookNow`). Live ungeprüft.
   - L1: Das F5-Gedächtnis (`steamLaunchMemory`) enthält Pfade mit dem Benutzernamen (lokal, nicht im Protokoll):
     gehört auf die Liste „nie in einen Problembericht“.
   - L2: `if_nameindex` fragt bei jedem Aufruf alle Schnittstellen ab (nur noch in winedevice.exe).
