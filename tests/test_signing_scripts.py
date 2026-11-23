@@ -20,8 +20,18 @@ import time
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+
+
+def swift_env():
+    """This environment with the SDK the build scripts would pick (scripts/sdk-lib.sh)."""
+    env = dict(os.environ)
+    sdk = subprocess.run(["bash", "-c", '. scripts/sdk-lib.sh && nightforge_pick_sdk 2>/dev/null; printf %s "${SDKROOT:-}"'],
+                         cwd=ROOT, env=env, capture_output=True, text=True).stdout
+    if sdk:
+        env["SDKROOT"] = sdk
+    return env
 SCRIPTS = ["signing-lib.sh", "signing-tool.swift", "make-signing-keys.sh", "sign-release.sh", "sign-lists.sh",
-           "check-signatures.sh", "codesign-app.sh"]
+           "check-signatures.sh", "codesign-app.sh", "sdk-lib.sh"]
 # The certificate a test pins and has "in the keychain".
 CERT = "0123456789ABCDEF0123456789ABCDEF01234567"
 # The online lists the scripts sign, as scripts/signing-lib.sh names them.
@@ -210,11 +220,7 @@ class SigningScripts(unittest.TestCase):
 
     @staticmethod
     def compile(output, keys_file):
-        env = dict(os.environ)
-        sdk = "/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk"
-        if "SDKROOT" not in env and os.path.isdir(sdk) and subprocess.run(
-                ["xcode-select", "-p"], capture_output=True, text=True).stdout.strip() == "/Library/Developer/CommandLineTools":
-            env["SDKROOT"] = sdk
+        env = swift_env()
         subprocess.run(["swiftc", "-parse-as-library", "-o", str(output), str(ROOT / "scripts/signing-tool.swift"),
                         str(ROOT / "Sources/Nightforge/Signature.swift"), str(keys_file)], check=True, env=env,
                        capture_output=True)
@@ -1001,11 +1007,7 @@ class Ed25519Agreement(unittest.TestCase):
         cls.tmp = pathlib.Path(tempfile.mkdtemp(prefix="nightforge-ed25519-"))
         (cls.tmp / "check.swift").write_text(CHECK_SWIFT)
         cls.check = cls.tmp / "check"
-        env = dict(os.environ)
-        sdk = "/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk"
-        if "SDKROOT" not in env and os.path.isdir(sdk) and subprocess.run(
-                ["xcode-select", "-p"], capture_output=True, text=True).stdout.strip() == "/Library/Developer/CommandLineTools":
-            env["SDKROOT"] = sdk
+        env = swift_env()
         subprocess.run(["swiftc", "-parse-as-library", "-o", str(cls.check), str(cls.tmp / "check.swift"),
                         str(ROOT / "Sources/Nightforge/Signature.swift"), str(ROOT / "Sources/Nightforge/SigningKeys.swift")],
                        check=True, env=env, capture_output=True)

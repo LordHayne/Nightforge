@@ -63,6 +63,38 @@ struct GameStage {
         cameBack || waited >= endingPatience
     }
 
+    /// How long the game may keep the front with no window of a picture's size anywhere before that counts as its
+    /// picture gone (`wentDark`): longer than a game takes to build its window anew.
+    static let darkPatience: TimeInterval = 3
+
+    /// The game's picture went with the game itself still in front: no window of its anywhere, not even one its own
+    /// full screen's shield hides (`onlyOwnShield`, hiddenByOwnFullScreen has that one), for `darkPatience`. The
+    /// Wukong benchmark on 22.11.2026 (19:36): its window closed, a helper of its started and ran on in front, and the
+    /// page behind it stood there with the Dock over it until the process ended – `pictureWent` waits for another app
+    /// in front. A click of the player's doesn't hold it back: the game's own Quit is one.
+    mutating func wentDark(_ look: Look, onlyOwnShield: Bool) -> Bool {
+        guard sawPicture, look.gameFront, !look.windowHere, !look.windowAnywhere, !onlyOwnShield, !look.handsOff, !look.guarded else {
+            darkSince = nil
+            return false
+        }
+        guard let since = darkSince else {
+            darkSince = look.now
+            return false
+        }
+        guard look.now.timeIntervalSince(since) >= Self.darkPatience else { return false }
+        darkSince = nil
+        return true
+    }
+
+    private var darkSince: Date?
+
+    /// Whether, as that curtain's time runs out, Nightforge comes back instead: no window of the game's left anywhere,
+    /// only a process ending in its own time. The Wukong benchmark on 22.11.2026 left a helper running for 1–2 min, and
+    /// the page stood there all along. Nothing is ended for it: the process goes when it goes, followed in the background.
+    static func endsInBackground(cameBack: Bool, windowAnywhere: Bool, waited: TimeInterval) -> Bool {
+        !cameBack && !windowAnywhere && waited >= endingPatience
+    }
+
     private(set) var sawPicture = false
     /// The player went elsewhere, or the tries ran out: nothing until the game is in front again.
     private(set) var left = false

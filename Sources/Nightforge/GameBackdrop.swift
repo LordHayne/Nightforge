@@ -35,16 +35,20 @@ enum GameBackdrop {
         @Published var progress: Double?
         /// Steam's window stands on the curtain: the mark gives way, a bar at the bottom says what to do.
         @Published var steamAsks = false
-        /// That question is its licence: said so at the top, with a seam round its window (`seam`) and the way to answer.
-        @Published var licence: LicenceLook?
+        /// What it asks, said at the top, with a seam round its window (`seam`) and the way to answer (SteamQuestion).
+        @Published var question: QuestionLook?
         /// Steam's window on the curtain, in the curtain's coordinates, once it's there.
         @Published var seam: CGRect?
         /// The pad's buttons for what the player has to do now (CurtainButton), in the tip's place: the rule of 15.11.2026.
         @Published var buttons: [CurtainButton] = []
+        /// Some of the page is on the screen (its window's occlusion state): behind a game in full screen it isn't, and
+        /// nothing on it moves then.
+        @Published var seen = false
     }
 
-    /// What the bar under Steam's licence says.
-    struct LicenceLook: Equatable {
+    /// What the curtain says about Steam's question: its kind at the top, the way to answer in the bar.
+    struct QuestionLook: Equatable {
+        var kind: SteamQuestion.Kind
         var answering: SteamLicence.Answering
         /// R2 or RT, for a pad without a touchpad.
         var click: String
@@ -118,24 +122,28 @@ enum GameBackdrop {
         if state.detail != shown { state.detail = shown }
     }
 
-    static func setSteamAsks(_ asks: Bool, licence: LicenceLook? = nil) {
+    static func setSteamAsks(_ asks: Bool, question: QuestionLook? = nil) {
         if state.steamAsks != asks { state.steamAsks = asks }
-        if state.licence != licence { state.licence = licence }
+        if state.question != question { state.question = question }
+        // The pointer Nightforge put into Steam's window holds no click once the question has gone.
+        if !asks { PointerDriver.placedAt = nil }
         if state.seam != nil { state.seam = nil }
     }
 
-    /// Steam's window under the licence's frame (screen coordinates, y down); nil while it isn't there.
+    /// Steam's window under the question's frame (screen coordinates, y down); nil while it isn't there.
     static func frameSteamWindow(_ frame: CGRect?) {
-        guard let window, state.licence != nil else { return }
+        guard let window, state.question != nil else { return }
         let curtain = appKitFrame(bounds: window.frame, mainHeight: CGDisplayBounds(CGMainDisplayID()).height)
         let seam = frame.flatMap { SteamLicence.seam(window: $0, curtain: curtain) }
         if state.seam != seam { state.seam = seam }
     }
 
-    /// A question already on the curtain turned out to be the licence (SteamLicence.framesLate).
-    static var licenceStillToSay: Bool { SteamLicence.framesLate(steamAsks: state.steamAsks, framed: state.licence != nil) }
-
-    static func sayLicence(_ look: LicenceLook) { state.licence = look }
+    /// What the question on the curtain turned out to be, or how it's answered now (a pad picked up meanwhile):
+    /// a question first seen as another step can be the licence: Steam logged another step first. Only while one stands.
+    static func sayQuestion(_ look: QuestionLook) {
+        guard state.steamAsks, state.question != look else { return }
+        state.question = look
+    }
 
     static func setWayOut(_ tip: LaunchTip?) {
         if state.wayOut != tip { state.wayOut = tip }
@@ -247,14 +255,10 @@ enum GameBackdrop {
         guard let window, window.isVisible, state.stage.raised else { return }
         hiding?.cancel()
         hiding = Task {
-            await NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.3
-                window.animator().alphaValue = 0
-            }
-            guard !Task.isCancelled else { return }
+            guard await fade(window, to: 0, over: 0.3) else { return }
             state.stage = .behind
             arrange(window)
-            window.alphaValue = 1
+            settle(window, at: 1)
         }
     }
 
@@ -329,16 +333,40 @@ enum GameBackdrop {
                 guard !Task.isCancelled else { return }
             }
             held = false
-            await NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.25
-                window.animator().alphaValue = 0
-            }
-            guard !Task.isCancelled else { return }
+            guard await fade(window, to: 0, over: 0.25) else { return }
             window.orderOut(nil)
+            state.seen = false  // nothing moves on a page that's gone, whether or not macOS says so
             if let observer { NotificationCenter.default.removeObserver(observer) }
             observer = nil
             then?()
         }
+    }
+
+    /// Fades `window` to `alpha` over `seconds`, and goes on after that time whether or not the animation ran: AppKit
+    /// drives it by the screen's display link, and with the display asleep or the Mac locked it never ends. Awaited, the
+    /// curtain then never went: on 23.11.2026 after the curtain preview (11:35–12:08) it stood, unseen at alpha 0, as an
+    /// orphan, and the way back started over every 19 s. The end value is set by hand afterwards. False when the task was
+    /// called off meanwhile (another raise or hide has the window now): then nothing is set.
+    static func fade(_ window: NSWindow, to alpha: CGFloat, over seconds: TimeInterval) async -> Bool {
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = seconds
+            window.animator().alphaValue = alpha
+        }, completionHandler: nil)
+        try? await Task.sleep(for: .seconds(seconds + 0.05))
+        guard !Task.isCancelled else { return false }
+        settle(window, at: alpha)
+        return true
+    }
+
+    /// Sets `window`'s alpha so that a fade still running gives way: through the animator, in a group of no duration. Set
+    /// straight, the value stood, and a fade to 0 that hadn't ended yet went on and took the curtain down again – a curtain
+    /// raised within 0.3 s of a hide then stood in front, unseen (W2 of the cross-read, 23.11.2026).
+    static func settle(_ window: NSWindow, at alpha: CGFloat) {
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0
+            window.animator().alphaValue = alpha
+        }, completionHandler: nil)
+        window.alphaValue = alpha
     }
 
     /// On the way back Nightforge asks for the front once, and macOS may give it to Steam Helper as a
@@ -359,7 +387,7 @@ enum GameBackdrop {
             state.progress = nil
             state.buttons = []
             state.steamAsks = false
-            state.licence = nil
+            state.question = nil
             state.seam = nil
         }
         if stage.raised, stage != state.stage || !isRaised { upSince = Date() }
@@ -414,7 +442,7 @@ enum GameBackdrop {
         }
         let appearing = !window.isVisible
         window.setFrame(currentFrame(of: screen), display: true)
-        window.alphaValue = appearing ? 0 : 1
+        settle(window, at: appearing ? 0 : 1)
         arrange(window)
         // Faded in where it wasn't up; from behind the game it's there at once, as it covers its end.
         if appearing {
@@ -532,8 +560,18 @@ enum GameBackdrop {
         let host = NSHostingView(rootView: BackdropView(state: state).modifier(AccessibilityFromSettings()))
         host.sizingOptions = []  // the screen's size, not the content's
         window.contentView = host
+        // The light moves only where it's seen: behind a game that covers the page it would cost the game for nothing.
+        occlusionObserver = NotificationCenter.default.addObserver(forName: NSWindow.didChangeOcclusionStateNotification,
+                                                                   object: window, queue: .main) { _ in
+            MainActor.assumeIsolated {
+                let seen = window.isVisible && window.occlusionState.contains(.visible)
+                if state.seen != seen { state.seen = seen }
+            }
+        }
         return window
     }
+
+    private static var occlusionObserver: NSObjectProtocol?
 }
 
 /// Never key or main: keys and the pad stay with the game, or with Nightforge's window.
@@ -550,7 +588,7 @@ struct BackdropView: View {
             BrandNight()
             // One fade each way, between two pages that stand still.
             if state.stage == .starting && state.steamAsks {
-                SteamQuestionFrame(game: state.game, wayOut: state.wayOut, licence: state.licence, seam: state.seam)
+                SteamQuestionFrame(game: state.game, wayOut: state.wayOut, question: state.question, seam: state.seam)
                     .transition(.opacity)
             } else {
                 page.transition(.opacity)
@@ -563,7 +601,9 @@ struct BackdropView: View {
 
     private var page: some View {
             VStack(spacing: 0) {
-                BrandMark(moving: state.stage.raised)
+                // Up, or the page seen behind a game whose picture went: the light runs either way, a page that
+                // stands still looks as if it hangs (the user, 22.11.2026).
+                BrandMark(moving: state.stage.raised || state.seen)
                 // The banner's wordmark, and under it the game in the blue of its tagline.
                 Spaced(text: "NIGHTFORGE", kern: 15)
                     .fontWidth(.expanded)
@@ -576,14 +616,17 @@ struct BackdropView: View {
                     .foregroundStyle(Color(nsColor: BrandArt.tagline))
                     .lineLimit(2)
                     .padding(.top, 18)
-                // What's happening; each step fades over the last.
+                // Under the name a short light glides to and fro, quicker and fainter than the seam's.
+                GlideLine(moving: (state.stage.raised || state.seen) && state.progress == nil)
+                    .padding(.top, 26)
+                // What the player has to do, or an update's figures; nothing while Nightforge only works.
                 ZStack {
                     Text(status).id(status).transition(.opacity)
                 }
                 .font(size: 18, weight: .medium)
                 .foregroundStyle(Theme.muted)
                 .animation(.easeInOut(duration: 0.4), value: status)
-                .padding(.top, 34)
+                .padding(.top, 14)
                 // In the gap above the second line, which is there anyway: an update's bar – nothing moves when it comes.
                 UpdateBar(fraction: state.stage == .starting ? state.progress : nil)
                     .frame(height: 34)
@@ -628,11 +671,13 @@ struct BackdropView: View {
             .padding(Theme.gutter)
     }
 
+    /// No words while Nightforge only works – "at a console nobody wants to know what happens technically" (the user,
+    /// 22.11.2026): the start's line only where there is one (LibraryModel.curtainStatus), none behind the game or on
+    /// the way back. A space keeps the page's place, so nothing moves when a line comes.
     private var status: String {
         switch state.stage {
-        case .starting: return state.step ?? L10n.t("Starting …")
-        case .behind: return L10n.t("Nightforge waits here until you're done.")
-        case .returning: return L10n.t("Back to Nightforge …")
+        case .starting: return state.step ?? " "
+        case .behind, .returning: return " "
         }
     }
 }
@@ -661,8 +706,8 @@ private struct UpdateBar: View {
 private struct SteamQuestionFrame: View {
     let game: String
     let wayOut: LaunchTip?
-    /// Steam's licence: said so at the top, with `seam` round its window once that's there.
-    var licence: GameBackdrop.LicenceLook?
+    /// What Steam asks, said at the top, with `seam` round its window once that's there; nil: not known yet.
+    var question: GameBackdrop.QuestionLook?
     var seam: CGRect?
     @ObservedObject private var tv = TVLayout.shared
 
@@ -678,7 +723,7 @@ private struct SteamQuestionFrame: View {
                     .transition(.opacity)
             }
             VStack(spacing: 0) {
-                Spaced(text: game.uppercased(with: L10n.locale) + " · " + (licence == nil ? L10n.t("Steam is asking something") : L10n.t("The licence, just once")).uppercased(with: L10n.locale), kern: 6)
+                Spaced(text: game.uppercased(with: L10n.locale) + " · " + SteamQuestion.title(question?.kind ?? .other).uppercased(with: L10n.locale), kern: 6)
                     .fontWidth(.expanded)
                     .font(size: 18)
                     .foregroundStyle(Color(nsColor: BrandArt.tagline))
@@ -686,8 +731,8 @@ private struct SteamQuestionFrame: View {
                     .minimumScaleFactor(0.6)
                     .padding(.top, max(48, Theme.margins.top))
                     .padding(.horizontal, Theme.margins.side)
-                if licence != nil {
-                    Text(L10n.t("Steam only asks this at the first start."))
+                if let note = SteamQuestion.note(question?.kind ?? .other) {
+                    Text(note)
                         .font(size: 15)
                         .foregroundStyle(Theme.muted)
                         .padding(.top, 12)
@@ -699,7 +744,7 @@ private struct SteamQuestionFrame: View {
                     if let wayOut, !wayOut.symbols.isEmpty {
                         HStack(spacing: 10) {
                             ForEach(Array(wayOut.symbols.enumerated()), id: \.offset) { _, symbol in PadGlyph(symbol, size: 20) }
-                            Text(licence == nil ? wayOut.text : L10n.t("Cancel"))
+                            Text(question?.kind == .licence ? L10n.t("Cancel") : wayOut.text)
                         }
                     }
                 }
@@ -716,7 +761,7 @@ private struct SteamQuestionFrame: View {
     }
 
     @ViewBuilder private var answers: some View {
-        switch licence?.answering ?? .mouse {
+        switch question?.answering ?? .mouse {
         case .mouse:
             Text(L10n.t("Answer with the mouse or trackpad"))
         case .touchpad:
@@ -731,7 +776,7 @@ private struct SteamQuestionFrame: View {
                 PadGlyph("r.joystick.fill", size: 20)
                 Text(L10n.t("Right stick moves the pointer"))
             }
-            Text(L10n.t("%@ clicks", licence?.click ?? "R2"))
+            Text(L10n.t("%@ clicks", question?.click ?? "R2"))
         }
     }
 }
@@ -774,13 +819,22 @@ private struct BrandNight: View {
 
 /// The N in brushed metal, its seam a picture of its own on top. The layout counts the N alone;
 /// its shadow and the seam's glow reach beyond.
+///
+/// While it moves (the board "Ladebildschirm wie eine Konsole", variant A, the user's choice of 22.11.2026): a light
+/// runs along the seam – BrandArt.seam, from (49, 170) to (332, 440) in the design's units, in the seam's own
+/// picture as its mask, so it never leaves it – one run each `seamRun` seconds with no pause, and the seam breathes
+/// between 60 and 100 % each `breath` seconds. The seam is the brighter and slower of the two layers, the line under
+/// the name (GlideLine) the fainter and quicker; their times share no divisor, so they never fall into step.
+/// With "Reduce motion" the seam only breathes.
 private struct BrandMark: View {
-    /// The curtain is up: a light runs along the seam (with "Reduce motion" it breathes).
     let moving: Bool
     @Environment(\.displayScale) private var scale
     @Environment(\.reduceMotion) private var reduceMotion
-    @State private var on = false
+    @State private var along: CGFloat = -0.15
+    @State private var bright = false
     private static let height: CGFloat = 230
+    static let seamRun: Double = 3.7
+    static let breath: Double = 5.3
 
     var body: some View {
         let unit = Self.height / BrandArt.glyphSize.height
@@ -800,17 +854,15 @@ private struct BrandMark: View {
             if let metal { Image(decorative: metal, scale: scale) }
             if let seam {
                 Image(decorative: seam, scale: scale)
-                    .opacity(moving && reduceMotion ? (on ? 1 : 0.45) : runs ? 0.8 : 1)
+                    .opacity(moving ? (bright ? 1 : 0.6) : 1)
                 if runs {
-                    // A light along the seam, in it only (the seam's own picture as the mask), and
-                    // a pause off its ends before the next run.
+                    // The seam's ends in the picture: BrandArt.seam, scaled and placed as drawSeam draws it.
                     let from = CGPoint(x: origin.x + BrandArt.seam.0.x * unit, y: origin.y + BrandArt.seam.0.y * unit)
                     let to = CGPoint(x: origin.x + BrandArt.seam.1.x * unit, y: origin.y + BrandArt.seam.1.y * unit)
-                    let along: CGFloat = on ? 1.3 : -0.3
                     Circle()
-                        .fill(RadialGradient(colors: [Color(red: 0.85, green: 0.93, blue: 1), Color(nsColor: BrandArt.seamBlue).opacity(0.5), .clear],
-                                             center: .center, startRadius: 0, endRadius: 45))
-                        .frame(width: 90, height: 90)
+                        .fill(RadialGradient(colors: [.white, Color(red: 0.85, green: 0.93, blue: 1), Color(nsColor: BrandArt.seamBlue).opacity(0.6), .clear],
+                                             center: .center, startRadius: 0, endRadius: 62))
+                        .frame(width: 124, height: 124)
                         .offset(x: from.x + (to.x - from.x) * along - size.width / 2,
                                 y: from.y + (to.y - from.y) * along - size.height / 2)
                         .frame(width: size.width, height: size.height)
@@ -820,14 +872,58 @@ private struct BrandMark: View {
             }
         }
         .frame(width: size.width, height: size.height)
-        .animation(moving ? (reduceMotion ? Animation.easeInOut(duration: 1.8) : .linear(duration: 2.6)).repeatForever(autoreverses: reduceMotion)
-                          : nil, value: on)
         .padding(-reach)
-        .task(id: moving) {
-            on = false
+        .task(id: [moving, reduceMotion]) {
+            await Self.still { along = -0.15; bright = false }
             guard moving else { return }
             try? await Task.sleep(for: .milliseconds(300))  // once the page has its size
-            on = true
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeInOut(duration: Self.breath).repeatForever(autoreverses: true)) { bright = true }
+            // Off one end and in at the other: a light that never stops, the step between runs hidden past the seam's ends.
+            if !reduceMotion { withAnimation(.linear(duration: Self.seamRun).repeatForever(autoreverses: false)) { along = 1.15 } }
+        }
+    }
+
+    /// A change with no animation: a repeating one is ended by it.
+    @MainActor static func still(_ change: () -> Void) async {
+        var quiet = Transaction()
+        quiet.disablesAnimations = true
+        withTransaction(quiet, change)
+    }
+}
+
+/// Under the game's name: a short light (80 pt) that glides to and fro on a faint line (300 pt), fainter and quicker
+/// than the seam's light (variant A). Nothing with "Reduce motion", nor while an update's bar has the place below.
+private struct GlideLine: View {
+    let moving: Bool
+    @Environment(\.reduceMotion) private var reduceMotion
+    @State private var right = false
+    static let width: CGFloat = 300
+    static let light: CGFloat = 80
+    /// One way; to and fro takes twice as long.
+    static let glide: Double = 2.3
+
+    var body: some View {
+        let runs = moving && !reduceMotion
+        ZStack {
+            Capsule().fill(.white.opacity(0.06))
+            Capsule()
+                .fill(LinearGradient(colors: [.clear, Color(nsColor: BrandArt.seamBlue), Color(red: 0.81, green: 0.89, blue: 1),
+                                              Color(nsColor: BrandArt.seamBlue), .clear], startPoint: .leading, endPoint: .trailing))
+                .frame(width: Self.light)
+                .offset(x: (right ? 1 : -1) * (Self.width - Self.light) / 2)
+                .opacity(0.7)
+        }
+        .frame(width: Self.width, height: 2)
+        .clipped()
+        .opacity(runs ? 1 : 0)
+        .animation(.easeInOut(duration: 0.5), value: runs)
+        .task(id: runs) {
+            await BrandMark.still { right = false }
+            guard runs else { return }
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeInOut(duration: Self.glide).repeatForever(autoreverses: true)) { right = true }
         }
     }
 }

@@ -5,13 +5,15 @@ cd "$(dirname "$0")"
 
 # The Command Line Tools ship without SwiftUI's macro plugins, so @State fails against the
 # macOS 27 SDK. Without Xcode, fall back to the 26.5 SDK they still include.
-CLT_SDK="/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk"
-if [ -z "${SDKROOT:-}" ] && [ "$(xcode-select -p)" = "/Library/Developer/CommandLineTools" ] && [ -d "$CLT_SDK" ]; then
-  export SDKROOT="$CLT_SDK"
-fi
+# shellcheck source=scripts/sdk-lib.sh
+. scripts/sdk-lib.sh && nightforge_pick_sdk
 
 APP="Nightforge"
-OUT="build/$APP.app"
+# In a folder Spotlight leaves out (".noindex"): a test build in a worktree never shows up in Spotlight or Launchpad
+# beside the installed Nightforge, and `open -b` doesn't pick it (22.11.2026: three Nightforges to choose from).
+# Only ~/Applications/Nightforge.app (--install) and the release are apps to the Mac.
+OUT="build/Nightforge.noindex/$APP.app"
+LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
 
 echo "▸ Compiling (release, Apple Silicon) …"
 # NIGHTFORGE_RELEASE=1 builds what goes out: without the test switches that record play (GameTest.measuresPlay).
@@ -89,9 +91,13 @@ else
   echo "▸ No pad-answer.exe yet: A and B won't answer a game's questions in this build."
 fi
 
-# Keeps the background Steam out of the Dock (x86_64, loaded into Wine processes).
+# Keeps the background Steam out of the Dock, gives Wine the network interfaces in an order Steam's
+# sign-in finds the connected one in (wrapper/network-order.c), and holds the frame limit on D3DMetal
+# (wrapper/d3dmetal-pace.m). x86_64, loaded into Wine processes.
+# Metal and QuartzCore not linked: d3dmetal-pace.m opens them in a process that has D3DMetal, no other loads them for it.
 clang -arch x86_64 -mmacosx-version-min=11.0 -dynamiclib -framework AppKit -Wall \
-  -o "$OUT/Contents/Resources/hide-steam-dock.dylib" wrapper/hide-steam-dock.m
+  -o "$OUT/Contents/Resources/hide-steam-dock.dylib" wrapper/hide-steam-dock.m wrapper/network-order.c \
+  wrapper/d3dmetal-pace.m wrapper/d3dmetal-pace-rules.c
 
 # Starts Wine inside a macOS sandbox when that's switched on (wrapper/nightforge-sandbox.c; x86_64
 # like Wine, for hide-steam-dock.dylib, which reaches it through DYLD_INSERT_LIBRARIES).
@@ -147,6 +153,12 @@ fi
 
 # Nightforge's own code signing identity when there is one, else ad hoc (scripts/codesign-app.sh).
 scripts/codesign-app.sh "$OUT"
+# Known to LaunchServices once anything opened it: forgotten again – this one, and one left where builds went
+# before (build/$APP.app; only forgotten, it stays where it is).
+if [ -x "$LSREGISTER" ]; then
+  "$LSREGISTER" -u "$PWD/$OUT" >/dev/null 2>&1 || true
+  [ -d "build/$APP.app" ] && { "$LSREGISTER" -u "$PWD/build/$APP.app" >/dev/null 2>&1 || true; }
+fi
 echo "✓ Done: $OUT"
 
 if [ "${1:-}" = "--install" ]; then

@@ -33,7 +33,7 @@ When a game also comes for the Mac, Nightforge plays the Mac version – without
 
 ### Sharp & smooth
 
-Most Windows games get Apple's MetalFX upscaling to full Retina sharpness, and games get an even frame rate that fits your display – 60 FPS on a 120 Hz screen. Nothing to set up; each game's options still offer four graphics routes in plain words. DirectX 10 and 11 go straight to Metal through DXMT, DirectX 12 through Apple's D3DMetal (once you agree), DirectX 9 through Wine's own WineD3D.
+Most Windows games get Apple's MetalFX upscaling to full Retina sharpness, and games get an even frame rate that fits your display – 60 FPS on a 120 Hz screen, since 0.3.5 on D3DMetal too. Nothing to set up; each game's options still offer four graphics routes in plain words. DirectX 10 and 11 go straight to Metal through DXMT, DirectX 12 through Apple's D3DMetal (once you agree), DirectX 9 through Wine's own WineD3D.
 
 | Measured on an M5 with Nightforge 0.2 | DXMT (Nightforge) | Vulkan route |
 |---|---:|---:|
@@ -52,7 +52,7 @@ Your Steam, Epic and GOG games show up together. Nightforge downloads and starts
 
 ### From the couch
 
-Playing, downloading, options and settings work with a controller, L1/R1 switch between Home and the library, the bar at the bottom shows every connected controller with its battery, and the pointer hides until you move the mouse again. For searching, Y opens an on-screen keyboard, and a DualSense's touchpad moves the pointer; signing in still needs a keyboard for some stores. PlayStation and Xbox controllers are recognised by themselves, the hints switch to your controller's own buttons, and a badge on every cover shows which games play with one. On a TV, games start full screen at its resolution, sound goes over HDMI, and when a game ends you're back in Nightforge, not on the desktop. Full screen needs no Space of its own, so nothing slides aside at the start or the end, and a loading screen covers the wait. Keyboard and trackpad work everywhere too.
+Playing, downloading, options and settings work with a controller, L1/R1 switch between Home and the library, and the bar at the bottom shows every connected controller with its battery. For searching, Y opens an on-screen keyboard, and a DualSense's touchpad moves the pointer; signing in still needs a keyboard for some stores. PlayStation and Xbox controllers are recognised by themselves, the hints switch to your controller's own buttons, and a badge on every cover shows which games play with one. When you connect a controller, Nightforge asks once about console mode: it then fills the screen, a TV too, and the Dock stays away while you play. On a TV, games start full screen at its resolution, sound goes over HDMI, and when a game ends you're back in Nightforge, not on the desktop. Full screen needs no Space of its own, so nothing slides aside at the start or the end, and while a game loads, a light runs along the seam in the Nightforge logo. Keyboard and trackpad work everywhere too.
 
 **Nightforge's own controller menu.** Press both sticks (L3 + R3) and hold them for two seconds, and a calm menu comes up in the middle of any game: keep playing, quit the game – even when it hangs – or go back to Nightforge. So on the couch you never get stuck: you quit a frozen game with the controller, without getting up, and you're straight back in your library.
 
@@ -80,7 +80,7 @@ After every game Nightforge shows how long you played and asks how it ran. It re
 - **Launcher menu.** Four cards show where you're signed in at Steam, Epic, GOG and Battle.net, and you sign in right from the card. Battle.net games for Mac start from Nightforge; those from the Windows client you still start in Battle.net.
 - **Store search.** Search also finds games in the Steam and GOG stores, in one list; a game both sell is one card. Steam's come with price and Metascore; you buy in your browser, and they appear in your library. Free games you add right away with **Add for Free** – Steam asks once in its own window.
 - **Restart Nightforge.** In the Nightforge menu and in Settings: it ends Steam, Wine and everything in the background and starts Nightforge fresh, for when something hangs.
-- **A start that repairs itself.** When a game ends right after starting, Nightforge reads the log for the reason, applies the fitting fix and starts it once more; the loading screen only says what's happening.
+- **A start that repairs itself.** When a game ends right after starting, Nightforge reads the log for the reason, applies the fitting fix and starts it once more.
 - **Big screen.** Plug in a monitor or TV, and Nightforge and your games move over to it automatically.
 - **Larger text and less motion.** One switch makes all of Nightforge's text a step larger; another turns zooming and sliding into plain cross-fades.
 - **No account and no telemetry.** No Nightforge service runs in the background. A problem report opens on GitHub filled in with the game and its settings, and is public only once you submit it; error lines stay on your clipboard until you paste them.
@@ -154,7 +154,7 @@ Prefer clicking? Download the DMG from the [latest release](https://github.com/L
   <img src="docs/images/dmg.jpg" alt="The DMG window: drag Nightforge onto Applications" width="560">
 </p>
 
-On the first start Nightforge sets up the game engine, a Windows environment and Steam. You only sign in, in Steam's own window – while it installs, you can try out your controller.
+On the first start Nightforge sets up the game engine, a Windows environment and Steam. You only sign in, in Steam's own window – while it installs, you can try out your controller. After that, Steam starts in the background as soon as Nightforge is open.
 
 ## Controls
 

@@ -5,7 +5,7 @@
 A profile tells Nightforge how to start one game: which graphics layer, which arguments, which settings to fix before the start. Nightforge applies it by itself when the game is on **Automatic**. Profiles come from three places, merged every night by `scripts/build-profiles.py` into `profiles/profiles.json`, which the app downloads:
 
 - [umu-protonfixes](https://github.com/Open-Wine-Components/umu-protonfixes), the fixes behind Proton-GE,
-- [AreWeAntiCheatYet](https://github.com/AreWeAntiCheatYet/AreWeAntiCheatYet) and the GeForce Now catalog, for games anti-cheat stops,
+- [AreWeAntiCheatYet](https://github.com/AreWeAntiCheatYet/AreWeAntiCheatYet), for games anti-cheat stops, with the GeForce Now links of `profiles/geforce-now.json` (GeForce Now's ids from 15.11.2026, kept by hand; Nightforge no longer asks NVIDIA for them),
 - **`profiles/mac.json`, Nightforge's own profiles, tested on Macs.** They win over the other two. This is the file you change.
 
 **Only what you have tried on a Mac belongs in `mac.json`.** A profile you add reaches every player the next morning, without an app update.
@@ -95,7 +95,7 @@ All fields are optional. They're read by `GameProfile` in `Sources/Nightforge/Pr
 | `gog` | list of GOG product IDs | The same game's GOG versions get this profile too. |
 | `ignoreUpstream` | `true` | Leave out umu-protonfixes' fixes for this game; only this profile applies. |
 
-`source` is set by the nightly build; don't set it. `geforceNow` the build fills in from the GeForce Now catalog; a value in `mac.json` is kept.
+`source` is set by the nightly build; don't set it. `geforceNow` the build fills in from `profiles/geforce-now.json`; a value in `mac.json` is kept.
 
 **Roots** for `saves`, `fileEdits`, `iniSettings` and `resolution`: `GameInstall` (the game folder), `WinAppDataRoaming`, `WinAppDataLocal`, `WinAppDataLocalLow`, `WinMyDocuments`, `WinSavedGames`. The Mac side of `saves` (`mac`): `MacAppSupport`, `MacCaches` or `GameInstall`. A path may not lead out of its root: no `..`, no drive, nothing from `/` or `~`. The build stops on such a path.
 
@@ -145,8 +145,7 @@ should depend on x86_64 without need: a new entry in `components/sources.json` s
    ```bash
    git clone --depth 1 https://github.com/Open-Wine-Components/umu-protonfixes.git /tmp/umu-protonfixes
    curl -fsSL -o /tmp/anticheat.json https://raw.githubusercontent.com/AreWeAntiCheatYet/AreWeAntiCheatYet/HEAD/games.json
-   python3 -I scripts/fetch-geforce-now.py /tmp/geforcenow.json
-   python3 -I scripts/build-profiles.py /tmp/umu-protonfixes --anticheat /tmp/anticheat.json --geforcenow /tmp/geforcenow.json
+   python3 -I scripts/build-profiles.py /tmp/umu-protonfixes --anticheat /tmp/anticheat.json
    ```
 
    Then run the builder's tests and the workflow's own check on the result:

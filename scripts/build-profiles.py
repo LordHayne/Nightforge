@@ -11,15 +11,17 @@ Sources, merged per Steam app ID:
     Nightforge says so before a download ("antiCheat"). Games it runs under Proton only through
     the anti-cheat's own Linux build (Easy Anti-Cheat, BattlEye) lose their online play on a Mac
     ("antiCheatOnline"); the app blocks those that have nothing else (no single player on Steam).
-    Entries without a Steam app ID get one by their exact name from the GeForce Now catalog, or
+    Entries without a Steam app ID get one by their exact name from profiles/geforce-now.json, or
     from STEAM_IDS_BY_SLUG.
-  * The GeForce Now catalog (scripts/fetch-geforce-now.py), optional: which blocked games can be
-    streamed instead ("geforceNow", the game id its deep links take), and Steam app IDs by name.
+  * profiles/geforce-now.json: which blocked games can be streamed instead ("geforceNow", the game id
+    GeForce Now's deep links take), and Steam app IDs by name, as GeForce Now's catalog had them on
+    15.11.2026. Kept by hand: Nightforge doesn't ask NVIDIA for the catalog any more (closed to such
+    requests since 20.11.2026, and the maintainer's decision of 22.11.2026).
   * profiles/mac.json: Nightforge's own profiles, tested on Macs. They win over upstream, and
     reach the GOG versions they name ("gog"). "notYet" is the reason a game doesn't start on a Mac
     yet (Nightforge is working on it): it gets a GeForce Now id like the anti-cheat games.
 
-Usage: build-profiles.py <umu-protonfixes checkout> [--anticheat games.json] [--geforcenow catalog.json]
+Usage: build-profiles.py <umu-protonfixes checkout> [--anticheat games.json] [--geforcenow profiles/geforce-now.json]
                          [--out profiles/profiles.json]
 """
 
@@ -76,7 +78,7 @@ LINUX_MODULE_ANTICHEATS = {"Easy Anti-Cheat", "BattlEye"}
 # there loses nothing, one whose anti-cheat doesn't at most its online play.
 ANTICHEAT_OFF_ARGUMENTS = {"-eac-untrusted", "-eac-nop-loaded", "-noeac", "-nobattleye", "-noanticheat", "-no-anticheat"}
 
-# AreWeAntiCheatYet games without a Steam app ID that the GeForce Now catalog doesn't name either,
+# AreWeAntiCheatYet games without a Steam app ID that profiles/geforce-now.json doesn't name either,
 # by slug. Each checked against Steam's store page of that app: the same name, and for Delta Force,
 # which AreWeAntiCheatYet still lists by its test name "Delta Force: Hawk Ops", the same website
 # (playdeltaforce.com). Escape from Tarkov's Steam version is also the one umu-protonfixes installs
@@ -574,27 +576,27 @@ def title_key(name) -> str:
     return " ".join(re.sub(r"[\W_]+", " ", unicodedata.normalize("NFKC", name).casefold()).split())
 
 
-def steam_titles(games):
-    """`title_key` → Steam app ID, for the games GeForce Now streams from Steam; a name that stands
-    for more than one app is left out."""
-    ids = {}
-    for game in games:
-        for variant in game.get("variants") or []:
-            store_id = str(variant.get("storeId") or "")
-            if variant.get("appStore") == "STEAM" and store_id.isdigit() and title_key(game.get("title")):
-                ids.setdefault(title_key(game.get("title")), set()).add(store_id)
-    return {title: next(iter(app_ids)) for title, app_ids in ids.items() if len(app_ids) == 1}
+GEFORCE_NOW_ID = re.compile(r"[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}")
 
 
-def geforce_now_ids(games):
-    """Steam app ID → GeForce Now game id, for the games GeForce Now streams from Steam."""
-    ids = {}
-    for game in games:
-        for variant in game.get("variants") or []:
-            store_id = str(variant.get("storeId") or "")
-            if variant.get("appStore") == "STEAM" and store_id.isdigit() and game.get("id"):
-                ids.setdefault(store_id, game["id"])
-    return ids
+def read_geforce_now(path: pathlib.Path):
+    """profiles/geforce-now.json: key (Steam app ID, "epic.…", "gog.…") → GeForce Now id, `title_key` →
+    Steam app ID, and the date they're from. None when the file can't be read or breaks its shape."""
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(document, dict):
+        return None
+    ids, titles, since = document.get("ids"), document.get("titles"), document.get("from")
+    if not (isinstance(ids, dict) and isinstance(titles, dict) and isinstance(since, str)):
+        return None
+    key = re.compile(r"[0-9]{1,10}|epic\.[A-Za-z0-9_-]{1,64}|gog\.[0-9]{1,20}")
+    if not all(key.fullmatch(k) and isinstance(v, str) and GEFORCE_NOW_ID.fullmatch(v) for k, v in ids.items()):
+        return None
+    if not all(isinstance(t, str) and t == title_key(t) and isinstance(a, str) and a.isdigit() for t, a in titles.items()):
+        return None
+    return ids, titles, since
 
 
 def starts_without_anticheat(profile) -> bool:
@@ -637,7 +639,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("protonfixes", type=pathlib.Path)
     parser.add_argument("--anticheat", type=pathlib.Path, help="AreWeAntiCheatYet games.json")
-    parser.add_argument("--geforcenow", type=pathlib.Path, help="GeForce Now catalog from fetch-geforce-now.py")
+    parser.add_argument("--geforcenow", type=pathlib.Path, default=ROOT / "profiles" / "geforce-now.json",
+                        help="GeForce Now ids, kept by hand")
     parser.add_argument("--highball", type=pathlib.Path, help="Highball's curated games.json (CC0-1.0)")
     parser.add_argument("--highball-reports", type=pathlib.Path, help="db/reports of Highball's database (CC0-1.0)")
     parser.add_argument("--mac", type=pathlib.Path, default=ROOT / "profiles" / "mac.json")
@@ -668,13 +671,18 @@ def main() -> int:
             "license": "BSD-2-Clause",
         },
     }
+    previous = None
+    if options.out.exists():
+        previous = json.loads(options.out.read_text(encoding="utf-8"))
     blocked = 0
     cloud, titles = {}, {}
     if options.anticheat:
-        if options.geforcenow:
-            catalog = json.loads(options.geforcenow.read_text(encoding="utf-8"))
-            cloud, titles = geforce_now_ids(catalog), steam_titles(catalog)
-            sources["geforce-now"] = {"url": "https://play.geforcenow.com"}
+        geforce_now = read_geforce_now(options.geforcenow)
+        if geforce_now is None:
+            print(f"{options.geforcenow} can't be read, or breaks its shape (read_geforce_now).", file=sys.stderr)
+            return 1
+        cloud, titles, since = geforce_now
+        sources["geforce-now"] = {"url": "https://play.geforcenow.com", "from": since}
         anticheat = json.loads(options.anticheat.read_text(encoding="utf-8"))
         for app_id, block in anticheat_blocks(anticheat, titles).items():
             if starts_without_anticheat(games.get(app_id)):
@@ -694,6 +702,8 @@ def main() -> int:
                     profile[field] = block[field]
             if block.get("steam") in cloud:
                 profile["geforceNow"] = cloud[block["steam"]]
+            elif key in cloud:  # profiles/geforce-now.json names Epic games by their key
+                profile["geforceNow"] = cloud[key]
             games[key] = profile
             blocked += 1
         sources["areweanticheatyet"] = {"url": "https://areweanticheatyet.com", "license": "MIT"}
@@ -721,9 +731,6 @@ def main() -> int:
             document["reported"].update(same_stack_reports(report_lines(options.highball_reports)))
             document["reported"] = dict(sorted(document["reported"].items(), key=lambda item: int(item[0])))
         document["sources"]["highball"] = {"url": "https://gethighball.com/database", "license": "CC0-1.0"}
-    previous = None
-    if options.out.exists():
-        previous = json.loads(options.out.read_text(encoding="utf-8"))
     # Only touch the date when something changed, so the nightly run doesn't commit noise.
     unchanged = previous and {k: v for k, v in previous.items() if k != "generated"} == document
     document["generated"] = previous["generated"] if unchanged else \

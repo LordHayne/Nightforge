@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Heute · Vorher</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.board{width:1480px;height:1180px;box-sizing:border-box;padding:40px 40px 28px;display:flex;flex-direction:column;gap:24px;background:#0f141c;color:#f3f1ec;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-serif}
+.top{display:grid;grid-template-columns:880px minmax(0,1fr);gap:32px;align-items:start}
+.frame{position:relative;width:880px;height:572px;overflow:hidden;border-radius:10px;box-shadow:0 12px 22px rgba(0,0,0,.55);background:#000}
+.screen{position:absolute;left:0;top:0;width:1512px;height:982px;transform:scale(.582);transform-origin:top left;overflow:hidden;background:linear-gradient(180deg,#141a26,#07090d)}
+.menubar{position:absolute;left:0;top:0;right:0;height:30px;background:rgba(30,32,38,.82);display:flex;align-items:center;gap:22px;padding-left:22px;font-size:15px;color:#e8e8e8}
+.window{position:absolute;left:150px;top:90px;width:1210px;height:760px;border-radius:12px;overflow:hidden;background:linear-gradient(180deg,#151b27,#080a0f);box-shadow:0 20px 50px rgba(0,0,0,.6)}
+.full{position:absolute;inset:0;background:linear-gradient(180deg,#151b27,#080a0f)}
+.titlebar{height:30px;background:#1c2230;display:flex;align-items:center;gap:8px;padding-left:12px}
+.dot{width:12px;height:12px;border-radius:6px;background:#ff5f57}.dot.y{background:#febc2e}.dot.g{background:#28c840}
+.dock{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);width:640px;height:74px;border-radius:22px;background:rgba(200,205,215,.22);border:1px solid rgba(255,255,255,.18);display:flex;gap:14px;align-items:center;justify-content:center}
+.dock i{width:52px;height:52px;border-radius:12px;background:rgba(255,255,255,.28);display:block}
+.lib{position:absolute;left:60px;right:60px;top:110px}
+.lib h2{margin:0 0 26px;font-size:30px;font-weight:700;letter-spacing:.5px}
+.cards{display:flex;gap:26px}
+.cards div{width:210px;height:290px;border-radius:14px;background:linear-gradient(160deg,#2a3448,#141a26)}
+.cards div.f{outline:4px solid #8ca8db;outline-offset:4px}
+.dim{position:absolute;inset:0;background:rgba(0,0,0,.45)}
+.sheet{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:620px;box-sizing:border-box;padding:34px 36px 28px;border-radius:26px;background:rgba(40,46,60,.86);border:1px solid rgba(255,255,255,.14);text-align:center;box-shadow:0 30px 60px rgba(0,0,0,.6)}
+.sheet h3{margin:0 0 12px;font-size:28px;font-weight:700}
+.sheet p{margin:0 0 26px;font-size:18px;line-height:26px;color:#c9ced8}
+.btns{display:flex;gap:16px;justify-content:center}
+.btn{min-width:190px;padding:14px 22px;border-radius:21px;font-size:18px;background:rgba(255,255,255,.12);display:flex;gap:10px;align-items:center;justify-content:center}
+.btn.p{background:#3a63b8;outline:4px solid #8ca8db;outline-offset:4px}
+.pg{display:inline-flex;width:28px;height:28px;border-radius:14px;border:2px solid currentColor;align-items:center;justify-content:center;font-size:15px;font-weight:700}
+.page{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:radial-gradient(ellipse at 50% 30%,#1d2638,#06080b 70%)}
+.mark{width:150px;height:190px;position:relative;margin-bottom:26px}
+.mark:before{content:"";position:absolute;inset:0;background:linear-gradient(135deg,#9aa3af,#565e6a);clip-path:polygon(0 0,22% 0,78% 62%,78% 0,100% 0,100% 100%,78% 100%,22% 38%,22% 100%,0 100%)}
+.mark:after{content:"";position:absolute;left:12%;top:-2%;width:4px;height:112%;background:linear-gradient(180deg,transparent,#8ca8db 45%,#d9e6ff 50%,#8ca8db 55%,transparent);transform:rotate(-37deg);transform-origin:50% 50%;left:48%;box-shadow:0 0 18px #8ca8db}
+.page h3{margin:0 0 14px;font-size:44px;font-weight:300;letter-spacing:4px}
+.page p{margin:0 0 44px;font-size:21px;color:#aab3c2}
+.bar{position:absolute;left:0;right:0;bottom:0;height:96px;background:rgba(6,8,11,.78);border-top:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;gap:20px;font-size:21px;color:#8ca8db}
+.col{display:flex;flex-direction:column;gap:12px}
+h1{margin:0;font-size:30px;font-weight:800;font-stretch:expanded}
+.lead{margin:0;font-size:15px;line-height:22px;color:#9aa3af}
+.plus,.minus{margin:0;font-size:14px;line-height:21px}
+.minus{color:#9aa3af}
+.label{font-size:11px;font-weight:700;letter-spacing:.8px;color:#9aa3af;text-transform:uppercase}
+.row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px 24px}
+.mini{position:relative;height:292px;border-radius:10px;overflow:hidden;background:#000}
+.mini .screen{transform:scale(.2976)}
+.cap{display:flex;flex-direction:column;gap:4px;font-size:12px;line-height:17px;color:#9aa3af}
+.cap b{font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:#f3f1ec}
+</style>
+</helmet>
+<div class="board">
+  <div class="top">
+    <div class="frame"><div class="screen"><div class="menubar"><b></b>Nightforge&nbsp;&nbsp;Ablage&nbsp;&nbsp;Ansicht&nbsp;&nbsp;Fenster</div><div class="window"><div class="titlebar"><span class="dot"></span><span class="dot y"></span><span class="dot g"></span></div><div style="position:relative;height:730px"><div class="lib"><h2>Bibliothek</h2><div class="cards"><div class=""></div><div></div><div></div><div></div><div></div></div></div><div class="dim"></div><div class="sheet"><h3>Vollbild für den Controller?</h3><p>Nightforge füllt den Bildschirm, und der Schreibtisch des Macs geht aus dem Weg. ⌃⌘F schaltet zurück.</p><div class="btns"><div class="btn"><span class="pg">B</span>Nicht jetzt</div><div class="btn p"><span class="pg">A</span>Vollbild</div></div></div></div></div><div class="dock"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div></div>
+    <div class="col">
+      <div class="label">Heute · Vorher</div>
+      <h1>Vollbild für den Controller?</h1>
+      <p class="lead">Kommt bei jedem Programmstart wieder, nur am eingebauten Bildschirm. „Vollbild“ schaltet nur das Vollbild; beim Spielen ist das Dock wieder da, sobald das Spiel im Fenster läuft oder Steam vorne ist.</p>
+      <p class="plus">+ mit dem Pad bedienbar (Ⓐ / Ⓑ), Fokus auf „Vollbild“</p>
+      <p class="minus">– fragt jedes Mal neu</p><p class="minus">– nicht am Fernseher, nicht nach der Einrichtung</p><p class="minus">– Dock beim Spielen sichtbar</p><p class="minus">– Esc ganz oben verlässt das Vollbild</p>
+    </div>
+  </div>
+  <div class="row"><div class="col"><div class="mini"><div class="screen"><div class="menubar"><b></b>Nightforge&nbsp;&nbsp;Ablage&nbsp;&nbsp;Ansicht&nbsp;&nbsp;Fenster</div><div class="window"><div class="titlebar"><span class="dot"></span><span class="dot y"></span><span class="dot g"></span></div><div style="position:relative;height:730px"><div class="lib"><h2>Bibliothek</h2><div class="cards"><div class=""></div><div></div><div></div><div></div><div></div></div></div></div></div><div class="dock"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div></div><div class="cap"><b>Ohne Pad</b>Fenster am Schreibtisch, Dock da</div></div><div class="col"><div class="mini"><div class="screen"><div class="full"><div class="lib"><h2>Bibliothek</h2><div class="cards"><div class="f"></div><div></div><div></div><div></div><div></div></div></div></div></div></div><div class="cap"><b>Nach „Vollbild“</b>Nightforge vorne: kein Dock</div></div><div class="col"><div class="mini"><div class="screen"><div class="menubar"><b></b>Nightforge&nbsp;&nbsp;Ablage&nbsp;&nbsp;Ansicht&nbsp;&nbsp;Fenster</div><div class="window"><div class="titlebar"><span class="dot"></span><span class="dot y"></span><span class="dot g"></span></div><div style="position:relative;height:730px"><div class="full" style="background:radial-gradient(ellipse at 30% 60%,#c9772f,#3a2a4a 45%,#0b0e14 80%)"></div></div></div><div class="dock"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div></div><div class="cap"><b>Spiel im Fenster</b>Dock wieder sichtbar</div></div></div>
+</div>
+</x-dc>
+</body>
+</html>

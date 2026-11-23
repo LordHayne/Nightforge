@@ -18,8 +18,10 @@ final class InputRouter {
     private var observers: [NSObjectProtocol] = []
     private var repeatTimer: Timer?
     private var held = Step()
-    private var dpadStep = Step()
-    private var stickStep = Step()
+    /// The d-pad and left stick of every pad, the one moved last leading (HeldDirections).
+    private var directions = HeldDirections<DirectionKey, Step>(rest: Step())
+    /// Each pad's right stick, up or down, for scrolling: the one moved last leads.
+    private var scrolls = HeldDirections<ObjectIdentifier, Float>(rest: 0)
     private var overlayHold = OverlayHold()
     private var holdTimer: Timer?
     /// ☰ on a card, until it's clear whether it's held (MenuHold).
@@ -209,8 +211,8 @@ final class InputRouter {
             if let menu = model.libraryMenu { model.closeLibraryMenu(menu); return true }
             if model.awaitingSteam { model.cancelLaunch(); return true }
             if model.back() { return true }
-            // Nothing to go back from: Esc leaves full screen, as in macOS's.
-            guard FullScreen.isOn else { return false }
+            // Nothing to go back from: Esc leaves full screen, as in macOS's – but not console mode (ConsoleMode).
+            guard FullScreen.isOn, ConsoleMode.escLeavesFullScreen(consoleMode: model.consoleMode) else { return false }
             FullScreen.toggle()
             return true
         default: break
@@ -504,16 +506,20 @@ final class InputRouter {
         }
 
         // D-pad and left stick both move in all four directions, repeating while held.
+        // Held per pad (HeldDirections): with two pads, one at rest doesn't let go of what the other holds.
+        let padID = ObjectIdentifier(pad)
         pad.dpad.valueChangedHandler = { [weak self] _, x, y in
-            MainActor.assumeIsolated { self?.steer(.dpad, x: x, y: y) }
+            MainActor.assumeIsolated { self?.steer(.dpad, pad: padID, x: x, y: y) }
         }
         pad.leftThumbstick.valueChangedHandler = { [weak self] _, x, y in
-            MainActor.assumeIsolated { self?.steer(.stick, x: x, y: y) }
+            MainActor.assumeIsolated { self?.steer(.stick, pad: padID, x: x, y: y) }
         }
         pad.rightThumbstick.valueChangedHandler = { [weak self, weak pad] _, x, y in
             MainActor.assumeIsolated {
-                self?.scrollWithStick(y)
-                if let pad { self?.pointer.stick(x: x, y: y, on: pad) }
+                guard let self else { return }
+                // Under the dead zone a stick is at rest: its jitter doesn't take the lead from one that scrolls.
+                self.scrollWithStick(self.scrolls.set(Self.stickSpeed(y) == 0 ? 0 : y, for: padID))
+                if let pad { self.pointer.stick(x: x, y: y, on: pad) }
             }
         }
         // X: the selected game's page (A on Home plays it).
@@ -846,18 +852,20 @@ final class InputRouter {
 
     /// The curtain went down on the game and the pad was used last: the pointer leaves the picture
     /// without waiting for the next press.
-    func parkPointerForGame() { parkPointerIfDue(padInUse: Self.padUsedLast) }
+    func parkPointerForGame() { parkPointerIfDue(padInUse: Self.padUsedLast, curtainGoing: true) }
 
     /// The pad in use with a game in front: the pointer out of the picture (PointerParking). At most
-    /// twice a second, as this runs beside a game: a stick reports hundreds of times.
-    private func parkPointerIfDue(padInUse: Bool) {
+    /// twice a second, as this runs beside a game: a stick reports hundreds of times. `curtainGoing`: the
+    /// curtain was just lowered and still fades (PointerParking.overGame).
+    private func parkPointerIfDue(padInUse: Bool, curtainGoing: Bool = false) {
         guard padInUse, let model else { return }
         let now = ProcessInfo.processInfo.systemUptime
         guard now - parkingLook >= 0.5 else { return }
         parkingLook = now
         guard parking.parksNow(padInUse: true, now: now, mouseAgo: Self.mouseIdle,
                                pointerInUse: pointer.isMouse || pointer.touchedRecently(now: now), setting: Prefs.parkPointer,
-                               overGame: reach == .none && model.gamePlaying && !GameBackdrop.isRaised && Self.gameHasTheFront(model),
+                               overGame: reach == .none && PointerParking.overGame(gameInFront: Self.gameHasTheFront(model), playing: model.gamePlaying,
+                                                                                   curtainUp: GameBackdrop.isRaised, curtainGoing: curtainGoing),
                                question: model.windowsQuestion != nil || model.overGame != nil || PadPointer.macOSAsks),
               let location = CGEvent(source: nil)?.location
         else { return }
@@ -961,11 +969,14 @@ final class InputRouter {
         NSCursor.setHiddenUntilMouseMoves(true)
     }
 
-    /// The pointer into Steam's window for its licence, in the middle of it and on no button: only moved
-    /// (no event, no click), and only for whoever plays with the pad.
+    /// The pointer into Steam's window for its question, at the middle of its top edge and on no button
+    /// (PadPointerRules.questionPointer): only moved (no event, no click), and only for whoever plays with the pad.
+    /// A click there is held back until the player has moved it (PointerDriver.placedAt).
     static func bringPointer(into window: CGRect) {
         guard padUsedLast else { return }
-        CGWarpMouseCursorPosition(CGPoint(x: window.midX, y: window.midY))
+        let point = PadPointerRules.questionPointer(in: window)
+        CGWarpMouseCursorPosition(point)
+        PointerDriver.placedAt = point
         NSCursor.setHiddenUntilMouseMoves(false)
     }
 
@@ -1150,8 +1161,8 @@ final class InputRouter {
 
     /// Forgets every held direction and stops the repeat.
     private func letGo() {
-        dpadStep = Step()
-        stickStep = Step()
+        directions.clear()
+        scrolls.clear()
         setHeld(Step())
         scrollWithStick(0)
         menuHold.cancel()
@@ -1219,6 +1230,12 @@ final class InputRouter {
 
     private enum Source { case dpad, stick }
 
+    /// A direction's place: which pad, d-pad or stick.
+    private struct DirectionKey: Hashable {
+        let pad: ObjectIdentifier
+        let source: Source
+    }
+
     /// A step on the grid: left/right within a row, up/down a whole row.
     private struct Step: Equatable {
         var dx = 0, dy = 0
@@ -1226,7 +1243,7 @@ final class InputRouter {
     }
 
     /// The stronger axis wins, so a slightly diagonal stick still moves straight.
-    private func steer(_ source: Source, x: Float, y: Float) {
+    private func steer(_ source: Source, pad: ObjectIdentifier, x: Float, y: Float) {
         guard reach != .none, model?.padKeyboard == nil else { return }
         var step = Step()
         if abs(x) >= abs(y) {
@@ -1234,12 +1251,8 @@ final class InputRouter {
         } else {
             step.dy = y > 0.55 ? -1 : (y < -0.55 ? 1 : 0)  // stick up is +y, a row up is -1
         }
-        switch source {
-        case .dpad: dpadStep = step
-        case .stick: stickStep = step
-        }
-        // The one just moved leads; letting go of it hands over to the other if that's still held.
-        setHeld(step.isNone ? (source == .dpad ? stickStep : dpadStep) : step)
+        // The one just moved leads; letting go of it hands over to another still held, on this pad or another.
+        setHeld(directions.set(step, for: DirectionKey(pad: pad, source: source)))
     }
 
     /// Home: up to the top bar, down to the game's buttons; up from the grid's top row enters the

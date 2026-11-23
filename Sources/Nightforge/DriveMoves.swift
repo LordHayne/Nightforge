@@ -232,7 +232,7 @@ extension LibraryModel {
         default:
             guard let wine = await Engine.installedWine() else { throw DriveError.steamStarted }
             let wasRunning = Engine.isSteamRunning
-            try await Engine.stopSteam(wine, endWait: Engine.filesEndWait)
+            try await Engine.stopSteam(wine, endWait: Engine.filesEndWait, leftovers: true)
             do {
                 // Asked a few times: a Steam a moment from its end is still listed (Engine.steamStillThere).
                 if let still = await Engine.steamStillThere() { throw still }
@@ -331,7 +331,7 @@ extension SteamStore {
             guard !context.busy else {
                 throw DriveError.busy(L10n.t("Steam restarts to set up %@ – quit the game first, then download again.", drive.lastPathComponent))
             }
-            try await Engine.stopSteam(wine, endWait: Engine.filesEndWait)
+            try await Engine.stopSteam(wine, endWait: Engine.filesEndWait, leftovers: true)
             if let still = await Engine.steamStillThere() { throw still }
             try await Engine.offMain {
                 try SteamLibraries.ensure(library: library, path: DriveLibrary.windowsPath(of: library), steamRoot: Engine.steamRoot,

@@ -159,6 +159,16 @@ struct GameStageTest {
         check(GameStage.curtainEnds(cameBack: true, waited: 1), "back with its picture: the curtain goes at once")
         check(!GameStage.curtainEnds(cameBack: false, waited: GameStage.endingPatience - 1), "still ending: the curtain stays")
         check(GameStage.curtainEnds(cameBack: false, waited: GameStage.endingPatience), "not ending after all: never stuck")
+        // No window left after 10 s, only a process ending in its own time (the Wukong benchmark's helper, 22.11.2026):
+        // Nightforge comes back, the end is followed in the background.
+        check(GameStage.endingPatience == 10, "10 s, the user's choice")
+        check(GameStage.endsInBackground(cameBack: false, windowAnywhere: false, waited: GameStage.endingPatience),
+              "no window anywhere after 10 s: back to Nightforge")
+        check(!GameStage.endsInBackground(cameBack: false, windowAnywhere: false, waited: GameStage.endingPatience - 1),
+              "before that the curtain stays")
+        check(!GameStage.endsInBackground(cameBack: false, windowAnywhere: true, waited: 60),
+              "a window of the game's somewhere (minimised, another Space): it runs on, Nightforge stays behind it")
+        check(!GameStage.endsInBackground(cameBack: true, windowAnywhere: true, waited: 60), "back with its picture")
 
         func exit(curtainUp: Bool = false, sawPicture: Bool = true, judged: Bool = false, others: Bool = false) -> Bool {
             LibraryModel.exitRaisesCurtain(curtainUp: curtainUp, sawPicture: sawPicture, judged: judged, othersRunning: others)
@@ -208,12 +218,46 @@ struct GameStageTest {
               "no picture yet: the curtain's watch has it")
     }
 
+    /// The game in front with no window left (the Wukong benchmark, 22.11.2026 19:36): the curtain after 3 s.
+    static func dark() {
+        var stage = playing()
+        func gone(_ at: TimeInterval, shield: Bool = false, acted: Bool = false, handsOff: Bool = false, anywhere: Bool = false) -> Bool {
+            stage.wentDark(look(at, anywhere: anywhere, handsOff: handsOff, acted: acted), onlyOwnShield: shield)
+        }
+        check(!gone(1) && !gone(3.5), "in front with no window: not before 3 s")
+        check(gone(4), "3 s: its picture counts as gone, the curtain comes")
+        check(!gone(5), "once, then it starts over")
+        var other = playing()
+        check(!other.wentDark(look(1, anywhere: false, acted: true), onlyOwnShield: false)
+              && other.wentDark(look(4.5, anywhere: false, acted: true), onlyOwnShield: false), "the game's own Quit, a click, doesn't hold it back")
+        var shielded = playing()
+        check(!shielded.wentDark(look(1, anywhere: false), onlyOwnShield: true) && !shielded.wentDark(look(20, anywhere: false), onlyOwnShield: true),
+              "its own full screen's shield: that's hiddenByOwnFullScreen's, not an end")
+        var minimised = playing()
+        check(!minimised.wentDark(look(1), onlyOwnShield: false) && !minimised.wentDark(look(20), onlyOwnShield: false),
+              "a window of its somewhere (minimised): not gone")
+        var asked = playing()
+        check(!asked.wentDark(look(1, anywhere: false, handsOff: true), onlyOwnShield: false)
+              && !asked.wentDark(look(20, anywhere: false, handsOff: true), onlyOwnShield: false), "the overlay or a question: hands off")
+        var away = playing()
+        check(!away.wentDark(look(1, front: false, anywhere: false), onlyOwnShield: false)
+              && !away.wentDark(look(20, front: false, anywhere: false), onlyOwnShield: false), "another app in front: pictureWent's case")
+        var never = GameStage()
+        check(!never.wentDark(look(1, anywhere: false), onlyOwnShield: false) && !never.wentDark(look(20, anywhere: false), onlyOwnShield: false),
+              "before its first picture: the start's curtain has it")
+        var back = playing()
+        _ = back.wentDark(look(1, anywhere: false), onlyOwnShield: false)
+        _ = back.wentDark(look(2, here: true), onlyOwnShield: false)
+        check(!back.wentDark(look(3.5, anywhere: false), onlyOwnShield: false), "its window back in between: the count starts again")
+    }
+
     static func main() {
         stage()
         page()
         underGame()
         ending()
         ownFullScreen()
+        dark()
         print(failures == 0 ? "GameStageTest: all good" : "GameStageTest: \(failures) failed")
         exit(failures == 0 ? 0 : 1)
     }

@@ -1,0 +1,21 @@
+== session begun with AVX=1
+-- same session (child AVX=1)
+cpuid avx=1 osxsave=1
+IsProcessorFeaturePresent(AVX)=1
+-- same session (child AVX=none)
+cpuid avx=0 osxsave=0
+IsProcessorFeaturePresent(AVX)=1
+== session begun with AVX=none
+-- same session (child AVX=1)
+cpuid avx=1 osxsave=1
+IsProcessorFeaturePresent(AVX)=0
+-- same session (child AVX=none)
+cpuid avx=0 osxsave=0
+IsProcessorFeaturePresent(AVX)=0
+== no session before: the child begins it
+-- first process (child AVX=1)
+cpuid avx=1 osxsave=1
+IsProcessorFeaturePresent(AVX)=1
+-- first process (child AVX=none)
+cpuid avx=0 osxsave=0
+IsProcessorFeaturePresent(AVX)=0

@@ -85,17 +85,18 @@ struct MacUnityScreenTest {
         let folder = game.deletingLastPathComponent()
         let empty = root.appendingPathComponent("prefs", isDirectory: true)
         try? fm.createDirectory(at: empty, withIntermediateDirectories: true)
-        check(S.look(installDir: folder, playerArguments: "", preferences: empty) == .fullScreen(domain: domain),
+        // The game's kept mode is handed in, never written: written through CFPreferences, every run left
+        // nightforge.test.unity-screen.<UUID>.plist in the Mac's preferences, removing the file or not (23.11.2026).
+        var kept: [String: Int] = [:]
+        check(S.look(installDir: folder, playerArguments: "", preferences: empty, kept: { kept[$0] }) == .fullScreen(domain: domain),
               "a Unity game's folder, no mode of its own: full screen")
-        check(S.look(installDir: other.deletingLastPathComponent(), playerArguments: "", preferences: empty) == .notUnity,
+        check(S.look(installDir: other.deletingLastPathComponent(), playerArguments: "", preferences: empty, kept: { kept[$0] }) == .notUnity,
               "another engine's folder: nothing")
-        CFPreferencesSetAppValue(S.modeKey as CFString, 3 as CFNumber, domain as CFString)
-        CFPreferencesAppSynchronize(domain as CFString)
-        check(S.look(installDir: folder, playerArguments: "", preferences: empty) == .kept(domain: domain, mode: 3),
+        kept[domain] = 3
+        check(S.look(installDir: folder, playerArguments: "", preferences: empty, kept: { kept[$0] }) == .kept(domain: domain, mode: 3),
               "once it keeps a mode: that")
-        CFPreferencesSetAppValue(S.modeKey as CFString, nil, domain as CFString)
-        CFPreferencesAppSynchronize(domain as CFString)
-        try? fm.removeItem(at: fm.homeDirectoryForCurrentUser.appendingPathComponent("Library/Preferences/\(domain).plist"))
+        check(!fm.fileExists(atPath: fm.homeDirectoryForCurrentUser.appendingPathComponent("Library/Preferences/\(domain).plist").path),
+              "nothing of the test's in the Mac's preferences")
     }
 
     static func main() {

@@ -125,6 +125,8 @@ final class LibraryModel: ObservableObject {
     @Published private(set) var launchNeedsConfirmation = false
     /// That question is Steam's licence: the frame comes at once and says so (SteamLicence).
     private var launchAsksLicence = false
+    /// Steam's name for the step it waits on (LaunchWatcher.questionTask): the curtain's heading (SteamQuestion.kind).
+    private var launchQuestionTask: String?
     /// What the launch is busy with when it's more than waiting for Steam ("Restarting Steam …"). Each one in the
     /// log as it begins, with what the curtain no longer says (LaunchPhase.curtainTitle).
     @Published private(set) var launchPhase: LaunchPhase? {
@@ -185,11 +187,13 @@ final class LibraryModel: ObservableObject {
     @Published var showingSettings = false
     /// Waiting for the user to confirm removing this game (or its download).
     @Published var pendingUninstall: Game?
-    @Published var offersFullScreen = false
+    /// The request "Console mode?" is up (ConsoleMode.offers).
+    @Published var offersConsoleMode = false
+    /// Console mode (ConsoleMode): full screen on every screen, the Dock away while games are played.
+    @Published private(set) var consoleMode = ConsoleMode.isOn()
     /// The Windows game that stands at a question now: A and B answer it (PadAnswer).
     private(set) var windowsQuestion: Game?
     private var padAnswered: Date?
-    private var fullScreenOffered = false
     /// Sleeping the Mac or quitting, waiting for its "are you sure" (PowerMenu).
     @Published var pendingPower: PowerMenu.Entry?
     /// Waiting for the user to confirm removing the Windows version of a game that now runs its Mac one.
@@ -466,6 +470,8 @@ final class LibraryModel: ObservableObject {
             return GameProcesses.showsWindow(Set(playing.compactMap { self.running[$0] }), anySpace: true)
         }
         GameBackdrop.frontMoved = { [weak self] front in self?.frontMoved(to: front) }
+        FullScreen.endConsoleMode = { [weak self] in self?.setConsoleMode(false, by: "the full-screen switch") }
+        watchConsoleFocus()  // console mode kept from the last session
         DarkWatch.shared.begin(with: self)
         // A screen plugged in or pulled: whether the lid matters changes with it.
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
@@ -652,7 +658,9 @@ final class LibraryModel: ObservableObject {
         }
         if gog.isSignedIn, gog.hasCloudSaves(game) != false {
             launchPhase = .syncingSaves
+            notePhase(game, "GOG's saves: sync begins")
             _ = await gog.syncSaves(game, upload: false)
+            notePhase(game, "GOG's saves synced")
             launchPhase = nil
         }
         return !Task.isCancelled
@@ -847,7 +855,7 @@ final class LibraryModel: ObservableObject {
         Task {
             while !Task.isCancelled {
                 // First, and without a process list: nothing may keep it from going.
-                if curtainOrphan.look(raised: GameBackdrop.isRaised, owners: curtainOwners, now: Date()) { takeAwayOrphanCurtain("nobody came") }
+                if curtainOrphan.look(raised: GameBackdrop.isRaised && !CurtainPreview.isUp, owners: curtainOwners, now: Date()) { takeAwayOrphanCurtain("nobody came") }
                 let loaded = libraryLoaded
                 let folders = Self.processFolders(allGames)
                 let known = await Task.detached(priority: .utility) { Self.runningGamesKnown(folders) }.value
@@ -863,6 +871,8 @@ final class LibraryModel: ObservableObject {
                 if loaded { runningScanned = true }  // only a look with the games known counts
                 await Task.detached(priority: .utility) { GameDisplay.observeWineSession() }.value
                 watchForGameEnd(found)
+                // Behind the hidden test switch only: a line in wine.log when a game in front looks hung (HangWatch).
+                if GameTest.watchesHangs() { await hangWatch.look(hangWatchGames(found)) }
                 if found.isEmpty, launchingID == nil, playing.isEmpty, judging == nil { idleLooks += 1 } else { idleLooks = 0 }
                 if idleLooks == 20 {  // a start that never got going (~1 min)
                     GameDisplay.leaveGame()
@@ -892,7 +902,7 @@ final class LibraryModel: ObservableObject {
                 await lookAtSteamOnDemand()
                 lookAtDrives()
                 lookAtWakeCatchUp()
-                offerFullScreenIfDue()
+                offerConsoleModeIfDue()
                 input.takeHomeButton()
                 DarkWatch.shared.look()
                 watchExits(found)
@@ -904,6 +914,8 @@ final class LibraryModel: ObservableObject {
                 let pause = Duration.seconds(IdleRest.lookPause(gameEnding: goneFor > 0, gameOrStart: !found.isEmpty || launchingID != nil || GameBackdrop.isRaised,
                                                                 downloading: KeepAwake.isHolding, inFront: NSApp.isActive,
                                                                 nobodyThere: IdleRest.nobodyThere(idle: InputRouter.secondsSinceUse)))
+                // The library came in during this look: the next one counts, at once (`rescan` cuts a pause short).
+                guard IdleRest.pausesBeforeNextLook(gamesKnown: libraryLoaded, lookCounted: runningScanned) else { continue }
                 nap = Task { try? await Task.sleep(for: pause) }
                 await nap?.value
             }
@@ -1015,6 +1027,17 @@ final class LibraryModel: ObservableObject {
     /// processes went), Nightforge comes back to the front: the controller keeps working, and
     /// neither the desktop nor Steam is what the player sees. Until then the page behind the game
     /// says it's on its way (GameBackdrop).
+    private let hangWatch = HangWatch()
+
+    /// The running games as HangWatch looks at them: process, name, when the session began, and whether the game has
+    /// no play time yet (a first start may set itself up quietly for longer).
+    private func hangWatchGames(_ found: [String: pid_t]) -> [String: (pid: pid_t, name: String, started: Date?, firstStart: Bool)] {
+        Dictionary(uniqueKeysWithValues: found.compactMap { id, pid in
+            guard let game = allGames.first(where: { $0.id == id }) else { return nil }
+            return (id, (pid, game.name, sessionStarts[id]?.date, (game.playtimeMinutes ?? 0) == 0))
+        })
+    }
+
     private func watchForGameEnd(_ found: [String: pid_t]) {
         for id in startedHere.intersection(found.keys) where sessionStarts[id] == nil {
             sessionStarts[id] = (Date(), allGames.first { $0.id == id }?.playtimeMinutes ?? 0)
@@ -1031,7 +1054,8 @@ final class LibraryModel: ObservableObject {
         // A start whose first seconds are still judged: its end is the start's to tell, under the
         // same curtain – another way, or Nightforge with what happened (`finishJudging`).
         let judged = startJudgesEnd()
-        if goneFor == 0, !judged {
+        let unseen = onlyEndingUnseen
+        if goneFor == 0, !judged, !unseen {
             goneSince = Date()
             // The curtain at once, over Steam for Mac's window, which comes up when a game ends –
             // and Steam's, should it still be open from a question before the start.
@@ -1050,6 +1074,8 @@ final class LibraryModel: ObservableObject {
         let ended = playing
         playing = []
         goneFor = 0
+        endingUnseen.subtract(ended)
+        if unseen { GameLog.note("The rest of the game ended in the background, at \(GameLog.clock())") }
         GameOverlay.gameEnded()
         // The processes went a moment ago; a margin for the save Steam is still writing.
         let endedAt = Date().addingTimeInterval(-10)
@@ -1078,6 +1104,8 @@ final class LibraryModel: ObservableObject {
             return
         }
         if judged { return }
+        // Nightforge came back already, the player is elsewhere in it by now.
+        if unseen { return reload(quiet: true) }
         // An end like any other while the start still judges (the player quit, it showed a picture):
         // Nightforge comes back from here, the start's end adds nothing.
         if let id = judging?.id, ended.contains(id) { judging = nil }
@@ -1090,6 +1118,11 @@ final class LibraryModel: ObservableObject {
 
     /// The curtain came for a process that ended, before the look that finds out what that means.
     private var raisedForExit = false
+    /// Games with no window left whose processes end in their own time, Nightforge back in front meanwhile
+    /// (GameStage.endsInBackground): their end brings no curtain and no way back, it's only counted.
+    private var endingUnseen = Set<String>()
+    /// Every game still followed ends unseen.
+    private var onlyEndingUnseen: Bool { !playing.isEmpty && playing.isSubset(of: endingUnseen) }
     /// The curtain came for a picture that went (`GameStage.pictureWent`), the game's process still there.
     private var pictureWentAt: Date?
     /// The game on stage as of the stage watch's last list.
@@ -1104,7 +1137,7 @@ final class LibraryModel: ObservableObject {
     /// game in its own Space starts sliding away at once, and the page behind it slid in from the side
     /// with the desktop beside it. The look after it says whether that was the end.
     private func gameProcessExited(_ pid: pid_t) {
-        guard CurtainEscape.mayRaiseForEnd(gamePlaying: !playing.isEmpty, comingBack: comingBackSince != nil),
+        guard !onlyEndingUnseen, CurtainEscape.mayRaiseForEnd(gamePlaying: !playing.isEmpty, comingBack: comingBackSince != nil),
               Self.exitRaisesCurtain(curtainUp: GameBackdrop.isRaised, sawPicture: stage.sawPicture, judged: startJudgesEnd(),
                                      othersRunning: playing.contains { running[$0] != nil && running[$0] != pid })
         else { return }
@@ -1121,7 +1154,7 @@ final class LibraryModel: ObservableObject {
     /// Another app came to the front over the page: if the game's picture went with it and nobody asked
     /// for that, the curtain comes this moment (`GameStage.pictureWent`).
     private func frontMoved(to front: pid_t) {
-        guard pictureWentAt == nil, stageHintSince == nil, !stagePids.isEmpty,
+        guard !onlyEndingUnseen, pictureWentAt == nil, stageHintSince == nil, !stagePids.isEmpty,
               CurtainEscape.mayRaiseForEnd(gamePlaying: !playing.isEmpty, comingBack: comingBackSince != nil)
         else { return }
         let look = GameStage.Look(gameFront: stagePids.contains(front), windowHere: GameProcesses.showsWindow(stagePids), windowAnywhere: false,
@@ -1311,6 +1344,8 @@ final class LibraryModel: ObservableObject {
 
     /// The start on the curtain the player may leave, and why (CurtainEscape).
     private var curtainEscape: (game: Game, reason: CurtainEscape.Reason)?
+    /// The curtain names the way out (`offerWayOut`).
+    private var wayOutShown = false
     private var stuckAskedAt: Date?
 
     var curtainEscapeOpen: Bool {
@@ -1320,6 +1355,11 @@ final class LibraryModel: ObservableObject {
     private var curtainOrphan = CurtainEscape.Orphan()
     /// Curtain watches running; one that was called off may end after the next has begun.
     private var curtainWatches = 0
+    /// When Play was pressed for a game (GameID.key), for the start's phases in the log (`notePhase`).
+    private var playClock: (game: String, at: Date)?
+    /// What the curtain of a start goes by (`pictureSteadyNeeded`): the game, whether its way is proven on this Mac for this
+    /// start, and whether it keeps an anti-cheat – known once the start chose its way, nil from each Play on.
+    private var curtainProof: (game: String, proven: Bool, antiCheat: Bool)?
     private var comingBackSince: Date?
 
     private var curtainOwners: CurtainEscape.Owners {
@@ -1337,12 +1377,17 @@ final class LibraryModel: ObservableObject {
     }
 
     /// The curtain's watch at each look: B and Esc lead out from now on, and the curtain says so.
-    private func offerWayOut(_ game: Game, reason: CurtainEscape.Reason?) {
+    /// `waited`: how long the curtain has stood without a process of the game's; the line naming the way out comes
+    /// only after a long wait (CurtainEscape.tipShows), B and Esc work from the moment there is one.
+    private func offerWayOut(_ game: Game, reason: CurtainEscape.Reason?, waited: TimeInterval = 0) {
         let had = curtainEscape?.reason
         curtainEscape = reason.map { (game, $0) }
-        guard had != reason else { return }
+        let shows = reason.map { CurtainEscape.tipShows($0, waited: waited) } ?? false
+        if had == reason, shows == wayOutShown { return }
+        wayOutShown = shows
         let pad = GCController.controllers().contains { $0.extendedGamepad != nil } ? padSymbols : nil
-        GameBackdrop.setWayOut(reason.map { CurtainEscape.tip($0, pad: pad) })
+        GameBackdrop.setWayOut(shows ? reason.map { CurtainEscape.tip($0, pad: pad) } : nil)
+        guard had != reason else { return GameLog.note("Curtain over \(game.name): the way out is named on it now") }
         GameLog.note(reason.map { "Curtain over \(game.name): no process of it for a while (\($0)), B and Esc lead out" }
                      ?? "Curtain over \(game.name): the way out is closed again")
     }
@@ -1414,6 +1459,8 @@ final class LibraryModel: ObservableObject {
         let tip = GameBackdrop.isRaised ? nil : LaunchTip.take(padSymbols)
         if !GameBackdrop.isRaised { macOSQuestionsBefore = nil }
         GameBackdrop.mayCapture = false  // until this start's game runs (watchCurtain)
+        // Console mode (Nightforge in its full screen): the Dock stays out of sight while the game runs, in a window too.
+        if consoleMode { DockAutoHide.run({ DockAutoHide.engage($0) }) }
         raisedForExit = false
         pictureWentAt = nil
         stageHintSince = nil
@@ -1445,12 +1492,13 @@ final class LibraryModel: ObservableObject {
         }
     }
 
-    /// How the player can answer Steam's licence, for the bar on the curtain.
-    private var licenceLook: GameBackdrop.LicenceLook {
+    /// What Steam asks and how the player can answer it, for the heading and the bar on the curtain.
+    private var questionLook: GameBackdrop.QuestionLook {
         let inHand = GCController.current?.extendedGamepad ?? GCController.controllers().compactMap(\.extendedGamepad).first
         let pad = SteamLicence.pad(inHandHasTouchpad: inHand.map { Touchpad($0) != nil })
-        return GameBackdrop.LicenceLook(answering: SteamLicence.answering(pad: pad, pointerOn: Prefs.padPointer, mayClick: PadPointerAccess.granted),
-                                        click: PadPart.r2.name(padSymbols.layout))
+        return GameBackdrop.QuestionLook(kind: SteamQuestion.kind(licence: launchAsksLicence, task: launchQuestionTask, phase: launchPhase),
+                                         answering: SteamLicence.answering(pad: pad, pointerOn: Prefs.padPointer, mayClick: PadPointerAccess.granted),
+                                         click: PadPart.r2.name(padSymbols.layout))
     }
 
     /// Steam's question is over. `yes`: it was the licence, answered by the player, and the curtain thanks them.
@@ -1458,6 +1506,7 @@ final class LibraryModel: ObservableObject {
         launchNeedsConfirmation = false
         if launchAsksLicence, yes { launchPhase = .licenceAnswered }
         launchAsksLicence = false
+        launchQuestionTask = nil
     }
 
     private func watchCurtain(_ game: Game) async {
@@ -1477,6 +1526,9 @@ final class LibraryModel: ObservableObject {
         var fullScreenSaid = false
         /// The picture's size on the Space shown, and since when it hasn't changed.
         var pictureSize: (size: String, since: Date)?
+        /// The size of its first picture on the Space shown, and whether every picture since had it (`pictureSteadyNeeded`).
+        var firstPicture: String?
+        var firstSizeKept = true
         /// The game's time in front the pointer was hidden for, and the app in front at the last look.
         var pointerHidden: Date?
         var pointerFront: pid_t? = getpid()  // raiseCurtain hid it with Nightforge in front
@@ -1552,7 +1604,7 @@ final class LibraryModel: ObservableObject {
                     if GameOverlay.asksWayOut { GameOverlay.close() }
                     if Self.steamAsksOnCurtain(savesToChoose: saveChoice != nil, battleNet: game.provider == .battlenet) {
                         steamWindowSeen = Date()
-                        GameBackdrop.setSteamAsks(true, licence: launchAsksLicence ? licenceLook : nil)
+                        GameBackdrop.setSteamAsks(true, question: questionLook)
                         offerWayOut(game, reason: .steamAsks)
                         GameLog.note("Curtain stays for \(game.name): Steam asks something, on the curtain")
                     } else {
@@ -1564,15 +1616,15 @@ final class LibraryModel: ObservableObject {
                 case .wait:
                     guard let seen = steamWindowSeen else { continue }
                     let steamWindows = await steamWindowsOnScreen(game)
-                    if launchAsksLicence {
-                        if GameBackdrop.licenceStillToSay { GameBackdrop.sayLicence(licenceLook) }
-                        let number = SteamLicence.windowToFrame(frontToBack: steamWindows)
-                        let frame = await Engine.offMain { number.flatMap { GameProcesses.frame(ofWindow: $0) } }
-                        GameBackdrop.frameSteamWindow(frame)
-                        if let number, let frame, pointerBroughtTo != number {
-                            pointerBroughtTo = number
-                            InputRouter.bringPointer(into: frame)
-                        }
+                    // Every question of Steam's alike: what it is at the top, its window framed, the pad's pointer brought
+                    // into it once. Only a licence comes before its window, so only it waits longer for one (below).
+                    GameBackdrop.sayQuestion(questionLook)
+                    let number = SteamLicence.windowToFrame(frontToBack: steamWindows)
+                    let frame = await Engine.offMain { number.flatMap { GameProcesses.frame(ofWindow: $0) } }
+                    GameBackdrop.frameSteamWindow(frame)
+                    if let number, let frame, pointerBroughtTo != number {
+                        pointerBroughtTo = number
+                        InputRouter.bringPointer(into: frame)
                     }
                     switch Self.steamOnCurtainStep(lowest: steamWindows.last, sinceSeen: Date().timeIntervalSince(seen), savesToChoose: saveChoice != nil,
                                                    patience: launchAsksLicence ? Self.licenceWindowPatience : Self.steamWindowPatience) {
@@ -1709,7 +1761,7 @@ final class LibraryModel: ObservableObject {
                                            updateStillFor: updateProgress.flatMap { $0.fraction == nil ? nil : Date().timeIntervalSince($0.movedAt) },
                                            askedAgo: stuckAskedAt.map { Date().timeIntervalSince($0) })
             let stuckReason = CurtainEscape.reason(stuck)
-            offerWayOut(game, reason: stuckReason)
+            offerWayOut(game, reason: stuckReason, waited: stuck.waited)
             if stuckReason == nil, GameOverlay.asksWayOut { GameOverlay.close() }
             if CurtainEscape.asks(stuck), !GameOverlay.isOpen { askAboutStuckStart() }
             if pids.isEmpty {
@@ -1745,6 +1797,7 @@ final class LibraryModel: ObservableObject {
                  GameProcesses.windowList(pids), GameProcesses.onlyShield(pids), GameProcesses.windowSize(pids))
             }.value
             if here, let size {
+                if firstPicture == nil { firstPicture = size } else if size != firstPicture { firstSizeKept = false }
                 if pictureSize?.size != size { pictureSize = (size, Date()) }
             } else {
                 pictureSize = nil
@@ -1836,6 +1889,10 @@ final class LibraryModel: ObservableObject {
             sayOnCurtain(gameRuns: !pids.isEmpty, shaders: buildsShaders, asks: asks, errorBox: reportsError,
                          macOSAsks: macOSAsks, fullScreen: fullScreenHint.map { $0.setting ?? "" })
             pictureSince = here ? (pictureSince ?? Date()) : nil
+            let proof = curtainProof.flatMap { $0.game == game.gameID.key ? $0 : nil }
+            let steadyNeeded = Self.pictureSteadyNeeded(game: game.gameID.key, proven: proof?.proven == true, antiCheat: proof?.antiCheat ?? true,
+                                                        firstPicture: firstPicture, picture: firstSizeKept ? pictureSize?.size : nil,
+                                                        screen: GameDisplay.gameScreen?.frame.size)
             switch Self.curtainStep(lowered: loweredAt != nil, gameFront: gameFront, nightforgeFront: front == getpid(),
                                     macOSAsks: macOSAsks || front.map(askers.contains) ?? false,
                                     windowHere: here, windowAnywhere: anywhere, asks: asks,
@@ -1844,7 +1901,7 @@ final class LibraryModel: ObservableObject {
                                     guardOver: loweredAt.map { Date().timeIntervalSince($0) > Self.focusGuard } ?? false,
                                     pictureFor: pictureSince.map { Date().timeIntervalSince($0) } ?? 0,
                                     broughtBack: broughtBack, playerActed: Self.playerActed(), shieldOnly: shieldOnly,
-                                    steadyFor: pictureSize.map { Date().timeIntervalSince($0.since) } ?? 0) {
+                                    steadyFor: pictureSize.map { Date().timeIntervalSince($0.since) } ?? 0, steadyNeeded: steadyNeeded) {
             case .wait:
                 break
             case .handOver:
@@ -1875,8 +1932,10 @@ final class LibraryModel: ObservableObject {
                 LaunchHealth.pictureShown(game.gameID)  // it started, however soon it ends now
                 let size = await Task.detached(priority: .utility) { GameProcesses.windowSize(pids) }.value
                 let screen = GameDisplay.gameScreen.map { "\(Int($0.frame.width))×\(Int($0.frame.height))" } ?? "?"
-                GameLog.note("Curtain down for \(game.name): \(front.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName } ?? "nobody") in front, its window \(size ?? "none") on \(screen)")
+                GameLog.note("Curtain down for \(game.name): \(front.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName } ?? "nobody") in front, its window \(size ?? "none") on \(screen)"
+                             + (steadyNeeded < Self.pictureSteady ? ", the short rest of a game proven here" : ""))
                 GameLog.note("  at \(GameLog.clock())")
+                notePhase(game, "curtain down")
                 // Down because it had stood long enough: going up again for the front would only flap.
                 if !gameFront { return end("its picture doesn't stay under the curtain, the stage watch has it") }
             case .raiseAgain:
@@ -1951,6 +2010,24 @@ final class LibraryModel: ObservableObject {
             let gameFront = (front.map(pids.contains) ?? false) || companion
             if gameFront, windows.here { GameBackdrop.keepUnderGame(at: windows.level) }
             let askerFront = front.map(askers.contains) ?? false
+            // Back in Nightforge while the rest of the game ended in the background: a window of its coming again (a
+            // launcher handing over, a results window) makes it the game on stage once more.
+            if endingUnseen.contains(game.id) {
+                guard windows.here || windows.anywhere else { continue }
+                endingUnseen.remove(game.id)
+                GameLog.note("Stage: \(game.name) shows a window again, at \(GameLog.clock())")
+                GameBackdrop.show(game.name, on: GameDisplay.gameScreen) { [weak self] in self?.gameOnStage == true }
+            }
+            if let went = pictureWentAt, restartAfterEnd == nil, judging?.id != game.id,
+               GameStage.endsInBackground(cameBack: gameFront && windows.here, windowAnywhere: windows.anywhere,
+                                          waited: Date().timeIntervalSince(went)) {
+                endingUnseen.insert(game.id)
+                GameLog.note("Stage: \(game.name) has no window left, its process ends in its own time – Nightforge comes back,"
+                             + " the end is followed in the background, at \(GameLog.clock())")
+                if game.inLibrary, reveal(game), !route.isDetail { openDetail() }
+                comeBack(to: route)
+                continue
+            }
             if let went = pictureWentAt, GameStage.curtainEnds(cameBack: gameFront && windows.here, waited: Date().timeIntervalSince(went)) {
                 pictureWentAt = nil
                 GameBackdrop.playing()
@@ -1982,6 +2059,15 @@ final class LibraryModel: ObservableObject {
                 ? await Task.detached(priority: .utility) { GameProcesses.onlyShield(known) }.value : false
             if await fullScreenOnStage(game, hides: stage.hiddenByOwnFullScreen(stageLook, onlyOwnShield: onlyOwnShield),
                                        gameFront: gameFront, pictureHere: windows.here, pids: pids, handedBack: &handedBack) { continue }
+            // Its picture gone with the game still in front (GameStage.wentDark): the curtain now, as when another app
+            // comes forward; after `endingPatience` with no window Nightforge comes back (endsInBackground above).
+            if pictureWentAt == nil, !GameBackdrop.isRaised, !endingUnseen.contains(game.id),
+               stage.wentDark(stageLook, onlyOwnShield: onlyOwnShield) {
+                pictureWentAt = Date()
+                GameLog.note("Stage: \(game.name) is in front with no window left: the curtain comes, at \(GameLog.clock())")
+                GameBackdrop.returning()
+                continue
+            }
             let step = stage.step(stageLook)
             let name = front.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName } ?? "nobody"
             let look = "\(name) in front, picture \(windows.here ? "here" : windows.anywhere ? "elsewhere" : "none")"
@@ -2164,7 +2250,7 @@ final class LibraryModel: ObservableObject {
             let restart = controllerConnected ? [CurtainButton(symbol: padSymbols.confirm, label: L10n.t("Restart"))] : []
             return GameBackdrop.setStatus(words.line, detail: words.sentence, buttons: restart)
         }
-        let phase = launchingID == nil ? nil : launchPhase?.curtainTitle ?? launchRepair?.title
+        let phase = launchingID == nil ? nil : launchPhase?.curtainTitle ?? launchRepair?.curtainTitle
         let progress = launchingID == nil ? nil : Self.curtainProgress(phase: launchPhase)
         // A pad answers the game's question where the helper can press for it (PadAnswerRun).
         let pad = controllerConnected && PadAnswerRun.available ? padSymbols : nil
@@ -2174,7 +2260,10 @@ final class LibraryModel: ObservableObject {
                                                   asks: asks, errorBox: errorBox, macOSAsks: macOSAsks),
                                detail: Self.curtainDetail(sentence: Self.curtainHint(progress: progress, speed: updateSpeed, launchHint: sentence),
                                                   asks: asks, errorBox: errorBox && !macOSAsks, pad: pad != nil,
-                                                  macOSAsks: macOSAsks, shaders: shaders && gameRuns && phase == nil),
+                                                  macOSAsks: macOSAsks,
+                                                  firstTime: launchingID != nil && phase == nil
+                                                      && Self.longFirstTime(phase: launchPhase, repair: launchRepair, shaders: shaders && gameRuns,
+                                                                            waited: GameBackdrop.upFor)),
                                progress: progress,
                                buttons: Self.curtainButtons(asks: asks, errorBox: errorBox, macOSAsks: macOSAsks, pad: pad))
     }
@@ -2223,8 +2312,14 @@ final class LibraryModel: ObservableObject {
     /// everything else the Play button's line says goes to the log as the phase begins.
     nonisolated static func curtainSentence(phase: LaunchPhase?, repair: LaunchRepair?, confirming: Bool) -> String? {
         if confirming { return LaunchPhase.confirmHint }
-        if let phase { return phase.curtainSentence }
-        return repair?.detail
+        return phase?.curtainSentence ?? repair?.curtainDetail
+    }
+
+    /// A first start's long wait (`waited`, LaunchPhase.firstTimeAfter): Windows parts or .NET set up, the repair's
+    /// missing piece, or shaders built with the game's process running. Then, and only then, one quiet sentence.
+    nonisolated static func longFirstTime(phase: LaunchPhase?, repair: LaunchRepair?, shaders: Bool, waited: TimeInterval) -> Bool {
+        let once = phase?.onlyTheFirstTime == true || repair == .settingUp || (phase == nil && shaders)
+        return once && waited >= LaunchPhase.firstTimeAfter
     }
 
     /// Asks the player whether the root `root` goes into the prefix (GameOverlay.askRoot), and waits for the
@@ -2245,7 +2340,7 @@ final class LibraryModel: ObservableObject {
         launchRepair = repair
         guard let repair else { return }
         GameLog.note("Curtain: \"\(repair.title)\" – \(repair.logLine)")
-        GameBackdrop.setStatus(repair.title, detail: repair.detail)
+        GameBackdrop.setStatus(repair.curtainTitle, detail: repair.curtainDetail)
     }
 
     /// The curtain's second line: how to answer macOS (`macOSAsks`); none under a question of the game's it waits
@@ -2253,11 +2348,11 @@ final class LibraryModel: ObservableObject {
     /// pad's button (`padOK`) where one answers it –; else the start's sentence (`curtainSentence`), else that shaders
     /// are built only once (`shaders`). A question of macOS's the start doesn't wait for is in the look's line only.
     nonisolated static func curtainDetail(sentence: String?, asks: Bool, errorBox: Bool = false, pad: Bool = false,
-                                          macOSAsks: Bool = false, shaders: Bool = false) -> String? {
+                                          macOSAsks: Bool = false, firstTime: Bool = false) -> String? {
         if macOSAsks { return L10n.t("Answer with the mouse or trackpad.") }
         if asks, errorBox { return pad ? L10n.t("Nightforge takes care of the rest.") : L10n.t("Press OK – Nightforge takes care of the rest.") }
         if asks { return pad ? nil : L10n.t("Answer with the mouse or trackpad.") }
-        return sentence ?? (shaders ? L10n.t("Only the first time.") : nil)
+        return sentence ?? (firstTime ? LaunchPhase.firstTimeSentence : nil)
     }
 
     /// The step the curtain names: a question on it – macOS's (`macOSAsks`) or the game's (`asks`) –
@@ -2270,10 +2365,9 @@ final class LibraryModel: ObservableObject {
         if macOSAsks { return L10n.t("macOS is asking for permission") }
         if asks, errorBox { return L10n.t("The game reports an error") }
         if asks { return L10n.t("The game is asking something") }
-        if let phase { return phase }
-        // Its process running is no new line: "Starting …" until the picture (the rule of 15.11.2026; the look's
-        // line in the log says it runs). Its first start with new graphics takes long, and says why.
-        return gameRuns && shaders ? L10n.t("Preparing shaders …") : nil
+        // Its process running, shaders built: no line either (22.11.2026), the log says it; a long first start gets
+        // its one sentence (`curtainDetail`, `firstTime`).
+        return phase
     }
 
     /// How long after the game's own question went, answered by the player, its end with no picture
@@ -2361,7 +2455,7 @@ final class LibraryModel: ObservableObject {
                                         windowHere: Bool, windowAnywhere: Bool, asks: Bool = false, frontFor: TimeInterval,
                                         settle: TimeInterval = 1, guardOver: Bool, pictureFor: TimeInterval = 0,
                                         broughtBack: Int = 0, playerActed: Bool = false, shieldOnly: Bool = false,
-                                        steadyFor: TimeInterval = .infinity) -> CurtainStep {
+                                        steadyFor: TimeInterval = .infinity, steadyNeeded: TimeInterval = pictureSteady) -> CurtainStep {
         if lowered {
             if guardOver || (nightforgeFront && playerActed) { return .done }
             return gameFront || macOSAsks ? .wait : .raiseAgain
@@ -2373,7 +2467,7 @@ final class LibraryModel: ObservableObject {
         guard gameFront else { return handOver }
         // Only with its window on the Space shown: elsewhere, the curtain sinking showed Nightforge's
         // page while the game had the front (1.11.).
-        if windowHere { return frontFor >= settle && steadyFor >= pictureSteady ? .lower : .wait }
+        if windowHere { return frontFor >= settle && steadyFor >= steadyNeeded ? .lower : .wait }
         guard !macOSAsks, frontFor >= windowAwayPatience else { return .wait }
         if broughtBack < maxBroughtBack { return .bringBack }
         // Only a black shield on screen (Overwatch, 8.11.): sinking would count it as a picture and
@@ -2385,6 +2479,31 @@ final class LibraryModel: ObservableObject {
     /// a window of 1392×742, then 1342×710, and only then set its display mode. The curtain sank in
     /// between, so the page and a black screen flashed up.
     nonisolated static let pictureSteady: TimeInterval = 2
+    /// The rest a proven game's picture needs (`pictureSteadyNeeded`).
+    nonisolated static let pictureSteadyProven: TimeInterval = 1
+    /// Games that keep the full rest whatever they proved: Overwatch, whose two window sizes came before its display
+    /// mode (8.11.), on Steam and as Battle.net's title.
+    nonisolated static let keepsFullRest: Set<String> = [GameID.steam(2_357_570).key, GameID.battlenet("pro").key]
+
+    /// How long the picture's size has to stay before the curtain sinks: `pictureSteadyProven` for a game that ran on this
+    /// Mac on this very way before (`proven`: the start's evidence `known`, StartEvidence and LaunchHealth) and whose first
+    /// picture under the curtain filled the screen and still has that size; `pictureSteady` for every other one – and for
+    /// Overwatch (`keepsFullRest`) and any game with an anti-cheat (NextStart.handsOff), whatever they proved. The user's
+    /// decision of 23.11.2026 (docs/ENTWURF-STARTZEIT.md): about a second less at each start of a game that has proven
+    /// itself.
+    nonisolated static func pictureSteadyNeeded(game: String, proven: Bool, antiCheat: Bool, firstPicture: String?,
+                                                picture: String?, screen: CGSize?) -> TimeInterval {
+        guard proven, !antiCheat, !keepsFullRest.contains(game), let firstPicture, picture == firstPicture,
+              fillsScreen(firstPicture, screen: screen) else { return pictureSteady }
+        return pictureSteadyProven
+    }
+
+    /// Whether a picture's size ("1512×982", GameProcesses.windowSize) is the screen's, to a point.
+    nonisolated static func fillsScreen(_ size: String, screen: CGSize?) -> Bool {
+        let sides = size.split(separator: "×").compactMap { Double($0) }
+        guard let screen, sides.count == 2 else { return false }
+        return abs(sides[0] - screen.width) <= 1 && abs(sides[1] - screen.height) <= 1
+    }
     /// How long a picture may stand under the curtain, whatever has the front.
     nonisolated static let curtainCeiling: TimeInterval = 15
     /// How long the game has the front with its window off the screen before it's fetched back.
@@ -2454,7 +2573,9 @@ final class LibraryModel: ObservableObject {
                 // through Launch Services, awaited, and then the handover below makes the game active.
                 let configuration = NSWorkspace.OpenConfiguration()
                 configuration.activates = true
-                _ = try? await NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration)
+                if NSApplication.opensItself {
+                    _ = try? await NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration)
+                }
                 for _ in 0..<30 where !NSApp.isActive { try? await Task.sleep(for: .milliseconds(50)) }
                 guard NSApp.isActive else {
                     GameLog.note("Fetching the game back: Nightforge didn't get the front to hand it over")
@@ -2487,7 +2608,7 @@ final class LibraryModel: ObservableObject {
             if !NSApp.isActive {
                 NSApp.activate(ignoringOtherApps: true)
                 for _ in 0..<6 where !NSApp.isActive { try? await Task.sleep(for: .milliseconds(50)) }
-                if !NSApp.isActive {  // macOS ignores `activate` from behind (handFocus)
+                if !NSApp.isActive, NSApplication.opensItself {  // macOS ignores `activate` from behind (handFocus)
                     let configuration = NSWorkspace.OpenConfiguration()
                     configuration.activates = true
                     _ = try? await NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration)
@@ -2749,6 +2870,8 @@ final class LibraryModel: ObservableObject {
         downloadLooks = 0
         measureDownloads()
         libraryLoaded = true
+        // The look at the running games that Steam's start waits for comes now, not after its pause (IdleRest.pausesBeforeNextLook).
+        if !runningScanned { lookNow() }
         askAboutRosettaOnce()
         let finished = found.filter { $0.isInstalled && wasDownloading.contains($0.id) }
         for game in finished { prepare(game) }
@@ -3014,7 +3137,7 @@ final class LibraryModel: ObservableObject {
             let downloading = allGames.contains { Self.isDownloading($0.install) || Self.isDownloading($0.macPending) }
             if !gameUnderWay, !downloading, !launchNeedsConfirmation,
                !(await Engine.offMain { Engine.windowsGameRunning }) {
-                _ = await restartStuckSteam(wine, freshSession: true)
+                _ = await restartStuckSteam(wine, freshSession: "Steam runs with another hide-steam-dock.dylib")
                 return
             }
             try? await Task.sleep(for: .seconds(60))
@@ -3033,6 +3156,13 @@ final class LibraryModel: ObservableObject {
             try? await Task.sleep(for: .seconds(5))
             if Engine.steamSignedIn {
                 await steamCameUp(since: began)
+                return
+            }
+            // Its session came up without Wine's network driver: it never would sign in. Not the engine's fault, so not
+            // counted against it; never with a Windows game in that session.
+            if !gameUnderWay, await Engine.offMain({ Engine.steamSessionBroken() && Engine.windowsGameRunningKnown == false }) {
+                GameLog.note("Steam's Wine session came up without Wine's network driver (nsiproxy.sys): a new one at once")
+                _ = await restartStuckSteam(wine, freshSession: Self.brokenSessionReason, hung: true)
                 return
             }
             if Engine.steamHadTimeToHang(began: began, quietFor: 45), !gameUnderWay, Engine.steamLooksStuck(quietFor: 45),
@@ -3057,6 +3187,12 @@ final class LibraryModel: ObservableObject {
     /// a new engine, Steam and its games go back to the previous one (EngineRollback). True then.
     private func steamStartFailed(since began: Date) async -> Bool {
         guard let start = Engine.lastSteamStart, start.at >= began.addingTimeInterval(-60) else { return false }
+        // A session that came up without Wine's network driver isn't the engine's doing (Engine.sessionBootBroken): never
+        // counted, also when the new session after one is broken again (audit N1, 23.11.2026).
+        if await Engine.offMain({ Engine.steamSessionBroken() }) {
+            GameLog.note("Steam didn't come up, its Wine session without Wine's network driver: not counted against its engine")
+            return false
+        }
         let (outcome, build) = await Engine.offMain {
             (SteamStartCheck.judge(SteamStartCheck.signs(steamRoot: Engine.steamRoot, start: start.at, running: Engine.steamRunningKnown)),
              EngineRollback.shared.build(running: start.wine))
@@ -3089,16 +3225,37 @@ final class LibraryModel: ObservableObject {
 
     /// The wait for a Steam that signs in: on while it comes along – its process there, something in its logs
     /// lately – up to two minutes; stuck without a process, with its logs quiet, or after that.
-    nonisolated static func steamSignInStep(signedIn: Bool, running: Bool, waited: TimeInterval, quietFor: TimeInterval) -> SteamSignInStep {
+    nonisolated static func steamSignInStep(signedIn: Bool, running: Bool, waited: TimeInterval, quietFor: TimeInterval,
+                                            sessionBroken: Bool = false) -> SteamSignInStep {
         if signedIn { return .signedIn }
+        // A session without Wine's network driver (Engine.sessionBootBroken): no wait makes it sign in.
+        if sessionBroken { return .stuck }
         if waited >= steamSignInPatience { return .stuck }
         if !running, waited >= steamGonePatience { return .stuck }
         if waited >= steamQuietPatience, quietFor >= steamQuietPatience { return .stuck }
         return .wait
     }
 
+    /// The phase while Steam restarts for a start: a fault only when it got stuck.
+    nonisolated static func restartPhase(stuck: Bool) -> LaunchPhase { stuck ? .restartingSteam : .restartingSteamForGame }
+
+    /// Why a session that came up without Wine's network driver ends (wine.log, "Wine session ends: …").
+    nonisolated static let brokenSessionReason = "the session came up without Wine's network driver"
+
     /// One Steam restart for a start: the game's settings that come with Steam's environment (only while no Windows
     /// game runs in it), or a Steam stuck signing in – both at once in one.
+    /// What a start changes of Steam's settings, by name: `settings` from Engine.launchChanges, then the program in
+    /// the game's LaunchOptions, a closer look's channels and the frame log.
+    nonisolated static func restartParts(settings: [String], program: Bool, debug: Bool, frameLog: Bool) -> [String] {
+        settings + (program ? ["program"] : []) + (debug ? ["debug"] : []) + (frameLog ? ["framelog"] : [])
+    }
+
+    /// The end of the log line "Steam restarts for <game>": why, and what changed by name.
+    nonisolated static func restartReason(stuck: Bool, parts: [String]) -> String {
+        (stuck ? ": it got stuck signing in" : "")
+            + (parts.isEmpty ? "" : (stuck ? ", and " : ": ") + "the game's settings come with its environment (" + parts.joined(separator: ", ") + ")")
+    }
+
     nonisolated static func restartsSteamForStart(environmentChanged: Bool, stuck: Bool, running: Bool, gamesRunning: Bool) -> Bool {
         stuck || (environmentChanged && running && !gamesRunning)
     }
@@ -3107,7 +3264,8 @@ final class LibraryModel: ObservableObject {
     /// update, which has its own way out, nor Epic's and GOG's saves, which B stops at once (CurtainEscape).
     nonisolated static func phaseExplainsWait(_ phase: LaunchPhase?) -> Bool {
         switch phase {
-        case .startingSteam?, .startingSteamForMac?, .signingIn?, .savingToCloud?, .settingUp?, .settingUpDotNet?, .restartingSteam?,
+        case .startingSteam?, .startingSteamForMac?, .signingIn?, .signingInAgain?, .steamCloudSync?, .savingToCloud?, .settingUp?,
+             .settingUpDotNet?, .restartingSteam?, .restartingSteamForGame?,
              .steamNotResponding?, .signingInEpic?, .settingUpWindowsParts?, .startingBattleNet?:
             return true
         default:
@@ -3122,15 +3280,17 @@ final class LibraryModel: ObservableObject {
     /// `hung`: it stopped taking commands, so it's ended with its Wine session (no game may run).
     /// Not up again because of its engine (steamStartFailed), it starts once more on the previous
     /// one when nothing waits on it; a start under way gets the previous engine with its next try.
-    private func restartStuckSteam(_ wine: URL, freshSession: Bool = false, hung: Bool = false, again: Bool = true) async -> Bool {
+    /// `freshSession`: with a new Wine session, for the reason it names (the log line of the session's end); nil: none.
+    /// With `hung`, the reason its session ends for.
+    private func restartStuckSteam(_ wine: URL, freshSession: String? = nil, hung: Bool = false, again: Bool = true) async -> Bool {
         let previous = steamStartup
         let began = Date()
         let restart = Task {
             await previous?.value
             if hung {
-                try? await Engine.restartHungSteam(wine)
-            } else if freshSession {
-                try? await DockHider.restartSteam(wine)
+                try? await Engine.restartHungSteam(wine, reason: freshSession ?? "Steam stopped taking commands")
+            } else if let freshSession {
+                try? await DockHider.restartSteam(wine, reason: freshSession)
             } else {
                 try? await Engine.restartSteamInBackground(wine)
             }
@@ -3664,7 +3824,7 @@ final class LibraryModel: ObservableObject {
         pendingLeftoverRemoval = nil
         // Two it didn't know (14.11.): either one up, and no quit got past it.
         pendingPower = nil
-        offersFullScreen = false
+        offersConsoleMode = false
     }
 
     /// The sheets over the library that are up, each by the state that holds it: what wine.log names when
@@ -3677,7 +3837,7 @@ final class LibraryModel: ObservableObject {
          ("saveChoice", saveChoice != nil), ("pendingDemoLicense", pendingDemoLicense != nil), ("d3dMetalDialog", d3dMetalDialog != nil),
          ("pendingCloudGame", pendingCloudGame != nil), ("pendingUninstall", pendingUninstall != nil),
          ("pendingLeftoverRemoval", pendingLeftoverRemoval != nil), ("pendingPower", pendingPower != nil),
-         ("offersFullScreen", offersFullScreen)].filter(\.1).map(\.0)
+         ("offersConsoleMode", offersConsoleMode)].filter(\.1).map(\.0)
     }
 
     /// From the setup sheet: this game keeps to its Windows version.
@@ -3770,7 +3930,7 @@ final class LibraryModel: ObservableObject {
             } else if MacSteam.sessionReplaced {
                 // The Wine Steam signed in since; signing in again needs a fresh start. Without it
                 // the game would start without its cloud saves.
-                launchPhase = .signingIn
+                launchPhase = .signingInAgain
                 await MacSteam.quit()
                 MacSteam.start()
             } else if !(MacSteam.signedIn && MacSteam.startupFinished) {
@@ -3823,16 +3983,18 @@ final class LibraryModel: ObservableObject {
             let launchStarted = Date()
             // With several launch options Steam asks which one, in a window that didn't come forward
             // (Drawful 2: standalone or the Jackbox Megapicker, 8.11.). steam://launch starts Steam's
-            // first straight away; it passes no arguments, so with the player's own Steam asks as before.
-            let command = launchType.flatMap { withScreen.isEmpty ? "launch/\(appID)/\($0)" : nil } ?? "run/\(appID)" + extra
-            // Options steam://launch has no name for ("none", no type), or the player's own arguments:
-            // -applaunch starts the first and takes arguments, with no question. Tried once; a resend
-            // (Steam didn't note it) goes the old way, where Steam may ask.
-            var handOver = SteamProgram.macNeedsApplaunch(macLaunch, hasArguments: !arguments.isEmpty)
+            // first straight away; it passes no arguments. Arguments – the player's own or the full-screen
+            // switch – go by -applaunch: by steam://run Steam asks whether to pass them (SteamProgram.macHandOver).
+            let way = SteamProgram.macHandOver(macLaunch, arguments: withScreen)
+            let command: String
+            if case .launch(let type) = way { command = "launch/\(appID)/\(type)" } else { command = "run/\(appID)" + extra }
+            // -applaunch starts the first option and takes arguments. Tried once; with no Steam to take it, or a resend
+            // (Steam didn't note it), it goes the old way, where Steam may ask.
+            var handOver = way == .applaunch
             let run = {
                 if handOver {
                     handOver = false
-                    if MacSteam.applaunch(appID, arguments: Launcher.splitArguments(arguments)) { return }
+                    if MacSteam.applaunch(appID, arguments: Launcher.splitArguments(withScreen)) { return }
                 }
                 MacSteam.open(command)
             }
@@ -3895,7 +4057,7 @@ final class LibraryModel: ObservableObject {
             else { return }
             if !waiting {
                 waiting = true
-                launchPhase = .signingIn
+                launchPhase = .steamCloudSync
                 GameLog.note("Steam Cloud: Steam finishes its first sync before the game starts, at \(GameLog.clock())")
             }
             try? await Task.sleep(for: .seconds(1))
@@ -3989,6 +4151,7 @@ final class LibraryModel: ObservableObject {
     private func waitForMacStart(_ game: Game, watcher: LaunchWatcher, send: () -> Void) async -> MacStart {
         var watcher = watcher
         launchAsksLicence = false
+        launchQuestionTask = nil
         defer { if launchPhase == .licenceAnswered { launchPhase = nil } }
         let folders = Self.processFolders([game])
         var quietSeconds = 0
@@ -4045,6 +4208,7 @@ final class LibraryModel: ObservableObject {
             case .needsConfirmation?:
                 askingSince = askingSince ?? seconds
                 quietSeconds = 0
+                launchQuestionTask = watcher.questionTask
             case .licence?:
                 askingSince = askingSince ?? seconds
                 quietSeconds = 0
@@ -4146,23 +4310,101 @@ final class LibraryModel: ObservableObject {
         searchFocusRequest += 1
     }
 
-    /// A controller at the MacBook: the full screen is offered, once per start (FullScreenOffer).
-    private func offerFullScreenIfDue() {
+    /// A controller connected: console mode is asked for, once overall (ConsoleMode.offers).
+    private func offerConsoleModeIfDue() {
         guard let window = NSApp.windows.first(where: { $0.title == "Nightforge" }) else { return }
         let open = window.attachedSheet != nil || NSApp.modalWindow != nil || launcherMenuOpen || quickMenu != nil || padKeyboard != nil
-        guard FullScreenOffer.offers(alreadyOffered: fullScreenOffered, padConnected: controllerConnected, inFront: NSApp.isActive,
-                                     fullScreen: FullScreen.isOn, onBuiltInScreen: window.screen.map(GameDisplay.isBuiltIn) ?? false,
-                                     firstStart: showsFirstStart, gameOn: gameOnScreen, somethingOpen: open) else { return }
-        fullScreenOffered = true
-        offersFullScreen = true
+        guard ConsoleMode.offers(asked: ConsoleMode.asked(), on: consoleMode, padConnected: controllerConnected, inFront: NSApp.isActive,
+                                 firstStart: showsFirstStart, gameOn: gameOnScreen, somethingOpen: open) else { return }
+        // Noted as asked only once it's answered (declineConsoleMode, setConsoleMode): closed with Nightforge's quit, it
+        // comes again (audit K1).
+        GameLog.note("Console mode: asked, a controller is connected")
+        offersConsoleMode = true
     }
 
     func askForHomeButton() { input.askForHomeButton() }
 
-    func acceptFullScreen() {
-        offersFullScreen = false
-        FullScreen.toggle()
+    /// "Console Mode" in the request.
+    func acceptConsoleMode() {
+        offersConsoleMode = false
+        setConsoleMode(true, by: "the request")
     }
+
+    /// "Not Now" in the request: not asked again by itself; the small menu and Settings › Controller have it.
+    func declineConsoleMode() {
+        offersConsoleMode = false
+        UserDefaults.standard.set(true, forKey: ConsoleMode.askedKey)
+        GameLog.note("Console mode: not now")
+    }
+
+    /// Console mode on or off (`by`: for the log). On: full screen at once, the Dock's setting at the next game's start
+    /// (raiseCurtain). Off: the window as before, the Dock's setting back as the player had it (DockAutoHide), a line.
+    func setConsoleMode(_ on: Bool, by: String) {
+        guard on != consoleMode else { return }
+        consoleMode = on
+        UserDefaults.standard.set(on, forKey: ConsoleMode.onKey)
+        UserDefaults.standard.set(true, forKey: ConsoleMode.askedKey)
+        GameLog.note("Console mode \(on ? "on" : "off") (\(by))")
+        if let window = NSApp.windows.first(where: { $0.title == "Nightforge" }) {
+            FullScreen.set(on, window)
+            GameDisplay.fullScreenChosen(on, window)
+        }
+        if !on { DockAutoHide.run({ DockAutoHide.restore($0) }) }
+        watchConsoleFocus()
+        Toasts.shared.show(on ? L10n.t("Console mode on. Leave it from the small menu at the top right.") : L10n.t("Console mode off."))
+    }
+
+    private var consoleFocusWatch: Task<Void, Never>?
+
+    /// Console mode's highlight at once (ConsoleMode.focusPlace): while it's on and Nightforge is in front, a short look
+    /// each `focusLook` whether a dialog or a panel has come with none – nothing is drawn unless one is placed.
+    private func watchConsoleFocus() {
+        consoleFocusWatch?.cancel()
+        consoleFocusWatch = nil
+        // Activation starts it again, losing the front stops it: no beat while Nightforge is behind a game or another app.
+        if consoleFocusObservers.isEmpty {
+            let center = NotificationCenter.default
+            consoleFocusObservers = [
+                center.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.watchConsoleFocus() }
+                },
+                center.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated {
+                        self?.consoleFocusWatch?.cancel()
+                        self?.consoleFocusWatch = nil
+                    }
+                },
+            ]
+        }
+        guard ConsoleMode.focusWatchRuns(consoleMode: consoleMode, inFront: NSApp.isActive, gameOn: gameOnScreen) else { return }
+        consoleFocusWatch = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(ConsoleMode.focusLook))
+                // A game started meanwhile, or the mode went: the beat ends, the next activation brings it back. No key
+                // window for a moment (going into full screen): only this look is skipped (ConsoleMode.focusLook).
+                guard let self, !Task.isCancelled else { return }
+                switch ConsoleMode.focusLook(consoleMode: self.consoleMode, inFront: NSApp.isActive, gameOn: self.gameOnScreen,
+                                             keyWindow: NSApp.keyWindow != nil) {
+                case .end: return
+                case .skip: continue
+                case .look: break
+                }
+                guard let key = NSApp.keyWindow else { continue }
+                let main = NSApp.windows.first { $0.title == "Nightforge" }
+                let dialog = key !== main && key.isVisible
+                let panel = self.launcherMenuOpen || self.quickMenu != nil || self.showingOptions
+                let focused = PadFocus.shared.focusedItem(in: key).map { dialog || $0.zone == .panel } ?? false
+                switch ConsoleMode.focusPlace(consoleMode: true, focused: focused, dialogInFront: dialog, panelOpen: panel,
+                                              gameOn: self.gameOnScreen) {
+                case .dialog: PadFocus.shared.placeAtOnce(in: key)
+                case .panel: PadFocus.shared.placeAtOnce(in: key, within: .panel)
+                case .none: break
+                }
+            }
+        }
+    }
+
+    private var consoleFocusObservers: [NSObjectProtocol] = []
 
     /// A or B on a Windows game's question: the helper presses the button in it.
     func answerQuestion(_ choice: PadAnswer.Choice) {
@@ -4817,6 +5059,11 @@ final class LibraryModel: ObservableObject {
         else { return }
         // DirectX 12 only, and Apple's D3DMetal isn't in the engine: asked once, before anything starts.
         if !d3dMetalChecked, askAboutD3DMetalBeforeStart(game) { return }
+        // The clock for the start's phases (`notePhase`), with the test switch only: from here, the player's question
+        // about D3DMetal aside.
+        playClock = GameTest.notesStartPhases() ? (game.gameID.key, Date()) : nil
+        curtainProof = nil
+        notePhase(game, "Play")
         let viaSteam = game.provider == .steam
         if viaSteam && game.bottle.isBuiltIn && !Engine.steamSignedIn && !otherSteamFree(for: .windows) { return }
         let number = beginLaunch(game)
@@ -4832,21 +5079,22 @@ final class LibraryModel: ObservableObject {
             raiseCurtain(for: game)
             await leftStartEnded()
             if Task.isCancelled { return }
-            if viaSteam, game.bottle.isBuiltIn {
+            let steps = Self.startSteps(provider: game.provider, builtIn: game.bottle.isBuiltIn, pendingUpdate: game.pendingUpdate != nil)
+            if steps.windowsSteam {
                 await steamSwitch.makeWayForWindows(facts: steamFacts, phase: { self.launchPhase = $0 },
                                                     restartWindows: { await self.restartWindowsSteam() })
                 launchPhase = nil
             }
-            if viaSteam, game.bottle.isBuiltIn { wakeSteam(forStart: true) }
-            if viaSteam, game.bottle.isBuiltIn, let startup = steamStartup {
+            if steps.windowsSteam { wakeSteam(forStart: true, game: (game.gameID.key, game.name)) }
+            if steps.windowsSteam, let startup = steamStartup {
                 if !Engine.isSteamRunning { launchPhase = .startingSteam }
                 await startup.value
                 launchPhase = nil
             }
             // Steam for Mac signed in since and signed this Steam out: sign it in again, or the
             // game starts without its cloud saves.
-            if viaSteam, game.bottle.isBuiltIn, Engine.sessionReplaced(), let wine = await Engine.installedWine() {
-                launchPhase = .signingIn
+            if steps.windowsSteam, Engine.sessionReplaced(), let wine = await Engine.installedWine() {
+                launchPhase = .signingInAgain
                 _ = await restartStuckSteam(wine)
                 launchPhase = nil
             }
@@ -4854,17 +5102,20 @@ final class LibraryModel: ObservableObject {
             // Offline Mode"): wait for it while it comes along (steamSignInStep). One that is stuck is
             // restarted once, together with a restart the game's settings need anyway (restartsSteamForStart).
             var steamStuck = false
-            if viaSteam, game.bottle.isBuiltIn, Engine.isSteamSignedIn, !Engine.steamSignedIn {
+            /// Stuck because its session came up without Wine's network driver: the restart begins a new session.
+            var steamSessionBroken = false
+            if steps.windowsSteam, Engine.isSteamSignedIn, !Engine.steamSignedIn {
                 launchPhase = .signingIn
                 let began = Date()
                 waiting: while true {
-                    let quiet = await Engine.offMain { Engine.steamLogsQuiet() }
+                    let (quiet, broken) = await Engine.offMain { (Engine.steamLogsQuiet(), Engine.steamSessionBroken()) }
                     switch Self.steamSignInStep(signedIn: Engine.steamSignedIn, running: Engine.isSteamRunning,
-                                                waited: Date().timeIntervalSince(began), quietFor: quiet) {
+                                                waited: Date().timeIntervalSince(began), quietFor: quiet, sessionBroken: broken) {
                     case .signedIn:
                         break waiting
                     case .stuck:
                         steamStuck = true
+                        steamSessionBroken = broken
                         GameLog.note("Steam isn't signed in after \(Int(Date().timeIntervalSince(began))) s"
                                      + (Engine.isSteamRunning ? ", nothing in its logs for \(Int(min(quiet, 9999))) s" : ", and it isn't running")
                                      + ": it's restarted once, before the game")
@@ -4876,27 +5127,29 @@ final class LibraryModel: ObservableObject {
                 }
                 launchPhase = nil
             }
-            if viaSteam, game.bottle.isBuiltIn { await waitForSteamCloud(Engine.steamRoot) }
+            if steps.windowsSteam { await waitForSteamCloud(Engine.steamRoot) }
             if Task.isCancelled { return }  // no saves taken along, and no question about them, for a start that's over
-            if viaSteam, game.bottle.isBuiltIn { await takeSavesAlong(game, to: .windows) }
+            if steps.windowsSteam { await takeSavesAlong(game, to: .windows) }
             // A Steam restart still under way ends its Wine session at its end, with whatever started in it.
-            if !viaSteam, game.bottle.isBuiltIn, let restart = steamStartup {
+            if steps.waitsForSteamRestart, let restart = steamStartup {
                 await restart.value
                 if Task.isCancelled { return }
             }
             // Epic: a waiting update comes first, like Steam's "Update & Play".
-            if game.provider == .epic, game.pendingUpdate != nil {
+            if steps.epicUpdate {
                 guard await updateEpic(game) else { return }
             }
             // Epic: the newest save comes down from Epic before the game reads it.
-            if game.provider == .epic, epic.catalog.games.contains(where: { $0.appName == game.gameID.id && $0.cloudSaves }) {
+            if steps.epic, Self.keepsSavesWithEpic(game.gameID.id, in: epic.catalog.games) {
                 launchPhase = .syncingSaves
+                notePhase(game, "Epic's saves: sync begins")
                 await epic.syncSaves(game, upload: false)
+                notePhase(game, "Epic's saves synced")
                 launchPhase = nil
                 if Task.isCancelled { return }  // it ran to its end, nothing is left half done, and the game doesn't start
             }
             // GOG: the same, an update first and then the newest save.
-            if game.provider == .gog { guard await beforeGOGStart(game) else { return } }
+            if steps.gog { guard await beforeGOGStart(game) else { return } }
             var runner = game.bottle.isBuiltIn ? await Engine.installedWine()?.path : Prefs.runnerPath
             let newest = runner
             // Known fixes for this game (profiles/profiles.json) and what its files reveal.
@@ -4905,6 +5158,15 @@ final class LibraryModel: ObservableObject {
             await macSourcesAtHand()
             let insight = await insight(of: game)
             let analysis = insight?.analysis
+            // A game with an anti-cheat or a cheat protection of its own (NextStart.handsOff): nothing of Nightforge's
+            // in its process – no frame limit on D3DMetal either (D3DMetalPace), on any way it starts.
+            let handsOff: Bool
+            if game.bottle.isBuiltIn {
+                let block = game.antiCheatBlock, installDir = game.installDir
+                handsOff = await Engine.offMain { NextStart.handsOff(profile: profile, block: block, installDir: installDir) }
+            } else {
+                handsOff = false
+            }
             let refreshRate = GameDisplay.screen?.maximumFramesPerSecond ?? 60
             Hardware.refresh()  // the screen the game opens on, Low Power Mode: the automatic choices follow them
             // A preset fixes frame limit and MetalFX; "Most compatible" tries the safest way first.
@@ -5012,7 +5274,7 @@ final class LibraryModel: ObservableObject {
                 if viaSteam, game.bottle.isBuiltIn, !anyRunning(.windows), let runner,
                    await Engine.offMain({ DockHider.runningSteamState() }) == .missing {
                     launchPhase = .startingSteam
-                    _ = await restartStuckSteam(URL(fileURLWithPath: runner), freshSession: true)
+                    _ = await restartStuckSteam(URL(fileURLWithPath: runner), freshSession: "Steam's hide-steam-dock.dylib is gone")
                     launchPhase = nil
                 }
                 // The screens changed since Wine's session began (a TV plugged in, mirroring on): Wine
@@ -5022,11 +5284,11 @@ final class LibraryModel: ObservableObject {
                     launchPhase = .startingSteam
                     let wine = URL(fileURLWithPath: runner)
                     if viaSteam {
-                        _ = await restartStuckSteam(wine, freshSession: true)
+                        _ = await restartStuckSteam(wine, freshSession: "the screens changed since the session began")
                     } else {
                         // A store's game starts its own session; Steam comes back when it's needed.
                         try? await Engine.stopSteam(wine)
-                        await Engine.offMain { Engine.stopAll(wine) }
+                        await Engine.offMain { Engine.stopAll(wine, reason: "the screens changed since the session began") }
                     }
                     launchPhase = nil
                 }
@@ -5073,6 +5335,8 @@ final class LibraryModel: ObservableObject {
                                        kind: analysis?.kind, recipe: recipe, profiled: profile?.shapesStart, closerLook: closerLook,
                                        name: game.name, parts: build?.parts)
                 }
+                // The curtain over a game proven here may sink after a shorter rest (pictureSteadyNeeded).
+                curtainProof = (game.gameID.key, wayConfirmed, handsOff)
                 // Another program in the game's LaunchOptions also comes with the Steam that starts it (SteamProgram).
                 let programChanged = viaSteam && game.bottle.isBuiltIn
                     ? await Engine.offMain { [options] in
@@ -5083,7 +5347,7 @@ final class LibraryModel: ObservableObject {
                                                  kosmicKrisp: Engine.kosmicKrispReady ? Engine.kosmicKrispNow : nil)
                 // A session has msync or doesn't: a game joining one that runs takes it as it is.
                 let msyncWanted = anyRunning(.windows) ? nil : Engine.msyncWanted(profile: profile)
-                let environmentChanged = viaSteam && game.bottle.isBuiltIn &&
+                let settingsChanged = viaSteam && game.bottle.isBuiltIn &&
                    (Engine.prepareLaunchEnvironment(avx: recipe.avx, d3dMetal: layer == .d3dmetal,
                                                    frameLimit: frameLimit, upscaling: options.effectiveUpscaling(profile: profile),
                                                    retina: options.retina(profile: profile, layer: layer, analysis: analysis),
@@ -5091,17 +5355,27 @@ final class LibraryModel: ObservableObject {
                                                    vulkan: vulkan,
                                                    vulkanLoader: Engine.vulkanLoaderEnvironment(layer: layer, d3d9: analysis?.usesD3D9 == true,
                                                                                                 wine: runner.map(URL.init(fileURLWithPath:))),
-                                                   msyncWanted: msyncWanted) || programChanged || debugChanged || frameLogChanged)
+                                                   msyncWanted: msyncWanted, antiCheat: handsOff))
+                // By name, for the log: which of them the restart below is for (the cost of a switch between games).
+                let changedParts = Self.restartParts(settings: settingsChanged ? Engine.launchChanges : [], program: programChanged,
+                                                     debug: debugChanged, frameLog: frameLogChanged)
+                let environmentChanged = !changedParts.isEmpty
+                // What Steam's next start for this game begins with (F5): its settings as they are now.
+                if viaSteam, game.bottle.isBuiltIn { Engine.rememberLaunch(for: game.gameID.key) }
                 // One restart at most: the settings the game takes from Steam's environment, and a Steam that got stuck
                 // signing in, together (F3, 21.11.2026: the stuck one's restart and the settings' made two in a row).
                 if viaSteam, game.bottle.isBuiltIn, let runner,
                    Self.restartsSteamForStart(environmentChanged: environmentChanged, stuck: steamStuck,
                                               running: Engine.isSteamRunning, gamesRunning: anyRunning(.windows)) {
-                    launchPhase = .restartingSteam
-                    GameLog.note("Steam restarts for \(game.name)" + (steamStuck ? ": it got stuck signing in" : "")
-                                 + (environmentChanged ? (steamStuck ? ", and " : ": ") + "the game's settings come with its environment" : ""))
-                    _ = await restartStuckSteam(URL(fileURLWithPath: runner))
+                    // Planned, for the game's settings, it doesn't sound like a fault; only a Steam that got stuck does.
+                    launchPhase = Self.restartPhase(stuck: steamStuck)
+                    GameLog.note("Steam restarts for \(game.name)" + Self.restartReason(stuck: steamStuck, parts: changedParts))
+                    // Its session without Wine's network driver ends with it – only with no Windows game in it.
+                    let newSession = steamSessionBroken ? await Engine.offMain { Engine.windowsGameRunningKnown == false } : false
+                    _ = await restartStuckSteam(URL(fileURLWithPath: runner), freshSession: newSession ? Self.brokenSessionReason : nil,
+                                                hung: newSession)
                     steamStuck = false  // restarted: the next way of this start finds it fresh
+                    steamSessionBroken = false
                     launchPhase = nil
                 }
                 if Task.isCancelled { return }
@@ -5163,11 +5437,17 @@ final class LibraryModel: ObservableObject {
                 // "Back to Nightforge" while Steam came up ends the start here: nothing goes to Steam after it. Up to
                 // 21.11.2026 the game started seconds after the player had gone back (F3).
                 if Task.isCancelled { return }
+                // The permit for Nightforge's frame limit on D3DMetal: this game's start only, never one with an anti-cheat.
+                if game.bottle.isBuiltIn {
+                    let installDir = game.installDir, d3dMetal = layer == .d3dmetal
+                    await Engine.offMain { D3DMetalPace.prepare(limit: frameLimit, installDir: installDir, handsOff: handsOff, d3dMetal: d3dMetal) }
+                }
                 raiseCurtain(for: game)
                 let started = viaSteam
                     ? await start(game, runner: runner, options: options, profile: profile, recipe: recipe, frameLimit: frameLimit)
                     : await startDirect(game, runner: runner, options: options, profile: profile, recipe: recipe,
-                                        frameLimit: frameLimit, layer: layer, vulkan: vulkan, usesD3D9: analysis?.usesD3D9 == true)
+                                        frameLimit: frameLimit, layer: layer, vulkan: vulkan, usesD3D9: analysis?.usesD3D9 == true,
+                                        handsOff: handsOff)
                 // Step C: a store's game has the channels from its own start; Steam's settings don't keep them.
                 if !viaSteam, closerLook { Engine.setCloserLook(false) }
                 // … and the frame log is back at what Steam has: the next game through Steam then asks for its
@@ -5555,11 +5835,13 @@ final class LibraryModel: ObservableObject {
         var watcher = LaunchWatcher(steamRoot: game.steamRoot, appID: game.appID)
         var licenceLog = SteamLicenceLog(steamRoot: game.steamRoot, appID: game.appID)
         launchAsksLicence = false
+        launchQuestionTask = nil
         // Running, signed in and done starting: Steam logs the command within a second (SteamCommands).
         var steamWasReady = game.bottle.isBuiltIn && Engine.isSteamRunning && Engine.steamSignedIn
             && Engine.startupFinished(steamRoot: Engine.steamRoot)
         var client: DetachedProcess?
         var sentAt = Date()
+        notePhase(game, "to Steam")
         do {
             // Off the main thread: it reads Steam's app catalog and writes the registry, which
             // would freeze the window for a moment.
@@ -5567,6 +5849,7 @@ final class LibraryModel: ObservableObject {
                 try Launcher.launch(game, runnerPath: runner ?? "", options: options, profile: profile,
                                     frameLimit: frameLimit, recipe: recipe)
             }.value
+            notePhase(game, "-applaunch client started")
         } catch {
             startFailed(game, error) { RosettaSupport.playerText(error) }
             return false
@@ -5661,10 +5944,12 @@ final class LibraryModel: ObservableObject {
             switch event {
             case .running?:
                 launchNeedsConfirmation = false
+                notePhase(game, "Steam started its process")
                 return true
             case .needsConfirmation?:
                 askingSince = askingSince ?? totalSeconds
                 quietSeconds = 0
+                launchQuestionTask = watcher.questionTask
             case .licence?:
                 // A question from its first word on: the 3 + 5 s below are for steps that answer themselves.
                 askingSince = askingSince ?? totalSeconds
@@ -5815,7 +6100,7 @@ final class LibraryModel: ObservableObject {
     /// `survivesFirstSeconds` sees. `usesD3D9`: from the start's analysis (`insight`).
     private func startDirect(_ game: Game, runner: String?, options: GameOptions, profile: GameProfile?,
                              recipe: StartRecipe, frameLimit: Int, layer: GraphicsLayer, vulkan: Engine.VulkanDriver?,
-                             usesD3D9: Bool) async -> Bool {
+                             usesD3D9: Bool, handsOff: Bool) async -> Bool {
         guard let runner else {
             errorMessage = L10n.t("Nightforge's engine isn't installed yet. Open Settings › Stores, or restart Nightforge to set it up.")
             return false
@@ -5825,7 +6110,13 @@ final class LibraryModel: ObservableObject {
         if game.provider == .epic { launchPhase = .signingInEpic }
         let command: StoreLaunchCommand
         do {
-            command = game.provider == .gog ? try gog.launchCommand(for: game) : try await epic.launchCommand(for: game)
+            if game.provider == .gog {
+                command = try gog.launchCommand(for: game)
+            } else {
+                notePhase(game, "asks Epic for the launch details")
+                command = try await epic.launchCommand(for: game)
+                notePhase(game, "Epic's launch details came")
+            }
         } catch {
             launchPhase = nil
             if !Task.isCancelled { startFailed(game, error) { L10n.t("%@ couldn't start: %@", game.name, RosettaSupport.playerText(error)) } }
@@ -5835,13 +6126,14 @@ final class LibraryModel: ObservableObject {
         guard !Task.isCancelled else { return false }
         let environment = Engine.directLaunchEnvironment(avx: recipe.avx, d3dMetal: layer == .d3dmetal,
                                                          frameLimit: frameLimit, upscaling: options.effectiveUpscaling(profile: profile),
-                                                         vulkan: vulkan)
+                                                         vulkan: vulkan, antiCheat: handsOff)
         if layer == .d3dmetal {
             let switches = GameEnvironment.wanted(for: game.gameID, profile: profile)
             GameLog.note(GameLog.d3dMetalStart(game.name, environment: environment.merging(switches) { _, game in game },
                                                retina: Engine.retinaModeApplied))
         }
         let process: DetachedProcess
+        notePhase(game, "starts directly")
         do {
             process = try await Task.detached(priority: .userInitiated) {
                 try Launcher.launchDirect(game, command: command, runnerPath: runner, options: options, profile: profile,
@@ -5858,10 +6150,53 @@ final class LibraryModel: ObservableObject {
         for _ in 0..<30 {
             try? await Task.sleep(for: .seconds(1))
             if Task.isCancelled { return false }
-            if await Task.detached(priority: .utility, operation: { Self.runningGames(folders) }).value[game.id] != nil { break }
+            if await Task.detached(priority: .utility, operation: { Self.runningGames(folders) }).value[game.id] != nil {
+                notePhase(game, "its process runs")
+                break
+            }
             if !process.isRunning { break }
         }
         return true
+    }
+
+    /// One line on the start's way in the log, for a look at where its time goes (docs/ENTWURF-STARTZEIT.md):
+    /// "Start phases of Hades: to Steam at 19:34:27.3, 1.0 s after Play". `since`: Play's moment; Play itself, it's the
+    /// moment. Nil without the test switch (GameTest.notesStartPhases): the finished build measures nothing.
+    nonisolated static func phaseLine(_ name: String, _ phase: String, at now: Date = Date(), since start: Date,
+                                      defaults: UserDefaults = .standard) -> String? {
+        guard GameTest.notesStartPhases(defaults: defaults) else { return nil }
+        return "Start phases of \(name): \(phase) at \(GameLog.clock(now, tenths: true))"
+            + (now == start ? "" : ", " + String(format: "%.1f", max(0, now.timeIntervalSince(start))) + " s after Play")
+    }
+
+    /// The steps before a game's own start that belong to it by what it is (`launch`, in this order): a Steam game in
+    /// Nightforge's own bottle has the Windows Steam made ready, woken, signed in (again), its cloud waited for and the saves
+    /// taken along; any other game there waits for a Steam restart under way, which ends the Wine session it would start
+    /// in; an Epic game has its waiting update, then its saves when Epic keeps them (`keepsSavesWithEpic`); a GOG game
+    /// its update and saves (`beforeGOGStart`). A game in a bottle of the player's own has none of Steam's.
+    struct StartSteps: Equatable {
+        var windowsSteam = false
+        var waitsForSteamRestart = false
+        var epicUpdate = false
+        var epic = false
+        var gog = false
+    }
+
+    nonisolated static func startSteps(provider: Provider, builtIn: Bool, pendingUpdate: Bool) -> StartSteps {
+        StartSteps(windowsSteam: provider == .steam && builtIn, waitsForSteamRestart: provider != .steam && builtIn,
+                   epicUpdate: provider == .epic && pendingUpdate, epic: provider == .epic, gog: provider == .gog)
+    }
+
+    /// Whether Epic keeps the game's saves (its catalog entry's cloud saves): then they come down before it starts.
+    nonisolated static func keepsSavesWithEpic(_ appName: String, in games: [EpicGame]) -> Bool {
+        games.contains { $0.appName == appName && $0.cloudSaves }
+    }
+
+    /// `phaseLine` for this game's start, from its Play – none for a start of another game's, none without the switch.
+    private func notePhase(_ game: Game, _ phase: String) {
+        guard let clock = playClock, clock.game == game.gameID.key else { return }
+        let now = phase == "Play" ? clock.at : Date()
+        if let line = Self.phaseLine(game.name, phase, at: now, since: clock.at) { GameLog.note(line) }
     }
 
     /// Confirms the way a game started with once it has drawn frames (LaunchHealth.verdict), watching
@@ -6386,7 +6721,7 @@ final class LibraryModel: ObservableObject {
         do {
             if wantsWindows, let wine = await Engine.installedWine() {
                 let wasRunning = Engine.isSteamRunning
-                try await Engine.stopSteam(wine, endWait: Engine.filesEndWait)
+                try await Engine.stopSteam(wine, endWait: Engine.filesEndWait, leftovers: true)
                 if let still = await Engine.steamStillThere() { throw still }
                 defer { if wasRunning { Task { try? await Engine.restartSteamInBackground(wine) } } }
                 try await Engine.offMain { _ = try SteamLibraries.forget(drive: name, appID: appID, steamRoot: steamRoot, bottle: bottle) }
@@ -6469,6 +6804,15 @@ final class LibraryModel: ObservableObject {
 }
 
 extension NSApplication {
+    /// Whether Nightforge may ask Launch Services to open it: only as the app it is. A test program has no bundle
+    /// of its own (`Bundle.main` is its folder), and Launch Services, asked to open that, may well open something
+    /// else – a Finder window, or the Nightforge installed on this Mac (23.11.2026). Tests never get that far.
+    nonisolated static var opensItself: Bool { opensItself(bundleID: Bundle.main.bundleIdentifier, bundle: Bundle.main.bundleURL) }
+
+    nonisolated static func opensItself(bundleID: String?, bundle: URL) -> Bool {
+        bundleID != nil && bundle.pathExtension == "app"
+    }
+
     /// In front for macOS. Not `isActive`: that says yes while a panel that doesn't activate
     /// Nightforge has the keys – the overlay's, with the game in front (probe on 1.11.).
     var isFrontmost: Bool {
@@ -6482,6 +6826,10 @@ extension NSApplication {
     /// its window's Space. `then` once that's done.
     func comeToFront(then: (@MainActor () -> Void)? = nil) {
         activate(ignoringOtherApps: true)
+        guard Self.opensItself else {
+            Task { @MainActor in then?() }
+            return
+        }
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
         NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { _, _ in

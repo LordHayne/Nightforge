@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Security
 
@@ -68,7 +69,10 @@ enum Engine {
 
     /// Settings games inherit from the background Steam. Bump `steamConfigVersion` whenever this
     /// or `steamDLLOverrides` changes, so a running Steam gets restarted with them.
-    static let steamConfigVersion = 11  // 11: every start carries CloserLook.everyStart (step E5)
+    // 11: every start carries CloserLook.everyStart (step E5). 12: hide-steam-dock.dylib orders the network
+    // interfaces (wrapper/network-order.c). Wine's device host loads it only when the session starts, so from
+    // then on the signature carries DockHider.sessionVersion, and a new one ends the session too.
+    static let steamConfigVersion = 12
     static var gameEnvironment: [String: String] {
         var env = [
             // Compile shaders in the background instead of stalling the frame that first needs them.
@@ -183,7 +187,9 @@ enum Engine {
     /// Changes whenever the background Steam has to restart to hand games different settings.
     static var steamConfigSignature: String {
         let launch = launchSettings.withLock { $0 }
-        return "\(steamConfigVersion)-hud\(Prefs.performanceHUD ? 1 : 0)-gamemode\(Prefs.gameMode ? 1 : 0)-"
+        // The library's version: a new one restarts Steam, and that ends a session begun with the old (applyLibraryVersion).
+        // Its content as well: another Nightforge may have put an older one into the data folder and started Steam with it.
+        return "\(steamConfigVersion)-lib\(DockHider.sessionVersion)\(DockHider.fingerprint().map { "." + $0 } ?? "")-hud\(Prefs.performanceHUD ? 1 : 0)-gamemode\(Prefs.gameMode ? 1 : 0)-"
             + launch.environment.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
             + (launch.retina ? "-retina" : "") + (WineSandbox.enabled ? "-sandbox" : "")
             + (msync ? "" : "-nomsync") + (GameLog.extraWineDebug.map { "-debug" + $0 } ?? "")
@@ -242,7 +248,98 @@ enum Engine {
     /// All of them, under one lock: prepareLaunchEnvironment sets them on the main actor, a Steam start reads
     /// them in a task of its own (startSteamOffMain, stopSessionNow → steamEnvironment), and a
     /// Dictionary read while it's being replaced can crash.
-    private static let launchSettings = LockedValue<(environment: [String: String], retina: Bool, msync: Bool)>(([:], false, msyncSwitch))
+    /// Starts with what the last game through Steam had (F5, `rememberedLaunch`), so a Steam started before any
+    /// game this run – in the background, or for that same game – needs no restart for it.
+    private static let launchSettings = LockedValue<(environment: [String: String], retina: Bool, msync: Bool)>(
+        rememberedLaunch(for: nil).map { ($0.environment, $0.retina, $0.msync) } ?? ([:], false, msyncSwitch))
+
+    /// What a game through Steam had of Steam's settings at its last start (F5, 22.11.2026). Up to then each
+    /// first start of a game in a Nightforge run started Steam twice: once with nothing of the game's (Steam on
+    /// demand wakes before the start knows its way), then again for the game's settings – 10–15 s on both Macs.
+    /// Steam now starts with what the game had last time; a start that comes out otherwise restarts it as before.
+    struct RememberedLaunch: Codable, Equatable {
+        var version: Int
+        var environment: [String: String]
+        var retina: Bool
+        var msync: Bool
+    }
+
+    private struct LaunchMemory: Codable {
+        var games: [String: RememberedLaunch] = [:]
+        /// Oldest first; the last one is the game started last.
+        var order: [String] = []
+    }
+
+    static let launchMemoryKey = "steamLaunchMemory"
+    static let launchMemoryLimit = 64
+
+    private static func launchMemory(_ defaults: UserDefaults) -> LaunchMemory {
+        defaults.data(forKey: launchMemoryKey).flatMap { try? JSONDecoder().decode(LaunchMemory.self, from: $0) } ?? LaunchMemory()
+    }
+
+    /// The paths the memory holds that can carry something of the player's (values and the parts of a list with ":"),
+    /// for GameLog.outbound to take out of whatever leaves the Mac (audit L1): under the home folder, /Users/,
+    /// /Volumes/ (a drive's name) or /private/ (an account's temp folder). System paths (/usr/lib, /System/…) stay
+    /// readable: taking them out would cost a report its use and protect nothing. The memory itself stays in the
+    /// settings and never goes into wine.log (`changedParts` names variables only).
+    static func launchMemoryPaths(defaults: UserDefaults = .standard, home: String = NSHomeDirectory()) -> [String] {
+        let values = launchMemory(defaults).games.values.flatMap { $0.environment.values }
+        return Array(Set(values.flatMap { value in [value] + value.split(separator: ":").map(String.init) }
+            .filter { mayBePrivate($0, home: home) }))
+    }
+
+    /// Whether a path can name the player, their drives or their account: see `launchMemoryPaths`.
+    static func mayBePrivate(_ path: String, home: String) -> Bool {
+        let roots = ["/Users/", "/Volumes/", "/private/"] + (home.count > 1 ? [home.hasSuffix("/") ? home : home + "/"] : [])
+        return roots.contains { path.hasPrefix($0) } || (home.count > 1 && path == home)
+    }
+
+    /// Notes Steam's settings as they are now as `game`'s (GameID.key), right after its start prepared them. A
+    /// closer look's channels (WINEDEBUG) stay out: they're for one Play.
+    static func rememberLaunch(for game: String, defaults: UserDefaults = .standard) {
+        let launch = launchSettings.withLock { $0 }
+        var environment = launch.environment
+        environment["WINEDEBUG"] = nil
+        var memory = launchMemory(defaults)
+        memory.games[game] = RememberedLaunch(version: steamConfigVersion, environment: environment, retina: launch.retina, msync: launch.msync)
+        memory.order.removeAll { $0 == game }
+        memory.order.append(game)
+        while memory.order.count > launchMemoryLimit { memory.games[memory.order.removeFirst()] = nil }
+        if let data = try? JSONEncoder().encode(memory) { defaults.set(data, forKey: launchMemoryKey) }
+    }
+
+    /// What `game` had last time (nil: the game started last), if it still holds: from this Nightforge's
+    /// settings (steamConfigVersion), msync not where the engine test's switch is off, every file it names
+    /// still there (an engine or KosmicKrisp replaced since), the engine test's Vulkan loader only while its
+    /// switch is on. Otherwise nil, and Steam starts as before.
+    static func rememberedLaunch(for game: String?, defaults: UserDefaults = .standard,
+                                 msyncAllowed: Bool = msyncSwitch,
+                                 exists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }) -> RememberedLaunch? {
+        let memory = launchMemory(defaults)
+        guard let key = game ?? memory.order.last, let remembered = memory.games[key],
+              remembered.version == steamConfigVersion, !remembered.msync || msyncAllowed else { return nil }
+        for (name, value) in remembered.environment where value.hasPrefix("/") && !name.hasSuffix("CACHE_DIR") && !name.hasSuffix("CACHE_PATH") {
+            if !exists(value) { return nil }
+        }
+        if remembered.environment["VK_ADD_IMPLICIT_LAYER_PATH"]?.isEmpty == false, !vulkanLoaderSwitchedOn(defaults: defaults) { return nil }
+        return remembered
+    }
+
+    /// Before a Steam that isn't running starts for `game`: Steam's settings become what the game had last time
+    /// (`rememberedLaunch`), so the start that follows finds them as it wants them. A closer look's channels
+    /// stay as they are. True when something changed.
+    @discardableResult
+    static func takeRememberedLaunch(for game: String, defaults: UserDefaults = .standard) -> Bool {
+        guard let remembered = rememberedLaunch(for: game, defaults: defaults) else { return false }
+        return launchSettings.withLock { settings in
+            var environment = remembered.environment
+            environment["WINEDEBUG"] = settings.environment["WINEDEBUG"]
+            guard environment != settings.environment || remembered.retina != settings.retina || remembered.msync != settings.msync
+            else { return false }
+            settings = (environment, remembered.retina, remembered.msync)
+            return true
+        }
+    }
 
     /// The environment the background Steam starts with, and its games with it.
     static var steamEnvironment: [String: String] {
@@ -252,8 +349,9 @@ enum Engine {
     }
 
     /// Sets what a game needs from Steam's environment: Rosetta's AVX hint, and D3DMetal's
-    /// settings, which it only takes from there (Apple's readme): D3DM_MAX_FPS caps the frame rate,
-    /// D3DM_ENABLE_METALFX hands DLSS to MetalFX. A game on another layer leaves D3DMetal's as they
+    /// settings, which it only takes from there (Apple's readme): D3DM_ENABLE_METALFX hands DLSS to MetalFX.
+    /// D3DM_MAX_FPS is Nightforge's own: D3DMetal 3.0 doesn't know it, hide-steam-dock.dylib holds the limit with
+    /// it (D3DMetalPace), never for a game with an anti-cheat (`antiCheat`). A game on another layer leaves D3DMetal's as they
     /// are, so going back and forth costs no restart. `retina`: Wine's Retina mode, which the
     /// session has to start with as well. `environment`: the game's own Wine switches
     /// (GameEnvironment), which the game before it may have had others of. `vulkan`: the driver its
@@ -265,7 +363,8 @@ enum Engine {
     static func prepareLaunchEnvironment(avx: Bool, d3dMetal: Bool, frameLimit: Int, upscaling: Bool,
                                          retina: Bool = false, environment: [String: String] = [:],
                                          vulkan: VulkanDriver? = nil, vulkanLoader: [String: String] = [:],
-                                         msyncWanted: Bool? = nil, defaults: UserDefaults = .standard) -> Bool {
+                                         msyncWanted: Bool? = nil, antiCheat: Bool = false,
+                                         defaults: UserDefaults = .standard) -> Bool {
         let launch = launchSettings.withLock { $0 }
         var wanted = launch.environment
         wanted["ROSETTA_ADVERTISE_AVX"] = avx ? nil : ""
@@ -274,6 +373,10 @@ enum Engine {
             wanted["D3DM_MAX_FPS"] = frameLimit > 0 ? String(frameLimit) : ""
             wanted["D3DM_ENABLE_METALFX"] = upscaling ? "1" : ""
         }
+        // The frame limit on D3DMetal is held by Nightforge's library in the game's process (D3DMetalPace): a game
+        // with an anti-cheat or a cheat protection of its own never gets the variable that lets it in, whatever its
+        // layer – a Steam that has it from the game before restarts.
+        if antiCheat { wanted["D3DM_MAX_FPS"] = "" }
         switch vulkan {
         case .kosmicKrisp(let folder):
             wanted.merge(kosmicKrispEnvironment(folder)) { _, new in new }
@@ -300,7 +403,22 @@ enum Engine {
         wanted = wanted.filter { name, value in (value.isEmpty ? nil : value) != gameEnvironment[name] }
         let session = msyncWanted ?? launch.msync
         launchSettings.withLock { [wanted] in $0 = (wanted, retina, session) }
-        return wanted != launch.environment || retina != launch.retina || session != launch.msync
+        let changed = changedParts(environment: launch.environment, to: wanted, retina: launch.retina, to: retina,
+                                   msync: launch.msync, to: session)
+        lastLaunchChanges.withLock { $0 = changed }
+        return !changed.isEmpty
+    }
+
+    /// What `prepareLaunchEnvironment` changed last time, by name only (for "Steam restarts for …").
+    static var launchChanges: [String] { lastLaunchChanges.withLock { $0 } }
+    private static let lastLaunchChanges = LockedValue<[String]>([])
+
+    /// The parts of Steam's settings that differ, by name and never by value: a variable's name, "retina", "msync".
+    /// Values can carry paths with the user's name; names come from Nightforge's own lists.
+    static func changedParts(environment old: [String: String], to new: [String: String], retina oldRetina: Bool, to newRetina: Bool,
+                             msync oldMsync: Bool, to newMsync: Bool) -> [String] {
+        let names = Set(old.keys).union(new.keys).filter { old[$0] != new[$0] }.sorted()
+        return names + (oldRetina != newRetina ? ["retina"] : []) + (oldMsync != newMsync ? ["msync"] : [])
     }
 
     /// Puts Wine's Retina mode where `launchRetina` wants it, with Steam down. Wine shows a session
@@ -314,7 +432,7 @@ enum Engine {
         // and the next start tries again (review B2).
         guard importRegistry("[HKEY_CURRENT_USER\\Software\\Wine\\Mac Driver]\n\"RetinaMode\"=" + (launchRetina ? "\"y\"" : "-"),
                              wine: wine) else { return }
-        stopAll(wine)
+        stopAll(wine, reason: "Retina mode changes")
         defaults.set(launchRetina, forKey: key)
     }
 
@@ -324,11 +442,12 @@ enum Engine {
     /// What a game started straight by Nightforge (not through Steam) gets on top of `gameEnvironment`:
     /// the same as `prepareLaunchEnvironment` hands Steam ("" takes a variable away).
     static func directLaunchEnvironment(avx: Bool, d3dMetal: Bool, frameLimit: Int, upscaling: Bool,
-                                        vulkan: VulkanDriver? = nil) -> [String: String] {
+                                        vulkan: VulkanDriver? = nil, antiCheat: Bool = false) -> [String: String] {
         var environment = gameEnvironment
         if !avx { environment["ROSETTA_ADVERTISE_AVX"] = nil }
         if d3dMetal {
-            if frameLimit > 0 { environment["D3DM_MAX_FPS"] = String(frameLimit) }
+            // Never for a game with an anti-cheat (D3DMetalPace).
+            if frameLimit > 0, !antiCheat { environment["D3DM_MAX_FPS"] = String(frameLimit) }
             if upscaling { environment["D3DM_ENABLE_METALFX"] = "1" }
         }
         if case .kosmicKrisp(let folder) = vulkan { environment.merge(kosmicKrispEnvironment(folder)) { _, new in new } }
@@ -499,6 +618,8 @@ enum Engine {
     }
 
     private static func own(in table: [(pid: pid_t, command: String)], under folder: URL) -> [(pid: pid_t, command: String)] {
+        // A test program with the real home finds none of the player's (TestGuard).
+        if TestGuard.keepsOut(folder.path) { return [] }
         let root = folder.resolvingSymlinksInPath().path
         let helper = DetachedProcess.home.appendingPathComponent(DetachedProcess.helperName).resolvingSymlinksInPath().path + "/"
         return table.filter { process in
@@ -587,8 +708,13 @@ enum Engine {
 
     /// Ends every Windows process in Nightforge's prefix – through the wineserver that runs, which
     /// is another engine's while a game is held back on one (EngineRollback).
-    static func stopAll(_ wine: URL) {
+    /// `reason`: why, in the log ("Wine session ends: …") – a name for the cause, never a value or a path. The end of a
+    /// session used to leave no line: at 19:32 on 22.11.2026 Steam ended with its session and nothing said why.
+    static func stopAll(_ wine: URL, reason: String) {
         let wine = sessionWine() ?? wine
+        // Never the player's session from a test program (TestGuard).
+        if TestGuard.keepsOut(wine.path) { return }
+        GameLog.note("Wine session ends: \(reason)")
         // `wineserver -k` asks the server to end and waits for it. A server that doesn't (a process of
         // the session stuck in the kernel) must not hold up what comes after – Steam's restart, the
         // engine switch, "Remove Nightforge completely": after the limit it is dropped, and
@@ -847,7 +973,7 @@ enum Engine {
             guard ownProcessesKnown(under: dir)?.isEmpty != true else { continue }
             guard let old = wineBinary(in: dir) else { continue }
             if gameRunning || windowsGameRunning { return old }
-            stopAll(old)
+            stopAll(old, reason: "a session of an older engine")
         }
         if !gameRunning, !windowsGameRunning { applyMsyncMode(wine) }
         // On winecx, D3DMetal takes the engine's Direct3D builtins and DXMT and DXVK move into the
@@ -1058,7 +1184,15 @@ enum Engine {
     /// for Mac too, and opens Nightforge again once the session is down.
     nonisolated(unsafe) static var restarting = false
 
-    static func scheduleSteamShutdown(restart: Bool = false) {
+    /// $12 of the quit script: a game Nightforge started runs, or a Windows game runs in its session. Not known (no
+    /// process list, nil) is no game: it only decides whether Nightforge opens again after one, and at 12:08 on 23.11.2026
+    /// an unknown counted as one and a test's stand-in brought a quit Nightforge back.
+    nonisolated static func gameAtQuit(started: Bool, windowsGame: Bool?) -> Bool { started || windowsGame == true }
+
+    /// `gameAtQuit`: Nightforge knew of a game running as it quit; only then does the script bring it back
+    /// after that game (`steamShutdownScript`, $12).
+    static func scheduleSteamShutdown(restart: Bool = false, gameAtQuit: Bool = false) {
+        guard !TestGuard.keepsOut(supportDir.path) else { return }  // a test program's quit hands nothing over (TestGuard)
         let wine = isSteamInstalled ? sessionWine() ?? installedWineNow() : nil
         let macSteam = restart || MacSteam.endsWithNightforge()
         let macLibrary = FileManager.default.fileExists(atPath: MacSteam.steamapps.path) ? MacSteam.steamapps.path : ""
@@ -1069,14 +1203,24 @@ enum Engine {
         let process = DetachedProcess()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         // Steam's -shutdown is a Windows program like any other: in the sandbox when it's switched on.
-        let sandbox = WineSandbox.enabled ? [WineSandbox.helper?.path ?? "-", WineSandbox.profile()] : ["", ""]
-        process.arguments = [script.path, wine?.path ?? "", prefix.path, macLibrary, macSteam ? "1" : "0", Bundle.main.bundlePath,
-                             String(getpid()), msync ? "1" : "0", String(Int(lastGameActivity?.timeIntervalSince1970 ?? 0))] + sandbox
-            + [restart ? "1" : "0"]
+        let sandbox = WineSandbox.enabled ? (WineSandbox.helper?.path ?? "-", WineSandbox.profile()) : nil
+        process.arguments = shutdownArguments(script: script.path, wine: wine?.path, prefix: prefix.path, macLibrary: macLibrary,
+                                              macSteam: macSteam, app: Bundle.main.bundlePath, quitting: getpid(), msync: msync,
+                                              lastGame: lastGameActivity, sandbox: sandbox, restart: restart, gameAtQuit: gameAtQuit)
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         try? process.run()  // keeps running after Nightforge has quit
+    }
+
+    /// What `bash` gets for the quit script: the script, then $1 to $12 in the order `steamShutdownScript` reads them.
+    /// `sandbox`: Wine's sandbox helper ("-" when it's switched on without one) and profile, nil when it's off.
+    static func shutdownArguments(script: String, wine: String?, prefix: String, macLibrary: String, macSteam: Bool, app: String,
+                                  quitting: pid_t, msync: Bool, lastGame: Date?, sandbox: (helper: String, profile: String)?,
+                                  restart: Bool, gameAtQuit: Bool) -> [String] {
+        [script, wine ?? "", prefix, macLibrary, macSteam ? "1" : "0", app, String(quitting), msync ? "1" : "0",
+         String(Int(lastGame?.timeIntervalSince1970 ?? 0)), sandbox?.helper ?? "", sandbox?.profile ?? "",
+         restart ? "1" : "0", gameAtQuit ? "1" : "0"]
     }
 
     /// The script scheduleSteamShutdown runs: $1 wine, $2 prefix, $3 Steam for Mac's steamapps,
@@ -1086,6 +1230,7 @@ enum Engine {
     /// that does it wait 30 s for the cloud saves before it ends Steam. $9 and $10 Wine's sandbox helper and
     /// profile (WineSandbox; review of 3.11.2026: it ran steam.exe from the prefix outside the sandbox).
     /// $11 "1" for a restart: no waiting for games or downloads, then Nightforge opens again (8.11.).
+    /// $12 "1" when Nightforge knew of a game running as it quit: only then does that game's end open Nightforge.
     /// It waits for a game or a download for 12 hours at most (`NIGHTFORGE_QUIT_LIMIT`, seconds), and
     /// counts a download only if it isn't paused. A game that starts while Steam is being ended (from Steam's
     /// window) sends it back to waiting, never under `wineserver -k`. Its process is in `steam-shutdown.pid`
@@ -1108,6 +1253,12 @@ enum Engine {
         # opens again once everything is down. The cloud saves of a game that just ended were waited for
         # in Nightforge, where it shows (LibraryModel.restartNightforge).
         RESTART="${11:-0}"
+        # GAME_AT_QUIT is 1 when Nightforge itself knew of a game running as it quit (its own start, or a Windows
+        # program from a game folder in its Wine session). Only then does the game's end bring Nightforge back: what
+        # `ps` shows can be anyone's – a test whose folders are called steamapps/common, a search in a terminal –
+        # and at 06:56 on 23.11.2026 such a process opened the Nightforge that had just been quit (a coordinator's
+        # install). Missing (a script from before): 1, as it was.
+        GAME_AT_QUIT="${12:-1}"
         finish() { [ "$RESTART" = 1 ] && [ -n "$APP" ] && open "$APP"; exit 0; }
         # A Windows program of the session: steam.exe lies in the prefix, which programs in the sandbox can
         # change, so with the switch on it runs inside too, as every other Wine start does. Switched on
@@ -1144,7 +1295,8 @@ enum Engine {
         UNKNOWN_SINCE=""
         PS_OUT=""
         read_processes() {
-          if PS_OUT="$(ps "$@" 2>/dev/null)" && [ -n "$PS_OUT" ]; then UNKNOWN_SINCE=""; return 0; fi
+          # Blank is no answer either: a list of nothing but spaces holds no process (a real one always lists this script).
+          if PS_OUT="$(ps "$@" 2>/dev/null)" && [ -n "$(printf '%s' "$PS_OUT" | tr -d '[:space:]')" ]; then UNKNOWN_SINCE=""; return 0; fi
           [ -n "$UNKNOWN_SINCE" ] || UNKNOWN_SINCE="$(date +%s)"
           return 1
         }
@@ -1167,16 +1319,32 @@ enum Engine {
         steam_running() { has_process '\steam\steam.exe'; }
         # A Windows program a launcher started by its bare name ("Control_DX11.exe -AUTH_LOGIN=…") shows
         # no folder; Wine gives it the game's as its working folder. Not Windows' or Steam's own programs.
+        # Nightforge's data folder: its engines and the Game loader lie there. A Windows game counts only as one of its
+        # own processes – the program it runs lies in there (lsof's txt), as Engine.ownProcesses has it. Before, any
+        # process on the Mac that named \steamapps\common\ counted: a test's stand-in kept this script waiting and
+        # then opened Nightforge (23.11.2026, 12:08).
+        # Resolved as lsof prints paths (/private/var for /var); the data folder as given where it can't be.
+        SUPPORT="$(cd "$(dirname "$PREFIX")" 2>/dev/null && pwd -P || dirname "$PREFIX")"
+        own_pids() {  # of the pids given, those whose program lies in the data folder
+          local pid
+          for pid in "$@"; do lsof -a -p "$pid" -d txt -Fn 2>/dev/null | grep -qF "n$SUPPORT/" && echo "$pid"; done
+        }
+        has_own_process() {  # a process of Nightforge's own whose command line names $1
+          read_processes -axo pid=,command= || return 0
+          local pids
+          pids="$(printf '%s\n' "$PS_OUT" | grep -iF -- "$1" | awk '{ print $1 }')"
+          [ -n "$pids" ] && [ -n "$(own_pids $pids)" ]
+        }
         runs_from_game_folder() {
           local list pids
           list="$(ps -axo pid=,command=)"
-          pids="$(printf '%s\n' "$list" | grep -iF .exe | grep -viF -e 'c:\windows\' -e '\steam\' -e steamwebhelper | awk '{ print $1 }' | paste -sd, -)"
+          pids="$(own_pids $(printf '%s\n' "$list" | grep -iF .exe | grep -viF -e 'c:\windows\' -e '\steam\' -e steamwebhelper | awk '{ print $1 }') | paste -sd, -)"
           [ -n "$pids" ] && lsof -a -d cwd -Fn -p "$pids" 2>/dev/null | grep -qiE '/steamapps/common/|/epic games/|/gog games/'
         }
         game_running() {
-          has_process '\steamapps\common\' && return 0                                  # a Windows game
-          has_process '\Epic Games\' && return 0                                         # an Epic game (same Wine session)
-          has_process '\GOG Games\' && return 0                                          # a GOG game (same Wine session)
+          has_own_process '\steamapps\common\' && return 0                              # a Windows game of Nightforge's
+          has_own_process '\Epic Games\' && return 0                                     # an Epic game (same Wine session)
+          has_own_process '\GOG Games\' && return 0                                      # a GOG game (same Wine session)
           [ -n "$MAC_STEAMAPPS" ] && has_process "/steamapps/common/" && return 0         # a Mac game, in any library (Windows paths have backslashes)
           runs_from_game_folder && return 0                                               # one a launcher started
           return 1
@@ -1252,7 +1420,7 @@ enum Engine {
           for i in $(seq 1 100); do kill -0 "$QUITTING" 2>/dev/null || break; sleep 0.1; done
         fi
         # The game ends: back to Nightforge (gone for three looks, so a launcher handing over doesn't count).
-        if [ "$RESTART" != 1 ] && [ -n "$APP" ] && game_running; then
+        if [ "$RESTART" != 1 ] && [ "$GAME_AT_QUIT" = 1 ] && [ -n "$APP" ] && game_running; then
           gone=0
           while [ "$gone" -lt 3 ]; do
             reopened && exit 0
@@ -1366,7 +1534,7 @@ enum Engine {
             }
             await switching()
             try? await stopSteam(session)
-            await offMain { stopAll(session) }
+            await offMain { stopAll(session, reason: "engine switch") }
         }
         let (wine, held) = (target.wine, target.held)
         let (graphics, dxvk, d3d9) = (target.graphics, target.dxvk, target.d3d9)
@@ -1404,6 +1572,108 @@ enum Engine {
 
     private static let steamStart = LockedValue<(wine: URL, at: Date)?>(nil)
 
+    /// Where wine.log stood just before that start (`startSteam`): what follows is its own, the boot of a session it
+    /// began included (`steamSessionBroken`).
+    static var steamStartLogMark: UInt64? {
+        get { steamStartMark.withLock { $0 } }
+        set { steamStartMark.withLock { $0 = newValue } }
+    }
+
+    private static let steamStartMark = LockedValue<UInt64?>(nil)
+
+    /// A Wine session that came up without Wine's network driver (23.11.2026, 11:34): winedevice.exe loaded mountmgr.sys
+    /// and nothing after it, nsiproxy.sys never came, and nsi.dll found no \\.\Nsi – Steam said "GetAdaptersAddresses
+    /// returned 2", wrote no line of its own and hung until the session was ended ~70 s later. In the 42 sessions with
+    /// Steam that worked, nsiproxy.sys came before steam.exe. `log`: wine.log since Steam's start (its loaddll lines);
+    /// `age`: how long ago that start was. Without those lines (another WINEDEBUG) only Steam's own words tell.
+    static func sessionBootBroken(log: String, age: TimeInterval) -> Bool {
+        var scan = SessionBootScan()
+        scan.read(Substring(log))
+        return scan.broken(age: age)
+    }
+
+    /// `sessionBootBroken`, line by line, so wine.log is read once and only what came since the last look (N3 of the
+    /// audit addendum: a look read up to 4 MB, every second while a start waited for Steam's sign-in).
+    struct SessionBootScan: Equatable {
+        /// Steam's own line, said before a game's first program came.
+        private(set) var said = false
+        /// Since the last wineboot.exe: that line, then mountmgr.sys, steam.exe, nsiproxy.sys.
+        private var booted = false, mountmgr = false, steam = false, nsiproxy = false
+        /// A program that is neither Wine's nor Steam's has loaded: a game, which inherits Steam's stderr and loads
+        /// steamclient64.dll – from here on that line may be its own (N4). Steam's stderr line carries no process
+        /// number, so the line before the game's first program is all that can be told apart. Without loaddll lines
+        /// nothing loads, and the line counts as before.
+        private var gameSeen = false
+
+        mutating func read(_ text: Substring) {
+            for line in text.split(whereSeparator: \.isNewline) { read(line: line) }
+        }
+
+        mutating func read(line: Substring) {
+            if line.contains("GetAdaptersAddresses returned 2") {
+                if !gameSeen { said = true }
+                return
+            }
+            guard line.contains("trace:loaddll:build_module Loaded") else { return }
+            if line.contains(#"\wineboot.exe" at"#) { booted = true; mountmgr = false; steam = false; nsiproxy = false }
+            if line.contains(#"\mountmgr.sys" at"#) { mountmgr = true }
+            if line.contains(#"\steam.exe" at"#) { steam = true }
+            if line.contains(#"\nsiproxy.sys" at"#) { nsiproxy = true }
+            if !gameSeen, line.contains(#".exe" at"#) || line.contains(#".EXE" at"#), !Self.wineOrSteam(line) { gameSeen = true }
+        }
+
+        /// A program from Wine's own folder or Steam's (not a game in steamapps).
+        static func wineOrSteam(_ line: Substring) -> Bool {
+            let path = line.lowercased()
+            if path.contains(#":\\windows\\"#) { return true }
+            return path.contains(#"\\steam\\"#) && !path.contains(#"\\steamapps\\"#)
+        }
+
+        func broken(age: TimeInterval) -> Bool {
+            // Only a session that began with this start: its drivers come after its wineboot.
+            said || (age >= Engine.sessionBootPatience && booted && mountmgr && steam && !nsiproxy)
+        }
+    }
+
+    /// How long after Steam's start a session may still be without nsiproxy.sys: in the sessions that worked it came
+    /// within a second of mountmgr.sys.
+    static let sessionBootPatience: TimeInterval = 15
+
+    /// The scan of the Steam started last: from its mark, up to where wine.log was read last (whole lines only).
+    private static let bootScan = LockedValue<(mark: UInt64, readTo: UInt64, scan: SessionBootScan)?>(nil)
+
+    /// `sessionBootBroken` for the Steam started last. Reads only what wine.log gained since the last look; the first
+    /// look reads at most the last 4 MB, as `GameLog.text(since:)` does.
+    static func steamSessionBroken(now: Date = Date()) -> Bool {
+        guard let start = lastSteamStart, let mark = steamStartLogMark else { return false }
+        return bootScan.withLock { kept in
+            var state = kept?.mark == mark ? kept! : (mark: mark, readTo: mark, scan: SessionBootScan())
+            state = scanGrowth(of: GameLog.url, state: state)
+            kept = state
+            return state.scan.broken(age: now.timeIntervalSince(start.at))
+        }
+    }
+
+    /// Reads what `url` gained after `state.readTo` into the scan; a log that got shorter (a fresh one) is read anew.
+    static func scanGrowth(of url: URL, state: (mark: UInt64, readTo: UInt64, scan: SessionBootScan))
+        -> (mark: UInt64, readTo: UInt64, scan: SessionBootScan) {
+        var state = state
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return state }
+        defer { try? handle.close() }
+        let end = (try? handle.seekToEnd()) ?? 0
+        if state.readTo > end { state = (mark: 0, readTo: 0, scan: SessionBootScan()) }  // a fresh log was started meanwhile
+        let from = max(state.readTo, end > 4_000_000 ? end - 4_000_000 : 0)
+        guard end > from else { return state }
+        try? handle.seek(toOffset: from)
+        let data = (try? handle.readToEnd()) ?? Data()
+        // Only whole lines: the rest is read with the next look.
+        guard let lastNewline = data.lastIndex(of: 0x0A) else { return state }
+        let whole = data[data.startIndex...lastNewline]
+        state.scan.read(Substring(String(decoding: whole, as: UTF8.self)))
+        state.readTo = from + UInt64(whole.count)
+        return state
+    }
+
     /// The engine a fresh Steam starts with: `wine` – or, when Steam didn't come up on the newest
     /// engine, the build held back for it (EngineRollback.steamPinnedBuild), its share of the prefix
     /// put in place. A Wine session left on another engine ends first; one a game runs in, Steam
@@ -1413,12 +1683,32 @@ enum Engine {
         guard let held = rollback.steamPinnedBuild(), rollback.build(running: wine) == rollback.history().current,
               let heldWine = wineBinary(in: rollback.folder(of: held, part: held.build.engineID))
         else { return wine }
-        if let session = sessionWine(), session.standardizedFileURL.path != heldWine.standardizedFileURL.path {
-            guard !windowsGameRunning else { return session }
-            stopAll(session)
+        switch steamEngineStep(held: heldWine, session: sessionWine(), gameRunning: windowsGameRunning) {
+        case .session(let session):
+            return session
+        case .endSessionThenHeld(let session):
+            stopAll(session, reason: "a game held back on another engine")
+        case .held:
+            break
         }
         useHeld(held, wine: heldWine)
         return heldWine
+    }
+
+    enum SteamEngineStep: Equatable {
+        /// The engine held back for a game, with no other session in the way.
+        case held
+        /// A session on another engine runs with a game in it: Steam joins that one, nothing is ended.
+        case session(URL)
+        /// A session on another engine without a game: it ends first.
+        case endSessionThenHeld(URL)
+    }
+
+    /// Where Steam starts when an engine is held back for a game (`steamEngine`): the session's own engine counts as the
+    /// held one by its standardized path.
+    static func steamEngineStep(held: URL, session: URL?, gameRunning: Bool) -> SteamEngineStep {
+        guard let session, session.standardizedFileURL.path != held.standardizedFileURL.path else { return .held }
+        return gameRunning ? .session(session) : .endSessionThenHeld(session)
     }
 
     /// Copies DXMT (Direct3D 10/11 → Metal) into the engine's builtin DLL folders. Safe to repeat.
@@ -1758,7 +2048,7 @@ enum Engine {
         // With the old wineserver, before it's replaced. A session that can't be told about (no process list)
         // is not left with half the pair: nothing is swapped, the stamp isn't written, the next start does it.
         guard let session = ownProcessesKnown() else { throw SetupError.sessionUnknown }
-        if !session.isEmpty { stopAll(wine) }
+        if !session.isEmpty { stopAll(wine, reason: "engine parts replaced") }
         for (source, pair) in zip(sources, pairs) {
             let original = pair.1.appendingPathExtension("engine")
             if available, !fm.fileExists(atPath: original.path) { try fm.copyItem(at: pair.1, to: original) }
@@ -2538,19 +2828,120 @@ enum Engine {
         // Not known whether a session runs (no process list): it isn't ended, and the switch isn't noted as
         // if it had been – the next start looks again.
         guard let session = ownProcessesKnown() else { return }
-        if !session.isEmpty { stopAll(wine) }
+        if !session.isEmpty { stopAll(wine, reason: "msync changes") }
         let wanted = msync
         defaults.set(wanted, forKey: msyncSessionKey)
         GameLog.note("msync \(wanted ? "on" : "off") from this Wine session on")
     }
 
+    /// What a Wine session has to begin with before Steam starts in it: msync, Retina and the library version as
+    /// Steam's settings want them – each one ends the session where it began otherwise (and never under a game).
+    /// One place for every Steam start that brings its own session settings (F5: also the one woken for Play).
+    static func applySessionSettings(_ wine: URL, defaults: UserDefaults = .standard) {
+        applyMsyncMode(wine, defaults: defaults)
+        applyRetinaMode(wine, defaults: defaults)
+        applyLibraryVersion(wine, defaults: defaults)
+    }
+
+    private static let librarySessionKey = "librarySession"
+
+    /// What `librarySession` holds for a session begun with the library `fingerprint` (nil: none installed). A
+    /// string that reads as no number: Nightforge up to 0.3.4 kept the version there (an integer) and reads this as
+    /// 0, so it ends a session begun here once and notes its own version – which reads as another session here.
+    static func librarySessionValue(fingerprint: String?) -> String { "sha256:" + (fingerprint ?? "none") }
+
+    /// Whether a session noted as `noted` (librarySession: nil before 0.3.2, an integer from Nightforge up to 0.3.4,
+    /// else `librarySessionValue`) began with another library than `wanted`. `began`: the markers its wineservers
+    /// started with (`librarySessionMarker`, "" for one without), nil when they can't be read – then the note alone
+    /// decides. Either one telling of another library ends it: the note is this copy's, the marker the session's own.
+    static func librarySessionEnds(noted: Any?, began: Set<String>? = nil, wanted: String) -> Bool {
+        if let began, began != [wanted] { return true }
+        return noted as? String != wanted
+    }
+
+    /// Carries `librarySessionValue` in every Wine process's environment (`environment(wine:)`), so the session itself
+    /// tells which library it began with. The note in the settings can't: another Nightforge with the same settings
+    /// (the release in /Applications next to a test build) begins a session with its own library and notes nothing,
+    /// or something else – and a copy that only looked at its own note kept that session (audit S2, 23.11.2026).
+    static let librarySessionMarker = "NIGHTFORGE_LIBRARY"
+
+    /// The markers the session's wineservers started with ("" for one without), nil when no wineserver is in
+    /// `session` or none can be read. The session's first Wine process starts the wineserver and hands it its
+    /// environment, as it does to Wine's device host (winedevice.exe), which F4 was about.
+    static func librarySessionMarkers(_ session: [(pid: pid_t, command: String)],
+                                      read: (pid_t) -> String? = { DockHider.startValue(of: librarySessionMarker, pid: $0) })
+        -> Set<String>? {
+        let servers = session.filter { $0.command.hasSuffix("/wineserver") || $0.command.contains("/wineserver ") }
+        let markers = Set(servers.compactMap { read($0.pid) })
+        return markers.isEmpty ? nil : markers
+    }
+
+    /// Where other running copies of Nightforge (same bundle ID, another process) come from, for wine.log: a name for
+    /// the place, never a path with the user's name in it.
+    static func otherNightforgeCopies() -> [String] {
+        guard let id = Bundle.main.bundleIdentifier else { return [] }
+        let me = ProcessInfo.processInfo.processIdentifier
+        return NSRunningApplication.runningApplications(withBundleIdentifier: id)
+            .filter { $0.processIdentifier != me && !$0.isTerminated }
+            .map { copyPlace($0.bundleURL?.path) }
+    }
+
+    /// "/Applications", "~/Applications" or "elsewhere" for the app at `path`.
+    static func copyPlace(_ path: String?, home: String = NSHomeDirectory()) -> String {
+        guard let path else { return "elsewhere" }
+        let folder = (path as NSString).deletingLastPathComponent
+        if folder == "/Applications" { return "/Applications" }
+        if folder == (home as NSString).appendingPathComponent("Applications") { return "~/Applications" }
+        return "elsewhere"
+    }
+
+    /// Ends the Wine session when it began with another hide-steam-dock.dylib than the one in the data folder now,
+    /// as `DockHider.path()` leaves it before Steam starts. Each Wine process loads the library at its start, and
+    /// Wine's device host (winedevice.exe, nsiproxy) runs from the session's start to its end: a Steam restart in
+    /// the session keeps the old one there. So after the network order came (wrapper/network-order.c), Steam
+    /// restarted at 15:13 on 22.11.2026 and still waited 20 s for the network. The session is noted by the
+    /// library's content, not by `DockHider.sessionVersion`: later that day the release in /Applications put
+    /// its older library into the data folder and began a session with it, and the test build, seeing the same
+    /// version number, kept that session – without the network order (F4).
+    /// Never under a running game, nor when that can't be told; with Steam down, before it starts again.
+    /// Besides the note here, the session's own marker (`librarySessionMarker`) decides: a session another copy of
+    /// Nightforge began – with another library, or without a marker (0.3.4 and earlier) – ends even when the note
+    /// matches, and wine.log says which other copy runs (S2).
+    /// `session`, `markers`, `others` and `end` stand in for the process list, the wineserver's environment, the
+    /// running apps and `stopAll` in tests.
+    static func applyLibraryVersion(_ wine: URL, defaults: UserDefaults = .standard,
+                                    session ownSession: () -> [(pid: pid_t, command: String)]? = { ownProcessesKnown() },
+                                    markers: ([(pid: pid_t, command: String)]) -> Set<String>? = { librarySessionMarkers($0) },
+                                    others: () -> [String] = { otherNightforgeCopies() },
+                                    end: (URL, String) -> Void = { wine, reason in stopAll(wine, reason: reason) }) {
+        let wanted = librarySessionValue(fingerprint: DockHider.fingerprint())
+        let noted = defaults.object(forKey: librarySessionKey)
+        // Not known whether a session runs: none is ended, and the library isn't noted – the next start looks again.
+        guard let session = ownSession() else { return }
+        let began = session.isEmpty ? nil : markers(session)
+        guard librarySessionEnds(noted: noted, began: began, wanted: wanted), windowsGameRunningKnown == false else { return }
+        if !session.isEmpty {
+            let copies = others()
+            // Never silently: what told, and which copy runs beside this one (a place, no path).
+            let told = librarySessionEnds(noted: noted, wanted: wanted) ? "" : ", by the session's own marker"
+            let beside = copies.isEmpty ? "" : " (another Nightforge runs from \(copies.joined(separator: ", ")))"
+            end(wine, "another hide-steam-dock.dylib" + told + beside)
+        }
+        defaults.set(wanted, forKey: librarySessionKey)
+        GameLog.note("hide-steam-dock.dylib \(DockHider.sessionVersion) (\(wanted)) from this Wine session on")
+    }
+
     static func environment(wine: URL) -> [String: String] {
         var env = ProcessInfo.processInfo.environment
         // Keeps Steam's own processes out of the Dock (wrapper/hide-steam-dock.m); games are untouched.
+        // Orders the network interfaces Wine sees, so Steam's sign-in finds the connected one (wrapper/network-order.c).
         // From the data folder: Steam passes this on for days, and Nightforge.app may move meanwhile.
         if let hider = DockHider.path() {
             env["DYLD_INSERT_LIBRARIES"] = hider
         }
+        // Which library the session begins with, for the next start to read back (applyLibraryVersion). Also without
+        // one ("sha256:none"), as applyLibraryVersion wants it then: a session without the marker is another copy's.
+        env[librarySessionMarker] = librarySessionValue(fingerprint: DockHider.fingerprint())
         env["WINEPREFIX"] = prefix.path
         // msync (installMsync); every Wine process of the session, wineserver included, has to agree,
         // so it's in the environment all of them start with. Engines without it ignore it.
@@ -2652,16 +3043,16 @@ enum Engine {
         // path (…\steamapps\common\…) also says "steam"; while one runs, its session stays.
         let ours = ownProcesses().map { $0.command.lowercased() }
         if !isSteamRunning, !gameKeepsSession(ours), ours.contains(where: { $0.contains("steam") }) {
-            stopAll(wine)
+            stopAll(wine, reason: "Steam's processes without a running Steam")
         }
         if isSteamRunning {
             guard !current, !busy else { return }
             try await restartSteamInBackground(wine)
         } else {
             if !busy {
-                applyMsyncMode(wine)
-                applyRetinaMode(wine)
+                applySessionSettings(wine)
             }
+            await waitForSteamToEnd()
             try startSteam(wine, arguments: ["-silent"])
         }
         UserDefaults.standard.set(steamConfigSignature, forKey: key)
@@ -2878,8 +3269,8 @@ enum Engine {
     /// Quits Steam politely (so it saves its state) and starts it again hidden.
     static func restartSteamInBackground(_ wine: URL) async throws {
         try await stopSteam(wine)
-        applyMsyncMode(wine)
-        applyRetinaMode(wine)
+        applySessionSettings(wine)
+        await waitForSteamToEnd()
         try startSteam(wine, arguments: ["-silent"])
         UserDefaults.standard.set(steamConfigSignature, forKey: "steamConfigSignature")
     }
@@ -2887,15 +3278,15 @@ enum Engine {
     /// A Steam that stopped taking commands (SteamCommands) doesn't take its "-shutdown" either: it
     /// ends with its Wine session instead – the caller makes sure no game runs in it – and starts
     /// again in the background. A client update going in finishes first.
-    static func restartHungSteam(_ wine: URL) async throws {
+    static func restartHungSteam(_ wine: URL, reason: String = "Steam stopped taking commands") async throws {
         var waited = 0
         while waited < 120, SteamBootstrap(steamRoot: steamRoot) == .installing {
             try await Task.sleep(for: .seconds(1))
             waited += 1
         }
-        await offMain { stopAll(wine) }
-        applyMsyncMode(wine)
-        applyRetinaMode(wine)
+        await offMain { stopAll(wine, reason: reason) }
+        applySessionSettings(wine)
+        await waitForSteamToEnd()
         try startSteam(wine, arguments: ["-silent"])
         UserDefaults.standard.set(steamConfigSignature, forKey: "steamConfigSignature")
     }
@@ -2923,22 +3314,27 @@ enum Engine {
                 left -= 1
             }
         }
-        stopAll(wine)
+        stopAll(wine, reason: "the session settles (sandbox)")
         return true
     }
 
     /// `endWait`: seconds Steam gets for its "-shutdown" – `filesEndWait` where its files are touched after.
-    static func stopSteam(_ wine: URL, endWait: Int = 20) async throws {
-        try await stopSteam(wine, running: { isSteamRunning },
+    /// `leftovers`: whether the rest of Steam has to end too (`waitForSteamLeftovers`), where its files are touched
+    /// after. A Steam that starts again waits for it anyway (`waitForSteamToEnd`), and a stop that the session's end
+    /// or Steam for Mac follows doesn't need it: up to 15 s the player would see as the curtain for nothing (S3).
+    static func stopSteam(_ wine: URL, endWait: Int = 20, leftovers: Bool = false) async throws {
+        try await stopSteam(wine, running: { isSteamRunning }, leftovers: { leftovers ? steamLeftovers : [] },
                             installing: { SteamBootstrap(steamRoot: steamRoot) == .installing },
                             shutdown: { try startSteam(sessionWine() ?? $0, arguments: ["-shutdown"]) },
-                            hardStop: { wine in
-                                // `wineserver -k` ends everything in the session: never with a game in it.
-                                guard windowsGameRunningKnown == false else {
-                                    return GameLog.note("Steam didn't end, and a game runs in its session: it's left as it is")
-                                }
-                                stopAll(wine)
-                            }, endWait: endWait)
+                            hardStop: { hardStopSteam($0, gameRunning: windowsGameRunningKnown) }, endWait: endWait)
+    }
+
+    /// Steam that didn't end after "-shutdown": `wineserver -k` ends everything in the session – never with a game in it,
+    /// nor when that can't be told (`gameRunning` nil: no process list).
+    static func hardStopSteam(_ wine: URL, gameRunning: Bool?, stop: (URL, String) -> Void = { wine, reason in stopAll(wine, reason: reason) },
+                              log: (String) -> Void = GameLog.note) {
+        guard gameRunning == false else { return log("Steam didn't end, and a game runs in its session: it's left as it is") }
+        stop(wine, "Steam didn't end after -shutdown")
     }
 
     /// For a stop before Steam's files are touched (a game moved, a library added or forgotten): within five
@@ -2951,9 +3347,14 @@ enum Engine {
     /// (`wineserver -k`) when Steam hasn't ended `endWait` pauses after it, as it sometimes doesn't. After
     /// that up to `goneWait` pauses until it's gone: a process ended a moment ago can still be listed, and
     /// the caller that looks right after took it for a Steam started again (The Forest's move, 5.11.2026).
-    static func stopSteam(_ wine: URL, running: () -> Bool, installing: () -> Bool, shutdown: (URL) throws -> Void,
-                          hardStop: (URL) -> Void, pause: Duration = .seconds(1), installWait: Int = 120,
-                          endWait: Int = 20, goneWait: Int = 10) async throws {
+    /// Then, once steam.exe is gone, up to `leftoverWait` pauses for the rest of Steam to end by itself
+    /// (`steamProcessNames`; `leftovers` nil: no process list, no wait): a Steam started 2–5 s after the last one
+    /// ended took 27–32 s instead of 5–6 s on 22.11.2026 (16:37, 16:40), its driver query and web helper slow and
+    /// port 27036 still taken – parts of the old one were still running. Nothing is ended for it.
+    static func stopSteam(_ wine: URL, running: () -> Bool, leftovers: () -> [String]? = { [] }, installing: () -> Bool,
+                          shutdown: (URL) throws -> Void, hardStop: (URL) -> Void, pause: Duration = .seconds(1),
+                          installWait: Int = 120, endWait: Int = 20, goneWait: Int = 10, leftoverWait: Int = steamLeftoverWait,
+                          serviceWait: Int = steamServiceWait, log: (String) -> Void = GameLog.note) async throws {
         guard running() else { return }
         // A client update going in finishes first (up to 2 min): cut off, Steam would start it over.
         var waited = 0
@@ -2965,13 +3366,92 @@ enum Engine {
         guard running() else { return }
         try shutdown(wine)
         for _ in 0..<endWait {
-            guard running() else { return }
+            guard running() else {
+                return try await waitForSteamLeftovers(leftovers, pause: pause, limit: leftoverWait, serviceLimit: serviceWait, log: log)
+            }
             try await Task.sleep(for: pause)
         }
         hardStop(wine)
         for _ in 0..<goneWait {
-            guard running() else { return }
+            guard running() else {
+                return try await waitForSteamLeftovers(leftovers, pause: pause, limit: leftoverWait, serviceLimit: serviceWait, log: log)
+            }
             try await Task.sleep(for: pause)
+        }
+    }
+
+    /// Steam's programs still running in Nightforge's session (`steamProcessNames`), nil without a process list.
+    static var steamLeftovers: [String]? { ownProcessesKnown().map { steamProcessNames(in: $0.map(\.command)) } }
+
+    /// Before Steam starts again in the background: what is left of the last one – ended by "-shutdown" or with its
+    /// Wine session (stopAll, a new session for msync, Retina or the library) – ends first, as after `stopSteam`.
+    /// On 22.11.2026 at 19:32 the session ended at :23 and Steam started at :24 (13.8 s, at 19:01 5.65 s).
+    /// Looked at four times a second: after a "-shutdown" on 23.11. at 06:37 the web helpers had gone with steam.exe
+    /// and Steam's service 0.6 s after it – waited for in whole seconds, that was 1 s before the player's game.
+    /// `leftovers` and `log` stand in for the process list and wine.log in tests.
+    static func waitForSteamToEnd(leftovers: () -> [String]? = { steamLeftovers }, log: (String) -> Void = GameLog.note) async {
+        try? await waitForSteamLeftovers(leftovers, pause: .milliseconds(1000 / steamLeftoverLooks),
+                                         limit: steamLeftoverWait * steamLeftoverLooks,
+                                         serviceLimit: steamServiceWait * steamLeftoverLooks, log: log)
+    }
+
+    /// How long a stop of Steam waits for its last processes after steam.exe, in seconds, and for Steam's
+    /// service alone: a Windows service, which may stay longer than the client that started it.
+    static let steamLeftoverWait = 15
+    static let steamServiceWait = 5
+    /// How often a second `waitForSteamToEnd` looks.
+    static let steamLeftoverLooks = 4
+
+    /// `pauses` of `pause` in seconds, for the log: "1", "0.75", "0.002".
+    static func seconds(_ pauses: Int, of pause: Duration) -> String {
+        let (whole, fraction) = pause.components
+        var text = String(format: "%.3f", Double(pauses) * (Double(whole) + Double(fraction) / 1e18))
+        while text.hasSuffix("0") { text.removeLast() }
+        if text.hasSuffix(".") { text.removeLast() }
+        return text
+    }
+
+    /// The programs of a Steam that end with it, by name (lower-cased): the client, its web helpers (Nightforge's
+    /// wrapper and Valve's), its service and its driver queries.
+    static let steamProgramNames: Set<String> = ["steam.exe", "steamwebhelper.exe", "steamwebhelper_real.exe", "steamservice.exe",
+                                                  "gldriverquery.exe", "gldriverquery64.exe", "vulkandriverquery.exe",
+                                                  "vulkandriverquery64.exe"]
+
+    /// Which of `steamProgramNames` run in `commands` (as ps shows Wine's processes: the Windows path, then the
+    /// arguments), each once and sorted. Only the program's file name counts – up to its ".exe" – never an argument.
+    static func steamProcessNames(in commands: [String]) -> [String] {
+        Set(commands.compactMap { command -> String? in
+            let lower = command.lowercased()
+            guard let end = lower.range(of: ".exe") else { return nil }
+            let path = lower[..<end.upperBound]
+            let name = String(path[(path.lastIndex { $0 == "\\" || $0 == "/" }.map(path.index(after:)) ?? path.startIndex)...])
+            return steamProgramNames.contains(name) ? name : nil
+        }).sorted()
+    }
+
+    /// Waits until none of Steam's programs is left (`leftovers`), Steam's service alone at most `serviceLimit`
+    /// pauses, everything at most `limit`; then goes on as before, with a line in the log that says how long and
+    /// what went last (which part of Steam stays, for the next look at this wait). Never ends anything.
+    static func waitForSteamLeftovers(_ leftovers: () -> [String]?, pause: Duration, limit: Int, serviceLimit: Int,
+                                      log: (String) -> Void) async throws {
+        var waited = 0
+        var last: [String] = []
+        while true {
+            guard let left = leftovers() else { return }  // no process list: as before
+            if left.isEmpty {
+                if waited > 0 {
+                    log("Steam's last processes ended \(seconds(waited, of: pause)) s after steam.exe, last \(last.joined(separator: ", "))")
+                }
+                return
+            }
+            let serviceOnly = left == ["steamservice.exe"]
+            if waited >= limit || (serviceOnly && waited >= serviceLimit) {
+                log("Steam's processes still there \(seconds(waited, of: pause)) s after steam.exe: \(left.joined(separator: ", ")) – Steam goes on without waiting longer")
+                return
+            }
+            last = left
+            try await Task.sleep(for: pause)
+            waited += 1
         }
     }
 
@@ -3135,6 +3615,19 @@ enum Engine {
     /// SteamSwitch first, and "-shutdown" has to reach a Steam that's still up.
     static func holdsBack(arguments: [String], heldBack: Bool) -> Bool { heldBack && arguments == backgroundStart }
 
+    /// What Steam's process starts with: steam.exe, the arguments every start of it gets, then the caller's; the session's
+    /// environment with Steam's own over it – its variables, its DLL overrides, the loader when that isn't wine itself, its
+    /// WINEDEBUG – and the caller's over everything.
+    static func steamLaunch(wine: URL, loader: URL, clientInstalled: Bool, arguments: [String], session: [String: String],
+                            extraEnvironment: [String: String]) -> (arguments: [String], environment: [String: String]) {
+        var env = session.merging(steamEnvironment) { _, new in new }
+        env["WINEDLLOVERRIDES"] = steamDLLOverrides
+        if loader != wine { env["WINELOADER"] = loader.path }
+        env["WINEDEBUG"] = wineDebug
+        return ([steamExeWindowsPath] + startArguments(clientInstalled: clientInstalled) + arguments,
+                env.merging(extraEnvironment) { _, new in new })
+    }
+
     /// Starts Steam without waiting; used for signing in and for launching games.
     static func startSteam(_ wine: URL, arguments: [String] = [], extraEnvironment: [String: String] = [:]) throws {
         if holdsBack(arguments: arguments, heldBack: windowsSteamHeldBack) {
@@ -3153,18 +3646,16 @@ enum Engine {
         }
         do {
             let loader = loader(for: wine)
-            let process = try WineSandbox.process(loader, [steamExeWindowsPath]
-                + startArguments(clientInstalled: SteamBootstrap.clientInstalled(steamRoot: steamRoot)) + arguments)
-            var env = environment(wine: wine).merging(steamEnvironment) { _, new in new }
-            env["WINEDLLOVERRIDES"] = steamDLLOverrides
-            if loader != wine { env["WINELOADER"] = loader.path }
-            env["WINEDEBUG"] = wineDebug
-            process.environment = env.merging(extraEnvironment) { _, new in new }
+            let launch = steamLaunch(wine: wine, loader: loader, clientInstalled: SteamBootstrap.clientInstalled(steamRoot: steamRoot),
+                                     arguments: arguments, session: environment(wine: wine), extraEnvironment: extraEnvironment)
+            let process = try WineSandbox.process(loader, launch.arguments)
+            process.environment = launch.environment
             process.standardInput = FileHandle.nullDevice
             // Its games inherit this, so their errors end up in the log too.
             let log = GameLog.handleForSteam()
             process.standardOutput = log ?? FileHandle.nullDevice
             process.standardError = log ?? FileHandle.nullDevice
+            if fresh { steamStartLogMark = GameLog.mark() }
             try RosettaSupport.run(process)
         } catch {
             // A start that never happened isn't judged as the engine's failure (SteamStartCheck, review B5).

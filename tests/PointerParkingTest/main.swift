@@ -34,6 +34,17 @@ struct PointerParkingTest {
         check(!parks(&b, question: true), "a question that wants the pointer: it stays")
         check(!b.isParked, "none of those counts as parked")
 
+        // Over the game: the curtain lowered counts, though it still fades (23.11.2026: the pointer stayed till the next press).
+        check(PointerParking.overGame(gameInFront: true, playing: true, curtainUp: false, curtainGoing: false), "a game in front, no curtain: over it")
+        check(!PointerParking.overGame(gameInFront: true, playing: true, curtainUp: true, curtainGoing: false),
+              "the curtain up (Steam's question on it, the pointer brought there): left alone")
+        check(PointerParking.overGame(gameInFront: true, playing: true, curtainUp: true, curtainGoing: true),
+              "the curtain just lowered, still fading: the pointer goes at once, not at the next press")
+        check(!PointerParking.overGame(gameInFront: false, playing: true, curtainUp: false, curtainGoing: true), "another app in front: nothing")
+        check(!PointerParking.overGame(gameInFront: true, playing: false, curtainUp: false, curtainGoing: false), "no game of Nightforge's: nothing")
+        let router = (try? String(contentsOfFile: "Sources/Nightforge/InputRouter.swift", encoding: .utf8)) ?? ""
+        check(router.contains("parkPointerIfDue(padInUse: Self.padUsedLast, curtainGoing: true)"), "the curtain's going says so")
+
         var c = PointerParking()
         var looked = false
         _ = c.parksNow(padInUse: false, now: 1, mouseAgo: 60, pointerInUse: false, setting: true, overGame: { looked = true; return true }(), question: false)

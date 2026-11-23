@@ -22,10 +22,8 @@ pinned="$(grep -v '^#' scripts/codesign-certificate.sha1 2>/dev/null | tr -d '[:
 
 work="$(mktemp -d)"
 trap 'rm -rf -- "${work:?}"' EXIT
-clt_sdk="/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk"
-if [ -z "${SDKROOT:-}" ] && [ "$(xcode-select -p 2>/dev/null)" = "/Library/Developer/CommandLineTools" ] && [ -d "$clt_sdk" ]; then
-  export SDKROOT="$clt_sdk"
-fi
+# shellcheck source=scripts/sdk-lib.sh
+. scripts/sdk-lib.sh && nightforge_pick_sdk
 swiftc -O -parse-as-library -o "$work/export" scripts/export-codesign-identity.swift \
   || fail "The export tool doesn't build (Command Line Tools or Xcode needed)."
 "$work/export" "$pinned" "$out"

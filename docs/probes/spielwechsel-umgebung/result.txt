@@ -1,0 +1,26 @@
+== control-avx (outer AVX=1, interposer=0, NF_SPAWN_AVX=none)
+exit 7
+windows NF_PROBE=from-the-starter
+windows ROSETTA_ADVERTISE_AVX=1
+cpuid avx=1 osxsave=1
+IsProcessorFeaturePresent(AVX)=0
+== control-none (outer AVX=none, interposer=0, NF_SPAWN_AVX=none)
+exit 7
+windows NF_PROBE=from-the-starter
+windows ROSETTA_ADVERTISE_AVX=(none)
+cpuid avx=0 osxsave=0
+IsProcessorFeaturePresent(AVX)=0
+== spawn-removes (outer AVX=1, interposer=1, NF_SPAWN_AVX=0)
+exit 7
+windows NF_PROBE=from-the-starter
+windows ROSETTA_ADVERTISE_AVX=1
+cpuid avx=0 osxsave=0
+IsProcessorFeaturePresent(AVX)=0
+   1 spawn-env: execve ~/Application Support/Nightforge/Components/winecx/4.7.3/Libraries/Wine/lib/wine/x86_64-unix/wine match=1
+== spawn-adds (outer AVX=none, interposer=1, NF_SPAWN_AVX=1)
+exit 7
+windows NF_PROBE=from-the-starter
+windows ROSETTA_ADVERTISE_AVX=(none)
+cpuid avx=1 osxsave=1
+IsProcessorFeaturePresent(AVX)=0
+   1 spawn-env: execve ~/Application Support/Nightforge/Components/winecx/4.7.3/Libraries/Wine/lib/wine/x86_64-unix/wine match=1

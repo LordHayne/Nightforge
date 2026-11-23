@@ -69,6 +69,9 @@ enum GameOverlay {
 
     static var isOpen: Bool { panel?.isVisible == true }
 
+    /// The overlay is up, or its game is still stopped after it closed (`runningOn`): a quiet game then is no hang (HangWatch).
+    static var mayHoldGame: Bool { isOpen || runningOn != nil }
+
     /// Up over a game that isn't stopped and shows its picture (a Mac game that only runs online, a Windows
     /// one our pad driver keeps the pad from): whatever the pointer does, the game sees it.
     static var gameRunsUnder: Bool { isOpen && runsUnder(centered: state.centered, paused: state.paused) }
@@ -884,7 +887,9 @@ enum GameProcesses {
     /// through CFUserNotification, which UserNotificationCenter draws (Tomb Raider's on its drive lay
     /// under the curtain on 2.11.), or through AuthorizationPromptService – Accessibility's
     /// (universalAccessAuthWarn), location's (CoreLocationAgent), Gatekeeper's for an app from the
-    /// internet (CoreServicesUIAgent), a password or Touch ID (SecurityAgent, coreautha).
+    /// internet (CoreServicesUIAgent), a password or Touch ID (SecurityAgent, coreautha). The firewall's "accept
+    /// incoming network connections?" is UserNotificationCenter's too: socketfilterfw (/usr/libexec/ApplicationFirewall)
+    /// puts it up with CFUserNotificationCreate and draws no window of its own (its imports, macOS 27.2, 22.11.2026).
     nonisolated static let macOSAskers = [
         "/System/Library/CoreServices/UserNotificationCenter.app/",
         "/System/Library/CoreServices/AuthorizationPromptService.app/",

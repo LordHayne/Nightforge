@@ -41,8 +41,11 @@ enum CurtainEscape {
         var askedAgo: TimeInterval?
     }
 
-    /// From here on B and Esc lead out, and the curtain says so: a cold Steam takes about this long.
+    /// From here on B and Esc lead out: a cold Steam takes about this long.
     static let openAfter: TimeInterval = 30
+    /// From here on the curtain says so. A console names no way out while a start takes its time (the user,
+    /// 22.11.2026): B works from `openAfter`, the line comes only at a wait that long.
+    static let tipAfter: TimeInterval = 90
     /// A silent Steam gets the question by itself after this, before Nightforge's own limit of 2 min.
     static let askAfter: TimeInterval = 90
     /// An update whose figures don't move for this long: stuck, with room for Steam's pauses between steps.
@@ -70,6 +73,12 @@ enum CurtainEscape {
         }
     }
 
+    /// Whether the curtain names the way out yet (`waited`: as in `Look`). Epic's and GOG's own work and
+    /// Steam's question say it at once: B ends them at once, and the player has something to do there.
+    static func tipShows(_ reason: Reason, waited: TimeInterval) -> Bool {
+        reason.atOnce || waited >= tipAfter
+    }
+
     /// The line on the curtain: B on the controller drawn, or Esc without one.
     static func tip(_ reason: Reason, pad: PadSymbols?) -> LaunchTip {
         let symbols = pad.map { [$0.back] } ?? []
@@ -80,7 +89,8 @@ enum CurtainEscape {
         case .ownSaves, .steamAsks:
             return LaunchTip(symbols: symbols, text: pad == nil ? L10n.t("Esc takes you back to Nightforge") : L10n.t("Back to Nightforge"))
         case .storeQuiet, .updating, .updateStuck:
-            return LaunchTip(symbols: symbols, text: pad == nil ? L10n.t("Stuck? Esc takes you back to Nightforge") : L10n.t("Stuck? Back to Nightforge"))
+            // No "Stuck?": nothing on the curtain says something's wrong while a start only takes its time (22.11.2026).
+            return LaunchTip(symbols: symbols, text: pad == nil ? L10n.t("Esc takes you back to Nightforge") : L10n.t("Back to Nightforge"))
         }
     }
 

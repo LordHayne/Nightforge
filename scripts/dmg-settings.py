@@ -1,11 +1,11 @@
 # Settings for dmgbuild: the drag-to-Applications window of Nightforge's DMG. Run from the repo root:
-#   dmgbuild -s scripts/dmg-settings.py -D app=build/Nightforge.app Nightforge Nightforge.dmg
+#   dmgbuild -s scripts/dmg-settings.py -D app=build/Nightforge.noindex/Nightforge.app Nightforge Nightforge.dmg
 # The background (Resources/dmg/background.png and @2x) is drawn by scripts/render-brand.swift;
 # the icon positions here match the arrow and name tags painted on it.
 
 import os.path
 
-app = defines.get("app", "build/Nightforge.app")  # noqa: F821 (provided by dmgbuild)
+app = defines.get("app", "build/Nightforge.noindex/Nightforge.app")  # noqa: F821 (provided by dmgbuild)
 app_name = os.path.basename(app)
 
 format = "UDZO"

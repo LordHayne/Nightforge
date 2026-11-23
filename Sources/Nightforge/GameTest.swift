@@ -61,6 +61,35 @@ enum GameTest {
     }
     #endif
 
+    /// Whether a start notes its phases in wine.log ("Start phases of <game>: to Steam at 19:34:27.3, 1.0 s after Play",
+    /// LibraryModel.phaseLine), for a look at where a start's time goes (docs/ENTWURF-STARTZEIT.md). A switch with no
+    /// place in the window: `defaults write io.github.lordhayne.nightforge gameTest.startPhases -bool true`, and
+    /// `defaults delete … gameTest.startPhases` after the measurement. A release build has no such switch, not even
+    /// its name: the finished build tracks nothing (the user, 15.11.2026).
+    #if NIGHTFORGE_RELEASE
+    static func notesStartPhases(defaults: UserDefaults = .standard) -> Bool { false }
+    #else
+    static let startPhasesKey = "gameTest.startPhases"
+
+    static func notesStartPhases(defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: startPhasesKey)
+    }
+    #endif
+
+    /// Whether a running game is watched for hangs, a line in wine.log when it looks hung and when it moves again
+    /// (HangWatch, HangRule, docs/ENTWURF-HAENGER.md). Stage 1 only measures: no surface, nothing in the game's process. A
+    /// switch with no place in the window: `defaults write io.github.lordhayne.nightforge gameTest.hangWatch -bool true`.
+    /// A release build has no such switch, not even its name.
+    #if NIGHTFORGE_RELEASE
+    static func watchesHangs(defaults: UserDefaults = .standard) -> Bool { false }
+    #else
+    static let hangWatchKey = "gameTest.hangWatch"
+
+    static func watchesHangs(defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: hangWatchKey)
+    }
+    #endif
+
     /// When a measured session of play began and under what, a line for the log beside the start's limit
     /// (GameTestMeasure.limitNote): the list counts a frame rate only with its conditions on record, and
     /// finds the start in the evidence by the moment (scripts/laeuft-liste.py, PLAY_LINE).

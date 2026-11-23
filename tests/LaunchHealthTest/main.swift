@@ -924,8 +924,9 @@ struct LaunchHealthTest {
         check(lastSeen.count == LaunchPhase.signaturesKept && lastSeen.last == "s\(LaunchPhase.signaturesKept + 1)"
               && LaunchPhase.isFirstStart(.steam(572), signature: "s0", defaults: shaderDefaults)
               && !LaunchPhase.isFirstStart(.steam(572), signature: "s2", defaults: shaderDefaults), "the last \(LaunchPhase.signaturesKept) are kept")
-        check(Set([LaunchPhase.startingSteam, .signingIn, .settingUp, .settingUpDotNet, .restartingSteam, .retrying("DXVK"),
-                   .startingSteamForMac, .signInInSteamWindow].map(\.hint)).count == 8, "every phase explains itself differently")
+        check(Set([LaunchPhase.startingSteam, .signingIn, .signingInAgain, .steamCloudSync, .settingUp, .settingUpDotNet, .restartingSteam,
+                   .restartingSteamForGame, .retrying("DXVK"), .startingSteamForMac, .signInInSteamWindow].map(\.hint)).count == 11,
+              "every phase explains itself differently")
 
         // "Save battery when unplugged": 30 FPS on battery, nothing changes plugged in or with the setting off.
         check(PowerSource.cappedLimit(60, onBattery: true, saveBattery: true) == 30, "60 becomes 30 on battery")

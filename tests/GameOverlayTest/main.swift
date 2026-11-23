@@ -552,20 +552,66 @@ struct GameOverlayTest {
 
     /// The curtain at each look: down only once the game itself is in front, and up again when
     /// another app takes the front from it (the TV test on 1.11.: the Claude app came up instead).
+    /// The rest of the picture before the curtain sinks (the user's decision of 23.11.2026): 1 s for a game proven on this
+    /// Mac whose first picture fills the screen, 2 s for every other – and always for Overwatch and anti-cheat games.
+    static func curtainRest() {
+        let screen = CGSize(width: 1512, height: 982)
+        let wukong = GameID.steam(2_358_720).key
+        func rest(_ game: String = wukong, proven: Bool = true, antiCheat: Bool = false, first: String? = "1512×982",
+                  now: String? = "1512×982", on: CGSize? = screen) -> TimeInterval {
+            LibraryModel.pictureSteadyNeeded(game: game, proven: proven, antiCheat: antiCheat, firstPicture: first, picture: now, screen: on)
+        }
+        let short = LibraryModel.pictureSteadyProven, full = LibraryModel.pictureSteady
+        check(short == 1 && full == 2, "1 s against 2 s")
+        // The four cases: proven or not, the first picture the screen's size or not.
+        check(rest() == short, "proven here, first picture full screen: 1 s")
+        check(rest(first: "668×434", now: "668×434") == full, "proven here, a smaller first picture (Wukong's benchmark, 22.11.): 2 s")
+        check(rest(proven: false) == full, "no proof on this Mac, full screen: 2 s")
+        check(rest(proven: false, first: "1512×949", now: "1512×949") == full, "no proof, a window under the menu bar (Valheim): 2 s")
+        // Overwatch and anti-cheat games keep the full rest, whatever they proved.
+        check(rest(GameID.steam(2_357_570).key) == full, "Overwatch on Steam: 2 s, proven and full screen as it may be")
+        check(rest(GameID.battlenet("pro").key) == full, "Overwatch as Battle.net's title: 2 s")
+        check(rest(antiCheat: true) == full, "an anti-cheat game: 2 s")
+        // Without evidence it stays long: a start that hasn't said yet what it proved counts as an anti-cheat game unproven.
+        check(rest(proven: false, antiCheat: true) == full, "nothing known of the start: 2 s")
+        // Only the first picture counts, and only while it keeps its size.
+        check(rest(first: "1392×742", now: "1512×982") == full, "the screen's size only after another one first (Overwatch, 8.11.): 2 s")
+        check(rest(first: nil, now: "1512×982") == full && rest(first: "1512×982", now: nil) == full, "no picture known: 2 s")
+        check(rest(on: nil) == full, "no screen known: 2 s")
+        check(rest(first: "1513×981", now: "1513×981") == short, "a point either way is still the screen's size")
+        check(rest(first: "1512×980", now: "1512×980") == full, "two points short is a window, not the screen")
+        check(!LibraryModel.fillsScreen("1512x982", screen: screen) && !LibraryModel.fillsScreen("", screen: screen),
+              "a size that isn't one: not the screen")
+        // The start hands the watch what it knows, fresh at each Play.
+        let model = (try? String(contentsOfFile: "Sources/Nightforge/LibraryModel.swift", encoding: .utf8)) ?? ""
+        check(model.contains("curtainProof = (game.gameID.key, wayConfirmed, handsOff)"), "the proof: the start's own way confirmed, its anti-cheat")
+        check(model.contains("curtainProof = nil\n        notePhase(game, \"Play\")"), "nothing left over from the start before")
+        check(model.contains("antiCheat: proof?.antiCheat ?? true"), "without the start's word, as an anti-cheat game")
+        check(model.contains("else if size != firstPicture { firstSizeKept = false }")
+              && model.contains("picture: firstSizeKept ? pictureSize?.size : nil"),
+              "a picture that changed its size once never gets the short rest, back at its first size or not")
+    }
+
     static func curtain() {
         func step(lowered: Bool = false, gameFront: Bool = false, nightforgeFront: Bool = false, macOS: Bool = false,
                   here: Bool = false, anywhere: Bool = false, asks: Bool = false, frontFor: TimeInterval = 0,
                   settle: TimeInterval = 1, guardOver: Bool = false, pictureFor: TimeInterval = 0, broughtBack: Int = 0,
-                  playerActed: Bool = false, shieldOnly: Bool = false, steadyFor: TimeInterval = .infinity) -> LibraryModel.CurtainStep {
+                  playerActed: Bool = false, shieldOnly: Bool = false, steadyFor: TimeInterval = .infinity,
+                  steadyNeeded: TimeInterval = LibraryModel.pictureSteady) -> LibraryModel.CurtainStep {
             LibraryModel.curtainStep(lowered: lowered, gameFront: gameFront, nightforgeFront: nightforgeFront, macOSAsks: macOS,
                                      windowHere: here, windowAnywhere: anywhere || here, asks: asks, frontFor: frontFor,
                                      settle: settle, guardOver: guardOver, pictureFor: pictureFor, broughtBack: broughtBack,
-                                     playerActed: playerActed, shieldOnly: shieldOnly, steadyFor: steadyFor)
+                                     playerActed: playerActed, shieldOnly: shieldOnly, steadyFor: steadyFor, steadyNeeded: steadyNeeded)
         }
         // Overwatch, 8.11. 14:53: its window went 1392×742, 1342×710, and only then the display mode.
         check(step(gameFront: true, here: true, frontFor: 1, steadyFor: 0.5) == .wait, "the picture's size still changing: the curtain stays")
         check(step(gameFront: true, here: true, frontFor: 1, steadyFor: 2) == .lower, "steady for 2 s: the curtain sinks")
         check(step(gameFront: true, here: true, frontFor: 1, pictureFor: 15, steadyFor: 0) == .lower, "the ceiling holds whatever the size does")
+        check(step(gameFront: true, here: true, frontFor: 1, steadyFor: 1) == .wait, "1 s is too short for the full rest")
+        check(step(gameFront: true, here: true, frontFor: 1, steadyFor: 1, steadyNeeded: 1) == .lower, "the short rest: the curtain sinks after 1 s")
+        check(step(gameFront: true, here: true, frontFor: 0.5, steadyFor: 1, steadyNeeded: 1) == .wait, "the short rest still waits for the game's second in front")
+        check(step(gameFront: true, here: true, frontFor: 1, steadyFor: 0.5, steadyNeeded: 1) == .wait, "and for its size to stay that second")
+        curtainRest()
         check(!LibraryModel.fetchesFrontItself(again: false, active: false), "a plain handover doesn't go through Launch Services")
         check(!LibraryModel.fetchesFrontItself(again: true, active: true), "Nightforge in front already: it hands over as ever")
         check(LibraryModel.fetchesFrontItself(again: true, active: false), "fetching a game back from behind needs a real round through the front")
@@ -913,6 +959,17 @@ struct GameOverlayTest {
         pad.back = "b.circle.fill"
         check(CurtainEscape.tip(.storeQuiet, pad: pad).symbols == ["b.circle.fill"], "with a controller: its B drawn")
         check(CurtainEscape.tip(.storeQuiet, pad: nil).symbols.isEmpty, "without one: Esc in words")
+        // B works from half a minute on, the curtain names it only after a minute and a half (the user, 22.11.2026).
+        check(CurtainEscape.openAfter == 30 && CurtainEscape.tipAfter == 90, "30 s and 90 s")
+        for reason in [CurtainEscape.Reason.storeQuiet, .updating, .updateStuck] {
+            check(!CurtainEscape.tipShows(reason, waited: CurtainEscape.openAfter) && !CurtainEscape.tipShows(reason, waited: CurtainEscape.tipAfter - 1)
+                  && CurtainEscape.tipShows(reason, waited: CurtainEscape.tipAfter), "\(reason): B quietly from 30 s, named from 90 s")
+        }
+        for reason in [CurtainEscape.Reason.ownUpdate, .ownSaves, .steamAsks] {
+            check(CurtainEscape.tipShows(reason, waited: 0), "\(reason): named at once, the player has something to do there")
+        }
+        check(CurtainEscape.tip(.storeQuiet, pad: pad).text == L10n.t("Back to Nightforge")
+              && CurtainEscape.tip(.updating, pad: nil).text == L10n.t("Esc takes you back to Nightforge"), "no “Stuck?” in front of it")
         check(CurtainEscape.title(.updating, game: "Valheim", store: "Steam").contains("Valheim"), "the update's title names the game")
         check(CurtainEscape.title(.storeQuiet, game: "Control", store: "Epic Games").contains("Epic Games"), "whose start it is, not always Steam")
 
@@ -981,7 +1038,8 @@ struct GameOverlayTest {
               && !M.restartsSteamForStart(environmentChanged: true, stuck: false, running: false, gamesRunning: false),
               "settings only: not with a Windows game in its session, nor with no Steam running")
         // "Stuck?" counts from the end of Nightforge's own work.
-        for phase in [LaunchPhase.signingIn, .restartingSteam, .startingSteam, .savingToCloud, .settingUp, .settingUpDotNet, .steamNotResponding] {
+        for phase in [LaunchPhase.signingIn, .signingInAgain, .steamCloudSync, .restartingSteam, .restartingSteamForGame, .startingSteam,
+                      .savingToCloud, .settingUp, .settingUpDotNet, .steamNotResponding] {
             check(M.phaseExplainsWait(phase), "\(phase) explains the wait: no \"Stuck?\" meanwhile")
         }
         check(!M.phaseExplainsWait(nil) && !M.phaseExplainsWait(.updating(0.4)) && !M.phaseExplainsWait(.syncingSaves)
@@ -1006,11 +1064,11 @@ struct GameOverlayTest {
         func line(_ phase: String? = nil, shaders: Bool = false, runs: Bool = false) -> String? {
             LibraryModel.curtainStatus(phase: phase, shaders: shaders, gameRuns: runs)
         }
-        check(line() == nil, "nothing known yet: \"Starting …\"")
-        check(line("Starting Steam …") == "Starting Steam …", "the start's own step, from the first look on")
+        check(line() == nil, "nothing known yet: no line, the light on the seam")
+        check(line("Sign in in the Steam window") == "Sign in in the Steam window", "a line the start has (LaunchPhase.curtainTitle), from the first look on")
         check(line("Starting again with WineD3D …", runs: true) == "Starting again with WineD3D …", "a step wins over the game's")
-        check(line(runs: true) == nil, "the game runs, no window yet: still \"Starting …\", one line for the start")
-        check(line(shaders: true, runs: true) == L10n.t("Preparing shaders …"), "its first start with these graphics")
+        check(line(runs: true) == nil, "the game runs, no window yet: no line")
+        check(line(shaders: true, runs: true) == nil, "its first start with these graphics: no line either (the sentence comes after a minute)")
         check(LibraryModel.curtainStatus(phase: "Starting Steam …", shaders: false, gameRuns: true, asks: true)
               == L10n.t("The game is asking something"), "a question on it: said, before any step, one line")
         // The pad's buttons in their own line, not in the sentence (the rule of 15.11.2026).
@@ -1028,21 +1086,34 @@ struct GameOverlayTest {
                                          macOSAsks: true)
               == L10n.t("macOS is asking for permission"),
               "macOS asks: said, before the game's question and any step")
-        func detail(_ sentence: String? = nil, asks: Bool = false, pad: Bool = false, macOSAsks: Bool = false, shaders: Bool = false) -> String? {
-            LibraryModel.curtainDetail(sentence: sentence, asks: asks, pad: pad, macOSAsks: macOSAsks, shaders: shaders)
+        func detail(_ sentence: String? = nil, asks: Bool = false, pad: Bool = false, macOSAsks: Bool = false, firstTime: Bool = false) -> String? {
+            LibraryModel.curtainDetail(sentence: sentence, asks: asks, pad: pad, macOSAsks: macOSAsks, firstTime: firstTime)
         }
         check(detail() == nil, "nothing to add")
         check(detail(macOSAsks: true) == L10n.t("Answer with the mouse or trackpad."), "macOS asks: how to answer")
         check(detail("Its window is open.") == "Its window is open.", "the start's sentence")
         check(detail("Its window is open.", asks: true, pad: true) == nil, "under a question it waits for, with the pad's buttons: no sentence")
-        check(detail(shaders: true) == L10n.t("Only the first time.") && detail("x", shaders: true) == "x", "shaders: only once, after the start's own")
-        // The rule of 15.11.2026: a sentence only where it's true once or the player has a window to answer in.
+        check(detail(firstTime: true) == LaunchPhase.firstTimeSentence && detail("x", firstTime: true) == "x", "a long first start: its sentence, after the start's own")
+        // A long first start's sentence only after a minute, and only for what's done once.
+        let wait = LaunchPhase.firstTimeAfter
+        check(!LibraryModel.longFirstTime(phase: .settingUp, repair: nil, shaders: false, waited: wait - 1)
+              && LibraryModel.longFirstTime(phase: .settingUp, repair: nil, shaders: false, waited: wait)
+              && LibraryModel.longFirstTime(phase: .settingUpWindowsParts("vcredist"), repair: nil, shaders: false, waited: 90)
+              && LibraryModel.longFirstTime(phase: nil, repair: .settingUp, shaders: false, waited: 90)
+              && LibraryModel.longFirstTime(phase: nil, repair: nil, shaders: true, waited: 90), "Windows parts, the repair's piece, shaders: after a minute")
+        check(!LibraryModel.longFirstTime(phase: .startingSteam, repair: nil, shaders: false, waited: 300)
+              && !LibraryModel.longFirstTime(phase: .restartingSteam, repair: nil, shaders: true, waited: 300)
+              && !LibraryModel.longFirstTime(phase: nil, repair: nil, shaders: false, waited: 300), "a long wait that isn't a first time: nothing")
+        // A sentence only where the player has a window to answer in.
         check(LibraryModel.curtainSentence(phase: .startingSteam, repair: nil, confirming: false) == nil
               && LibraryModel.curtainSentence(phase: .signingIn, repair: nil, confirming: false) == nil
               && LibraryModel.curtainSentence(phase: .updating(0.4), repair: nil, confirming: false) == nil, "no why on the curtain")
-        check(LibraryModel.curtainSentence(phase: .settingUpWindowsParts("vcredist"), repair: nil, confirming: false) == L10n.t("Only the first time.")
+        check(LibraryModel.curtainSentence(phase: .settingUpWindowsParts("vcredist"), repair: nil, confirming: false) == nil
               && LibraryModel.curtainSentence(phase: .signInInSteamWindow, repair: nil, confirming: false) == L10n.t("Its window is open."),
-              "once, or a window to answer in")
+              "a window to answer in; setting up says nothing at once")
+        check(LibraryModel.curtainSentence(phase: nil, repair: .onceMore, confirming: false) == nil
+              && LibraryModel.curtainSentence(phase: .startingSteam, repair: .gaveUp, confirming: false) == LaunchRepair.gaveUp.detail,
+              "a try is silent, the end is said even with a phase standing")
         check(LibraryModel.curtainSentence(phase: nil, repair: .gaveUp, confirming: false) == LaunchRepair.gaveUp.detail
               && LibraryModel.curtainSentence(phase: .startingSteam, repair: nil, confirming: true) == LaunchPhase.confirmHint,
               "the honest end; Steam's question before the start")

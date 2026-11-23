@@ -7,6 +7,42 @@ Umstieg auf winecx 4.7.3 mit D3DMetal (PR #7), dem Controller-Paket (PR #8) und 
 Neue Punkte unten in den passenden Abschnitt, Erledigtes löschen (die Geschichte steht im Git-Log).
 Jeder Punkt nennt, wo man anfängt.
 
+## Nach der Abnahme 23.11.
+
+Was nach der Abnahme heute Abend wartet. Stand 23.11.2026, 13:45, `claude/staging-035` 121eb176. Nichts davon ist
+gepusht. Gemergt wird erst mit dem OK des Nutzers.
+
+**Wartende Zweige**
+- [ ] `claude/zwei-pads-04` (f109d2b0, Kette grün, vom Koordinator geprüft): zwei Pads, gehaltene Richtungen und Scrollen je
+  Pad. Fertig, wartet auf den Merge nach der Abnahme (zusammen mit `audit-klein-035`), danach Gegenprüfung mit einem Pad.
+  Live mit zwei Pads: Nummern, Licht, Abstecken.
+- [ ] `claude/audit-klein-035` (395c98ce, Kette grün 13:31): N3–N5 aus `docs/AUDIT-0.3.5-NACHTRAG.md`. Der Blick auf eine
+  kaputte Sitzung liest nur den Zuwachs von wine.log. Die Adapter-Zeile zählt nur vor dem ersten Programm eines Spiels.
+  `neverSyncs` wird je Steam-Start gemerkt. Vom Koordinator geprüft, Merge nach der Abnahme.
+- [ ] `claude/site-035` (1c24bc23): Landingpage und README für 0.3.5, ungemergt, bis der Nutzer
+  `docs/SITE-0.3.5-VORHER-NACHHER.md` gesehen hat. Vor dem Release: das Datum der Zeitleiste, die Versionszeile mit der echten
+  DMG-Größe, Sätze zu [offen]-Punkten streichen, die in der Abnahme durchfallen.
+
+**Offene Wahlen des Nutzers** (Übersicht in `docs/ROADMAP-0.4.md`)
+- [ ] Steams Fragen mit dem Pad (`docs/ENTWURF-STEAM-PAD.md`): „Bedienungshilfen“ in die Konsolenmodus-Anfrage? Leistentext
+  ohne Erlaubnis (Vorher/Nachher)? Startoption in Nightforge fragen? Dazu Probe B an einer Frage des Windows-Steam.
+- [ ] Pad-only (`docs/ENTWURF-PAD-ONLY.md`): Pad-Tastatur für jedes Textfeld, Ordnerwahl ohne Dateifenster, Berichte per QR,
+  Meldungen mit Knopf (erst live prüfen), Epic-Anmeldung.
+- [ ] Spielwechsel ohne Steam-Neustart (`docs/ENTWURF-SPIELWECHSEL.md`): Weg 1, 2 oder 3 (Empfehlung für 0.3.5: 3).
+- [ ] Hängendes Spiel (`docs/ENTWURF-HAENGER.md`): erst mit `gameTest.hangWatch` messen, dann Angebot A, B oder C.
+- [ ] AVX unter Wine (`docs/ENTWURF-AVX.md`): Weg A oder D (Empfehlung für 0.3.5: D).
+- [ ] Großes Overlay: die Variante (Board `entwuerfe/Overlay.dc.html`), dazu, was es live können soll
+  (`docs/ENTWURF-OVERLAY-FUNKTIONEN.md`). Der DXMT-Patch für eine Bildratengrenze im laufenden Spiel bräuchte das OK wegen LGPL.
+  Technik liegt bereit, noch nicht eingehängt: `SystemVolume` (Lautstärke des Macs, Kachel aus ohne Software-Lautstärke) und
+  `GameScreenshot` (nur das Spielfenster, Erlaubnis nur geprüft), Testreihe `tests/OverlayServicesTest`.
+- [ ] Klänge (0.4.x): einen der drei Sätze in `docs/entwurf-klaenge-04/index.html` anhören und wählen.
+- [ ] Startzeit (`docs/ENTWURF-STARTZEIT.md`): die drei Starts mit Zeitmarken heute Abend. Der kürzere Vorhang nach dem ersten
+  Bild steht zur Wahl.
+
+**Aus der Abnahme selbst** (`docs/release-notes/v0.3.5.md`, die [offen]-Punkte)
+- [ ] Lichtnaht, Konsolenmodus am Spiel, Wukong mit 60 FPS, eine Sekunde Bildruhe, Overwatch, zwei Kopien mit dem Release,
+  Startphasen. Was durchfällt, kommt aus den Release-Notizen und aus `claude/site-035` heraus.
+
 ## Sessions aufgeräumt (14.11.)
 
 Sechs Sessions sind archiviert, ihre Zweige stecken alle in `claude/staging-033` (Testbuild 4d7806c): Audit
@@ -301,6 +337,236 @@ scheitert und sich nicht schnell beheben lässt, wird ausgeschaltet oder herausg
 - **Abschluss wie 0.3.2:** Audit- und Testrunde, Profilliste signieren (Nutzer), Zusammenführen auf `main` (OK des
   Nutzers), Release-Notizen, Bot-PRs #39–#41 entscheiden.
 
+## Umzug der Entwicklung auf das MacBook Pro M5 Pro (vorbereitet 22.11.2026)
+
+Der Nutzer: Das neue MacBook war für erste Tests auf einem frischen Mac gedacht; die Entwicklung zieht ganz dorthin um,
+mit Signierung. Sessions der Claude-App ziehen nicht mit (kein dokumentierter Weg); auf dem neuen Mac beginnt eine neue
+Koordinator-Session, die zuerst das Memory liest.
+
+- [x] **Alle Zweige gesichert:** `nightforge-alle-zweige-2026-11-22.bundle` (17 MB, 223 Zweige, `git bundle verify` ok),
+  darin auch, was nur lokal lag: `claude/staging-035` (diese Liste), `claude/steam-start-probe-035` (F4-Aufzeichnung),
+  `claude/vibrant-meninsky-0f7097` (ARM64-Stand November), `claude/airplay-nvidia-shield-app-b56bc2` (Shield-App),
+  `claude/dxmt-hud-toggle-033`, `claude/direct-probe`. Liegt im Koordinator-Ordner unter `build/handover/`.
+- [x] **Repo am neuen Mac: der vorhandene Klon `~/Development/nightforge`** – erledigt 22.11. nachmittags: `main` per
+  `pull --ff-only` auf 66fce01; 15 tote Worktree-Einträge mit Pfaden des alten Macs mit `git worktree prune` entfernt
+  (sie ließen den Fetch scheitern: „refusing to fetch into branch … checked out at /Users/thomas/Downloads/Nachtschicht/…“);
+  dann der Fetch unten: 7 Zweige neu, 1 vorgespult, keiner abgelehnt; alle 222 `claude/`- und `backup/`-Zweige gleich dem
+  Bundle. Achtung: Das Bundle trägt ein veraltetes `refs/heads/main` (785c65d) – nie von dort holen.
+  Arbeitszweig wieder als Worktree `build/staging-035`.
+  Ursprünglicher Plan: (22.11.: `~/development` ist dort derselbe
+  Ordner wie `~/Development` – Groß- und Kleinschreibung zählen nicht – und enthält andere Projekte; Nightforge liegt
+  schon geklont darin, `main` ohne eigene Änderungen, 1079 Commits hinter GitHub). Aktualisieren statt neu klonen:
+  `git -C ~/Development/nightforge pull`, dann die lokalen Zweige aus dem Bundle (ohne `+`: vorhandene, abweichende
+  Zweige werden nicht überschrieben, sondern abgelehnt):
+  `git -C ~/Development/nightforge fetch <bundle> 'refs/heads/claude/*:refs/heads/claude/*' 'refs/heads/backup/*:refs/heads/backup/*'`.
+- [x] **Memory** – erledigt 22.11.: aus `nightforge-memory-2026-11-22.zip` nach
+  `~/.claude/projects/-Users-thomas-Development-nightforge/memory/` (81 Dateien; der Ordner war leer, nichts beiseite gelegt).
+  Ursprünglicher Plan (612 KB): Claude Code legt es nach dem Pfad des Repos ab, wie die App ihn sieht (jedes Zeichen außer
+  Buchstaben und Ziffern wird zu `-`), vermutlich `~/.claude/projects/-Users-thomas-Development-nightforge/memory/`.
+  Den Namen aus `pwd -P` im Repo bilden; liegt dort schon ein `memory/` (frühere Arbeit am alten Klon), erst beiseite
+  legen. Vor dem Start der neuen Session entpacken. Pfade im Memory, die auf `~/Downloads/Nachtschicht` zeigen, gelten
+  dort sinngemäß für `~/Development/nightforge`.
+- [x] **Notizordner** (110 MB, `chain-033.sh`, `stackpeek/`, `env-probe/`, `hermes/`, `live-runde-033/`, Shader-Messung …):
+  lag am alten Mac unter `~/Library/Application Support/Claude/side-session-notes/local_50379bcc-…/`. Erledigt 22.11.:
+  beide Teile entpackt nach `~/Library/Application Support/Claude/side-session-notes/local_755bf7fe-d220-412c-ad3d-843646eb80ad/`
+  (Kennung der neuen Koordinator-Session), Pfad im Memory eingetragen. Dazu `chain-035.sh` (Kette für diesen Mac;
+  meldet pytest als übersprungen, solange `python@3.13` fehlt).
+- [x] **Signierung (nur der Nutzer)** – erledigt 22.11. nachmittags: Zertifikat importiert (unten), Hauptschlüssel vom
+  alten Mac per Zwischenablage in den Schlüsselbund (`security -i`, `-T ""`); geprüft vom Nutzer mit
+  `security find-generic-password … -w | build/signing-tool/signing-tool which` → „main“. Plan war: Ed25519-Hauptschlüssel im Schlüsselbund „Anmeldung“ als Kennwort mit Dienst
+  `nightforge-signing-key`, Account `main` (`scripts/signing-lib.sh`); Ersatzschlüssel im Passwort-Manager.
+  Code-Signing-Zertifikat: `.p12` auf „Games“ (`Nightforge-Code-Signing.p12`, Passwort im Passwort-Manager), Import
+  nach `docs/CODESIGNATUR.md` (`security import … -T /usr/bin/codesign`); `scripts/codesign-certificate.sha1` nennt
+  `B60A2D36…`. Danach `security find-identity -p codesigning` und ein Probelauf von `scripts/check-signatures.sh`.
+  Stand 22.11. nachmittags: **Zertifikat importiert** (Nutzer, `security import` von „Games“): `find-identity -p
+  codesigning` zeigt B60A2D36… „Nightforge Code Signing“ (CSSMERR_TP_NOT_TRUSTED, wie erwartet), gleich
+  `scripts/codesign-certificate.sha1`. `scripts/check-signatures.sh` grün (rc 0, alle drei Listen mit dem Hauptschlüssel).
+  Hauptschlüssel: zuerst kein Schlüsselbund-Eintrag `nightforge-signing-key`/`main`; Weg: am alten Mac in den
+  Passwort-Manager, hier mit `security -i` aus der Zwischenablage (wie `make-signing-keys.sh`). Beim ersten Bau mit dem
+  Zertifikat fragt macOS, ob `codesign` den Schlüssel nutzen darf („Immer erlauben“, `docs/CODESIGNATUR.md`); bis dahin
+  unbeaufsichtigt nur `NIGHTFORGE_AD_HOC=1 ./build.sh`.
+- [x] **Werkzeuge** – erledigt 22.11. nachmittags: Homebrew (Nutzer), `python@3.13` 3.13.18, `gh` 2.105.0, `gh auth login`
+  (Nutzer, HTTPS). pytest läuft aus einem venv neben dem Hauptklon: `build/pytest-venv` (Homebrews python3.13 + pytest 9.2).
+  Der Installer trägt Homebrew in `/etc/paths.d/homebrew` ein: Jede neue Login-Shell findet `brew`, `python3.13` und
+  `gh`, ein Eintrag in `~/.zprofile` ist nicht nötig.
+  Ursprünglicher Plan: Command Line Tools (`xcode-select` bleibt auf `/Library/Developer/CommandLineTools`), Homebrew,
+  `python@3.13` (für das DMG in `sign-release.sh`), `gh` mit `gh auth login`, `jq` (bringt macOS mit).
+  Stand 22.11. nachmittags: da sind CLT 27.2 (`xcode-select -p` = CLT), Swift 6.4.2, git 2.54, jq 1.7.1, Rosetta;
+  `Xcode.app` liegt in `/Applications` (bleibt ungenutzt, solange `xcode-select` auf CLT zeigt). Es fehlen Homebrew,
+  `python@3.13` (mit pytest für die Kette), `gh`. `mingw-w64` ist nicht nötig: `build.sh` nimmt die geprüften
+  Windows-Helfer aus `wrapper/`.
+- [x] **Erster Probelauf dort:** `./build.sh`, `scripts/run-tests.sh -P 2`, pytest; dann ein Testbuild mit `--install`.
+  22.11. nachmittags auf 814b69c (Code = main 66fce01 = 0.3.4): Bau grün in 2 min, 122 Reihen, 0 rot (3,5 min bei -P 2),
+  pytest 286 bestanden – dieselben Zahlen wie zuletzt am alten Mac. Testbuild mit OK des Nutzers eingespielt
+  (b2beac2, nur Dokumente seit der Kette; `build.sh --install` in 1:41 min): signiert mit B60A2D36
+  („Nightforge Code Signing“, `codesign --verify --deep --strict` ok), Version 0.3.4, läuft aus `~/Applications`;
+  das Release 0.3.4 in `/Applications` bleibt daneben liegen (gleiche Bundle-ID: Testbuild immer per Pfad öffnen).
+- [ ] **Dieser Mac** bleibt Rückfall, bis am neuen ein Release durchgelaufen ist.
+
+## 0.3.5: Ladebildschirm und Wartephasen „wie eine Konsole“ (22.11.2026, Entscheidung des Nutzers)
+
+Der Nutzer nach der Messrunde: „Mit der Optik sind wir wieder ein Stück weiter weg vom Konsolen-Feeling als
+zuvor.“ Und um 18:34, als Teilschritt zu 0.4 „Wie eine Konsole“:
+
+- [ ] **Dock im Spielmodus komplett unsichtbar**, nie zu sehen.
+- [ ] **Keine Technik- oder Fehlertexte in normalen Phasen** („hängen geblieben“ nur bei einem echten Hänger,
+  „Hängt es?“ nicht in erklärenden Phasen; der Cloud-Text nur bei `sessionReplaced`).
+- [ ] **Immer sichtbare Bewegung, als schöne Animation** (Entscheidung 18:42, ersetzt den Fortschrittsbalken):
+  „Bei einer Konsole will niemand wissen, was technisch passiert.“ Ruhig, im Nightforge-Stil, immer in Bewegung,
+  auch beim Vorhang beim Beenden (am 22.11. stand er 1–2 min). Keine Phasentexte im Vordergrund, Technik nur ins
+  Protokoll; Text nur, wenn der Spieler handeln muss.
+- Vorgehen: erst ein Entwurf mit Vorher/Nachher-Bildern für den Nutzer (Abgleich mit `docs/AUDIT-LADESCREEN.md`,
+  `docs/ENTWURF-WARTEZEIT-STARTSEITE.md`, `docs/ENTWURF-KONSOLE.md`), dann bauen. Bestellt bei Heinzel als Worker B
+  (Zweig `claude/ladescreen-konsole-035`). Vorlage: die uncommitteten Phasentext-Änderungen eines abgebrochenen
+  Workers in `.claude/worktrees/f5-steam-ohne-neustart`.
+
+**Entscheidungen des Nutzers zu 0.4 „Wie eine Konsole“ (22.11., 18:42, über Heinzel):**
+1. Controller-only ist hart: alles muss einwandfrei mit dem Pad gehen, auch Steams Abfragen.
+2. Zielzeiten: keine Zahlen – „maximal verbessern, was geht“.
+3. „Konsolenmodus“: eine Anfrage, sobald ein Controller erkannt wird; ersetzt die heutige Vollbild-Anfrage.
+4. Ladeanzeige: schöne Animation, kein Fortschrittsbalken mit Technikschritten.
+5. Overlay in 0.4.0, Klänge später in 0.4.x.
+
+- [ ] **Spielstart-Zeit (zu 2., Zweig `claude/startzeit-04`, `docs/ENTWURF-STARTZEIT.md`):** Phasen der Starts vom
+  22.11. Bester Fall 30 s: 6 s Nightforge vor der Übergabe, 0 s Steam, 24 s lädt das Spiel. Gebaut: kein Warten mehr
+  auf Steams Controller-Abgleich, den dieses Steam nie macht (bis zu 20 s je Start kurz nach einem Steam-Start), und
+  Zeitmarken „Start phases of …“ im Protokoll. Offen: die 6-s-Lücke mit den Zeitmarken messen (drei Starts heute
+  Abend, Liste im Dokument), Vorhang nach dem ersten Bild (~2,5 s) als Wahl für den Nutzer, Befunde im Dokument.
+- [ ] **Steams Abfragen mit dem Pad (Entscheidung 1, 23.11.; Probe B vorbereitet: 1157602 `--warten`/`--jetzt`,
+  Lesart 5e88238e in `docs/probes/steam-pad-keys/README.md`):** Bestand und Wege in `docs/ENTWURF-STEAM-PAD.md`
+  (Zweig `claude/steam-dialoge-pad-04`). Heute nur der Pad-Zeiger, der ohne „Bedienungshilfen“ nicht klickt; Ⓐ/Ⓑ wirken
+  bei Steams Fragen nicht. Zur Wahl: Erlaubnis in die Konsolenmodus-Anfrage, Probe „Tasten im Windows-Steam per Wine“
+  (Weg B), Leistentext ohne Erlaubnis, Startoption in Nightforge. Noch nichts gebaut.
+
+- [ ] **Nightforges eigene Bildschirme nur mit dem Pad (Entscheidung 1, 23.11.):** Bestand in `docs/ENTWURF-PAD-ONLY.md`
+  (Zweig `claude/pad-only-04`). Fast alles geht; gebaut: Pad-Fokus für die zwei Textfelder unter Einstellungen › Stores und
+  `tests/test_pad_reach.py`. Zur Wahl: Pad-Tastatur für jedes Textfeld, Ordnerwahl ohne Dateifenster, Berichte per QR aufs
+  Handy, Meldungen mit Knopf (erst live prüfen).
+
+- [ ] **Spielwechsel ohne Steam-Neustart (0.4, 23.11.):** `docs/ENTWURF-SPIELWECHSEL.md` (Zweig `claude/spielwechsel-04`).
+  Ein Neustart kostet 27–40 s; Auslöser sind AVX, D3DMetal-Grenze/MetalFX, Anti-Cheat, Vulkan-Treiber, Startprogramm, Retina.
+  Probe `docs/probes/spielwechsel-umgebung/`: Eine Bibliothek im startenden Prozess, die `execve` abfängt, setzt die
+  Unix-Umgebung des Kinds, Rosetta folgt (AVX an/aus ohne Neustart des Elternprozesses). Zur Entscheidung: Weg 1
+  (Abfangen in steam.exe, braucht OK wegen Anti-Cheat-Prozessen und eine Probe mit Steam), Weg 2 (Steam vorab passend),
+  Weg 3 (so lassen). Noch nichts an der App gebaut.
+- [ ] **Hängendes Spiel erkennen, Stufe 1 (0.4.0, 23.11.):** `docs/ENTWURF-HAENGER.md` (Zweig `claude/haenger-erkennen-04`).
+  Regel `HangRule` (vorn, sichtbar, nicht angehalten, 30 s bzw. 90 s beim ersten Start ohne CPU, Lesen und Ton), Zeichen nur von
+  außen (`proc_pid_rusage`, Core Audio, Fensterliste), hinter dem Testschalter `gameTest.hangWatch` nur eine Zeile in
+  wine.log. Messen: Schalter an, spielen, „Hang watch:“ suchen. Danach Wahl des Angebots im Overlay (A/B/C).
+
+**Aus derselben Runde, technisch:**
+- [x] **Zwei Nightforge-Kopien mit gleicher Kennung** (erledigt 23.11.: `claude/library-session-035` nach Inhalt, dazu S2
+  `claude/zwei-kopien-035` 1e23c1c – die Sitzung trägt ihre Kennung, siehe Audit-Liste unten) (Release in `/Applications`, Testbuild in `~/Applications`,
+  beide „0.3.4“): Launchpad/Spotlight/Finder öffnen das Release, und das ersetzt `hide-steam-dock.dylib` im
+  Datenordner durch seine alte. `librarySession` (nur Versionsnummer) merkt das nicht → Sitzung mit alter
+  Bibliothek, F4-Timeout. Abhilfe: `librarySession` per Inhalt der Bibliothek (Worker A,
+  `claude/library-session-035`, bestellt). Für die Testphase: Release aus `/Applications` nehmen (OK des Nutzers
+  offen).
+- [x] **F5 live bestätigt (22.11., 19:32–19:38, Stand dcf1183, Messung des Nutzers):** Beim zweiten Start kein
+  Steam-Neustart, spürbar schneller. Der erste Start nach dem Öffnen war noch lang (Analyse bei Worker A, zusammen mit
+  dem Steam-Ende-Punkt). Beim zweiten Beenden stand das Dock vor dem Ladebildschirm und das Beenden dauerte zu lange
+  (gehört zum Lichtnaht-Bau, Worker B).
+- [x] **Bau-Ausgaben in Spotlight und Launchpad** (erledigt: 7449c1b2, `build/Nightforge.noindex/`): Der Nutzer sieht drei Nightforge-Apps (Release „Test-Pause“ in
+  `/Applications`, Testbuild in `~/Applications`, `build/staging-035/build/Nightforge.app`). Jede `build/Nightforge.app`
+  in einem Worktree wird gefunden und bei LaunchServices angemeldet. Abhilfe: Bau-Ausgabe unsichtbar machen (Ordner mit
+  `.noindex`, oder nach dem Bau `lsregister -u`), einmal alle vorhandenen abmelden. Nächster freier Worker.
+- [ ] **Aus dem Audit vor 0.3.5 (`docs/AUDIT-0.3.5.md`, Zweig `claude/audit-035`), für später:**
+  - [x] S2 (erledigt 23.11., 1e23c1c, in staging): Zwei Nightforge-Kopien (Release + Testbuild) beenden sich gegenseitig die Wine-Sitzung (librarySession als
+    Text, 0.3.4 als Zahl); Steam startet jedes Mal neu, nie unter einem Spiel. Betrifft nur Testphasen.
+    **23.11., Zweig `claude/zwei-kopien-035`:** Befund: Das echte Release 0.3.4 (main) notiert gar nichts; die Zahl
+    kam aus frühen 0.3.5-Testbauten. Beginnt eine Kopie ohne Notiz (0.3.4) eine Sitzung mit ihrer Bibliothek, sieht
+    der Testbau nur seine eigene, passende Notiz und behielt die fremde Sitzung (dieselbe Lücke wie F4). Abhilfe: jede
+    Wine-Sitzung trägt `NIGHTFORGE_LIBRARY=sha256:…` in der Umgebung; `applyLibraryVersion` liest es am wineserver
+    nach und beendet eine Sitzung mit fremder oder fehlender Kennung auch bei passender Notiz (nie unter einem Spiel),
+    mit Zeile im Protokoll, welche andere Kopie läuft („/Applications“, „~/Applications“, „elsewhere“). Der Neustart
+    beim Wechsel zwischen verschiedenen Bibliotheken bleibt: er ist richtig. Gleiche Bibliothek in beiden Kopien:
+    kein Neustart mehr. Einmalig endet die Sitzung eines älteren 0.3.5-Testbaus (ohne Kennung).
+  - [x] S3 (erledigt: `claude/steam-wartezeit-035`, gemergt c85adfb; live 23.11. Steam 1–2 s nach dem Öffnen bei allen
+    Einspielungen 07:04–12:37): `waitForSteamToEnd` wartet bis zu 15 s vor einem Steam-Start. Live beobachten, wie oft das voll ausgeschöpft
+    wird („Steam's processes still there …“ im Protokoll).
+    **Befund 23.11. (Zweig `claude/steam-wartezeit-035`):** Seit es die Wartezeit gibt (22.11. 19:32), steht in `wine.log`
+    ein einziges Warten („ended 1 s after steam.exe“). Ein „still there“ kommt nie vor. Messung beim Stopp um 06:37: Die
+    Webhelfer gingen mit steam.exe, Steams Dienst 0,6 s danach, die ganze Sitzung nach 1,1 s. Der nächste Start brauchte
+    5,01 s. Geändert: Nur noch vor einem neuen Windows-Steam (`waitForSteamToEnd`) und vor Steams Dateien
+    (Laufwerk übernehmen, Spiel verschieben, Laufwerk vergessen) wird auf die Reste gewartet. Alle anderen Stopps gehen
+    weiter, sobald steam.exe weg ist: Schlaf, Steam für Mac, neue Sitzung für einen Spielstart, Engine-Wechsel. Vor einem
+    Start wird 4-mal je Sekunde geschaut statt einmal. Die Protokollzeile nennt, was zuletzt ging. Die Grenzen (15 s,
+    Dienst allein 5 s) bleiben.
+    **Größer waren die 23–31 s vom Öffnen bis zum Steam-Start** (06:31, 06:37, 06:48; Steam selbst danach 5–6 s). Gemessen
+    um 06:48: Dazwischen lief kein Wine-Programm, und `sample` zeigt Nightforge wartend. `startBackgroundSteam` wartet
+    auf den ersten Blick auf die laufenden Spiele, der die Spiele kennt. Der erste Blick kam vor dem Einlesen der
+    Bibliothek, der nächste erst nach der Pause: 3 s mit Nightforge vorn, 10 s dahinter, 30 s, wenn niemand am Mac ist
+    (so morgens, ~6,7 h ohne Eingabe). Jetzt bricht das Einlesen der Bibliothek die Pause ab
+    (`IdleRest.pausesBeforeNextLook`, `lookNow`). Live bestätigt 23.11. (Koordinator): Steam-Start 1–2 s nach dem Öffnen bei sechs Einspielungen 07:04–08:18, Steam danach 5,07–5,47 s; vorher 23–31 s.
+  - [x] L1 (erledigt 23.11., e0422f8 und c8c5e42, `GameLog.outbound`): Das F5-Gedächtnis (`steamLaunchMemory`) enthält Pfade mit dem Benutzernamen (lokal, nicht im Protokoll):
+    gehört auf die Liste „nie in einen Problembericht“.
+    **23.11., Zweig `claude/bericht-ohne-pfade-035`:** Wege nach außen gibt es zwei: der Problembericht („Läuft
+    nicht?“, Link und Zwischenablage, `ProblemReportText`) und „Bericht teilen …“ (`CompatReport`). Einen Log-Export
+    oder Diagnose-Versand gibt es nicht; `StartEvidence` und der Testlauf-Bericht bleiben auf dem Mac. Beide Wege
+    laufen jetzt durch `GameLog.outbound`: die Pfade des F5-Gedächtnisses (`Engine.launchMemoryPaths`) gehen als
+    `<setting>` ganz heraus, und jeder Benutzerordner verliert seinen Namen, auch ein fremder oder ein kurzer
+    (`/Users/<user>`, `C:\users\<user>`). Wines eigene Namen bleiben (steamuser, Public, Shared).
+  - [x] L2 (erledigt: `claude/ifnameindex-035`, gemergt a181464, Befund ohne Umbau): `if_nameindex` fragt bei jedem Aufruf alle Schnittstellen ab (nur noch in winedevice.exe).
+    **Befund 23.11., kein Umbau:** Wine liest die Schnittstellen bei jeder Aufzählung der NDIS-Tabelle neu ein. Im
+    Mitschnitt vom 22.11. (14:46–15:14, `+nsi`) kamen nach der Anmeldung 26 Aufzählungen in 25 Minuten, alle vom
+    Steam-Webhelfer, je zwei alle 120 s. Die 5795 in 20 s davor waren die F4-Warteschleife, die es nicht mehr gibt.
+    Ein Aufruf (Liste, `getifaddrs`, zwei ioctl je Schnittstelle) kostet hier rund 62 µs unter Rosetta. Ein
+    Zwischenspeicher spart also nichts Spürbares und könnte einen Wechsel WLAN ↔ Kabel verschlucken. L3 (`errno`)
+    ist auf staging-035 schon erledigt.
+  - Umbau für später: `hide-steam-dock.dylib` bindet AppKit, und das lädt Metal und QuartzCore in jeden Wine-Prozess
+    mit (Wine selbst lädt AppKit über winemac.drv ohnehin). Ganz verhindern ließe es sich nur mit einer Bibliothek
+    ohne AppKit.
+    **Befund 23.11., kein Umbau (Test auf `claude/wine-bibliothek-test-04`):** Der Versuch bdbd92a hängte sich an
+    `dlopen`. Ein umgeleitetes `dlopen` ruft aus der Bibliothek heraus, und dyld löst `@rpath`, `@loader_path` und
+    Suchpfade vom Aufrufer aus auf. Wines Unix-Teile fanden dadurch FreeType und D3DMetal nicht mehr, Steam startete
+    am 23.11. um 07:25 gar nicht. Ein Weg ohne Umleitung (Beobachter auf AppKits Start über CoreFoundation)
+    funktioniert, Schriften und Dock wie vorher, bringt aber nichts: Wines `ntdll.so` bindet CoreFoundation, `win32u.so`
+    bindet AppKit. Ohne Bibliothek haben `plugplay` und ein `winedevice` AppKit schon, alle Windows-Prozesse
+    CoreFoundation. Ein Sitzungsstart im Test-Prefix (6 Runden, ruhig): 0,80–0,83 s ohne Bibliothek, 0,82–0,84 s
+    mit AppKit, 0,80–0,84 s über CoreFoundation. Die früheren 0,57 gegen 0,81–1,20 s waren Rauschen. Die Bibliothek
+    bleibt an AppKit gebunden. Neu: `tests/WineLibraryTest` startet ein Windows-Programm ohne Fenster mit der
+    Bibliothek wie aus `build.sh` in echtem winecx und prüft, dass Wine seine Schriften findet. Außerdem darf nichts
+    `dlopen`/`dlsym` umleiten. Gegen bdbd92a schlägt der Test an.
+  - Erledigt auf `claude/audit-fixes-035` (d673835): M1 (Netzwerk-Reihenfolge nur in winedevice.exe, Metal/QuartzCore
+    nicht mehr gebunden), S1 (Wiedereintritts-Sperre in der 60-FPS-Umlenkung), E1 (Fokus-Takt nicht im Spiel), L3.
+- [x] **Nightforge öffnete sich während einer Testkette wieder (23.11., 06:56, Zweig `claude/tests-ohne-app-035`, b30028d;
+  Nachbesserung 54713395 auf `claude/tests-ohne-steam-035`: „unbekannt“ ist beim Beenden kein Spiel, Windows-Spiele zählen
+  im Skript nur als Nightforges eigene Prozesse):**
+  Kein Test öffnet die App. Laut Systemprotokoll startete ein `/usr/bin/open` aus dem Beenden-Skript der eben beendeten
+  Nightforge (Hilfsprogramm 26117, 7 s nach dem Beenden) sie neu: Der Zweig „Spiel endet: zurück zu Nightforge“ hielt
+  einen Testprozess für ein Spiel, denn `has_process` sucht in jedem Prozess des Macs nach `\steamapps\common\` bzw.
+  `/steamapps/common/` (GameOverlayTest hat einen Stellvertreter `C:\…\steamapps\common\Stand In Game\StandIn.exe`,
+  MacVersionTest hatte zwei). Abhilfe: Nightforge gibt dem Skript mit, ob es selbst beim Beenden ein Spiel kannte
+  (`$12`, eigener Start oder Windows-Programm aus einem Spielordner der Sitzung); nur dann öffnet es nach dem Spiel.
+  Zusätzlich öffnet ein Programm ohne App-Bündel sich nie über Launch Services (`NSApplication.opensItself`), und
+  MacVersionTest nennt seine Stellvertreter nur noch über den `ps`-Ersatz. Gilt erst mit dem neuen Bau: Die
+  eingespielte App hat noch das alte Skript, also bis dahin keine Kette, solange ihr Beenden-Skript wartet.
+- [x] **Am 23.11. erledigt, ohne eigenen Eintrag bisher:**
+  - Problembericht ohne Pfade (L1) und ohne Benutzerordner unter fremdem Namen: e0422f8, c8c5e42.
+  - Tests hinterlassen nichts in `~/Library/Preferences`: aa99b8a (MacSourcesTest), 6a50690f (sieben Reihen), Wächter
+    `tests/test_tests_leave_nothing.py`.
+  - Kein Test öffnet die echte App über Launch Services (`NSApplication.opensItself`): b30028d.
+  - Kein Test findet oder erreicht die echte Wine-Sitzung (`TestGuard`, `tests/TestGuardTest`, Wächter
+    `tests/test_tests_reach_no_session.py`): b09c6857. Die 12:06-Ereignisse waren Steams eigener Schlaf nach 30 min.
+  - Vorhang blieb nach der Vorschau als Waise stehen und Nightforge kam alle 19 s nach vorn (Ausblenden wartete auf eine
+    Animation, die bei schlafendem Bildschirm nie endet): a78dacc2, `GameBackdrop.fade`, Wächter `tests/test_no_awaited_animations.py`.
+  - Zwei Textfelder unter Einstellungen › Stores mit Pad-Fokus, Wächter `tests/test_pad_reach.py`: fc8319d.
+  - Hänger-Erkennung Stufe 1 (nur Protokoll, Testschalter `gameTest.hangWatch`): c2bbc885.
+- [ ] **AVX-Meldung unter Wine (23.11., `docs/ENTWURF-AVX.md`, Zweig `claude/avx-meldung-04`):** `IsProcessorFeaturePresent(AVX)`
+  zeigt für die ganze Sitzung, was ihr erster Prozess hatte (Probe `docs/probes/avx-sitzung/`; Wine füllt `KUSER_SHARED_DATA` nur
+  in `start_wineboot`). In Nightforge beginnt eine Sitzung mal mit, mal ohne AVX (regedit, winetricks, Helfer ohne). Zur Wahl:
+  AVX als Sitzungseinstellung wie Retina (Vorschlag), Engine-Patch, nichts.
+- [x] **Nebenbefund der Starter-Probe (22.11.)** (geklärt 23.11., 84d4e583: kein „immer 0“, sondern der erste Prozess der
+  Sitzung entscheidet; Wahl im Eintrag „AVX-Meldung unter Wine“ oben): Unter Wine meldet `IsProcessorFeaturePresent(AVX)` immer 0, auch wenn
+  CPUID AVX zeigt (`docs/probes/starter-umgebung/`). Spiele, die so fragen, sehen kein AVX. Bei Profilen mit
+  AVX-Problemen bedenken.
+- [x] `stopSteam` soll warten, bis alle Steam-Prozesse weg sind (erledigt: `waitForSteamLeftovers`, `waitForSteamToEnd`,
+  zuletzt 59172838) (langsame Starts 26–31 s kamen 2–5 s nach dem
+  Ende des vorigen Steam; erst prüfen beim nächsten Neustart).
+- [x] **Bau mit gesetztem `SDKROOT`:** gebaut auf `claude/build-sdkroot-035` (`scripts/sdk-lib.sh`), geprüft,
+  Kette grün, wartet auf das Merge-Go. Achtung für main: `sdk-lib.sh` ist jetzt eine Signier-Datei, alte
+  Bot-PRs (#40, #41) müssen danach neu erzeugt werden.
+
 ## 0.3.4: Befunde nach dem Release von 0.3.3 (ab 21.11., neues MacBook Pro M5 Pro, alles frisch installiert)
 
 Der Nutzer prüft 0.3.3 auf dem zweiten Mac; sein Protokoll sieht der Koordinator nicht, die Einträge sind seine Beobachtung
@@ -376,6 +642,131 @@ oder ein Bildschirmfoto.
   erste Verbindungsversuch erst um 00:15:05 – 20 s in „WaitingForNetwork“, wo dieser Mac in derselben Sekunde weitergeht.
   „System startup time“: 38,51 s dort, 5,23 s hier, gleiche Client-Version. Ursache offen. Nächste Proben, je ein Start:
   ohne angestecktes Laufwerk; am Netzteil; nachdem Steam einmal lange ungestört lief (Updates der übernommenen Spiele fertig).
+  **Nachtrag 22.11. (Steams eigene „System startup time“ aus `console_log`):** Neues MacBook, 24 Starts vom 21./22.11.:
+  im Leerlauf gleichbleibend 25–26 s, bei Spielstarts 37–45 s. Entwicklungs-Mac, 522 Starts: 260 unter 8 s, 168 mit
+  8–15 s, 90 mit 15–30 s, 4 darüber (bei Spielstarts am 15.11. oft 13–20 s). **Zwei getrennte Teile:** (a) ein
+  Spielstart kostet auf beiden Macs rund 10–15 s mehr als ein Leerlauf-Start – Steam startet mit der Umgebung des
+  Spiels neu (F5); (b) das neue MacBook liegt bei jedem Start rund 20 s über diesem Mac.
+  **Spur zu (b), am Entwicklungs-Mac belegt:** Am 7./8.11. stand Steam hier dreimal 11, 19 und 47 s zwischen
+  „SetLoginState: WaitingForNetwork“ und „LogOn() called“, ohne eine einzige Protokollzeile, und die Zeilen danach
+  waren das Einlesen der Bibliotheken, darunter „Install folder Z:\Volumes\Nightforge Games\… not mounted“ (eine
+  Bibliothek auf einem nicht angesteckten Laufwerk). Auf dem neuen MacBook steht Steam 19 s still direkt nach dem
+  Einlesen der Bibliothek auf „Games“. Nächste Probe dort: ein Steam-Start mit abgestecktem „Games“ und einer mit
+  angestecktem, je danach die letzte „System startup time“; dazu `mdutil -s /Volumes/Games` (indiziert Spotlight die
+  Platte auf dem frischen Mac noch?).
+  **Ergebnis 22.11. 11:38:** ohne angestecktes „Games“ 26,18 s – das Laufwerk ist es nicht (der Nutzer hatte es
+  vermutet). Nächste Probe: wie lange das Auflösen des eigenen Rechnernamens dauert (`gethostbyname`; hier schlägt es in
+  0,1 s fehl, ein Stillstand von rund 20 s wäre die typische Zeitüberschreitung einer Namensauflösung), und ob
+  Nightforge unter Datenschutz › Lokales Netzwerk steht und erlaubt ist.
+  **Ergebnis 22.11. 11:45–11:50:** Lokales Netzwerk auf beiden Macs freigegeben (Steam, Steam Helper, Nightforge Helper,
+  Nightforge Game). Rechnername dort „MacBook-Pro-von-Thomas.local“, in 0,00 s gefunden. Beides ist es nicht. Nächste
+  Prüfung: Energiesparmodus (die Oberfläche lädt dort 3–4× langsamer); danach ein `sample` des Steam-Prozesses während
+  der 20 stillen Sekunden, als Skript für den Nutzer (kein Anti-Cheat-Spiel beteiligt).
+  **Ergebnis 22.11. ~12:00:** macOS 27.2.1 und Rosetta 1793943009 wie hier; Energiemodus dort `powermode 2` (hohe
+  Leistung), also nicht gedrosselt. Ausgeschlossen: Laufwerk, Netz, IPv6, Lokales Netzwerk, Namensauflösung,
+  System- und Rosetta-Stand, Energiemodus. Bleibt der Blick in den Steam-Prozess während der stillen 20 s (`sample`,
+  Windows-Stapel über stackpeek aus dem Notizordner), als Skript, das der Nutzer einmal startet.
+  **Ergebnis 22.11. 14:23, jetzt direkt auf dem neuen MacBook (Entwicklungs-Mac seit dem Umzug), Probe nur mit `sample`:**
+  Steam wartet nicht auf etwas Langsames, sondern auf ein Signal, das nie kommt: `[ WaitingForNetwork ] Timed out
+  waiting for network` (steamui_login) nach 19 s, danach sofort LogOn. Alle Threads warten untätig; nur `IPC:CSteamEngine`
+  geht wiederholt über den wineserver in ein Geräte-`ioctl` (`server_ioctl_file`), `winedevice.exe` (darin `nsiproxy`)
+  rechnet mit 4–17 % eines Kerns. Wines `ipconfig /all` im Prefix sieht `en0` mit IPv4 und Standard-Gateway, dazu
+  viele weitere Schnittstellen (anpi0–2, en1–en6, bridge0, ap1, awdl0, llw0, nan0, utun0–5), `lo0` als
+  „Ethernet adapter“ mit Gateway 127.0.0.1, auf `en0` eine ULA-IPv6-Adresse ohne IPv6-Route. Damit sind auch die beiden
+  SMB-Freigaben unter `/Volumes` kein Kandidat mehr. Offen: welche Windows-Schnittstelle Steams Netz-Warten abfragt
+  (Kandidaten: Network List Manager/`netprofm`, NLA über `WSALookupService`, `iphlpapi`-Benachrichtigungen) und warum sie
+  hier nie „verbunden“ meldet. Daten im Notizordner unter `f4-2211/`. Weiter in einer eigenen Session.
+  **Ursache 22.11. ~15:30 (Session steam-netz-035, Mitschnitt mit `+iphlpapi,+nsi` um 14:46):** Steams Anmeldung
+  (`steamui.dll`) wartet, bis unter den **ersten zehn** Netzwerkgeräten eines „Connected“ ist. `steamclient64.dll`
+  nennt ein Gerät so, wenn Windows es als „Up“ mit IPv4 meldet. Wine listet alle Schnittstellen von macOS in dessen
+  Reihenfolge und meldet jede eingeschaltete als „Up“, ohne den Link zu prüfen. Hier kommen anpi0–2, en1–en6 und
+  bridge0 von den Thunderbolt-Ports (alle ohne Kabel) vor `en0`, das an 14. Stelle steht. Steam findet es nie und geht
+  nach 20 s weiter. Auf dem M5 mit weniger Ports liegt `en0` unter den ersten zehn. Im Mitschnitt fragt steam.exe in
+  genau diesen 20 s rund 290-mal pro Sekunde `GetAdaptersAddresses` und `GetBestInterface` ab. Der Verbindungstest
+  stand schon um 14:46:24 auf „Connected“. Belege und Adressen in `f4-2211/ursache-netzwerkreihenfolge.md`.
+  **Abhilfe (Zweig `claude/steam-netz-035-ed68c7`):** `wrapper/network-order.c` in `hide-steam-dock.dylib`
+  ersetzt `if_nameindex()`. Schnittstellen mit IPv4 kommen zuerst. Solche ohne Adresse, die keinen Link haben oder
+  aus sind, fallen weg (hier 24 → 10, `en0` direkt hinter `lo0`). Kein Wine-Patch. `steamConfigVersion` 12, damit ein
+  laufendes Steam einmal neu startet.
+  **Messung 22.11., Testbuild a56a3d7 (signiert):** Nach dem Einspielen um 15:13 startete Nightforge nur Steam neu.
+  Die Wine-Sitzung blieb, und ihr `winedevice.exe` hatte die alte Bibliothek seit 14:46 geladen. Ergebnis: wieder
+  „Timed out waiting for network“, 25,75 s. Nach einem vollen Neustart um 15:18 (Nightforge beendet, Steam
+  `-shutdown`, die Sitzung endete von selbst) kamen „WaitingForNetwork“ und „Initiating LogOn“ in derselben Sekunde
+  (15:18:37), ohne Zeitüberschreitung. **System startup time 8,70 s statt 25,75 s.** Die Anmeldung lief ohne Rückfrage:
+  `LogOnResponse 'OK'`, kein `WaitingForCredentials`, kein Steam Guard. Wines `ipconfig` in der Sitzung zeigt lo0, en0,
+  utun0, awdl0, llw0, utun1–5. Deshalb trägt Steams Signatur seit dem nächsten Commit `DockHider.sessionVersion`.
+  `Engine.applyLibraryVersion` beendet beim Steam-Neustart einmal eine Sitzung, die mit einer älteren Bibliothek begann
+  (wie `applyMsyncMode`: nie unter einem Spiel). Live geprüft wird das beim nächsten Einspielen. Ungeprüft: der alte
+  Mac, andere Macs, ein WLAN, das erst nach Wines erstem Blick beitritt, Kopierschutz, der den ersten Adapter als
+  Geräte-Kennung nimmt. Der erste Adapter außer lo0 ist jetzt en0 statt gif0, der erste mit MAC-Adresse en0 statt anpi1.
+  **In staging-035 seit 22.11. 15:57 (78c2fb2, vorgespult von Heinzel mit Go des Nutzers), eingespielt ~16:01 (Heinzel,
+  Go des Nutzers per Knopf), vom Koordinator nachgeprüft:** Testbuild läuft aus `~/Applications` (B60A2D36),
+  `librarySession` = 1, wine.log „hide-steam-dock.dylib 1 from this Wine session on“, neue Wine-Sitzung um 16:02:10 –
+  `applyLibraryVersion` hat also genau einmal neu gestartet, ohne Hand. Steam: WaitingForNetwork und Anmeldung in
+  derselben Sekunde (16:02:18), **System startup time 5,21 s** (vorher 25,7 s; so schnell wie der alte Mac), keine
+  Rückfrage. Offen bleibt nur das Ungeprüfte oben.
+  **Weitere Steam-Starts am M5 Pro (System startup time, ohne „Timed out“):** 5,21 s (16:02, 78c2fb2), 6,15 s
+  (16:52, 187f905 nach vollem Neustart), 5,65 s (19:01, 871c0c8 mit Sitzungsprüfung per Inhalt). Die Runde 16:47–16:51
+  mit 26–40 s lief mit dem Release 0.3.4 aus `/Applications` (über Launchpad/Spotlight geöffnet), nicht mit dem
+  Testbuild – kein Rückfall von F4.
+  **23.11. 11:34, Testbau 6004b62: „CalcUnIPThisBox - GetAdaptersAddresses returned 2“, kein F4-Rückfall (Worker A,
+  Zweig `claude/netz-robust-035`, nur dieser Befund):** Steam startete in einer frischen Wine-Sitzung (11:34:56, der Mac
+  ~2,5 h unbenutzt, Steam davor im Schlaf) und schrieb keine Zeile in console_log. Fehler 2 heißt in Wines nsi.dll
+  `ERROR_FILE_NOT_FOUND` beim Öffnen von `\\.\Nsi` (`get_nsi_device`, `return GetLastError()`): Das Gerät gab es nicht.
+  In dieser Sitzung lud winedevice.exe nach `mountmgr.sys` (samt cfgmgr32/setupapi) nichts mehr, `nsiproxy.sys` kam
+  nie; plugplay.exe lud dasselbe wie in jeder Sitzung. Sonst folgt `nsiproxy.sys` gleich auf mountmgr (Sitzungen 11:36:13
+  und danach). Unter 43 Sitzungen mit Steam in wine.log und wine.previous.log ist es die einzige ohne nsiproxy, und die
+  Zeile steht zum ersten Mal da. network-order.c kann daran nichts haben: Es greift nur, wenn nsiproxy `if_nameindex()`
+  fragt – nsiproxy war nicht geladen –, und reicht ohne Adressen, ohne Liste oder ohne Speicher die echte Liste durch;
+  Wines Schnittstellen-Tabelle selbst liefert nur Erfolg oder „Puffer zu klein“ (von `NsiAllocateAndGetTable`
+  wiederholt), nie 2. Wodurch winedevice nach mountmgr hing, sagt das Protokoll nicht (Vermutung ohne Beleg: mountmgr
+  nach dem langen Leerlauf, etwa am Netzlaufwerk unter /Volumes). Nightforge fing es selbst: Steam galt als hängend,
+  „Wine session ends: Steam didn't end after -shutdown“, neuer Start 11:36:13 in 7,21 s – 77 s verloren. Kein Umbau an
+  network-order.c (eine neue Bibliothek beendete bei jedem Spieler einmal die Sitzung, für nichts). Möglich für später:
+  die Zeile „GetAdaptersAddresses returned 2“ (oder winedevice ohne nsiproxy) als Zeichen einer kaputt gestarteten
+  Sitzung nehmen und sie gleich neu beginnen statt nach ~70 s. Die zwei „Curtain: nobody would take it away“ um
+  11:35:47 und 11:36:06 räumten herrenlose Vorhänge während der Vorschau (`takeAwayOrphanCurtain`) und hängen nicht mit
+  Steam zusammen.
+  **Nachtrag 23.11., Zweig `claude/sitzung-robust-04`:** (1) Netzlaufwerke sind es nicht: winecx' mountmgr.so ruft
+  weder getmntinfo noch statfs; DiskArbitration läuft in einem eigenen Thread, nicht in `DriverEntry`, und überspringt
+  jedes Volume ohne `DAMediaBSDName` – jede SMB-Freigabe, etwa /Volumes/lexi – vor dem ersten Zugriff; dosdevices hat nur
+  `c:` und `z:`; das Systemprotokoll zeigt um 11:35 nichts von smbfs oder diskarbitrationd. Heraushalten bräuchte es
+  also nichts. Das Muster in wine.log: In allen 42 guten Sitzungen kam nsiproxy.sys vor steam.exe, nur in dieser
+  steam.exe zuerst, und nsiproxy danach nie (mountmgrs `DriverEntry` meldet seine Geräte über plugplay an; wo es dort
+  hing, sagt das Protokoll nicht). (2) Gebaut: `Engine.sessionBootBroken` – Steams Zeile „GetAdaptersAddresses returned
+  2“ seit seinem Start, oder in einer mit diesem Start begonnenen Sitzung mountmgr.sys und steam.exe ohne nsiproxy.sys
+  nach 15 s. Die Wache nach Steams Start (`watchSteamStart`, alle 5 s) beginnt dann sofort eine neue Sitzung
+  (`restartHungSteam`, „Wine session ends: the session came up without Wine's network driver“), ohne es der Engine
+  anzurechnen; vor einem Spiel gilt Steam beim Warten auf die Anmeldung als hängend (`steamSignInStep`), und der eine
+  Neustart beginnt ebenfalls eine neue Sitzung. Beides nur, wenn sicher kein Windows-Spiel läuft. Statt ~70 s dauert
+  es so höchstens ~5 s nach Steams Zeile bzw. ~20 s ohne sie. Test: `SteamStopTest.brokenSessionRule`. Live ungeprüft
+  (der Fall kam einmal in 43 Sitzungen).
+- [ ] **Bau mit gesetztem `SDKROOT` rot (22.11.):** In Heinzels Sessions ist `SDKROOT` auf das Standard-SDK
+  (`MacOSX.sdk`, 27.2) gesetzt. `build.sh` (Zeile 9) fällt nur bei leerem `SDKROOT` auf `MacOSX26.5.sdk` zurück, mit
+  27.2 fehlen die SwiftUI-Makros („cannot find '$barShown' in scope“). Heinzel baute deshalb mit
+  `DEVELOPER_DIR=/Applications/Xcode.app/…` (eine andere Werkzeugkette als sonst). Abhilfe: `build.sh` soll den
+  Rückfall auch nehmen, wenn `SDKROOT` auf das Standard-SDK der CLT zeigt; bis dahin `env -u SDKROOT` (die Kette
+  `chain-035.sh` im Notizordner tut das schon). Ob künftig mit Xcode statt CLT gebaut wird, entscheidet der Nutzer.
+  **Gebaut auf `claude/build-sdkroot-035`, wartet auf den Merge:** `scripts/sdk-lib.sh` (`nightforge_pick_sdk`) nimmt den
+  Rückfall auch, wenn `SDKROOT` auf ein CLT-SDK zeigt, das SwiftUI-Makros braucht, und sagt das in einer Zeile; Xcode
+  (xcode-select oder `DEVELOPER_DIR`) und SDKs außerhalb der CLT bleiben unberührt. build.sh, Signier-Skripte,
+  coverage.sh, compile-once.sh und alle `tests/*/run.sh` fragen die Funktion; Test `tests/test_sdk_choice.py`.
+- [ ] **F5 – Ein Spielstart startet Steam neu, das kostet 10–15 s** (auf beiden Macs, siehe F4 (a)). Steam übernimmt die
+  Umgebung des Spiels (D3DMetal, AVX, Rosetta-Bibliothek, msync) nur bei seinem Start (`Engine.prepareLaunchEnvironment`,
+  Neustart in `LibraryModel`). Idee, nicht geprüft: Steam im Hintergrund gleich mit der Umgebung starten, die die meisten
+  Spiele brauchen, und nur bei echten Abweichungen neu starten.
+  **Ursache (22.11., Zweig `claude/f5-steam-ohne-neustart`):** Die Umgebung, mit der Steam läuft, stand nur im Speicher
+  (`Engine.launchSettings`) und war nach jedem Nightforge-Start leer. Beim ersten Spiel eines Laufs weckt „Steam bei
+  Bedarf“ Steam ohne die Werte des Spiels, die Startlogik wartet auf die Anmeldung, rechnet dann erst die Umgebung aus
+  und startet Steam ein zweites Mal („Steam restarts for …: the game's settings come with its environment“, im Protokoll
+  vom 21./22.11. bei Wukong und Overwatch). **Gebaut:** Nightforge merkt sich nach jedem Steam-Spielstart dessen
+  Einstellungen (Umgebung ohne Closer-Look-Kanäle, Retina, msync; die letzten 64 Spiele, `steamLaunchMemory`). Ein
+  im Hintergrund gestartetes Steam beginnt mit denen des zuletzt gespielten Spiels, ein für „Spielen“ gewecktes mit
+  denen dieses Spiels, msync und Retina vorher gesetzt. Hält eine Notiz nicht mehr (andere `steamConfigVersion`, eine
+  Datei fehlt, msync- oder Vulkan-Loader-Schalter aus), startet Steam wie bisher. Kommt der Start anders heraus (anderer
+  Weg, anderes Spiel bei schon laufendem Steam), startet Steam neu wie bisher. **Offen:** Messung live (erster Start
+  eines Laufs, zweimal dasselbe Spiel; erwartet: kein „Steam restarts for“, 10–15 s weniger). Spielwechsel bei
+  laufendem Steam kostet weiter einen Neustart, wenn die Umgebungen verschieden sind.
 
 ## 0.3.3: Release (21.11., der Nutzer: „bringen wir das release online dann kann ich update und alles prüfen und etwaige bugs bügeln wir in .4 aus“)
 
@@ -413,6 +804,25 @@ daraus kommen in 0.3.4.
   - [ ] Der Nutzer prüft nach dem Update auf dem neuen MacBook Pro (Liste oben); Fehler → 0.3.4.
   - [ ] `scripts/fetch-geforce-now.py` bekommt auf GitHub seit dem 20.11. HTTP 403, „Update game profiles“ ist rot,
     nächtlich und auf `main`. Ursache ansehen; kein Umgehen über einen fremden User-Agent.
+    **22.11.:** Ursache: NVIDIA hat das Feld `apps` des GraphQL-Katalogs für anonyme Abfragen gesperrt (403
+    „FORBIDDEN“). In staging-035 seit 2ee81de (556c52d): Der Katalog ist optional, ein Fehlschlag macht den Lauf nicht
+    mehr rot, und die IDs vom 15.11. bleiben. Ein Versuch mit NVIDIAs öffentlicher Liste (`claude/gfn-oeffentliche-liste`,
+    c5b78c8) bleibt ungemergt liegen: Ihre Nummern taugen nicht als Direkt-Link, die App nutzt sie nicht, und NVIDIAs
+    Bedingungen verbieten automatische Abrufe auf ihren Seiten. **Entscheidung des Nutzers (16:27, über Heinzel):** „Wenn
+    wir wenig Nutzen haben, dann brauchen wir es nicht.“ Also kein Merge, keine Anfrage bei NVIDIA, kein allgemeiner
+    GeForce-Now-Hinweis in der Oberfläche.
+  - [x] **Den nächtlichen GraphQL-Abruf sauber abschalten** (Entscheidung des Nutzers, 22.11.): Kein automatischer Abruf
+    bei NVIDIA mehr. Die GeForce-Now-IDs vom 15.11. bleiben in den Profilen.
+    **Gebaut auf `claude/gfn-abruf-aus-035`:** Die IDs vom 15.11. liegen in einer festen Datei
+    `profiles/geforce-now.json` (169 IDs, 135 Titel, „from“: 2026-11-15, nur von Hand zu ändern). Sie stammen aus
+    `profiles.json` und wurden einmal über den „kept“-Weg ausgelesen. `build-profiles.py` liest nur noch diese Datei und
+    prüft ihre Form. Der „kept“-Weg über die letzte Liste ist entfallen, `sources["geforce-now"]` sagt jetzt
+    `"from": "2026-11-15"` (eine einmalige Änderung, danach kein nächtlicher Unterschied). `scripts/fetch-geforce-now.py`
+    und sein Test sind gelöscht: Ein Handwerkzeug für einen Endpunkt, den NVIDIA bewusst gesperrt hat, lädt nur zum
+    Gebrauch gegen deren Willen ein. Die Geschichte behält es. Ein Test sichert, dass kein Workflow und kein Skript mehr
+    `games.geforce.com` oder das Skript nennt. Lokaler Probelauf mit den echten übrigen Quellen: 747 Spiele, Prüfung
+    des Workflows „ok“, 168 von 169 Links behalten. Der fehlende ist Overwatch, das in `mac.json` kein `notYet` mehr hat
+    und deshalb keinen Link mehr bekommt; das wäre auch auf dem alten Weg so gewesen.
   - [ ] Der Merge hat ein Grafik-Paket mit `dxmt-0.80-prepare-shaders.patch` und ein Controller-Paket gebaut. Vor einem
     Manifest-Eintrag: kurzer Test des Shader-Pakets (`ablauf.sh test`), dann Bot-PR #41 lesen, signieren, mergen.
   - [ ] Bot-PRs #39–#41 und der neue für `pad-answer.exe`; Dependabot #21–#26.
@@ -1089,7 +1499,8 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
     Nutzer hat die DMG am 1.11. geladen.
   - Integrationszweig pushen und über einen PR nach `main` bringen.
   - Tag `v0.3.0` löst `release.yml` aus.
-  - Danach das Beta-Release `d3dmetal-4.0b3` samt Tag löschen (Nutzer, 1.11.: „entfernen wir es“). Erst dann, denn
+  - [x] Danach das Beta-Release `d3dmetal-4.0b3` samt Tag löschen (Nutzer, 1.11.: „entfernen wir es“; gelöscht am 23.11.2026
+    mit seinem Ja, Release und Tag geben 404). Erst dann, denn
     `main` (0.2.0) lädt D3DMetal bis zum Release noch von dort.
   - Danach die zurückgehaltenen Dependabot-PRs #21–#26 prüfen (sie warten auf einen Release- oder Grafik-Build).
 
@@ -3457,7 +3868,8 @@ Cloud-Session ihre erste Zeile.
   - Weitergabe ist erlaubt (nicht-kommerziell, unverändert). Die Nutzung ist an „developing, testing, or evaluating
     video games“ gebunden, und das gilt für jeden Spieler. Ob Spielen darunter fällt, ist ungeklärt. Viele Projekte
     liefern es seit 2023 mit, Abmahnungen sind keine bekannt.
-  - Eigenes Risiko: Wir verteilen **4.0 beta 3**, eine Vorabversion. Das Release `d3dmetal-4.0b3` ist öffentlich.
+  - Eigenes Risiko: Wir verteilten **4.0 beta 3**, eine Vorabversion. Das Release `d3dmetal-4.0b3` ist seit 23.11.2026
+    gelöscht; seitdem gibt Nightforge nur das fertige 3.0 weiter, 4.x nur über den Import aus Apples DMG.
   - Empfehlung für 0.3.0: kein stiller Download mehr. Beim ersten DX12-Spiel ein Dialog mit Apples Lizenz und zwei
     Wegen: „Bei Apple laden und importieren“ (empfohlen) und „Von Nightforge laden“. Keine Beta weitergeben, sondern das
     finale 3.0, falls winecx damit läuft. Das Paket in ein eigenes Repo legen.

@@ -70,7 +70,8 @@ struct FirstStartTest {
         check(R.stateHere(probe: { true }) == .ready, "while missing every ask probes: the install counts at once")
         R.forget()
         // The hidden test switch: "missing" on a Mac with Rosetta, until Install Rosetta is pressed this session.
-        let switched = UserDefaults(suiteName: "first-start-rosetta-\(UUID().uuidString)")!
+        // In the test's own folder, which run.sh removes: a named domain stays in ~/Library/Preferences for good (23.11.2026).
+        let switched = TestDefaults.suite("rosetta-switch")
         switched.set(true, forKey: R.testMissingRosettaKey)
         check(R.stateHere(probe: { true }, defaults: switched) == .missing, "the switch: missing, though Rosetta is there")
         check(R.stateHere(probe: { true }) == .ready, "without it: as the probe says")

@@ -248,7 +248,7 @@ extension LibraryModel {
         d3dMetalRun.task = Task {
             if let wine = await Engine.installedWine() {
                 try? await Engine.stopSteam(wine)
-                await Engine.offMain { Engine.stopAll(wine) }
+                await Engine.offMain { Engine.stopAll(wine, reason: "D3DMetal is removed") }
                 await Engine.offMain { Engine.removeD3DMetal(from: wine) }
             }
             D3DMetalSupply.removeAll(componentsRoot: ComponentStore.shared.root)

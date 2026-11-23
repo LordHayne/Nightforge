@@ -251,7 +251,9 @@ final class DriveTakeover: ObservableObject {
     /// player's, and a drive built for it in a disk image is seen.
     nonisolated static func drives(testHome: Bool = MacSteam.isTestHome) -> [ExternalDrive] {
         let candidates: [ExternalDrive]
-        if testHome {
+        if ExternalDrive.source != nil {
+            candidates = ExternalDrive.connected()  // a test's own drives, whatever is mounted
+        } else if testHome {
             let volumes = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: nil, options: [.skipHiddenVolumes]) ?? []
             candidates = volumes.compactMap { ExternalDrive.at($0) }.filter { ExternalDrive.isDiskImage($0.url) }
         } else {
@@ -415,7 +417,7 @@ extension LibraryModel {
         guard !takeoverBusy else { throw DriveError.busy("a game, a download or a move is under way") }
         guard let wine = await Engine.installedWine() else { throw DriveError.steamNotKnown }
         let wasRunning = Engine.isSteamRunning
-        try await Engine.stopSteam(wine, endWait: Engine.filesEndWait)
+        try await Engine.stopSteam(wine, endWait: Engine.filesEndWait, leftovers: true)
         do {
             // Asked a few times: a Steam a moment from its end is still listed (Engine.steamStillThere).
             if let still = await Engine.steamStillThere() { throw still }

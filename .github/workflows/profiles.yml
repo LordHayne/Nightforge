@@ -1,7 +1,8 @@
 name: Update game profiles
 
-# Rebuilds profiles/profiles.json every night from umu-protonfixes, AreWeAntiCheatYet and the
-# GeForce Now game list plus profiles/mac.json (see scripts/build-profiles.py), and beside it
+# Rebuilds profiles/profiles.json every night from umu-protonfixes, AreWeAntiCheatYet and Highball plus
+# profiles/mac.json and profiles/geforce-now.json, both kept by hand (see scripts/build-profiles.py; nothing
+# is asked of NVIDIA, the maintainer's decision of 22.11.2026), and beside it
 # profiles/agw.json, what AppleGamingWiki says about games on a Mac (scripts/fetch-agw.py): a file of
 # its own under CC BY-NC-SA 3.0. When either changed it proposes them in a pull request (branch
 # bot/profiles); it never pushes to main. The app downloads both from main and takes each only with
@@ -23,6 +24,7 @@ on:
       - "scripts/build-profiles.py"
       - "scripts/fetch-agw.py"
       - "profiles/agw-notes.json"
+      - "profiles/geforce-now.json"
       - "scripts/fetch-pcgw.py"
       - "tests/test_build_profiles.py"
       - ".github/workflows/profiles.yml"
@@ -35,6 +37,7 @@ on:
       - "scripts/fetch-pcgw.py"
       - "tests/test_build_profiles.py"
       - "tests/test_fetch_agw.py"
+      - ".github/workflows/profiles.yml"
 
 permissions:
   contents: read
@@ -59,17 +62,17 @@ jobs:
       - name: Fetch umu-protonfixes
         run: git clone --depth 1 https://github.com/Open-Wine-Components/umu-protonfixes.git "$RUNNER_TEMP/umu-protonfixes"
 
-      - name: Fetch anti-cheat list and GeForce Now catalog
+      # GeForce Now's ids come from profiles/geforce-now.json in the repository, not from NVIDIA.
+      - name: Fetch anti-cheat list and Highball
         run: |
           curl -fsSL --retry 3 -o "$RUNNER_TEMP/anticheat.json" https://raw.githubusercontent.com/AreWeAntiCheatYet/AreWeAntiCheatYet/HEAD/games.json
-          python3 -I scripts/fetch-geforce-now.py "$RUNNER_TEMP/geforcenow.json"
           curl -fsSL --retry 3 -o "$RUNNER_TEMP/highball.json" https://gethighball.com/data/games.json
           git clone --quiet --depth 1 https://github.com/gauthierpiarrette/highball-db "$RUNNER_TEMP/highball-db"
 
       - name: Build profiles
         run: |
           python3 -I scripts/build-profiles.py "$RUNNER_TEMP/umu-protonfixes" \
-            --anticheat "$RUNNER_TEMP/anticheat.json" --geforcenow "$RUNNER_TEMP/geforcenow.json" \
+            --anticheat "$RUNNER_TEMP/anticheat.json" \
             --highball "$RUNNER_TEMP/highball.json" --highball-reports "$RUNNER_TEMP/highball-db/db/reports"
 
       - name: Validate

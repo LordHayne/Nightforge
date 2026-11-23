@@ -16,6 +16,33 @@ struct LaunchEdgeTest {
 
     static let work = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("launch-edge-\(UUID().uuidString)", isDirectory: true)
 
+    /// The steps before a game's own start (LibraryModel.startSteps), Epic's saves, and in which order launch takes them.
+    static func startStepsRule() {
+        typealias S = LibraryModel.StartSteps
+        func steps(_ provider: Provider, builtIn: Bool = true, update: Bool = false) -> S {
+            LibraryModel.startSteps(provider: provider, builtIn: builtIn, pendingUpdate: update)
+        }
+        check(steps(.steam, update: true) == S(windowsSteam: true), "a Steam game in Nightforge's bottle: the Windows Steam's steps only")
+        check(steps(.steam, builtIn: false) == S() && steps(.battlenet, builtIn: false) == S(), "a bottle of the player's own: none of Steam's")
+        check(steps(.epic, update: true) == S(waitsForSteamRestart: true, epicUpdate: true, epic: true), "Epic: a Steam restart under way, the update, the saves")
+        check(steps(.epic) == S(waitsForSteamRestart: true, epic: true), "Epic without an update waiting: no update")
+        check(steps(.gog, update: true) == S(waitsForSteamRestart: true, gog: true), "GOG: its own steps (beforeGOGStart)")
+        check(steps(.battlenet) == S(waitsForSteamRestart: true), "Battle.net: only the wait for a Steam restart")
+        check(Provider.allCases.allSatisfy { steps($0).windowsSteam != steps($0).waitsForSteamRestart }, "in Nightforge's bottle: one or the other")
+        var kept = EpicGame(appName: "Heron", title: "Alan Wake")
+        kept.cloudSaves = true
+        let plain = EpicGame(appName: "Quail", title: "ABZÛ")
+        check(LibraryModel.keepsSavesWithEpic("Heron", in: [plain, kept]) && !LibraryModel.keepsSavesWithEpic("Quail", in: [plain, kept])
+              && !LibraryModel.keepsSavesWithEpic("Heron", in: []), "Epic's saves only where Epic keeps them")
+        let model = (try? String(contentsOfFile: "Sources/Nightforge/LibraryModel.swift", encoding: .utf8)) ?? ""
+        let order = ["if steps.windowsSteam {\n                await steamSwitch.makeWayForWindows", "await waitForSteamCloud(Engine.steamRoot)",
+                     "await takeSavesAlong(game, to: .windows)", "if steps.waitsForSteamRestart, let restart = steamStartup",
+                     "if steps.epicUpdate {", "if steps.epic, Self.keepsSavesWithEpic(game.gameID.id", "if steps.gog { guard await beforeGOGStart"]
+        let places = order.map { model.range(of: $0)?.lowerBound }
+        check(places.allSatisfy { $0 != nil } && zip(places, places.dropFirst()).allSatisfy { $0! < $1! },
+              "launch takes the steps in this order: Steam's cloud before the saves along, Epic's update before its saves")
+    }
+
     static func main() {
         TestDefaults.useWorkFolder()
         try? FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
@@ -23,6 +50,8 @@ struct LaunchEdgeTest {
         launchOptions()
         watcher()
         startCheck()
+        startStepsRule()
+        startPhases()
         print(failures == 0 ? "✓ The start against odd input" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
     }
@@ -76,7 +105,50 @@ struct LaunchEdgeTest {
         var questioned = LaunchWatcher(steamRoot: steam, appID: 730)
         check(questioned.poll() == .needsConfirmation, "a question open before the start is told at once")
         check(questioned.poll() == nil, "and only once")
+        check(questioned.questionTask == "CloudSync", "… with Steam's name for it")
+        questions(steam)
         licence()
+    }
+
+    /// What Steam asks, by its name for the step: only the heading on the curtain goes by it, never an answer.
+    static func questions(_ steam: URL) {
+        let line = "[2026] GameAction [AppID 730, ActionID 11] : LaunchApp"
+        append("\(line) continues with user response \"CloudSync\"\n", to: log(steam))  // nothing left open from before
+        var watcher = LaunchWatcher(steamRoot: steam, appID: 730)
+        append("\(line) waiting for user response to ShowGameArgs \"\"\n", to: log(steam))
+        check(watcher.poll() == .needsConfirmation && watcher.questionTask == "ShowGameArgs", "Steam's question about a start's arguments, by name (Steam for Mac, 22.11.)")
+        append("\(line) continues with user response \"ShowGameArgs\"\n", to: log(steam))
+        _ = watcher.poll()
+        append("\(line) waiting for user response to SynchronizingCloud \"\"\n", to: log(steam))
+        check(watcher.poll() == .needsConfirmation && watcher.questionTask == "SynchronizingCloud", "the next question: its own name")
+        append("\(line) waiting for user response\n", to: log(steam))
+        check(watcher.poll() == .needsConfirmation && watcher.questionTask == "SynchronizingCloud", "a line without a name keeps the one before")
+
+        check(SteamQuestion.task(in: "x : LaunchApp waiting for user response to ShowEula \"\"") == "ShowEula", "the name ends at the quotes")
+        check(SteamQuestion.task(in: "x : LaunchApp waiting for user response to CloudSync") == "CloudSync", "or at the line's end")
+        check(SteamQuestion.task(in: "x : LaunchApp waiting for user response to ") == nil
+              && SteamQuestion.task(in: "x : LaunchApp changed task to ShowEula") == nil, "no name, or no question: none")
+
+        typealias Q = SteamQuestion
+        check(Q.kind(licence: true, task: "ShowInterstitials", phase: nil) == .licence, "the licence as the watcher saw it")
+        check(Q.kind(licence: false, task: "ShowEula", phase: nil) == .licence, "or by its name")
+        check(Q.kind(licence: false, task: "ShowLaunchOption", phase: nil) == .launchOption, "the launch option, by Steam's name for it")
+        check(Q.kind(licence: false, task: "ShowGameArgs", phase: nil) == .arguments,
+              "ShowGameArgs asks whether a start may pass its arguments (Valheim, one macOS option, 22.11.): not the launch option")
+        check(Q.title(.arguments) == L10n.t("The game's start details") && Q.note(.arguments) == nil, "its heading, and no line under it")
+        check(Q.kind(licence: false, task: "CloudSync", phase: nil) == .cloud && Q.kind(licence: false, task: "SynchronizingCloud", phase: nil) == .cloud,
+              "the cloud, whatever Steam calls the step")
+        check(Q.kind(licence: false, task: "ShowInterstitials", phase: nil) == .other && Q.kind(licence: false, task: nil, phase: nil) == .other,
+              "anything else: \"Steam is asking something\", as before")
+        check(Q.kind(licence: false, task: nil, phase: .signInAgain) == .signIn && Q.kind(licence: false, task: "CloudSync", phase: .signInInSteamWindow) == .signIn,
+              "Steam's sign-in window, whatever step was last")
+        check(Q.title(.other) == L10n.t("Steam is asking something") && Q.title(.licence) == L10n.t("The licence, just once"),
+              "the two headings from before stay as they were")
+        check(Q.note(.licence) == L10n.t("Steam only asks this at the first start.") && Q.note(.cloud) == nil && Q.note(.launchOption) == nil
+              && Q.note(.other) == nil, "a second line only where there's something Steam's window doesn't say")
+        check(Q.note(.signIn)?.contains("QR") == true, "the sign-in: the QR code, never a password")
+        check([Q.Kind.licence, .launchOption, .cloud, .signIn, .other].allSatisfy { !Q.title($0).isEmpty && !Q.title($0).contains("\n") },
+              "one line each")
     }
 
     /// Steam's licence: a question from its first word, and how its end shows in each Steam.
@@ -177,5 +249,55 @@ struct LaunchEdgeTest {
         check(SteamStartCheck.judge(.init(askingForAccount: true, running: false, quietFor: 10_000, sinceStart: 500)) == .cameUp, "its window asking counts as up")
         // An update takes as long as it takes.
         check(SteamStartCheck.judge(.init(bootstrap: .downloading, running: false, quietFor: 10_000, sinceStart: 5000)) == .undecided, "while it updates itself: never judged")
+    }
+
+    /// The start's phases in the log (docs/ENTWURF-STARTZEIT.md): one line each, the time of day to a tenth and the
+    /// seconds since Play – only with the test switch gameTest.startPhases (the finished build measures nothing).
+    static func startPhases() {
+        var parts = DateComponents()
+        (parts.year, parts.month, parts.day, parts.hour, parts.minute, parts.second, parts.nanosecond) = (2026, 11, 22, 19, 34, 26, 400_000_000)
+        let play = Calendar.current.date(from: parts)!
+        check(GameLog.clock(play) == "19:34:26" && GameLog.clock(play, tenths: true) == "19:34:26.4", "the time of day, to a tenth when asked")
+
+        let off = TestDefaults.suite("start-phases-off")
+        check(!GameTest.notesStartPhases(defaults: off), "the switch is off unless set")
+        check(LibraryModel.phaseLine("Hades", "Play", at: play, since: play, defaults: off) == nil
+              && LibraryModel.phaseLine("Hades", "to Steam", at: play.addingTimeInterval(1), since: play, defaults: off) == nil,
+              "without the switch: no line at all")
+
+        let on = TestDefaults.suite("start-phases-on")
+        on.set(true, forKey: GameTest.startPhasesKey)
+        check(GameTest.startPhasesKey == "gameTest.startPhases" && GameTest.notesStartPhases(defaults: on), "the switch, by its name")
+        check(LibraryModel.phaseLine("Hades", "Play", at: play, since: play, defaults: on) == "Start phases of Hades: Play at 19:34:26.4",
+              "Play itself: no seconds since")
+        check(LibraryModel.phaseLine("Hades", "to Steam", at: play.addingTimeInterval(1.04), since: play, defaults: on)
+              == "Start phases of Hades: to Steam at 19:34:27.4, 1.0 s after Play", "a phase: the time, and the seconds since Play")
+        check(LibraryModel.phaseLine("Hades", "curtain down", at: play.addingTimeInterval(29.96), since: play, defaults: on)?.hasSuffix("30.0 s after Play") == true,
+              "rounded to a tenth")
+        check(LibraryModel.phaseLine("Hades", "x", at: play, since: play.addingTimeInterval(5), defaults: on)?.hasSuffix(", 0.0 s after Play") == true,
+              "never before Play")
+        check(LibraryModel.phaseLine("Hades", "Play", at: play, since: play, defaults: on)?.contains("Curtain down for") == false,
+              "a line of its own: GameTestMeasure reads \"Curtain down for\" by its exact words")
+        // The model writes these lines through phaseLine only, so the switch holds for each of them.
+        let model = (try? String(contentsOfFile: "Sources/Nightforge/LibraryModel.swift", encoding: .utf8)) ?? ""
+        check(model.components(separatedBy: "Start phases of").count == 3, "\"Start phases of\" only in phaseLine (and its comment)")
+        // Epic's and GOG's own steps before a direct start, for the measurement of 23.11.2026 (would running them side
+        // by side gain anything?): each step between its two marks, each mark once.
+        let framed: [(begins: String, call: String, ends: String)] = [
+            ("Epic's saves: sync begins", "await epic.syncSaves(game, upload: false)", "Epic's saves synced"),
+            ("GOG's saves: sync begins", "await gog.syncSaves(game, upload: false)", "GOG's saves synced"),
+            ("asks Epic for the launch details", "try await epic.launchCommand(for: game)", "Epic's launch details came"),
+        ]
+        for step in framed {
+            let marks = [step.begins, step.ends].map { "notePhase(game, \"\($0)\")" }
+            check(marks.allSatisfy { model.components(separatedBy: $0).count == 2 }, "\(step.begins): once each")
+            if let begins = model.range(of: marks[0]), let call = model.range(of: step.call, range: begins.upperBound..<model.endIndex),
+               let ends = model.range(of: marks[1], range: call.upperBound..<model.endIndex) {
+                let between = model[begins.upperBound..<ends.lowerBound]
+                check(between.split(separator: "\n").count <= 3, "\(step.begins): right around \(step.call)")
+            } else {
+                check(false, "\(step.begins): before \(step.call), \(step.ends) after it")
+            }
+        }
     }
 }

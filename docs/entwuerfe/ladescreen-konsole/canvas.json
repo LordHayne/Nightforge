@@ -1,0 +1,74 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-22T17:45:41Z"
+  },
+  "title": "Ladebildschirm wie eine Konsole",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 1480,
+      "h": 2350,
+      "title": "Heute und nachher, alle Phasen"
+    },
+    "VarianteA.dc.html": {
+      "x": 1560,
+      "y": 0,
+      "w": 1480,
+      "h": 1500,
+      "title": "A · Lichtnaht"
+    },
+    "VarianteB.dc.html": {
+      "x": 3120,
+      "y": 0,
+      "w": 1480,
+      "h": 1500,
+      "title": "B · Orbit (Empfehlung)"
+    },
+    "VarianteC.dc.html": {
+      "x": 4680,
+      "y": 0,
+      "w": 1480,
+      "h": 1500,
+      "title": "C · Nachtglut"
+    },
+    "PadDock.dc.html": {
+      "x": 1560,
+      "y": 1700,
+      "w": 1480,
+      "h": 1650,
+      "title": "Pad und Dock"
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "VarianteA.dc.html",
+    "VarianteB.dc.html",
+    "VarianteC.dc.html",
+    "PadDock.dc.html"
+  ],
+  "notes": {
+    "t1": {
+      "x": 0,
+      "y": -300,
+      "text": "Ladebildschirm wie eine Konsole: Animation statt Phasentexte (22.11.)",
+      "kind": "title1",
+      "maxW": 6160
+    }
+  },
+  "designSystems": [
+    {
+      "title": "Nightforge",
+      "namespace": "nightforge",
+      "artifact": "https://claude.ai/artifact/Ga8ea7631PdaJKhcTmNMj2",
+      "version": "1794699777-affd",
+      "copiedAt": "2026-11-22T17:45:41Z"
+    }
+  ]
+}

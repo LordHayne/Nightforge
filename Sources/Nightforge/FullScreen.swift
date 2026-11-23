@@ -14,6 +14,16 @@ import ObjectiveC
 ///
 /// The green button, ⌃⌘F (View › Full Screen) and Esc with nothing to go back from switch it;
 /// GameDisplay switches it for a TV and keeps what the player chose for each screen.
+extension DockAutoHide {
+    /// `engage` or `restore` on the Mac's setting, away from the main thread (the Dock's restart waits for killall), one
+    /// after the other in the order asked (`serially`), with its line in the log; `why` is added to it.
+    static func run(_ step: @escaping @Sendable (System) -> Outcome, why: String = "") {
+        serially {
+            if let line = step(live).logLine { GameLog.note(line + why) }
+        }
+    }
+}
+
 @MainActor
 enum FullScreen {
     /// The window's frame before full screen, to go back to; nil while it's in a window.
@@ -59,8 +69,13 @@ enum FullScreen {
         ]
     }
 
-    /// The player's switch: the green button, ⌃⌘F or Esc.
+    /// Ends console mode (LibraryModel.setConsoleMode), set by the model.
+    static var endConsoleMode: (@MainActor () -> Void)?
+
+    /// The player's switch: the green button, ⌃⌘F or Esc. In console mode it ends console mode, not only the full
+    /// screen (ConsoleMode.toggleEndsConsoleMode).
     static func toggle() {
+        if ConsoleMode.toggleEndsConsoleMode(consoleMode: ConsoleMode.isOn()), let endConsoleMode { return endConsoleMode() }
         guard let window else { return }
         set(!isOn, window)
         GameDisplay.fullScreenChosen(isOn, window)

@@ -294,6 +294,60 @@ struct MacSourcesTest {
         check(trimmed.count < 21_000 && trimmed.contains("line 2000 ") && !trimmed.contains("line 1 "),
               "a long log keeps its newest errors within an issue's size")
 
+        // MARK: Nothing of Nightforge's own settings, no home folder under any name (audit L1)
+        // Registered, not set: registered values live in memory only. Set, every run left a domain in the user's
+        // preferences (the test ends with exit(), so no defer removed it; found 23.11.2026).
+        let memoryDomain = "nightforge-test-launch-memory-\(getpid())"
+        let memory = UserDefaults(suiteName: memoryDomain)!
+        let icd = "/Users/jane/Library/Application Support/Nightforge/kosmickrisp/icd.json"
+        let layer = "/Users/jane/Library/Application Support/Nightforge/loader/layers"
+        let drive = "/Volumes/Janes Disk/Nightforge Games", temp = "/private/var/folders/ab/xyz/T/nf"
+        let stored = #"{"games":{"steam.1":{"version":12,"environment":{"VK_ICD_FILENAMES":"\#(icd)","DXVK_HUD":"fps","#
+            + #""VK_ADD_IMPLICIT_LAYER_PATH":"/usr/lib/x:\#(layer)","DYLD_FALLBACK_LIBRARY_PATH":"/usr/lib:/System/Library/Frameworks","#
+            + #""GAME_DIR":"\#(drive)","TMP_DIR":"\#(temp)","HOME_COPY":"/Users/jane"},"retina":false,"msync":true}},"order":["steam.1"]}"#
+        check(Engine.launchMemoryPaths(defaults: memory).isEmpty, "no memory: no paths")
+        // Registered values are the whole process's (every suite and .standard see them): taken back below.
+        memory.register(defaults: [Engine.launchMemoryKey: Data(stored.utf8)])
+        let keptPaths = Engine.launchMemoryPaths(defaults: memory, home: "/Users/jane")
+        let keptAgain = Engine.launchMemoryPaths(defaults: memory, home: "/Users/jane")
+        check(memory.persistentDomain(forName: memoryDomain)?[Engine.launchMemoryKey] == nil, "the test's memory isn't written to disk")
+        memory.register(defaults: [Engine.launchMemoryKey: Data()])
+        check(Engine.launchMemoryPaths().isEmpty, "…and taken back: what follows sees no memory")
+        check(Set(keptPaths) == [icd, layer, drive, temp, "/Users/jane"],
+              "the memory's paths that can carry something private, a list's parts too; system paths not: \(keptPaths)")
+        check(keptAgain.allSatisfy { !$0.hasPrefix("/usr/") && !$0.hasPrefix("/System/") },
+              "…/usr/lib and /System/Library stay readable in a report")
+        check(Engine.mayBePrivate("/Users/janet/x", home: "/Users/jane") && Engine.mayBePrivate("/opt/home/jane/x", home: "/opt/home/jane")
+              && Engine.mayBePrivate("/opt/home/jane", home: "/opt/home/jane") && !Engine.mayBePrivate("/opt/home/janet", home: "/opt/home/jane")
+              && !Engine.mayBePrivate("/opt/x", home: "/opt/home/jane"), "a HOME set elsewhere counts, its neighbours don't")
+        check(GameLog.outbound("dlopen /usr/lib/libvulkan.dylib failed", user: "", kept: keptPaths) == "dlopen /usr/lib/libvulkan.dylib failed",
+              "a system path in an error line stays as it is")
+        let leaky = ProblemReportText(gameName: "Some Game", facts: [("Game", "Some Game"), ("Diagnosis", "vulkan in " + layer)],
+                                      errors: ["VK_ICD_FILENAMES=" + icd, "err:vulkan:load " + layer + "/x.json",
+                                               #"err:module:open C:\users\bo\Documents\x.dll"#, "open /Users/bob/Games/x failed",
+                                               #"err:file:open C:\users\steamuser\AppData\x and /Users/Shared/x"#],
+                                      downloadFailure: ["stopped in /Users/al/GOG"], launchOptions: "-dir " + icd,
+                                      home: "/Users/jane", user: "jane", kept: keptPaths)
+        let leakyLink: String = leaky.url?.absoluteString.removingPercentEncoding ?? ""
+        let everything: String = [leaky.title, leaky.body, leaky.clipboard ?? "", leakyLink].joined(separator: "\n")
+        check(!everything.contains("kosmickrisp") && !everything.contains("loader/layers") && everything.contains("VK_ICD_FILENAMES=<setting>"),
+              "the memory's paths go whole, from the link, the table and the clipboard: \(everything)")
+        check(!everything.contains("jane") && !everything.contains("bob") && !everything.contains(#"users\bo\"#)
+              && !everything.contains("/Users/al/"), "no home folder under any name, also not another account's")
+        check(everything.contains(#"C:\users\<user>\Documents"#) && everything.contains("/Users/<user>/Games"),
+              "…the path stays readable, the name goes")
+        check(everything.contains(#"C:\users\steamuser\AppData"#) && everything.contains("/Users/Shared/x"),
+              "Wine's own account and the shared folder keep their names")
+        check(GameLog.outbound(GameLog.outbound("open /Users/bob/x", user: "", kept: keptPaths), user: "", kept: keptPaths) == "open /Users/<user>/x",
+              "twice changes nothing")
+        check(GameLog.outbound("Thomas Was Alone", user: "", kept: keptPaths) == "Thomas Was Alone" && GameLog.outbound("Users Guide", kept: []) == "Users Guide",
+              "a game's name keeps its words")
+        let pathGame = Game(appID: 2, name: "Mod /Users/bob/x", bottle: bottle, steamRoot: bottle.url, steamExeWindowsPath: "",
+                            installDir: bottle.url, sizeOnDisk: 0)
+        let sharedLink = CompatReport.url(game: pathGame, rating: well, preset: nil, engine: nil, chip: "M", macOS: "27", nightforge: "1",
+                                          home: "/Users/jane", user: "jane", kept: keptPaths)?.absoluteString.removingPercentEncoding ?? ""
+        check(!sharedLink.contains("bob") && sharedLink.contains("/Users/<user>/x"), "the shared report too: \(sharedLink)")
+
         // MARK: The file in the repository
         if let data = try? Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[1])), let real = AGWIndex.decode(data) {
             check(real.games.count > 1000, "profiles/agw.json has \(real.games.count) games")

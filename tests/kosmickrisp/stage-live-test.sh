@@ -5,7 +5,7 @@
 #   tests/kosmickrisp/stage-live-test.sh <nightforge-kosmickrisp-….tar.gz> [app]
 #   tests/kosmickrisp/stage-live-test.sh --undo [app]
 #
-# app: a test build, build/Nightforge.app unless named; an installed Nightforge is refused.
+# app: a test build, build/Nightforge.noindex/Nightforge.app unless named; an installed Nightforge is refused.
 # The component lists are signed: an edited Components/manifest.json no longer counts, and the online list
 # wins over the app's own. So the test build's own list names KosmicKrisp and carries today's stamp (the
 # newer of the kept list and the app's own goes first, ComponentStore.newerFirst), and the build doesn't
@@ -24,7 +24,7 @@ else
   ARCHIVE="$(cd "$(dirname "${1:?usage: $0 <archive> [app] | --undo [app]}")" && pwd -P)/$(basename "$1")"
   shift
 fi
-APP="${1:-$repo/build/Nightforge.app}"
+APP="${1:-$repo/build/Nightforge.noindex/Nightforge.app}"
 BACKUP="$APP.before-kosmickrisp"
 LIST="$APP/Contents/Resources/manifest.json"
 INFO="$APP/Contents/Info.plist"

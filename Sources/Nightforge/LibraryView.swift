@@ -235,17 +235,19 @@ struct LibraryView: View {
                     .padFocus("power.confirm", cornerRadius: 21, activate: { model.confirmPower() })
             }
         }
-        .sheet(isPresented: $model.offersFullScreen) {
-            GlassQuestion(L10n.t("Full screen for the controller?"),
-                          message: L10n.t("Nightforge fills the screen and the Mac's desktop goes out of the way. ⌃⌘F switches back."),
-                          id: "fullScreenOffer") {
-                Button(L10n.t("Not Now")) { model.offersFullScreen = false }
+        .sheet(isPresented: $model.offersConsoleMode) {
+            // Console mode, variant A (the user's choice of 22.11.2026): the glass question, with the pad A takes it, B is
+            // Not Now (GlassQuestion's own way back).
+            GlassQuestion(L10n.t("Console mode?"),
+                          message: L10n.t("Nightforge fills the screen and keeps the Dock away while you play, too."),
+                          id: "consoleMode") {
+                Button(L10n.t("Not Now")) { model.declineConsoleMode() }
                     .buttonStyle(GlassTextButtonStyle())
-                    .padFocus("fullScreenOffer.no", cornerRadius: 21, activate: { model.offersFullScreen = false })
-                Button(L10n.t("Full Screen")) { model.acceptFullScreen() }
+                    .padFocus("consoleMode.no", cornerRadius: 21, activate: { model.declineConsoleMode() })
+                Button(L10n.t("Console Mode")) { model.acceptConsoleMode() }
                     .buttonStyle(GlassTextButtonStyle(prominent: true))
                     .keyboardShortcut(.defaultAction)
-                    .padFocus("fullScreenOffer.yes", cornerRadius: 21, preferred: true, activate: { model.acceptFullScreen() })
+                    .padFocus("consoleMode.yes", cornerRadius: 21, preferred: true, activate: { model.acceptConsoleMode() })
             }
         }
         .sheet(item: $model.pendingUninstall) { game in

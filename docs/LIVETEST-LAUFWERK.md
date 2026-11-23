@@ -55,7 +55,7 @@ Prüft: Erkennen aus den Dateien, GOG-Übernahme, Warten bei Steam und Epic, und
 4. Starten und nichts anklicken; **in dieser Umgebung nie bei Steam anmelden** (der QR-Code meldet das echte Steam ab):
 
    ```bash
-   env CFFIXED_USER_HOME="$PWD/build/fh" HOME="$PWD/build/fh" build/Nightforge.app/Contents/MacOS/Nightforge
+   env CFFIXED_USER_HOME="$PWD/build/fh" HOME="$PWD/build/fh" build/Nightforge.noindex/Nightforge.app/Contents/MacOS/Nightforge
    ```
 
 5. Nach etwa einer Minute, in einem zweiten Terminal:
@@ -71,7 +71,7 @@ Prüft: Erkennen aus den Dateien, GOG-Übernahme, Warten bei Steam und Epic, und
    Offen und hier mitzuprüfen: ob die Schleife, die den Blick auslöst, schon während der ersten Einrichtung läuft. Kommt
    A1 erst nach dem Schließen der Einrichtung, ist das in Ordnung, soll aber notiert werden.
 
-6. Beenden über den Pfad (`osascript -e 'tell application "<Pfad>/build/Nightforge.app" to quit'`), dann
+6. Beenden über den Pfad (`osascript -e 'tell application "<Pfad>/build/Nightforge.noindex/Nightforge.app" to quit'`), dann
    `hdiutil detach "/Volumes/NF Test"`, `build/fh` und `build/nf-test.*` löschen.
 
 ## Teil B – der echte Fall, nur mit dem Nutzer

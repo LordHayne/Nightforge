@@ -52,8 +52,9 @@ struct SmallLogicTest {
     }
 
     static func phases() {
-        let all: [LaunchPhase] = [.startingSteam, .startingSteamForMac, .signingIn, .signInInSteamWindow, .signInAgain, .savingToCloud, .settingUp, .settingUpDotNet,
-                                  .restartingSteam, .steamNotResponding, .retrying("DXVK"), .updating(0.42), .updating(nil), .signingInEpic, .syncingSaves,
+        let all: [LaunchPhase] = [.startingSteam, .startingSteamForMac, .signingIn, .signingInAgain, .steamCloudSync, .signInInSteamWindow, .signInAgain,
+                                  .savingToCloud, .settingUp, .settingUpDotNet, .restartingSteam, .restartingSteamForGame, .steamNotResponding,
+                                  .retrying("DXVK"), .updating(0.42), .updating(nil), .signingInEpic, .syncingSaves,
                                   .rollingBack, .heldEngine, .settingUpWindowsParts(nil), .settingUpWindowsParts("vcredist")]
         for language in ["english", "german"] {
             UserDefaults.standard.set(language, forKey: AppLanguage.storageKey)
@@ -65,13 +66,64 @@ struct SmallLogicTest {
         UserDefaults.standard.set("english", forKey: AppLanguage.storageKey)
         check(LaunchPhase.updating(0.42).title == "Updating … 42 %", "how far an update is: \(LaunchPhase.updating(0.42).title)")
         check(LaunchPhase.retrying("DXVK").title.contains("DXVK"), "which way it tries next")
-        // The curtain's line (the rule of 15.11.2026): the same words for the same thing, nothing technical.
-        check(Set([LaunchPhase.settingUp, .settingUpDotNet, .settingUpWindowsParts("vcredist"), .settingUpWindowsParts(nil)].map(\.curtainTitle))
-              == ["Setting up …"], "every setting up is one line")
-        check(LaunchPhase.restartingSteam.curtainTitle == LaunchPhase.steamNotResponding.curtainTitle, "Steam restarted: one line")
-        check(LaunchPhase.retrying("DXVK").curtainTitle == "One more try …" && LaunchPhase.rollingBack.curtainTitle == "One more try …"
-              && LaunchPhase.heldEngine.curtainTitle == "Starting …", "no way, no engine on the curtain")
-        check(LaunchPhase.startingSteam.curtainTitle == LaunchPhase.startingSteam.title, "the rest as on the Play button")
+        // The curtain's line (the user, 22.11.2026: "at a console nobody wants to know what happens technically"): none
+        // while Nightforge only works, the light on the seam says it's under way; a line where the player has something to
+        // do, and an update's figures.
+        let silent: [LaunchPhase] = all.filter {
+            switch $0 {
+            case .signInInSteamWindow, .signInAgain, .updating: return false
+            default: return true
+            }
+        } + [.licenceAnswered, .startingBattleNet]
+        for phase in silent {
+            check(phase.curtainTitle == nil && phase.curtainSentence == nil, "\(phase): nothing on the curtain")
+        }
+        for phase in [LaunchPhase.signInInSteamWindow, .signInAgain, .signInInBattleNetWindow, .battleNetAsks] {
+            check(phase.curtainTitle == phase.title && phase.curtainSentence != nil, "\(phase): the player acts, the curtain says where")
+        }
+        check(LaunchPhase.updating(0.42).curtainTitle == "Updating … 42 %" && LaunchPhase.updating(nil).curtainTitle == "Updating …",
+              "an update keeps its figures")
+        check([LaunchPhase.settingUp, .settingUpDotNet, .settingUpWindowsParts("vcredist"), .settingUpWindowsParts(nil)].allSatisfy(\.onlyTheFirstTime)
+              && !LaunchPhase.startingSteam.onlyTheFirstTime && !LaunchPhase.restartingSteam.onlyTheFirstTime, "what's done once per game")
+        // Nothing on the curtain ever says something's wrong while a start only takes its time.
+        for language in ["english", "german"] {
+            UserDefaults.standard.set(language, forKey: AppLanguage.storageKey)
+            let words = all.flatMap { [$0.curtainTitle, $0.curtainSentence].compactMap { $0 } } + [LaunchPhase.firstTimeSentence]
+                + [CurtainEscape.Reason.storeQuiet, .updating, .updateStuck].flatMap { reason in
+                    [CurtainEscape.tip(reason, pad: nil).text, CurtainEscape.tip(reason, pad: PadSymbols()).text] }
+            for text in words {
+                for fault in ["stuck", "Stuck", "hängen", "Hängt", "hängt"] {
+                    check(!text.contains(fault), "on the curtain in \(language) without “\(fault)”: “\(text)”")
+                }
+            }
+            check(LaunchPhase.firstTimeSentence == (language == "german" ? "Beim ersten Mal dauert es etwas länger." : "The first time takes a little longer."),
+                  "the first time's sentence in \(language)")
+        }
+        UserDefaults.standard.set("english", forKey: AppLanguage.storageKey)
+        // A planned restart for the game's settings never sounds like a fault (the user, 22.11.2026: "Konsolen-Feeling");
+        // waiting for Steam's own sign-in says no more than that; the cloud line only where Steam signs in afresh.
+        for language in ["english", "german"] {
+            UserDefaults.standard.set(language, forKey: AppLanguage.storageKey)
+            let planned = LaunchPhase.restartingSteamForGame
+            for text in [planned.title, planned.hint] {
+                for fault in ["stuck", "hängen", "fix", "behebt", "Restarting", "neu gestartet"] {
+                    check(!text.contains(fault), "a planned restart in \(language) without “\(fault)”: “\(text)”")
+                }
+            }
+            check(planned.title != LaunchPhase.restartingSteam.title, "\(language): the planned restart has a line of its own")
+            check(LaunchPhase.signingIn.hint != LaunchPhase.signingInAgain.hint
+                  && !LaunchPhase.signingIn.hint.lowercased().contains("cloud") && LaunchPhase.signingInAgain.hint.lowercased().contains("cloud"),
+                  "\(language): the cloud line only where Steam signs in afresh")
+            check(LaunchPhase.signingIn.title == LaunchPhase.signingInAgain.title, "\(language): both say they sign in")
+            check(!LaunchPhase.steamCloudSync.hint.contains(LaunchPhase.signingInAgain.hint), "\(language): the cloud sync isn't a sign-in")
+        }
+        UserDefaults.standard.set("english", forKey: AppLanguage.storageKey)
+        check(LibraryModel.restartPhase(stuck: false) == .restartingSteamForGame && LibraryModel.restartPhase(stuck: true) == .restartingSteam,
+              "the settings alone: the planned restart; stuck (with or without settings): the fault")
+        // A repair's try is for the log, the end of a start for the curtain.
+        check(LaunchRepair.onceMore.curtainTitle == nil && LaunchRepair.settingUp.curtainTitle == nil && LaunchRepair.settingUp.curtainDetail == nil
+              && LaunchRepair.gaveUp.curtainTitle == LaunchRepair.gaveUp.title && LaunchRepair.gaveUp.curtainDetail == LaunchRepair.gaveUp.detail,
+              "a repair's try silent, the end said")
         check(LaunchPhase.updating(0.1).kind == LaunchPhase.updating(0.9).kind && LaunchPhase.retrying("DXVK").kind.contains("DXVK"),
               "an update's figures make no new phase in the log; the way does go there")
         UserDefaults.standard.removeObject(forKey: AppLanguage.storageKey)
@@ -184,7 +236,7 @@ struct SmallLogicTest {
         check(LibraryModel.curtainStatus(phase: nil, shaders: false, gameRuns: true, asks: true, errorBox: true, macOSAsks: true)?.contains("macOS") == true,
               "macOS's question comes first")
         check(LibraryModel.curtainStatus(phase: nil, shaders: false, gameRuns: true, asks: false, errorBox: true) == nil,
-              "no question on screen: no box said, \"Starting …\" as before")
+              "no question on screen: no box said, no line")
         UserDefaults.standard.removeObject(forKey: AppLanguage.storageKey)
     }
 

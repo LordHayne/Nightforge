@@ -29,7 +29,7 @@ struct QuitWorld {
             """, to: bin.appendingPathComponent("ps"), executable: true)
         // `pgrep -qx steam_osx` answers yes only when the test says Steam for Mac runs.
         write("#!/bin/sh\n[ -n \"$FAKE_MAC_STEAM\" ]\n", to: bin.appendingPathComponent("pgrep"), executable: true)
-        write("#!/bin/sh\nexit 0\n", to: bin.appendingPathComponent("lsof"), executable: true)
+        write("#!/bin/sh\n# lsof: the program of a listed process lies in the data folder (HOME is the world's root, the prefix in it), unless the\n# test lists it as foreign (FAKE_FOREIGN, a pid a line): a stand-in somebody else runs. Its working folder: none.\ncase \"$*\" in\n  *\"-d txt\"*)\n    pid=\"$(echo \"$*\" | sed -n 's/.*-p \\([0-9]*\\).*/\\1/p')\"\n    [ -n \"$FAKE_FOREIGN\" ] && grep -qx \"$pid\" \"$FAKE_FOREIGN\" 2>/dev/null && exit 1\n    printf 'p%s\\nn%s/engine/bin/wine-preloader\\n' \"$pid\" \"$(cd \"$HOME\" && pwd -P)\" ;;\nesac\nexit 0\n", to: bin.appendingPathComponent("lsof"), executable: true)
         write("#!/bin/sh\nexit 0\n", to: bin.appendingPathComponent("sleep"), executable: true)
         write("#!/bin/sh\n\(record)\n", to: bin.appendingPathComponent("open"), executable: true)
         write("#!/bin/sh\n\(record)\n", to: bin.appendingPathComponent("osascript"), executable: true)

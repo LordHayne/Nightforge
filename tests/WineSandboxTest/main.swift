@@ -34,7 +34,99 @@ struct WineSandboxTest {
         return (process.terminationStatus, output)
     }
 
+    /// Which program begins a Wine session, and with what AVX (WineSessionStart, docs/ENTWURF-AVX.md): one line, only when
+    /// no session runs, the program by its file name alone, the sandbox's helper seen through.
+    static func sessionStartLine() {
+        let wine = URL(fileURLWithPath: "/e/Libraries/Wine/bin/wine"), loader = URL(fileURLWithPath: "/e/Libraries/Wine/Nightforge Game.app/Contents/MacOS/wine")
+        let helper = URL(fileURLWithPath: "/A/Nightforge.app/Contents/Resources/nightforge-sandbox")
+        var asked = 0
+        func line(_ executable: URL, _ arguments: [String], avx: String? = nil, running: Bool = false, environment given: Bool = true) -> String? {
+            WineSessionStart.line(executable: executable, arguments: arguments,
+                                  environment: given ? (avx.map { ["ROSETTA_ADVERTISE_AVX": $0, "WINEPREFIX": "/p"] } ?? ["WINEPREFIX": "/p"]) : nil,
+                                  helper: helper, sessionRunning: { asked += 1; return running })
+        }
+        check(line(loader, [#"C:\Program Files (x86)\Steam\steam.exe"#, "-silent"], avx: "1") == "Wine session begins with steam.exe, AVX on",
+              "Steam begins it with AVX")
+        check(line(wine, ["regedit", "/S", #"C:\windows\temp\nightforge.reg"#]) == "Wine session begins with regedit, AVX off",
+              "a regedit begins it without AVX (docs/ENTWURF-AVX.md: every game of the session sees none)")
+        check(line(loader, [#"C:\Program Files (x86)\Steam\steam.exe"#], avx: "") == "Wine session begins with steam.exe, AVX off",
+              "a game that turns AVX off (Wukong): off")
+        check(line(wine, ["msiexec", "/i", #"Z:\Users\jane\Library\x.msi"#, "/qn"])?.contains("jane") == false,
+              "never a path: the player's name stays out")
+        check(line(loader, ["/Users/jane/Games/Some Game/game.exe"]) == "Wine session begins with game.exe, AVX off",
+              "a program given by its Mac path: its file name alone")
+        check(line(URL(fileURLWithPath: "/e/winetricks"), ["--unattended", "vcrun2019"]) == "Wine session begins with winetricks, AVX off",
+              "winetricks by its own name")
+        check(line(helper, ["/p/profile.sb", loader.path, #"C:\Program Files (x86)\Steam\steam.exe"#], avx: "1")
+              == "Wine session begins with steam.exe, AVX on", "inside the sandbox: the program behind the helper")
+        let before = asked
+        check(line(loader, [#"C:\Program Files (x86)\Steam\steam.exe"#], avx: "1", running: true) == nil && asked == before + 1,
+              "a session runs already: no line")
+        check(line(URL(fileURLWithPath: "/e/Libraries/Wine/bin/wineserver"), ["-k"]) == nil
+              && line(URL(fileURLWithPath: "/bin/bash"), ["/s.sh"]) == nil && asked == before + 1,
+              "the wineserver or a program that isn't Wine: no line, and no process list asked")
+        check(line(wine, ["wineboot", "-u"], environment: false)?.hasPrefix("Wine session begins with wineboot, AVX ") == true,
+              "no environment of its own: Nightforge's, as the process inherits it")
+        // Wired in where every Wine program starts.
+        let rosetta = (try? String(contentsOfFile: "Sources/Nightforge/RosettaSupport.swift", encoding: .utf8)) ?? ""
+        check(rosetta.contains("WineSessionStart.note(process)\n        try starting(process.executableURL) { try process.run() }"),
+              "RosettaSupport.run notes it right before the start")
+    }
+
+    /// Audit N2: whether a session runs, from the wineserver's lock – no process list, nothing that holds a start up. A
+    /// second run of this program holds the lock, as a running wineserver does.
+    static func sessionLock() {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent("wine-lock-\(UUID().uuidString)", isDirectory: true)
+        defer { try? fm.removeItem(at: root) }
+        let prefix = root.appendingPathComponent("Prefix", isDirectory: true)
+        try? fm.createDirectory(at: prefix, withIntermediateDirectories: true)
+        let tmp = root.appendingPathComponent("tmp").path
+        func running() -> Bool? { WineSessionStart.sessionRunning(prefix: prefix, root: tmp) }
+        check(running() == false, "no server folder: no session")
+        guard let folder = WineSessionStart.serverFolder(prefix: prefix, root: tmp) else { return check(false, "the server folder's name") }
+        check(folder.hasPrefix(tmp + "/.wine-\(getuid())/server-") && folder.range(of: #"server-[0-9a-f]+-[0-9a-f]+$"#, options: .regularExpression) != nil,
+              "Wine's name for it: server-<device>-<inode> in hex")
+        try? fm.createDirectory(atPath: folder, withIntermediateDirectories: true)
+        fm.createFile(atPath: folder + "/lock", contents: nil)
+        check(running() == false, "a lock file nobody holds (a server that ended): no session")
+        let holder = Process()
+        holder.executableURL = URL(fileURLWithPath: CommandLine.arguments[0])
+        holder.arguments = ["--hold-wine-lock", folder + "/lock"]
+        let out = Pipe()
+        holder.standardOutput = out
+        guard (try? holder.run()) != nil else { return check(false, "the lock's holder starts") }
+        let said = String(decoding: out.fileHandleForReading.availableData, as: UTF8.self)
+        check(said.contains("held"), "the stand-in holds the lock")
+        check(running() == true, "held by a running process: a session")
+        holder.terminate()
+        holder.waitUntilExit()
+        check(running() == false, "its process gone: the lock goes with it")
+        check(WineSessionStart.sessionRunning(prefix: root.appendingPathComponent("missing"), root: tmp) == nil, "no prefix: not to be told")
+        let source = (try? String(contentsOfFile: "Sources/Nightforge/WineSessionStart.swift", encoding: .utf8)) ?? ""
+        check(source.contains("sessionRunning(prefix: prefix(of: process)) ?? true") && !source.contains("Engine.sessionWine()"),
+              "note asks the lock, never the process list")
+    }
+
+    /// The other half of `sessionLock`: holds a write lock on `path` and says so, until it's ended.
+    static func holdWineLock(_ path: String) -> Never {
+        let file = open(path, O_RDWR)
+        var lock = flock()
+        lock.l_type = Int16(F_WRLCK)
+        lock.l_whence = Int16(SEEK_SET)
+        guard file >= 0, fcntl(file, F_SETLK, &lock) == 0 else { exit(2) }
+        print("held")
+        fflush(stdout)
+        sleep(30)
+        exit(0)
+    }
+
     static func main() {
+        if let at = CommandLine.arguments.firstIndex(of: "--hold-wine-lock"), at + 1 < CommandLine.arguments.count {
+            holdWineLock(CommandLine.arguments[at + 1])
+        }
+        sessionStartLine()
+        sessionLock()
         let arguments = CommandLine.arguments
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("wine-sandbox-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -315,7 +407,7 @@ struct WineSandboxTest {
         check(script.contains(#"wine_program 'C:\Program Files (x86)\Steam\steam.exe' -noverifyfiles -shutdown"#)
               && !script.contains(#""$WINE" 'C:"#), "Steam's -shutdown goes through wine_program, never \"$WINE\" directly")
         let engine = (try? String(contentsOf: URL(fileURLWithPath: "Sources/Nightforge/Engine.swift"), encoding: .utf8)) ?? ""
-        check(engine.contains(#"WineSandbox.enabled ? [WineSandbox.helper?.path ?? "-", WineSandbox.profile()] : ["", ""]"#),
+        check(engine.contains(#"WineSandbox.enabled ? (WineSandbox.helper?.path ?? "-", WineSandbox.profile()) : nil"#),
               "scheduleSteamShutdown hands the script the helper and the profile when the switch is on")
         // A steam.exe a program inside replaced: here a script that copies legendary's token out.
         let steam = prefix.appendingPathComponent("drive_c/steam.exe"), stolen = prefix.appendingPathComponent("stolen")

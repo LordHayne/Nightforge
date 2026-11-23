@@ -1,0 +1,81 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-22T20:30:00Z"
+  },
+  "title": "Konsolenmodus: die Anfrage",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "Heute.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 1480,
+      "h": 1180,
+      "title": "Heute · Vollbild für den Controller?"
+    },
+    "KonsolenmodusA.dc.html": {
+      "x": 1560,
+      "y": 0,
+      "w": 1480,
+      "h": 1180,
+      "title": "A · Die Frage wie heute (Empfehlung)"
+    },
+    "KonsolenmodusB.dc.html": {
+      "x": 3120,
+      "y": 0,
+      "w": 1480,
+      "h": 1180,
+      "title": "B · Eine eigene Seite"
+    },
+    "KonsolenmodusC.dc.html": {
+      "x": 4680,
+      "y": 0,
+      "w": 1480,
+      "h": 1180,
+      "title": "C · Eine leise Leiste"
+    }
+  },
+  "order": [
+    "Heute.dc.html",
+    "KonsolenmodusA.dc.html",
+    "KonsolenmodusB.dc.html",
+    "KonsolenmodusC.dc.html"
+  ],
+  "notes": {
+    "t1": {
+      "x": 0,
+      "y": -300,
+      "text": "Konsolenmodus: eine Anfrage, sobald ein Controller da ist",
+      "kind": "title1",
+      "maxW": 6200
+    },
+    "n1": {
+      "x": 0,
+      "y": 1300,
+      "w": 1000,
+      "size": "m",
+      "fill": "blue",
+      "text": "Was der Modus schaltet\n\nVollbild auf dem Bildschirm, auf dem Nightforge steht, auch nach dem Abstecken eines Fernsehers. Das Dock nie: beim ersten Spielstart setzt DockAutoHide macOS' Einstellung unter dem Vorhang und stellt sie beim Verlassen zurück. Fokusrahmen sofort sichtbar. Zeiger parken und Pad-Zeiger bleiben, wie der Spieler sie eingestellt hat."
+    },
+    "n2": {
+      "x": 1080,
+      "y": 1300,
+      "w": 1000,
+      "size": "m",
+      "fill": "orange",
+      "text": "Heraus\n\nKleines Menü (⧉) › Konsolenmodus beenden; Einstellungen › Controller; ⌃⌘F am Schreibtisch. Nicht mit Ⓑ, und (Vorschlag) nicht mit Esc ganz oben."
+    },
+    "n3": {
+      "x": 2160,
+      "y": 1300,
+      "w": 1000,
+      "size": "m",
+      "fill": "yellow",
+      "text": "Offene Fragen an Thomas\n\n1 Variante A, B oder C? 2 Nach „Nicht jetzt“ nie wieder fragen? 3 Esc ganz oben: beendet oder nicht? 4 Nach dem Mac-Neustart gleich im Vollbild? 5 Fokusrahmen sofort sichtbar? 6 Ersteinrichtung: Anfrage nach „Los geht's“?"
+    }
+  }
+}

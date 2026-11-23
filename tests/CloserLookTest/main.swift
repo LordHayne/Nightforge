@@ -206,7 +206,8 @@ struct CloserLookTest {
 
         check(CloserLook.usualWineDebug == GameLog.wineDebug + ",+pid,+loaddll,+msgbox" && Engine.gameEnvironment["WINEDEBUG"] == CloserLook.usualWineDebug,
               "what Steam and every game start with")
-        check(Engine.steamConfigVersion == 11, "a Steam started before gets its one restart for them")
+        // 12 since the network order (wrapper/network-order.c): bump it here too, so a forgotten bump shows.
+        check(Engine.steamConfigVersion == 12, "a Steam started before gets its one restart for them")
         // With +pid every line of Wine's begins with the process: what reads the log for a start's failure
         // looks inside the line, not at its beginning.
         let pidLines = """

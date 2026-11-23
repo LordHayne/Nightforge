@@ -1,6 +1,8 @@
+import CryptoKit
 import Foundation
 
-/// The library that keeps Steam out of the Dock (wrapper/hide-steam-dock.m), kept in Nightforge's
+/// The library that keeps Steam out of the Dock (wrapper/hide-steam-dock.m) and gives Wine the network
+/// interfaces in an order Steam's sign-in finds the connected one in (wrapper/network-order.c), kept in Nightforge's
 /// data folder rather than inside Nightforge.app. Every Wine process loads it from the path in
 /// DYLD_INSERT_LIBRARIES, and Steam hands that path on to everything it starts for as long as it
 /// runs – for days, long after Nightforge has quit. Once the file is gone from there (Nightforge.app
@@ -12,19 +14,60 @@ enum DockHider {
     /// The library in Nightforge's resources (build.sh compiles it).
     static var bundled = Bundle.main.url(forResource: "hide-steam-dock", withExtension: "dylib")
     static let name = "hide-steam-dock.dylib"
+    /// Raised when a change of the library has to reach a session that runs already: Steam restarts, and
+    /// the session it ran in ends (Engine.applyLibraryVersion, which since 0.3.5 goes by `fingerprint()` as well). 1: the network order (wrapper/network-order.c).
+    /// 2: the frame limit on D3DMetal (wrapper/d3dmetal-pace.m).
+    static let sessionVersion = 2
     private static let lock = NSLock()
-    /// The library put in place from `bundled`: once per run of Nightforge, whether it worked or not.
-    private static var prepared: (source: URL?, ready: Bool)?
+    /// The library put in place from `bundled`, and the file it left in the data folder: once per run of Nightforge,
+    /// whether it worked or not – and again whenever that file is no longer the one it left there.
+    private static var prepared: (source: URL?, ready: Bool, file: FileIdentity?, fingerprint: String?)?
+
+    /// Which file a path names, cheaply: a copy renamed over it brings another inode, one written in place another
+    /// modification time or size.
+    struct FileIdentity: Equatable {
+        var path: String, device: Int, inode: Int, size: Int, modified: TimeInterval
+
+        init?(_ path: String) {
+            var info = stat()
+            guard lstat(path, &info) == 0 else { return nil }
+            self.path = path
+            device = Int(info.st_dev)
+            inode = Int(info.st_ino)
+            size = Int(info.st_size)
+            modified = TimeInterval(info.st_mtimespec.tv_sec) + TimeInterval(info.st_mtimespec.tv_nsec) / 1e9
+        }
+    }
 
     /// The installed library for DYLD_INSERT_LIBRARIES, put in place or updated first; nil without
     /// one (tests, a build without it) – never a path that isn't there, which would end every process.
-    static func path() -> String? {
+    /// Another Nightforge with the same data folder (the release in /Applications next to a test build, 22.11.2026)
+    /// puts its own library there; the next call here puts this one's back, before anything starts with it.
+    static func path() -> String? { prepare()?.path }
+
+    /// SHA-256 of the library in the data folder as `path()` leaves it (hex, 16 bytes), nil without one. What a Wine
+    /// session began with (Engine.applyLibraryVersion) and Steam's signature go by the content, not by a version
+    /// number: another copy of Nightforge brings the same number with other code.
+    static func fingerprint() -> String? { prepare()?.fingerprint }
+
+    private static func prepare() -> (path: String, fingerprint: String?)? {
         lock.withLock {
             let target = home.appendingPathComponent(name)
-            let gone = prepared?.ready == true && !FileManager.default.fileExists(atPath: target.path)
-            if prepared == nil || prepared?.source != bundled || gone { prepared = (bundled, install(to: target)) }
-            return prepared?.ready == true ? target.path : nil
+            // Changed since it was put there, or gone: put in place again.
+            let replaced = prepared?.ready == true && prepared?.file != FileIdentity(target.path)
+            if prepared == nil || prepared?.source != bundled || replaced {
+                let ready = install(to: target)
+                let file = ready ? FileIdentity(target.path) : nil
+                let fingerprint = ready ? (try? Data(contentsOf: target)).map(hash) : nil
+                prepared = (bundled, ready, file, fingerprint)
+            }
+            guard let prepared, prepared.ready else { return nil }
+            return (target.path, prepared.fingerprint)
         }
+    }
+
+    static func hash(_ data: Data) -> String {
+        SHA256.hash(data: data).prefix(16).map { String(format: "%02x", $0) }.joined()
     }
 
     /// A new library goes in under a name of its own and is then renamed over the old one: a process
@@ -111,9 +154,10 @@ enum DockHider {
     /// Steam once more, the way it always starts, but with a new Wine session: Wine's own services
     /// were started with the old path as well, and the next device that connects would start a
     /// process from them. For a moment when nothing needs Steam (LibraryModel.watchDockHider).
-    static func restartSteam(_ wine: URL) async throws {
+    /// `reason`: for the log line of the session's end.
+    static func restartSteam(_ wine: URL, reason: String) async throws {
         try await Engine.stopSteam(wine)
-        Engine.stopAll(wine)
+        Engine.stopAll(wine, reason: reason)
         try await Engine.restartSteamInBackground(wine)
     }
 }

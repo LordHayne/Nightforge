@@ -258,6 +258,23 @@ struct SteamProgramTest {
         check(SteamProgram.macNeedsApplaunch([Entry(executable: "Game.app"), Entry(executable: "Server.app")], hasArguments: false), "no type at all: the same")
         check(!SteamProgram.macNeedsApplaunch(drawful, hasArguments: false), "Drawful 2 has a name: steam://launch stays")
         check(SteamProgram.macNeedsApplaunch(drawful, hasArguments: true), "with the player's arguments, which steam://launch doesn't carry: -applaunch")
+
+        // Which way a Steam for Mac start goes (macHandOver): arguments never by steam://run//…, where Steam asks whether to pass
+        // them (ShowGameArgs, Valheim's full-screen switch, 22.11.2026).
+        let valheim = [Entry(executable: "valheim.app")]
+        func way(_ entries: [Entry], _ arguments: String) -> SteamProgram.MacHandOver { SteamProgram.macHandOver(entries, arguments: arguments) }
+        check(way(valheim, "") == .run, "one option, no arguments: steam://run as before (no question, twice on 22.11.)")
+        check(way(valheim, "-screen-fullscreen 1") == .applaunch, "one option with the full-screen switch: -applaunch, not steam://run//…")
+        check(way(valheim, "-force-metal") == .applaunch, "the player's own arguments: the same")
+        check(way(drawful, "") == .launch("Option2"), "several options, no arguments: Steam's first by its type, as before")
+        check(way(drawful, "-condebug") == .applaunch, "several options with arguments: -applaunch, as before")
+        check(way(untyped, "") == .applaunch && way(untyped, "-screen-fullscreen 1") == .applaunch,
+              "several options steam://launch has no name for: -applaunch, with or without the switch")
+        check(way([], "") == .run && way([], "-screen-fullscreen 1") == .applaunch, "appinfo not read: steam://run, arguments by -applaunch")
+        let model = (try? String(contentsOfFile: "Sources/Nightforge/LibraryModel.swift", encoding: .utf8)) ?? ""
+        check(model.contains("SteamProgram.macHandOver(macLaunch, arguments: withScreen)")
+              && model.contains("MacSteam.applaunch(appID, arguments: Launcher.splitArguments(withScreen))"),
+              "the Mac start goes by it, and hands -applaunch the switch too")
         check(!SteamProgram.macNeedsApplaunch(Array(untyped.prefix(1)), hasArguments: true), "one option: Steam doesn't ask")
         check(!SteamProgram.macNeedsApplaunch([untyped[0], Entry(executable: "Beta.app", type: "none", betaKey: "beta")], hasArguments: false),
               "an option only for a beta branch doesn't count")

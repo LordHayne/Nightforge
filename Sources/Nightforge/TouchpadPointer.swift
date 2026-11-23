@@ -239,6 +239,20 @@ enum PadPointerRules {
     static let explainGap: TimeInterval = 20
 
     /// `point` where it is if a display shows it, else the nearest point any display shows.
+    /// Where the pointer goes when Nightforge brings it into Steam's window for a question: in the middle of its top
+    /// edge, where the title is – Steam's small dialogs (launch option, cloud sync) have their buttons near the middle,
+    /// and a pointer put there would stand on one. Screen coordinates, y down.
+    static func questionPointer(in window: CGRect) -> CGPoint {
+        CGPoint(x: window.midX, y: window.minY + min(14, window.height / 4))
+    }
+
+    /// A click with the pointer still where Nightforge put it (`placedAt`) is held back: the first click counts once
+    /// the player has moved it. R2 means "last game" in Nightforge too, and a press meant for that mustn't answer Steam.
+    static func holdsClick(placedAt: CGPoint?, at point: CGPoint) -> Bool {
+        guard let placedAt else { return false }
+        return hypot(point.x - placedAt.x, point.y - placedAt.y) < 3
+    }
+
     static func clamped(_ point: CGPoint, to displays: [CGRect]) -> CGPoint {
         guard !displays.isEmpty, !displays.contains(where: { $0.contains(point) }) else { return point }
         let candidates = displays.map { rect in
@@ -341,7 +355,12 @@ final class PointerDriver {
         }
     }
 
+    /// Where Nightforge last put the pointer for the player (InputRouter.bringPointer), until it's moved:
+    /// a click there is held back (PadPointerRules.holdsClick).
+    static var placedAt: CGPoint?
+
     private func move(_ dx: CGFloat, _ dy: CGFloat) {
+        if dx != 0 || dy != 0 { Self.placedAt = nil }
         let from = desk.location
         let to = PadPointerRules.clamped(CGPoint(x: from.x + dx, y: from.y + dy), to: desk.displays)
         // Moving needs no permission, only a posted event does.
@@ -359,6 +378,13 @@ final class PointerDriver {
 
     private func press(_ button: TouchpadPointer.Button, _ count: Int) {
         let at = desk.location
+        if PadPointerRules.holdsClick(placedAt: Self.placedAt, at: at) {
+            // Nothing pressed, so nothing to release either.
+            pressRoute = nil
+            heldButton = nil
+            return
+        }
+        Self.placedAt = nil
         let route = PadPointerRules.clickRoute(hasAccess: desk.hasAccess, overOwnWindow: desk.isOwnWindow(at: at))
         pressRoute = route
         heldButton = button

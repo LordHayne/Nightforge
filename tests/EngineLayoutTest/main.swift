@@ -44,9 +44,213 @@ struct EngineLayoutTest {
         try? data.write(to: url)
     }
 
+    /// "Steam restarts for …" says which parts of Steam's settings changed, by name only: the cost of a switch between
+    /// games can be counted from the log (claude/spielwechsel-035), and no value – a path with the user's name – goes in.
+    static func restartNames() {
+        let environment = Engine.launchEnvironment, retina = Engine.launchRetina, msync = Engine.msync
+        defer { Engine.launchEnvironment = environment; Engine.launchRetina = retina; Engine.msync = msync }
+        Engine.launchEnvironment = [:]
+        Engine.launchRetina = false
+        Engine.msync = true
+        // Black Myth: Wukong on D3DMetal, limit 60 and MetalFX, after nothing.
+        check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: true, frameLimit: 60, upscaling: true)
+              && Engine.launchChanges == ["D3DM_ENABLE_METALFX", "D3DM_MAX_FPS"], "a D3DMetal game: its two variables, sorted")
+        check(!Engine.prepareLaunchEnvironment(avx: true, d3dMetal: true, frameLimit: 60, upscaling: true) && Engine.launchChanges.isEmpty,
+              "the same game again: nothing, no restart")
+        // A DXMT game without AVX: D3DMetal's variables stay (they do nothing there), AVX goes.
+        check(Engine.prepareLaunchEnvironment(avx: false, d3dMetal: false, frameLimit: 60, upscaling: false)
+              && Engine.launchChanges == ["ROSETTA_ADVERTISE_AVX"], "a DXMT game without AVX after it: only Rosetta's AVX")
+        check(Engine.prepareLaunchEnvironment(avx: false, d3dMetal: false, frameLimit: 60, upscaling: false,
+                                              retina: true, environment: ["WINE_SIMULATE_WRITECOPY": "1"], msyncWanted: false)
+              && Engine.launchChanges == ["WINE_SIMULATE_WRITECOPY", "retina", "msync"], "a profile's switch, Retina and msync: by name")
+        check(Engine.prepareLaunchEnvironment(avx: false, d3dMetal: false, frameLimit: 60, upscaling: false, retina: true,
+                                              vulkan: .kosmicKrisp(URL(fileURLWithPath: "/Users/someone/kk")), msyncWanted: false)
+              && Engine.launchChanges.contains("CX_LIBVULKAN") && Engine.launchChanges.contains("WINE_SIMULATE_WRITECOPY")
+              && !Engine.launchChanges.contains { $0.contains("/") || $0.contains("someone") },
+              "KosmicKrisp: the variables' names, never their paths")
+        // A game with a cheat protection after a D3DMetal game: the limit's variable goes, and the line says so.
+        _ = Engine.prepareLaunchEnvironment(avx: true, d3dMetal: true, frameLimit: 60, upscaling: true, retina: true, msyncWanted: false)
+        check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: true, frameLimit: 60, upscaling: true, retina: true, msyncWanted: false,
+                                              antiCheat: true) && Engine.launchChanges == ["D3DM_MAX_FPS"],
+              "a game with a cheat protection after it: D3DM_MAX_FPS goes, by name")
+
+        check(Engine.changedParts(environment: ["A": "1", "B": "x"], to: ["B": "y", "C": "2"], retina: false, to: false, msync: true, to: true)
+              == ["A", "B", "C"], "gone, changed, new: each once, sorted")
+        check(Engine.changedParts(environment: [:], to: [:], retina: true, to: true, msync: false, to: false).isEmpty, "nothing changed: nothing")
+        check(LibraryModel.restartParts(settings: ["D3DM_MAX_FPS"], program: true, debug: true, frameLog: true)
+              == ["D3DM_MAX_FPS", "program", "debug", "framelog"], "the program, a closer look and the frame log after the settings")
+        check(LibraryModel.restartReason(stuck: false, parts: ["D3DM_MAX_FPS", "retina"])
+              == ": the game's settings come with its environment (D3DM_MAX_FPS, retina)", "the line names them")
+        check(LibraryModel.restartReason(stuck: true, parts: ["program"])
+              == ": it got stuck signing in, and the game's settings come with its environment (program)", "… after a stuck sign-in")
+        check(LibraryModel.restartReason(stuck: true, parts: []) == ": it got stuck signing in" && LibraryModel.restartReason(stuck: false, parts: []).isEmpty,
+              "without a change: as before")
+    }
+
+    /// The session goes by the library's content in the data folder, not by its version number (22.11.2026: the
+    /// release in /Applications put its older library there and began a session with it; the test build, same
+    /// number, kept that session and Steam waited 20 s for the network).
+    static func libraryContent(_ work: URL) {
+        let wine = URL(fileURLWithPath: "/nonexistent/bin/wine")
+        let homeBefore = DockHider.home, bundledBefore = DockHider.bundled
+        defer { DockHider.home = homeBefore; DockHider.bundled = bundledBefore }
+        let data = work.appendingPathComponent("library-data", isDirectory: true)
+        let ours = work.appendingPathComponent("library-ours/hide-steam-dock.dylib")
+        let older = Data("the release's older library".utf8), newer = Data("this build's library with the network order".utf8)
+        write(newer, ours)
+        DockHider.home = data
+        DockHider.bundled = ours
+        let installed = data.appendingPathComponent(DockHider.name)
+
+        // DockHider: another copy renames its own library over ours (as `install` does), or writes it in place.
+        check(DockHider.path() == installed.path && (try? Data(contentsOf: installed)) == newer, "library put into the data folder")
+        let ourFingerprint = DockHider.fingerprint()
+        check(ourFingerprint == DockHider.hash(newer) && ourFingerprint?.count == 32, "its fingerprint: SHA-256 of the content")
+        let foreign = data.appendingPathComponent(".other-copy")
+        write(older, foreign)
+        check(rename(foreign.path, installed.path) == 0, "(the other copy's library renamed over ours)")
+        check(DockHider.path() == installed.path && (try? Data(contentsOf: installed)) == newer,
+              "replaced by another Nightforge's copy: put back from this one's bundle before anything starts with it")
+        check(DockHider.fingerprint() == ourFingerprint, "… and the fingerprint is this build's again")
+        try? older.write(to: installed)
+        _ = DockHider.path()
+        check((try? Data(contentsOf: installed)) == newer, "written over in place by another copy: put back as well")
+        try? fm.removeItem(at: installed)
+        _ = DockHider.path()
+        check((try? Data(contentsOf: installed)) == newer, "gone: put back")
+
+        // The decision alone.
+        let wanted = Engine.librarySessionValue(fingerprint: ourFingerprint)
+        check(Engine.librarySessionEnds(noted: nil, wanted: wanted), "a session from before anything was noted ends")
+        check(Engine.librarySessionEnds(noted: DockHider.sessionVersion, wanted: wanted),
+              "a session noted with a version number (Nightforge up to 0.3.4, the release included) ends: same number, other code")
+        check(Engine.librarySessionEnds(noted: Engine.librarySessionValue(fingerprint: DockHider.hash(older)), wanted: wanted),
+              "a session begun with another library's content ends")
+        check(!Engine.librarySessionEnds(noted: wanted, wanted: wanted), "a session begun with this library stays")
+        check(Engine.librarySessionEnds(noted: Engine.librarySessionValue(fingerprint: nil), wanted: wanted),
+              "a session begun without a library ends once there is one")
+        check(UserDefaults(suiteName: TestDefaults.domain("library-int")).map { suite -> Bool in
+            suite.set(wanted, forKey: "librarySession")
+            return suite.integer(forKey: "librarySession") == 0
+        } == true, "what's noted now reads as version 0 to Nightforge up to 0.3.4: the release ends this session too, and notes its own")
+
+        // The whole step: the release began the session with its library and noted "2".
+        let defaults = TestDefaults.suite("library-content")
+        defaults.set(DockHider.sessionVersion, forKey: "librarySession")
+        var ended = 0
+        let running: () -> [(pid: pid_t, command: String)]? = { [(pid: 4242, command: #"c:\windows\system32\winedevice.exe"#)] }
+        FakeProcesses.installEmpty()
+        Engine.applyLibraryVersion(wine, defaults: defaults, session: { nil }) { _, _ in ended += 1 }
+        check(ended == 0 && defaults.object(forKey: "librarySession") as? Int == DockHider.sessionVersion,
+              "release's session without a process list: not ended, not noted")
+        Engine.applyLibraryVersion(wine, defaults: defaults, session: running) { _, _ in ended += 1 }
+        check(ended == 1 && defaults.string(forKey: "librarySession") == wanted, "release's session: ended, and this library noted")
+        Engine.applyLibraryVersion(wine, defaults: defaults, session: running) { _, _ in ended += 1 }
+        _ = DockHider.path()
+        Engine.applyLibraryVersion(wine, defaults: defaults, session: running) { _, _ in ended += 1 }
+        check(ended == 1, "… exactly once: the next starts keep the session")
+        // Another copy put its library in, but began no session: it's put back, and the session (begun with ours) stays.
+        write(older, foreign)
+        _ = rename(foreign.path, installed.path)
+        Engine.applyLibraryVersion(wine, defaults: defaults, session: running) { _, _ in ended += 1 }
+        check(ended == 1 && (try? Data(contentsOf: installed)) == newer, "library replaced without a new session: put back, session stays")
+        // This build's own library changes (a new build): the session ends once more.
+        let nextBuild = work.appendingPathComponent("library-next-build/hide-steam-dock.dylib")
+        write(older, nextBuild)
+        DockHider.bundled = nextBuild
+        Engine.applyLibraryVersion(wine, defaults: defaults, session: running) { _, _ in ended += 1 }
+        check(ended == 2 && defaults.string(forKey: "librarySession") == Engine.librarySessionValue(fingerprint: DockHider.hash(older)),
+              "new content in this build's bundle: the session ends once more")
+        // Whether a game runs can't be told (no process list): nothing ends, nothing is noted. (A game the list shows
+        // takes a process from inside the data folder, which a test can't fake; the guard is applyMsyncMode's.)
+        defaults.set(DockHider.sessionVersion, forKey: "librarySession")
+        FakeProcesses.installDown()
+        Engine.applyLibraryVersion(wine, defaults: defaults, session: running) { _, _ in ended += 1 }
+        check(ended == 2 && defaults.object(forKey: "librarySession") as? Int == DockHider.sessionVersion,
+              "not when it can't be told whether a game runs")
+        FakeProcesses.installEmpty()
+        sessionMarker(wine, wanted: Engine.librarySessionValue(fingerprint: DockHider.fingerprint()))
+    }
+
+    /// S2 (audit 23.11.2026): another copy of Nightforge with the same settings begins a session with its own library
+    /// and notes nothing (0.3.4) or something else. The session's own marker tells, whatever the note here says.
+    static func sessionMarker(_ wine: URL, wanted: String) {
+        let other = Engine.librarySessionValue(fingerprint: DockHider.hash(Data("another copy's library".utf8)))
+        // The decision.
+        check(!Engine.librarySessionEnds(noted: wanted, began: [wanted], wanted: wanted), "note and marker both this library: stays")
+        check(!Engine.librarySessionEnds(noted: wanted, began: nil, wanted: wanted), "marker not readable: the note decides, as before")
+        check(Engine.librarySessionEnds(noted: wanted, began: [""], wanted: wanted),
+              "a session without a marker (0.3.4, or a build before it) ends, though the note here matches")
+        check(Engine.librarySessionEnds(noted: wanted, began: [other], wanted: wanted), "a session marked with another library ends")
+        check(Engine.librarySessionEnds(noted: wanted, began: [wanted, other], wanted: wanted), "two servers, one foreign: ends")
+        check(Engine.librarySessionEnds(noted: other, began: [wanted], wanted: wanted), "the note still counts: a foreign note ends it too")
+
+        // Only wineservers are read, and "" (no marker) is kept apart from "can't be read".
+        let session: [(pid: pid_t, command: String)] = [(pid: 11, command: #"c:\windows\system32\winedevice.exe"#),
+                                                         (pid: 12, command: "/x/engine/bin/wineserver"),
+                                                         (pid: 13, command: "/x/engine/bin/wineserver -p")]
+        var read: [pid_t] = []
+        check(Engine.librarySessionMarkers(session) { read.append($0); return $0 == 12 ? "" : nil } == [""] && read == [12, 13],
+              "the markers: wineservers only, one without a marker, one unreadable")
+        check(Engine.librarySessionMarkers(session) { _ in nil } == nil, "none readable: nil")
+        check(Engine.librarySessionMarkers([session[0]]) { _ in wanted } == nil, "no wineserver: nil")
+
+        // The whole step: the note matches, but the release began the session without a marker while it ran beside.
+        let defaults = TestDefaults.suite("library-marker")
+        defaults.set(wanted, forKey: "librarySession")
+        var reasons: [String] = []
+        let running: () -> [(pid: pid_t, command: String)]? = { session }
+        Engine.applyLibraryVersion(wine, defaults: defaults, session: running, markers: { _ in [wanted] }, others: { [] }) { reasons.append($1) }
+        check(reasons.isEmpty, "this copy's session, marker and note: kept")
+        Engine.applyLibraryVersion(wine, defaults: defaults, session: running, markers: { _ in nil }, others: { [] }) { reasons.append($1) }
+        check(reasons.isEmpty, "marker unreadable, note matches: kept")
+        Engine.applyLibraryVersion(wine, defaults: defaults, session: running, markers: { _ in [""] },
+                                   others: { ["/Applications"] }) { reasons.append($1) }
+        check(reasons == ["another hide-steam-dock.dylib, by the session's own marker (another Nightforge runs from /Applications)"]
+              && defaults.string(forKey: "librarySession") == wanted,
+              "the release's session without a marker: ended, said in wine.log with the other copy's place")
+        Engine.applyLibraryVersion(wine, defaults: defaults, session: { [] }, markers: { _ in [""] }, others: { [] }) { reasons.append($1) }
+        check(reasons.count == 1, "nothing runs: nothing to end, no marker asked for")
+
+        // Every Wine start carries the marker, also without a library in the build.
+        check(Engine.environment(wine: wine)[Engine.librarySessionMarker] == wanted, "environment: the marker is this library's")
+
+        // The other copy's place, never a path with the user's name.
+        check(Engine.copyPlace("/Applications/Nightforge.app", home: "/Users/someone") == "/Applications"
+              && Engine.copyPlace("/Users/someone/Applications/Nightforge.app", home: "/Users/someone") == "~/Applications"
+              && Engine.copyPlace("/Users/someone/dev/build/Nightforge.app", home: "/Users/someone") == "elsewhere"
+              && Engine.copyPlace(nil) == "elsewhere", "the place of another copy: a name, no path")
+    }
+
+    /// What Steam's process starts with (Engine.steamLaunch), and where Steam goes with an engine held back (steamEngineStep).
+    static func steamLaunchRule() {
+        let wine = URL(fileURLWithPath: "/e/bin/wine"), loader = URL(fileURLWithPath: "/e/bin/wine-preloader")
+        let session = ["WINEPREFIX": "/p", "WINEDEBUG": "-all", "WINEDLLOVERRIDES": "mscoree,mshtml=", "KEEP": "1"]
+        let plain = Engine.steamLaunch(wine: wine, loader: wine, clientInstalled: true, arguments: ["-silent"], session: session,
+                                       extraEnvironment: [:])
+        check(plain.arguments == [Engine.steamExeWindowsPath] + Engine.startArguments(clientInstalled: true) + ["-silent"],
+              "steam.exe, its own arguments, then the caller's: \(plain.arguments)")
+        check(plain.environment["WINEDLLOVERRIDES"] == Engine.steamDLLOverrides && plain.environment["WINEDEBUG"] == Engine.wineDebug,
+              "Steam's DLL overrides and WINEDEBUG over the session's")
+        check(plain.environment["WINELOADER"] == nil && plain.environment["KEEP"] == "1" && plain.environment["WINEPREFIX"] == "/p",
+              "wine itself loads: no WINELOADER; the session's environment stays")
+        let other = Engine.steamLaunch(wine: wine, loader: loader, clientInstalled: false, arguments: [], session: session,
+                                       extraEnvironment: ["WINEDEBUG": "+loaddll", "EXTRA": "x"])
+        check(other.environment["WINELOADER"] == loader.path, "another loader is named")
+        check(other.environment["WINEDEBUG"] == "+loaddll" && other.environment["EXTRA"] == "x", "the caller's environment over everything")
+        check(other.arguments == [Engine.steamExeWindowsPath] + Engine.startArguments(clientInstalled: false), "no client yet: its arguments")
+        let held = URL(fileURLWithPath: "/engines/held/bin/wine"), newer = URL(fileURLWithPath: "/engines/new/bin/wine")
+        check(Engine.steamEngineStep(held: held, session: nil, gameRunning: true) == .held, "no session: the held engine")
+        check(Engine.steamEngineStep(held: held, session: URL(fileURLWithPath: "/engines/held/bin/../bin/wine"), gameRunning: false) == .held,
+              "a session on the held engine, by its standardized path: nothing ends")
+        check(Engine.steamEngineStep(held: held, session: newer, gameRunning: true) == .session(newer), "a game in another engine's session: Steam joins it")
+        check(Engine.steamEngineStep(held: held, session: newer, gameRunning: false) == .endSessionThenHeld(newer), "no game there: that session ends first")
+    }
+
     static func main() {
         TestDefaults.useWorkFolder()
         folderNames()
+        steamLaunchRule()
         let work = fm.temporaryDirectory.appendingPathComponent("elt-\(UUID().uuidString)", isDirectory: true)
         defer { try? fm.removeItem(at: work) }
 
@@ -308,6 +512,31 @@ struct EngineLayoutTest {
         FakeProcesses.installEmpty()
         Engine.applyMsyncMode(URL(fileURLWithPath: "/nonexistent/bin/wine"), defaults: msyncSession)
         check(msyncSession.object(forKey: "msyncSession") as? Bool == true, "… with a list that shows no process: noted")
+        // The same for a session begun with an older hide-steam-dock.dylib (network order, 22.11.2026): its device
+        // host keeps the old library until the session ends, so a new version restarts Steam and ends the session.
+        let librarySession = TestDefaults.suite("library-session")
+        FakeProcesses.installDown()
+        Engine.applyLibraryVersion(URL(fileURLWithPath: "/nonexistent/bin/wine"), defaults: librarySession)
+        check(librarySession.object(forKey: "librarySession") == nil, "library version without a process list: not noted, the next start looks again")
+        FakeProcesses.installEmpty()
+        Engine.applyLibraryVersion(URL(fileURLWithPath: "/nonexistent/bin/wine"), defaults: librarySession)
+        check(librarySession.string(forKey: "librarySession") == Engine.librarySessionValue(fingerprint: DockHider.fingerprint())
+              && DockHider.sessionVersion >= 1, "… with a list that shows no process: noted")
+        libraryContent(work)
+        restartNames()
+        // Every Steam start that brings its own session settings – also the one woken for Play (F5) – takes all three:
+        // a session begun with another msync or an older library is noted as fresh only after it.
+        let wokenSession = TestDefaults.suite("woken-session")
+        wokenSession.set(false, forKey: "msyncSession")
+        let msyncBefore = Engine.msync
+        Engine.msync = true
+        Engine.applySessionSettings(URL(fileURLWithPath: "/nonexistent/bin/wine"), defaults: wokenSession)
+        check(wokenSession.object(forKey: "msyncSession") as? Bool == true
+              && wokenSession.string(forKey: "librarySession") == Engine.librarySessionValue(fingerprint: DockHider.fingerprint()),
+              "session settings for a Steam start: msync and the library version together")
+        Engine.msync = msyncBefore
+        check(Engine.steamConfigSignature.hasPrefix("\(Engine.steamConfigVersion)-lib\(DockHider.sessionVersion)-"),
+              "a new library version changes Steam's signature: Steam restarts, and with it the session")
         check(Engine.steamShutdownScript.contains(#"MSYNC="${7:-1}""#) && Engine.steamShutdownScript.contains(#"WINEMSYNC="$MSYNC""#),
               "the quit script's Wine agrees with the session (msync on when it isn't told)")
         check(GameLog.extraChannels("+loaddll,+timestamp,warn+msync") == "+loaddll,+timestamp,warn+msync"
@@ -681,7 +910,147 @@ struct EngineLayoutTest {
         check((try? String(contentsOf: escape, encoding: .utf8)) == "a", "nothing outside the game folder is touched")
         check(!Engine.applyFileEdits(edits, installDir: game), "a second time there's nothing left to change")
 
+        launchMemory()
+        antiCheatPace()
         finish()
+    }
+
+    /// Nightforge's frame limit on D3DMetal (D3DMetalPace): a game with an anti-cheat or a cheat protection of its own
+    /// never runs with D3DM_MAX_FPS, on any way – straight, through a Steam started for it, through a Steam with the
+    /// remembered settings (F5), after a game with a limit – and never gets the permit.
+    static func antiCheatPace() {
+        let defaults = TestDefaults.suite("pace-memory")
+        let before = (Engine.launchEnvironment, Engine.launchRetina, Engine.msync)
+        defer { (Engine.launchEnvironment, Engine.launchRetina, Engine.msync) = before }
+        func limited() -> Bool { Engine.steamEnvironment["D3DM_MAX_FPS"] != nil }
+
+        // Straight (Epic, GOG).
+        check(Engine.directLaunchEnvironment(avx: true, d3dMetal: true, frameLimit: 60, upscaling: false)["D3DM_MAX_FPS"] == "60",
+              "straight on D3DMetal: the limit")
+        check(Engine.directLaunchEnvironment(avx: true, d3dMetal: true, frameLimit: 60, upscaling: false, antiCheat: true)["D3DM_MAX_FPS"] == nil,
+              "straight, an anti-cheat game on D3DMetal: no limit")
+
+        // Through Steam: the anti-cheat game on D3DMetal itself, and one on DXMT after a D3DMetal game with a limit.
+        Engine.launchEnvironment = [:]
+        _ = Engine.prepareLaunchEnvironment(avx: true, d3dMetal: true, frameLimit: 60, upscaling: false, antiCheat: true)
+        check(!limited(), "through Steam, an anti-cheat game on D3DMetal: no limit in Steam's environment")
+        check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: true, frameLimit: 60, upscaling: false) && limited(),
+              "a D3DMetal game with a limit after it: Steam restarts with it")
+        Engine.rememberLaunch(for: "steam:limited", defaults: defaults)
+        check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: false, frameLimit: 60, upscaling: false, antiCheat: true) && !limited(),
+              "an anti-cheat game on DXMT after it: Steam restarts without the limit (where a game without one keeps it)")
+        check(LibraryModel.restartsSteamForStart(environmentChanged: true, stuck: false, running: true, gamesRunning: false),
+              "… and that restart happens while no game runs in Steam")
+        Engine.rememberLaunch(for: "steam:protected", defaults: defaults)
+        check(Engine.rememberedLaunch(for: "steam:protected", defaults: defaults)?.environment["D3DM_MAX_FPS"] == nil,
+              "what's noted for the anti-cheat game has no limit")
+
+        // F5: a Steam that starts with the remembered settings – the last game's (with a limit), or the anti-cheat game's own.
+        Engine.launchEnvironment = Engine.rememberedLaunch(for: "steam:limited", defaults: defaults)?.environment ?? [:]
+        check(limited(), "a Steam begun with the last game's settings has its limit")
+        check(Engine.prepareLaunchEnvironment(avx: true, d3dMetal: true, frameLimit: 60, upscaling: false, antiCheat: true) && !limited(),
+              "the anti-cheat game started in it: Steam restarts without the limit")
+        Engine.launchEnvironment = Engine.rememberedLaunch(for: "steam:limited", defaults: defaults)?.environment ?? [:]
+        check(Engine.takeRememberedLaunch(for: "steam:protected", defaults: defaults) && !limited(),
+              "Steam woken for the anti-cheat game takes its own settings: no limit")
+        check(!Engine.prepareLaunchEnvironment(avx: true, d3dMetal: true, frameLimit: 60, upscaling: false, antiCheat: true) && !limited(),
+              "… and its start finds them so: no restart, no limit")
+
+        // The permit: for this one start of a game without an anti-cheat, on D3DMetal, with a limit – else none.
+        check(D3DMetalPace.permit(limit: 60, gameFolder: #"C:\Games\Test"#, handsOff: false, d3dMetal: true) == "60\nC:\\Games\\Test\n",
+              "the permit: the limit and the game's folder")
+        check(D3DMetalPace.permit(limit: 60, gameFolder: #"C:\Games\Test\"#, handsOff: false, d3dMetal: true) == "60\nC:\\Games\\Test\n",
+              "… without a backslash at its end")
+        check(D3DMetalPace.permit(limit: 60, gameFolder: #"C:\Games\Test"#, handsOff: true, d3dMetal: true) == nil,
+              "an anti-cheat game: no permit")
+        check(D3DMetalPace.permit(limit: 60, gameFolder: #"C:\Games\Test"#, handsOff: false, d3dMetal: false) == nil, "another layer: no permit")
+        check(D3DMetalPace.permit(limit: 0, gameFolder: #"C:\Games\Test"#, handsOff: false, d3dMetal: true) == nil, "no limit: no permit")
+        check(D3DMetalPace.permit(limit: 60, gameFolder: #"C:\"#, handsOff: false, d3dMetal: true) == nil, "a whole drive: no permit")
+        let folder = fm.temporaryDirectory.appendingPathComponent("pace-\(UUID().uuidString)", isDirectory: true)
+        defer { try? fm.removeItem(at: folder) }
+        let file = folder.appendingPathComponent("d3dmetal-pace")
+        let game = Engine.prefix.appendingPathComponent("drive_c/Games/Test", isDirectory: true)
+        D3DMetalPace.prepare(limit: 60, installDir: game, handsOff: false, d3dMetal: true, file: file)
+        check((try? String(contentsOf: file, encoding: .utf8)) == "60\nC:\\Games\\Test\n", "written before a D3DMetal start, as Wine names the folder")
+        D3DMetalPace.prepare(limit: 60, installDir: game, handsOff: true, d3dMetal: true, file: file)
+        check(!fm.fileExists(atPath: file.path), "an anti-cheat game's start takes it away")
+        D3DMetalPace.prepare(limit: 60, installDir: game, handsOff: false, d3dMetal: true, file: file)
+        D3DMetalPace.prepare(limit: 60, installDir: game, handsOff: false, d3dMetal: false, file: file)
+        check(!fm.fileExists(atPath: file.path), "a start on another layer takes it away too")
+    }
+
+    /// F5: Steam starts with what a game had at its last start, so that start needs no second Steam start.
+    static func launchMemory() {
+        let defaults = TestDefaults.suite("launch-memory")
+        let before = (Engine.launchEnvironment, Engine.launchRetina, Engine.msync)
+        defer { (Engine.launchEnvironment, Engine.launchRetina, Engine.msync) = before }
+        check(Engine.rememberedLaunch(for: nil, defaults: defaults) == nil, "nothing noted yet: Steam starts as before")
+
+        // The whole way: a D3DMetal game with Retina wants a restart once; noted, the next run's Steam starts with it.
+        Engine.launchEnvironment = [:]
+        Engine.launchRetina = false
+        Engine.msync = true
+        let prepare = {
+            Engine.prepareLaunchEnvironment(avx: true, d3dMetal: true, frameLimit: 60, upscaling: true, retina: true,
+                                            environment: ["WINE_SIMULATE_WRITECOPY": "1"], msyncWanted: true)
+        }
+        check(prepare(), "the game's first start this run: its settings differ from Steam's")
+        Engine.setCloserLook(true)
+        Engine.rememberLaunch(for: "steam:1", defaults: defaults)
+        let noted = Engine.rememberedLaunch(for: "steam:1", defaults: defaults, msyncAllowed: true)
+        check(noted?.environment["D3DM_MAX_FPS"] == "60" && noted?.environment["WINE_SIMULATE_WRITECOPY"] == "1"
+              && noted?.retina == true && noted?.msync == true, "noted: its environment, Retina and msync")
+        check(noted?.environment["WINEDEBUG"] == nil, "… without a closer look's channels")
+        Engine.setCloserLook(false)
+        Engine.launchEnvironment = [:]
+        Engine.launchRetina = false
+        check(Engine.takeRememberedLaunch(for: "steam:1", defaults: defaults), "Steam asleep, Play: its settings are taken")
+        check(!prepare(), "… and the start finds them as it wants them: no restart")
+        check(!Engine.takeRememberedLaunch(for: "steam:1", defaults: defaults), "taken twice: nothing changes")
+        check(!Engine.takeRememberedLaunch(for: "steam:2", defaults: defaults), "a game never started: Steam's settings stay")
+        Engine.setCloserLook(true)
+        Engine.launchEnvironment = ["WINEDEBUG": CloserLook.wineDebug]
+        check(Engine.takeRememberedLaunch(for: "steam:1", defaults: defaults) && Engine.wineDebug == CloserLook.wineDebug,
+              "a closer look this Play stays when they're taken")
+        Engine.setCloserLook(false)
+
+        // The last one is the one a Steam started before any game begins with.
+        Engine.launchEnvironment = ["ROSETTA_ADVERTISE_AVX": ""]
+        Engine.launchRetina = false
+        Engine.msync = false
+        Engine.rememberLaunch(for: "steam:3", defaults: defaults)
+        check(Engine.rememberedLaunch(for: nil, defaults: defaults)?.environment == ["ROSETTA_ADVERTISE_AVX": ""],
+              "nil: the game started last")
+
+        // What doesn't hold any more is not taken.
+        check(Engine.rememberedLaunch(for: "steam:1", defaults: defaults, msyncAllowed: false) == nil,
+              "msync noted, the engine test's switch off: not taken")
+        Engine.launchEnvironment = ["CX_LIBVULKAN": "/gone/libvulkan.1.dylib", "MESA_SHADER_CACHE_DIR": "/not/yet/made"]
+        Engine.rememberLaunch(for: "steam:4", defaults: defaults)
+        check(Engine.rememberedLaunch(for: "steam:4", defaults: defaults) == nil, "a file it names is gone (KosmicKrisp replaced): not taken")
+        check(Engine.rememberedLaunch(for: "steam:4", defaults: defaults, exists: { $0.hasSuffix(".dylib") }) != nil,
+              "… there: taken; a cache folder doesn't have to be")
+        Engine.launchEnvironment = ["VK_ADD_IMPLICIT_LAYER_PATH": "/layers"]
+        Engine.rememberLaunch(for: "steam:5", defaults: defaults)
+        check(Engine.rememberedLaunch(for: "steam:5", defaults: defaults, exists: { _ in true }) == nil,
+              "the engine test's Vulkan loader, its switch off since: not taken")
+        let old = try? JSONSerialization.data(withJSONObject: [
+            "games": ["steam:6": ["version": Engine.steamConfigVersion - 1, "environment": [String: String](), "retina": false, "msync": false]],
+            "order": ["steam:6"]])
+        let stale = TestDefaults.suite("launch-memory-old")
+        stale.set(old, forKey: Engine.launchMemoryKey)
+        check(Engine.rememberedLaunch(for: "steam:6", defaults: stale) == nil, "from an older Nightforge's settings: not taken")
+        stale.set(Data("nonsense".utf8), forKey: Engine.launchMemoryKey)
+        check(Engine.rememberedLaunch(for: nil, defaults: stale) == nil, "an unreadable note: Steam starts as before")
+
+        // Kept for the last games only.
+        Engine.launchEnvironment = [:]
+        for game in 0..<(Engine.launchMemoryLimit + 6) { Engine.rememberLaunch(for: "many:\(game)", defaults: defaults) }
+        check(Engine.rememberedLaunch(for: "many:0", defaults: defaults) == nil
+              && Engine.rememberedLaunch(for: "many:\(Engine.launchMemoryLimit + 5)", defaults: defaults) != nil
+              && Engine.rememberedLaunch(for: "many:6", defaults: defaults) != nil
+              && Engine.rememberedLaunch(for: "many:5", defaults: defaults) == nil,
+              "the last \(Engine.launchMemoryLimit) games are kept, older ones go")
     }
 
     static func finish() -> Never {

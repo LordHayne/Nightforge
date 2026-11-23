@@ -78,7 +78,36 @@ struct PadRulesTest {
         check(ControllerStatus.inPlayerOrder(unordered).map(\.name) == ["d", "b", "a", "c"], "player 1 first, those without a number last in their order")
     }
 
+    /// Two pads at once (docs/ENTWURF-ZWEI-PADS.md): what one holds isn't let go of by the other. HeldDirections, with the
+    /// d-pad and left stick of each pad as keys, and each pad's right stick for scrolling.
+    static func twoPads() {
+        struct Step: Equatable { var dx = 0, dy = 0 }
+        var held = HeldDirections<String, Step>(rest: Step())
+        let right = Step(dx: 1), down = Step(dy: 1)
+        check(held.set(right, for: "pad 1 stick") == right, "one pad holds right: right")
+        check(held.set(Step(), for: "pad 2 stick") == right, "the other pad's stick at rest doesn't let go of it")
+        check(held.set(down, for: "pad 2 d-pad") == down, "the other pad moves: it leads")
+        check(held.set(Step(), for: "pad 2 d-pad") == right, "and letting go hands back to what the first pad still holds")
+        check(held.set(Step(), for: "pad 1 stick") == Step(), "nothing held: at rest")
+        // One pad, as before: the d-pad and the stick hand over to each other.
+        check(held.set(right, for: "pad 1 d-pad") == right && held.set(down, for: "pad 1 stick") == down
+              && held.set(Step(), for: "pad 1 stick") == right, "one pad's d-pad and stick as before")
+        check(held.set(down, for: "pad 1 d-pad") == down, "a new direction on the same place leads at once")
+        held.clear()
+        check(held.leading == Step(), "let go of everything (a pad gone, Nightforge behind)")
+        // Scrolling: the right sticks, at rest under the dead zone.
+        var scrolls = HeldDirections<Int, Float>(rest: 0)
+        check(scrolls.set(0.9, for: 1) == 0.9 && scrolls.set(0, for: 2) == 0.9, "a second pad's stick at rest doesn't stop the scrolling")
+        check(scrolls.set(-0.5, for: 2) == -0.5 && scrolls.set(0, for: 2) == 0.9, "the other one scrolls, lets go: the first goes on")
+        let router = (try? String(contentsOfFile: "Sources/Nightforge/InputRouter.swift", encoding: .utf8)) ?? ""
+        check(router.contains("directions.set(step, for: DirectionKey(pad: pad, source: source))")
+              && router.contains("self.scrolls.set(Self.stickSpeed(y) == 0 ? 0 : y, for: padID)"),
+              "InputRouter holds directions and scrolling per pad")
+        check(!router.contains("dpadStep") && !router.contains("stickStep"), "no step held once for every pad")
+    }
+
     static func main() {
+        twoPads()
         players()
         typealias Open = PadRules.Open
 

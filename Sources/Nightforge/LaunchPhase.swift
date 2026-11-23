@@ -5,7 +5,13 @@ import Foundation
 enum LaunchPhase: Equatable {
     case startingSteam
     case startingSteamForMac
+    /// Waiting while Steam signs in by itself.
     case signingIn
+    /// The other Steam (for Mac, or the Windows one) had the account meanwhile: this one signs in afresh, or the game
+    /// would start without its cloud saves.
+    case signingInAgain
+    /// Steam finishes its first Steam Cloud sync before the game starts.
+    case steamCloudSync
     case signInInSteamWindow
     /// A Steam that signed in by itself before asks for a fresh sign-in (its remembered one ran out).
     case signInAgain
@@ -13,7 +19,11 @@ enum LaunchPhase: Equatable {
     case savingToCloud
     case settingUp
     case settingUpDotNet
+    /// Steam got stuck starting or signing in: it's restarted.
     case restartingSteam
+    /// A planned restart, not a fault: the game takes settings from Steam's environment (Engine.prepareLaunchEnvironment),
+    /// and Steam runs with another game's.
+    case restartingSteamForGame
     /// The signed-in Steam stopped taking commands (SteamCommands): it's restarted.
     case steamNotResponding
     /// It ended at once: the next way, by its name.
@@ -44,12 +54,14 @@ enum LaunchPhase: Equatable {
         switch self {
         case .startingSteam: return L10n.t("Starting Steam …")
         case .startingSteamForMac: return L10n.t("Starting Steam for Mac …")
-        case .signingIn: return L10n.t("Signing in to Steam …")
+        case .signingIn, .signingInAgain: return L10n.t("Signing in to Steam …")
+        case .steamCloudSync: return L10n.t("Getting your save …")
         case .signInInSteamWindow, .signInAgain: return L10n.t("Sign in in the Steam window")
         case .savingToCloud: return L10n.t("Saving to Steam Cloud …")
         case .settingUp: return L10n.t("Setting up the game …")
         case .settingUpDotNet: return L10n.t("Setting up .NET for the game …")
         case .restartingSteam: return L10n.t("Restarting Steam …")
+        case .restartingSteamForGame: return L10n.t("Getting Steam ready for the game …")
         case .steamNotResponding: return L10n.t("Steam isn't responding – restarting it …")
         case .retrying(let way): return L10n.t("Starting again with %@ …", way)
         case .updating(let fraction?): return L10n.t("Updating … %ld %%", Int(fraction * 100))
@@ -70,13 +82,16 @@ enum LaunchPhase: Equatable {
         switch self {
         case .startingSteam: return L10n.t("Steam runs invisibly in the background – it only has to start once.")
         case .startingSteamForMac: return L10n.t("The Mac version starts through Steam for Mac, which runs in the background.")
-        case .signingIn: return L10n.t("Steam signs in again, so your cloud saves come along.")
+        case .signingIn: return L10n.t("Steam signs in with your account.")
+        case .signingInAgain: return L10n.t("Steam signs in again, so your cloud saves come along.")
+        case .steamCloudSync: return L10n.t("Steam brings your newest save from Steam Cloud first.")
         case .signInInSteamWindow: return L10n.t("Steam needs you to sign in – its window is open.")
         case .signInAgain: return L10n.t("Steam asks you to sign in again – it does that every few months. Its window is open.")
         case .savingToCloud: return L10n.t("The last game's save goes up to Steam Cloud first, so it's there wherever you play next.")
         case .settingUp: return L10n.t("Installing what the game needs from Windows. Only the first time.")
         case .settingUpDotNet: return L10n.t("Installing .NET, which this game needs. Only the first time.")
         case .restartingSteam: return L10n.t("Steam got stuck while starting – a fresh start fixes that.")
+        case .restartingSteamForGame: return L10n.t("Steam starts again with the settings this game needs.")
         case .steamNotResponding: return L10n.t("Steam stopped taking requests. A fresh start fixes that – the game starts right after.")
         case .retrying: return L10n.t("It closed right away – Nightforge starts it the next way and remembers what works.")
         case .updating: return L10n.t("Steam updates the game first – it starts by itself when the update is done.")
@@ -97,32 +112,40 @@ enum LaunchPhase: Equatable {
         }
     }
 
-    /// The curtain's line for it: what happens, the same words for the same thing – the rule of 15.11.2026
-    /// (board "Vorhang nach der Regel"). Which part, engine or way goes to the log (`kind`); the Play button
-    /// keeps `title`.
-    var curtainTitle: String {
+    /// The curtain's line for it: none while Nightforge only waits – "at a console nobody wants to know what happens
+    /// technically" (the user, 22.11.2026); the light running along the seam says it's under way. A line only where
+    /// the player has something to do, and for an update, whose real figures are what a console shows as well.
+    /// What the phase is goes to the log (`kind`); the Play button keeps `title`.
+    var curtainTitle: String? {
         switch self {
-        case .settingUp, .settingUpDotNet, .settingUpWindowsParts: return L10n.t("Setting up …")
-        case .restartingSteam, .steamNotResponding: return L10n.t("Restarting Steam …")
-        case .retrying, .rollingBack: return L10n.t("One more try …")
-        // The engine before, at a start of its own: no try of Nightforge's to tell of.
-        case .heldEngine: return L10n.t("Starting …")
-        case .savingToCloud: return L10n.t("Saving your game …")
-        case .licenceAnswered: return L10n.t("The game is starting …")
-        default: return title
+        case .signInInSteamWindow, .signInAgain, .signInInBattleNetWindow, .battleNetAsks, .updating: return title
+        default: return nil
         }
     }
 
-    /// The short sentence under the curtain's line: only where it's true once, or where the player has a window to
-    /// answer in (the rule of 15.11.2026). What else `hint` says is in the log as the phase begins.
+    /// The short sentence under the curtain's line: only where the player has a window to answer in. What `hint`
+    /// says is in the log as the phase begins.
     var curtainSentence: String? {
         switch self {
-        case .settingUp, .settingUpDotNet, .settingUpWindowsParts: return L10n.t("Only the first time.")
         case .signInInSteamWindow, .signInAgain, .signInInBattleNetWindow: return L10n.t("Its window is open.")
         case .battleNetAsks: return hint
         default: return nil
         }
     }
+
+    /// Something done once per game, which can take minutes (Windows parts, .NET): after `firstTimeAfter` the
+    /// curtain says quietly that the first time takes longer.
+    var onlyTheFirstTime: Bool {
+        switch self {
+        case .settingUp, .settingUpDotNet, .settingUpWindowsParts: return true
+        default: return false
+        }
+    }
+
+    /// How long a first start's wait goes without a word: the one sentence comes only at a wait this long.
+    static let firstTimeAfter: TimeInterval = 60
+    /// That sentence.
+    static var firstTimeSentence: String { L10n.t("The first time takes a little longer.") }
 
     /// For the log, once a phase begins: an update's figures don't make a new one.
     var kind: String {

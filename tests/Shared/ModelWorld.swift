@@ -31,6 +31,7 @@ enum ModelWorld {
             exit(1)
         }
         TestDefaults.useWorkFolder()
+        TestDrives.none()  // no drive, whatever is plugged into this Mac or mounted by another series meanwhile
         URLProtocol.registerClass(NoNetwork.self)
         _ = NSApplication.shared  // the model asks NSApp whether it's in front; no window, no Dock icon without run()
         try? FileManager.default.createDirectory(at: steamapps, withIntermediateDirectories: true)
