@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Nightforge · Klänge zum Anhören</title>
+<!-- Entwurf zu Entscheidung 5 (Klänge in 0.4.x). Die Klänge entstehen hier im Browser (Web Audio), ohne Dateien.
+     Nichts davon ist in der App. Stil wie docs/entwurf-steam-pad-04 und docs/entwurf-pad-only-04. -->
+<style>
+body{margin:0;background:#0f141c;color:#f3f1ec;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-serif}
+main{width:1180px;margin:0 auto;padding:40px 40px 70px;box-sizing:border-box}
+h1{margin:0 0 10px;font-size:32px;font-weight:800;font-stretch:expanded}
+header p{margin:0 0 8px;font-size:16px;line-height:24px;color:#9aa3af;max-width:1000px}
+section{margin-top:44px;padding:30px 32px 28px;border-radius:28px;background:rgba(40,46,60,.55);border:1px solid rgba(255,255,255,.1)}
+.label{font-size:11px;font-weight:700;letter-spacing:.8px;color:#9aa3af;text-transform:uppercase;margin-bottom:8px}
+h2{margin:0 0 8px;font-size:26px;font-weight:800;font-stretch:expanded}
+.lead{margin:0 0 22px;font-size:15px;line-height:22px;color:#c9ced8;max-width:960px}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+button{appearance:none;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.08);color:#f3f1ec;border-radius:20px;
+       padding:16px 14px;font-size:15px;text-align:left;cursor:pointer;display:flex;gap:12px;align-items:center}
+button:hover{background:rgba(255,255,255,.14)}
+button:focus-visible{outline:4px solid #8ca8db;outline-offset:3px}
+button .dot{width:10px;height:10px;border-radius:5px;background:#8ca8db;box-shadow:0 0 10px #8ca8db;flex:none}
+button.all{grid-column:span 4;justify-content:center;background:rgba(58,99,184,.55)}
+.haptic{margin:22px 0 0;font-size:14px;line-height:21px;color:#c9ced8}
+.haptic b{color:#f3f1ec}
+.rules{margin-top:44px;padding:26px 32px;border-radius:24px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.08)}
+.rules h2{font-size:22px}
+.rules li{margin:6px 0;font-size:15px;line-height:22px;color:#c9ced8}
+.note{margin-top:14px;font-size:13px;color:#9aa3af}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>Klänge zum Anhören</h1>
+  <p>Drei ruhige Sätze für dieselben Momente. Kurz, leise, keine Fanfaren. Der Ton beginnt erst mit dem ersten Klick; am besten
+  mit Kopfhörern oder am Fernseher anhören, in der Lautstärke, in der sonst gespielt wird.</p>
+  <p>Zu jedem Satz steht, wie sich der Controller dazu anfühlen könnte (DualSense). Gewählt wird ein Satz; Mischen geht auch.</p>
+</header>
+
+<div id="sets">
+<section><div class="label">Satz A · Glas</div><h2>Glas</h2><p class="lead">Hell und klar, wie eine Glasscheibe, die man antippt. Kurze, hohe Töne mit sanftem Ausklang; passt zum Glasblatt.</p><div class="grid"><button data-set="0" data-moment="Fokus wandern"><span class="dot"></span>Fokus wandern</button><button data-set="0" data-moment="Auswahl (Ⓐ)"><span class="dot"></span>Auswahl (Ⓐ)</button><button data-set="0" data-moment="Zurück (Ⓑ)"><span class="dot"></span>Zurück (Ⓑ)</button><button data-set="0" data-moment="Spiel startet"><span class="dot"></span>Spiel startet</button><button data-set="0" data-moment="Zurück zu Nightforge"><span class="dot"></span>Zurück zu Nightforge</button><button data-set="0" data-moment="Overlay auf"><span class="dot"></span>Overlay auf</button><button data-set="0" data-moment="Overlay zu"><span class="dot"></span>Overlay zu</button><button data-set="0" data-moment="Meldung"><span class="dot"></span>Meldung</button><button class="all" data-set="0" data-all="1">Alle Klänge von „Glas“ nacheinander</button></div><p class="haptic"><b>Vibration:</b> Fokus ein winziges Antippen rechts (nur beim DualSense, sonst nichts); Auswahl ein kurzes, festes Tippen; zurück ein weiches Tippen links; Spielstart ein kurzes Anschwellen in beiden Händen; Meldung nichts.</p></section>
+<section><div class="label">Satz B · Lichtnaht</div><h2>Naht</h2><p class="lead">Ein Hauch statt eines Tons: weiche Luft, darunter ein leiser, warmer Klang, der kurz aufleuchtet wie die Naht auf dem Ladebildschirm.</p><div class="grid"><button data-set="1" data-moment="Fokus wandern"><span class="dot"></span>Fokus wandern</button><button data-set="1" data-moment="Auswahl (Ⓐ)"><span class="dot"></span>Auswahl (Ⓐ)</button><button data-set="1" data-moment="Zurück (Ⓑ)"><span class="dot"></span>Zurück (Ⓑ)</button><button data-set="1" data-moment="Spiel startet"><span class="dot"></span>Spiel startet</button><button data-set="1" data-moment="Zurück zu Nightforge"><span class="dot"></span>Zurück zu Nightforge</button><button data-set="1" data-moment="Overlay auf"><span class="dot"></span>Overlay auf</button><button data-set="1" data-moment="Overlay zu"><span class="dot"></span>Overlay zu</button><button data-set="1" data-moment="Meldung"><span class="dot"></span>Meldung</button><button class="all" data-set="1" data-all="1">Alle Klänge von „Naht“ nacheinander</button></div><p class="haptic"><b>Vibration:</b> Fokus nichts; Auswahl ein weiches Tippen, das kurz nachschwingt; zurück ein noch leiseres; Spielstart ein langsames Anschwellen und Abklingen, wie das Licht der Naht; Spielende dasselbe rückwärts; Meldung nichts.</p></section>
+<section><div class="label">Satz C · Nacht</div><h2>Nacht</h2><p class="lead">Tief und warm, wie ein Holzklang in einem stillen Raum. Fast nur ein Gefühl unter dem Bild; am Fernseher besonders ruhig.</p><div class="grid"><button data-set="2" data-moment="Fokus wandern"><span class="dot"></span>Fokus wandern</button><button data-set="2" data-moment="Auswahl (Ⓐ)"><span class="dot"></span>Auswahl (Ⓐ)</button><button data-set="2" data-moment="Zurück (Ⓑ)"><span class="dot"></span>Zurück (Ⓑ)</button><button data-set="2" data-moment="Spiel startet"><span class="dot"></span>Spiel startet</button><button data-set="2" data-moment="Zurück zu Nightforge"><span class="dot"></span>Zurück zu Nightforge</button><button data-set="2" data-moment="Overlay auf"><span class="dot"></span>Overlay auf</button><button data-set="2" data-moment="Overlay zu"><span class="dot"></span>Overlay zu</button><button data-set="2" data-moment="Meldung"><span class="dot"></span>Meldung</button><button class="all" data-set="2" data-all="1">Alle Klänge von „Nacht“ nacheinander</button></div><p class="haptic"><b>Vibration:</b> Fokus ein ganz leises, tiefes Pochen; Auswahl ein festes, kurzes Pochen; zurück zwei leise Pochen; Spielstart ein tiefes Pochen, das ausklingt; Meldung ein einzelnes leises Pochen.</p></section>
+</div>
+
+<div class="rules">
+  <h2>Wann leise, wann stumm</h2>
+  <ul>
+    <li><b>Nie über einem Spiel.</b> Solange ein Spiel läuft, ist Nightforge still, auch im Overlay leiser als hier und nur für
+      Overlay auf/zu.</li>
+    <li><b>Nur am Controller.</b> Wer mit Maus und Tastatur bedient, hört nichts; die Klänge kommen nur, wenn zuletzt das Pad benutzt wurde.</li>
+    <li><b>Leise.</b> Deutlich unter dem, was ein Spiel spielt, und nie lauter als die Lautstärke des Macs es zulässt.</li>
+    <li><b>Ein eigener Schalter</b> unter Einstellungen › Controller: „Klänge“ an/aus, und getrennt davon „Vibration“.</li>
+    <li><b>„Bewegung reduzieren“</b> in macOS: keine Vibration bei Fokus und Meldung, nur bei Auswahl und Spielstart; die Klänge folgen
+      ihrem eigenen Schalter.</li>
+    <li>Ein Klang verschluckt keinen anderen: schnelles Blättern spielt den Fokus-Klang höchstens alle 60 ms.</li>
+  </ul>
+  <p class="note">Die Klänge hier entstehen im Browser aus einfachen Tönen. In der App wären es kurze, einmal geladene Dateien mit
+  demselben Klang; keine Audio-Engine läuft dauerhaft.</p>
+</div>
+</main>
+
+<script>
+// A sound is a list of tones: wave, start and end pitch (Hz), when it begins (s), attack and decay (s), loudness, filter.
+// Noise stands for a soft breath of air. Everything quiet: the loudest tone peaks at 0.14.
+const SETS = [
+  {
+    name: 'Glas', label: 'Satz A · Glas',
+    lead: 'Hell und klar, wie eine Glasscheibe, die man antippt. Kurze, hohe Töne mit sanftem Ausklang; passt zum Glasblatt.',
+    haptic: '<b>Vibration:</b> Fokus ein winziges Antippen rechts (nur beim DualSense, sonst nichts); Auswahl ein kurzes, festes Tippen; zurück ein weiches Tippen links; Spielstart ein kurzes Anschwellen in beiden Händen; Meldung nichts.',
+    sounds: {
+      'Fokus wandern':   [{w:'sine', f:1760, t:0, a:.004, d:.07, g:.05}],
+      'Auswahl (Ⓐ)':     [{w:'sine', f:1318, t:0, a:.004, d:.14, g:.08}, {w:'sine', f:1976, t:.045, a:.004, d:.18, g:.06}],
+      'Zurück (Ⓑ)':      [{w:'sine', f:1568, t:0, a:.004, d:.1, g:.06}, {w:'sine', f:1046, t:.05, a:.004, d:.16, g:.06}],
+      'Spiel startet':   [{w:'sine', f:784, t:0, a:.01, d:.5, g:.07}, {w:'sine', f:1175, t:.09, a:.01, d:.55, g:.06}, {w:'sine', f:1568, t:.18, a:.01, d:.7, g:.05}],
+      'Zurück zu Nightforge': [{w:'sine', f:1568, t:0, a:.01, d:.4, g:.05}, {w:'sine', f:1175, t:.1, a:.01, d:.45, g:.05}, {w:'sine', f:784, t:.2, a:.01, d:.6, g:.06}],
+      'Overlay auf':     [{w:'sine', f:1046, f2:1568, t:0, a:.01, d:.22, g:.06}],
+      'Overlay zu':      [{w:'sine', f:1568, f2:1046, t:0, a:.01, d:.22, g:.06}],
+      'Meldung':         [{w:'sine', f:2093, t:0, a:.004, d:.25, g:.04}, {w:'sine', f:2637, t:.07, a:.004, d:.3, g:.03}],
+    },
+  },
+  {
+    name: 'Naht', label: 'Satz B · Lichtnaht',
+    lead: 'Ein Hauch statt eines Tons: weiche Luft, darunter ein leiser, warmer Klang, der kurz aufleuchtet wie die Naht auf dem Ladebildschirm.',
+    haptic: '<b>Vibration:</b> Fokus nichts; Auswahl ein weiches Tippen, das kurz nachschwingt; zurück ein noch leiseres; Spielstart ein langsames Anschwellen und Abklingen, wie das Licht der Naht; Spielende dasselbe rückwärts; Meldung nichts.',
+    sounds: {
+      'Fokus wandern':   [{w:'noise', t:0, a:.01, d:.06, g:.03, lp:2400}],
+      'Auswahl (Ⓐ)':     [{w:'noise', t:0, a:.01, d:.12, g:.04, lp:3000}, {w:'triangle', f:660, t:0, a:.015, d:.22, g:.07, lp:1800}],
+      'Zurück (Ⓑ)':      [{w:'noise', t:0, a:.01, d:.1, g:.035, lp:1600}, {w:'triangle', f:440, t:0, a:.015, d:.2, g:.06, lp:1200}],
+      'Spiel startet':   [{w:'noise', t:0, a:.25, d:.7, g:.04, lp:1200, lp2:5000}, {w:'triangle', f:330, f2:495, t:.05, a:.2, d:.8, g:.06, lp:1400}],
+      'Zurück zu Nightforge': [{w:'noise', t:0, a:.15, d:.7, g:.035, lp:4000, lp2:1000}, {w:'triangle', f:495, f2:330, t:.05, a:.15, d:.8, g:.06, lp:1400}],
+      'Overlay auf':     [{w:'noise', t:0, a:.06, d:.25, g:.035, lp:900, lp2:3500}],
+      'Overlay zu':      [{w:'noise', t:0, a:.04, d:.25, g:.035, lp:3500, lp2:900}],
+      'Meldung':         [{w:'triangle', f:880, t:0, a:.02, d:.35, g:.05, lp:2500}],
+    },
+  },
+  {
+    name: 'Nacht', label: 'Satz C · Nacht',
+    lead: 'Tief und warm, wie ein Holzklang in einem stillen Raum. Fast nur ein Gefühl unter dem Bild; am Fernseher besonders ruhig.',
+    haptic: '<b>Vibration:</b> Fokus ein ganz leises, tiefes Pochen; Auswahl ein festes, kurzes Pochen; zurück zwei leise Pochen; Spielstart ein tiefes Pochen, das ausklingt; Meldung ein einzelnes leises Pochen.',
+    sounds: {
+      'Fokus wandern':   [{w:'triangle', f:330, t:0, a:.003, d:.05, g:.07, lp:900}],
+      'Auswahl (Ⓐ)':     [{w:'triangle', f:262, t:0, a:.003, d:.12, g:.1, lp:1000}, {w:'sine', f:523, t:0, a:.003, d:.08, g:.04}],
+      'Zurück (Ⓑ)':      [{w:'triangle', f:220, t:0, a:.003, d:.08, g:.08, lp:800}, {w:'triangle', f:196, t:.09, a:.003, d:.1, g:.07, lp:800}],
+      'Spiel startet':   [{w:'sine', f:131, f2:98, t:0, a:.02, d:.9, g:.14}, {w:'triangle', f:262, t:.04, a:.01, d:.5, g:.05, lp:900}],
+      'Zurück zu Nightforge': [{w:'triangle', f:196, t:0, a:.01, d:.3, g:.07, lp:900}, {w:'triangle', f:262, t:.14, a:.01, d:.5, g:.07, lp:900}],
+      'Overlay auf':     [{w:'triangle', f:196, f2:294, t:0, a:.01, d:.2, g:.07, lp:900}],
+      'Overlay zu':      [{w:'triangle', f:294, f2:196, t:0, a:.01, d:.2, g:.07, lp:900}],
+      'Meldung':         [{w:'triangle', f:392, t:0, a:.005, d:.3, g:.06, lp:1200}],
+    },
+  },
+];
+
+let ctx = null, noise = null;
+function audio() {
+  if (!ctx) {
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    noise = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+    const data = noise.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  }
+  return ctx;
+}
+
+function tone(c, s, at) {
+  const start = at + s.t, end = start + s.a + s.d;
+  const amp = c.createGain();
+  amp.gain.setValueAtTime(0.0001, start);
+  amp.gain.exponentialRampToValueAtTime(s.g, start + s.a);
+  amp.gain.exponentialRampToValueAtTime(0.0001, end);
+  let source;
+  if (s.w === 'noise') {
+    source = c.createBufferSource();
+    source.buffer = noise;
+  } else {
+    source = c.createOscillator();
+    source.type = s.w;
+    source.frequency.setValueAtTime(s.f, start);
+    if (s.f2) source.frequency.exponentialRampToValueAtTime(s.f2, end);
+  }
+  let node = source;
+  if (s.lp) {
+    const filter = c.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(s.lp, start);
+    if (s.lp2) filter.frequency.exponentialRampToValueAtTime(s.lp2, end);
+    node.connect(filter);
+    node = filter;
+  }
+  node.connect(amp).connect(c.destination);
+  source.start(start);
+  source.stop(end + 0.02);
+}
+
+function play(sound) {
+  const c = audio();
+  if (c.state === 'suspended') c.resume();
+  const at = c.currentTime + 0.02;
+  sound.forEach(s => tone(c, s, at));
+}
+
+function playAll(set) {
+  let delay = 0;
+  Object.values(set.sounds).forEach(sound => {
+    setTimeout(() => play(sound), delay);
+    delay += 900;
+  });
+}
+
+// The sections stand in the page itself (readable without a script); this only gives the buttons their sound.
+document.querySelectorAll('#sets button').forEach(button => {
+  const set = SETS[Number(button.dataset.set)];
+  button.addEventListener('click', () => button.dataset.all ? playAll(set) : play(set.sounds[button.dataset.moment]));
+});
+</script>
+</body>
+</html>
