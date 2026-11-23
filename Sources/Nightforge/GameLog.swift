@@ -295,6 +295,36 @@ enum GameLog {
     /// account ids, GOG user ids, the sign-in arguments a store hands a game (Epic's -AUTH_PASSWORD
     /// exchange code, -epicusername), tokens and e-mail addresses. A heuristic: what it misses is in
     /// whatever the line goes into, which is why log lines stay out of report links (ProblemReportText).
+    /// For everything that leaves the Mac – a problem report's link and clipboard, a shared report (ProblemReportText,
+    /// CompatReport) – on top of `redacted`: the paths Nightforge keeps in its own settings (Steam's environment per
+    /// game, `Engine.launchMemoryPaths`: KosmicKrisp, the Vulkan loader, with the home folder in them) go as a whole,
+    /// and a home folder under any name (`/Users/<name>`, Wine's `C:\users\<name>`, `drive_c/users/<name>`) loses its
+    /// name, not only the account's own: another account, a HOME set elsewhere, a name of one or two letters (audit L1).
+    /// Wine's own names stay (steamuser, Public, Shared). `user` "" keeps a word like the account's name, as for a game's.
+    static func outbound(_ text: String, home: String = NSHomeDirectory(), user: String = NSUserName(),
+                         machine: [String] = machineNames, kept: [String] = Engine.launchMemoryPaths()) -> String {
+        var text = text
+        // Longest first: one path inside another goes whole.
+        for path in Set(kept).filter({ $0.count >= 4 }).sorted(by: { $0.count > $1.count }) {
+            text = text.replacingOccurrences(of: path, with: "<setting>")
+        }
+        text = redacted(text, home: home, user: user, machine: machine)
+        for (pattern, template) in homePatterns {
+            text = text.replacingOccurrences(of: pattern, with: template, options: .regularExpression)
+        }
+        return text
+    }
+
+    /// A home folder's name in a path, whoever's: the Mac's (/Users/<name>), Wine's (C:\users\<name> with one or two
+    /// backslashes, drive_c/users/<name>). Not Wine's own accounts, nor one done already.
+    private static let homePatterns: [(String, String)] = {
+        let own = #"(?!(?:steamuser|public|shared|default|crossover|<user>)(?![\p{L}\p{N}_.-]))"#
+        return [
+            (#"(?i)(?<![\p{L}\p{N}_])(users/)"# + own + #"[^/\\\s"'<>|]+"#, "$1<user>"),
+            (#"(?i)(?<![\p{L}\p{N}_])(users\\{1,2})"# + own + #"[^/\\\s"'<>|]+"#, "$1<user>"),
+        ]
+    }()
+
     static func redacted(_ line: String, home: String = NSHomeDirectory(), user: String = NSUserName(),
                          machine: [String] = machineNames) -> String {
         var text = home.isEmpty ? line : line.replacingOccurrences(of: home, with: "~")

@@ -435,6 +435,12 @@ zuvor.“ Und um 18:34, als Teilschritt zu 0.4 „Wie eine Konsole“:
     (`IdleRest.pausesBeforeNextLook`, `lookNow`). Live ungeprüft.
   - L1: Das F5-Gedächtnis (`steamLaunchMemory`) enthält Pfade mit dem Benutzernamen (lokal, nicht im Protokoll):
     gehört auf die Liste „nie in einen Problembericht“.
+    **23.11., Zweig `claude/bericht-ohne-pfade-035`:** Wege nach außen gibt es zwei: der Problembericht („Läuft
+    nicht?“, Link und Zwischenablage, `ProblemReportText`) und „Bericht teilen …“ (`CompatReport`). Einen Log-Export
+    oder Diagnose-Versand gibt es nicht; `StartEvidence` und der Testlauf-Bericht bleiben auf dem Mac. Beide Wege
+    laufen jetzt durch `GameLog.outbound`: die Pfade des F5-Gedächtnisses (`Engine.launchMemoryPaths`) gehen als
+    `<setting>` ganz heraus, und jeder Benutzerordner verliert seinen Namen, auch ein fremder oder ein kurzer
+    (`/Users/<user>`, `C:\users\<user>`). Wines eigene Namen bleiben (steamuser, Public, Shared).
   - L2: `if_nameindex` fragt bei jedem Aufruf alle Schnittstellen ab (nur noch in winedevice.exe).
     **Befund 23.11., kein Umbau:** Wine liest die Schnittstellen bei jeder Aufzählung der NDIS-Tabelle neu ein. Im
     Mitschnitt vom 22.11. (14:46–15:14, `+nsi`) kamen nach der Anmeldung 26 Aufzählungen in 25 Minuten, alle vom

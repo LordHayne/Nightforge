@@ -123,9 +123,11 @@ struct ProblemReportText: Equatable {
     /// versions, labels – no log line, path or option the player typed); they're redacted all the
     /// same, but keep a word like the account's name ("Thomas Was Alone"). `home` and `user`: for
     /// the redaction, a test hands in its own.
+    /// `kept`: the paths in Nightforge's own settings (Engine.launchMemoryPaths), which never go out (GameLog.outbound).
     init(gameName: String, facts: [(String, String)], errors: [String], downloadFailure: [String], launchOptions: String,
-         home: String = NSHomeDirectory(), user: String = NSUserName()) {
-        func clean(_ text: String) -> String { GameLog.redacted(text, home: home, user: user) }
+         home: String = NSHomeDirectory(), user: String = NSUserName(), kept: [String] = Engine.launchMemoryPaths()) {
+        let machine = GameLog.machineNames
+        func clean(_ text: String) -> String { GameLog.outbound(text, home: home, user: user, machine: machine, kept: kept) }
         var extra: [String] = []
         if !errors.isEmpty {
             // An issue holds 65,536 characters; the newest errors matter most.
@@ -143,7 +145,7 @@ struct ProblemReportText: Equatable {
         // Blank lines around it: pasted at the end of a line of text (the live test put it right after
         // the bold "From the last start:"), <details> and ``` still start a line of their own.
         clipboard = extra.isEmpty ? nil : "\n" + extra.joined(separator: "\n") + "\n"
-        func fact(_ text: String) -> String { GameLog.redacted(text, home: home, user: "") }
+        func fact(_ text: String) -> String { GameLog.outbound(text, home: home, user: "", machine: machine, kept: kept) }
         title = fact("\(gameName): doesn't run properly")
         var lines = [
             "**What happens:** <!-- e.g. black window, crash after the logo, low FPS, no sound -->",
