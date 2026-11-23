@@ -83,7 +83,22 @@ struct HangRuleTest {
         check(HangRule.change(from: .quiet(since: 20), to: .hung(since: 20)) == .hangs(since: 20), "hangs: a line")
         check(HangRule.change(from: .hung(since: 20), to: .hung(since: 20)) == nil, "still hung: no new line")
         check(HangRule.change(from: .hung(since: 20), to: .busy) == .movesAgain(after: 20), "moves again: a line")
-        check(HangRule.change(from: .hung(since: 20), to: .unknown) == .movesAgain(after: 20), "switched away from a hung game: a line")
+        // W3: switched away from a hung game (overlay, behind, paused) or still quiet: nothing moved, no line.
+        check(HangRule.change(from: .hung(since: 20), to: .unknown) == nil, "switched away from a hung game: no line")
+        check(HangRule.change(from: .hung(since: 20), to: .quiet(since: 50)) == nil, "quiet again after it: no line")
+        check(HangRule.remembered(old: .hung(since: 20), new: .unknown) == .hung(since: 20)
+              && HangRule.remembered(old: .hung(since: 20), new: .quiet(since: 50)) == .hung(since: 20),
+              "the hang stands while it can't be judged")
+        check(HangRule.remembered(old: .hung(since: 20), new: .busy) == .busy && HangRule.remembered(old: .busy, new: .unknown) == .unknown,
+              "until it works again; else the new verdict")
+        // Overlay open on a hung game, closed, the game still hung, then working: one "hangs", one "moves again".
+        var kept = HangRule.Verdict.unknown
+        var lines: [HangRule.Change] = []
+        for verdict: HangRule.Verdict in [.quiet(since: 20), .hung(since: 20), .unknown, .unknown, .hung(since: 20), .busy] {
+            if let change = HangRule.change(from: kept, to: verdict) { lines.append(change) }
+            kept = HangRule.remembered(old: kept, new: verdict)
+        }
+        check(lines == [.hangs(since: 20), .movesAgain(after: 20)], "overlay over a hung game: \(lines)")
         check(HangRule.change(from: .busy, to: .quiet(since: 3)) == nil && HangRule.change(from: .unknown, to: .busy) == nil, "else: none")
         let line = HangWatch.line("Some Game", change: .hangs(since: 20), samples: settled) ?? ""
         check(line.hasPrefix("Hang watch: Some Game quiet in front for 69 s (CPU 0.0 %, reads 0 KB/s, sound no)"), line)

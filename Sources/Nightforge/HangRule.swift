@@ -82,14 +82,23 @@ enum HangRule {
         return cpu < idleCPU && read < idleRead && older.sound != true && newer.sound != true
     }
 
-    /// What changed worth a line in wine.log: a hang begins, or a game that hung moves again. Nil otherwise.
+    /// What changed worth a line in wine.log: a hang begins, or a game that hung works again (`.busy`). Nil otherwise –
+    /// also when a hung game merely can't be judged for a while (the overlay opened, it went behind, it was paused:
+    /// `.unknown`) or is quiet still; that said "moves again" though nothing moved (W3 of the cross-read, 23.11.2026).
     static func change(from old: Verdict, to new: Verdict) -> Change? {
         switch (old, new) {
         case (.hung, .hung): return nil
         case (_, .hung(let since)): return .hangs(since: since)
-        case (.hung(let since), _): return .movesAgain(after: since)
+        case (.hung(let since), .busy): return .movesAgain(after: since)
         default: return nil
         }
+    }
+
+    /// The verdict to remember after a look: a hang stands until the game works again, so a look that can't judge it
+    /// (or finds it quiet, not yet long enough) doesn't end it, and its return doesn't log a second "hangs".
+    static func remembered(old: Verdict, new: Verdict) -> Verdict {
+        if case .hung = old, new != .busy { if case .hung = new { return new }; return old }
+        return new
     }
 
     enum Change: Equatable {

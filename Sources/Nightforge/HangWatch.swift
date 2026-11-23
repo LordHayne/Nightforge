@@ -50,7 +50,7 @@ final class HangWatch {
             if let line = Self.line(game.name, change: HangRule.change(from: entry.verdict, to: verdict), samples: entry.samples) {
                 GameLog.note(line)
             }
-            entry.verdict = verdict
+            entry.verdict = HangRule.remembered(old: entry.verdict, new: verdict)
             watched[id] = entry
         }
     }

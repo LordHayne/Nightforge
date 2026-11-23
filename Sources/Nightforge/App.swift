@@ -147,6 +147,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         GameDisplay.quitting()
         GameOverlay.close()  // a game paused under the overlay runs on
         // Before Nightforge goes, not in a task that may not get to run: the Dock as the player had it.
-        if let line = DockAutoHide.restore(DockAutoHide.live).logLine { GameLog.note(line + ", as Nightforge quits") }
+        // In the line of the Dock's steps, after any still waiting (W1, 23.11.2026), and waited for.
+        if let line = DockAutoHide.seriallyAndWait({ DockAutoHide.restore(DockAutoHide.live) }).logLine {
+            GameLog.note(line + ", as Nightforge quits")
+        }
     }
 }
