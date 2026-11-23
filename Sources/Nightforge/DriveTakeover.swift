@@ -251,7 +251,9 @@ final class DriveTakeover: ObservableObject {
     /// player's, and a drive built for it in a disk image is seen.
     nonisolated static func drives(testHome: Bool = MacSteam.isTestHome) -> [ExternalDrive] {
         let candidates: [ExternalDrive]
-        if testHome {
+        if ExternalDrive.source != nil {
+            candidates = ExternalDrive.connected()  // a test's own drives, whatever is mounted
+        } else if testHome {
             let volumes = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: nil, options: [.skipHiddenVolumes]) ?? []
             candidates = volumes.compactMap { ExternalDrive.at($0) }.filter { ExternalDrive.isDiskImage($0.url) }
         } else {
