@@ -35,6 +35,19 @@ struct CurtainFadeTest {
         task.cancel()
         check(await task.value == false, "called off: false, so the caller doesn't hide the window")
 
+        // W2: raised again while a fade to 0 still runs – the fade gives way, the curtain stays seen.
+        window.alphaValue = 1
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.3
+            window.animator().alphaValue = 0
+        }, completionHandler: nil)
+        GameBackdrop.settle(window, at: 1)
+        try? await Task.sleep(for: .seconds(0.5))
+        check(window.alphaValue == 1, "a fade under way gives way to the value set after it (\(window.alphaValue))")
+        let source = (try? String(contentsOfFile: "Sources/Nightforge/GameBackdrop.swift", encoding: .utf8)) ?? ""
+        let straight = source.components(separatedBy: "\n").filter { $0.contains("window.alphaValue = ") && !$0.contains("settle") }
+        check(straight.count == 1, "the curtain's alpha is set straight only inside settle: \(straight)")
+
         print(failures == 0 ? "✓ CurtainFade" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
     }

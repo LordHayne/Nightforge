@@ -258,7 +258,7 @@ enum GameBackdrop {
             guard await fade(window, to: 0, over: 0.3) else { return }
             state.stage = .behind
             arrange(window)
-            window.alphaValue = 1
+            settle(window, at: 1)
         }
     }
 
@@ -354,8 +354,19 @@ enum GameBackdrop {
         }, completionHandler: nil)
         try? await Task.sleep(for: .seconds(seconds + 0.05))
         guard !Task.isCancelled else { return false }
-        window.alphaValue = alpha
+        settle(window, at: alpha)
         return true
+    }
+
+    /// Sets `window`'s alpha so that a fade still running gives way: through the animator, in a group of no duration. Set
+    /// straight, the value stood, and a fade to 0 that hadn't ended yet went on and took the curtain down again – a curtain
+    /// raised within 0.3 s of a hide then stood in front, unseen (W2 of the cross-read, 23.11.2026).
+    static func settle(_ window: NSWindow, at alpha: CGFloat) {
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0
+            window.animator().alphaValue = alpha
+        }, completionHandler: nil)
+        window.alphaValue = alpha
     }
 
     /// On the way back Nightforge asks for the front once, and macOS may give it to Steam Helper as a
@@ -431,7 +442,7 @@ enum GameBackdrop {
         }
         let appearing = !window.isVisible
         window.setFrame(currentFrame(of: screen), display: true)
-        window.alphaValue = appearing ? 0 : 1
+        settle(window, at: appearing ? 0 : 1)
         arrange(window)
         // Faded in where it wasn't up; from behind the game it's there at once, as it covers its end.
         if appearing {
