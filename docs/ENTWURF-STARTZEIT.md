@@ -47,7 +47,8 @@ Cloud-Abgleich, den es hier nie gibt** (16:36, 16:47).
    Schlaf, Nightforge gerade geöffnet, Neustart für ein Spiel). Test: `SteamSwitchTest.cloudStart`.
 2. **Zeitmarken je Start im Protokoll**, für die Messung heute Abend: `Start phases of <Spiel>: <Schritt> at
    HH:MM:SS.t, n.n s after Play` für Play, „to Steam“, „-applaunch client started“, „Steam started its process“
-   (bzw. „starts directly“ / „its process runs“ bei Epic und GOG) und „curtain down“. Nur `wine.log`, kein Tracking.
+   (bzw. „starts directly“ / „its process runs“ bei Epic und GOG) und „curtain down“. Nur mit dem versteckten
+   Testschalter `gameTest.startPhases`, ohne Eintrag in der Oberfläche; im Release-Bau gibt es ihn nicht (kein Tracking).
    Damit lässt sich die 6-s-Lücke vor der Übergabe zuordnen, die aus dem Code allein nicht folgt: `GameResolution.fit`
    schrieb um 19:34 nichts (kein regedit), `/usr/bin/open` für den Helfer braucht hier ~30 ms, und der
    `-applaunch`-Weiterreicher lief am 31.10. 0,2 s. Test: `LaunchEdgeTest.startPhases`.
@@ -85,8 +86,10 @@ Geprüft und nicht nötig: `regedit` vor dem Start läuft nur bei Änderungen (g
 
 ## Für die Messung heute Abend (Liste für den Nutzer)
 
-Ein Spielstart je Fall, danach `grep -a "Start phases of" ~/Library/Application\ Support/Nightforge/Logs/wine.log`
-und Steams `console_log` (ExecCommandLine, GameAction):
+Vorher `defaults write io.github.lordhayne.nightforge gameTest.startPhases -bool true`, danach
+`defaults delete io.github.lordhayne.nightforge gameTest.startPhases`. Ein Spielstart je Fall, danach
+`grep -a "Start phases of" ~/Library/Application\ Support/Nightforge/Logs/wine.log` und Steams `console_log`
+(ExecCommandLine, GameAction):
 1. Warm: Steam läuft seit Minuten mit den Einstellungen des Spiels (zweiter Start desselben Spiels).
 2. Kalt: nach Steams Schlaf (30 min nichts) oder gleich nach dem Öffnen von Nightforge – zeigt den Cloud-Fund.
 3. Ein Spiel mit anderen Einstellungen direkt danach (Neustart für das Spiel).

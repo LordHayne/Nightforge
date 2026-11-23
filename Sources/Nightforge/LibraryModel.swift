@@ -4975,9 +4975,10 @@ final class LibraryModel: ObservableObject {
         else { return }
         // DirectX 12 only, and Apple's D3DMetal isn't in the engine: asked once, before anything starts.
         if !d3dMetalChecked, askAboutD3DMetalBeforeStart(game) { return }
-        // The clock for the start's phases (`notePhase`): from here, the player's question about D3DMetal aside.
-        playClock = (game.gameID.key, Date())
-        GameLog.note(Self.phaseLine(game.name, "Play", since: nil))
+        // The clock for the start's phases (`notePhase`), with the test switch only: from here, the player's question
+        // about D3DMetal aside.
+        playClock = GameTest.notesStartPhases() ? (game.gameID.key, Date()) : nil
+        notePhase(game, "Play")
         let viaSteam = game.provider == .steam
         if viaSteam && game.bottle.isBuiltIn && !Engine.steamSignedIn && !otherSteamFree(for: .windows) { return }
         let number = beginLaunch(game)
@@ -6056,16 +6057,20 @@ final class LibraryModel: ObservableObject {
     }
 
     /// One line on the start's way in the log, for a look at where its time goes (docs/ENTWURF-STARTZEIT.md):
-    /// "Start phases of Hades: to Steam at 19:34:27.3, 1.0 s after Play". `since`: Play's moment, nil for Play itself.
-    nonisolated static func phaseLine(_ name: String, _ phase: String, at now: Date = Date(), since start: Date?) -> String {
-        "Start phases of \(name): \(phase) at \(GameLog.clock(now, tenths: true))"
-            + (start.map { ", " + String(format: "%.1f", max(0, now.timeIntervalSince($0))) + " s after Play" } ?? "")
+    /// "Start phases of Hades: to Steam at 19:34:27.3, 1.0 s after Play". `since`: Play's moment; Play itself, it's the
+    /// moment. Nil without the test switch (GameTest.notesStartPhases): the finished build measures nothing.
+    nonisolated static func phaseLine(_ name: String, _ phase: String, at now: Date = Date(), since start: Date,
+                                      defaults: UserDefaults = .standard) -> String? {
+        guard GameTest.notesStartPhases(defaults: defaults) else { return nil }
+        return "Start phases of \(name): \(phase) at \(GameLog.clock(now, tenths: true))"
+            + (now == start ? "" : ", " + String(format: "%.1f", max(0, now.timeIntervalSince(start))) + " s after Play")
     }
 
-    /// `phaseLine` for this game's start, from its Play – none for a start of another game's.
+    /// `phaseLine` for this game's start, from its Play – none for a start of another game's, none without the switch.
     private func notePhase(_ game: Game, _ phase: String) {
         guard let clock = playClock, clock.game == game.gameID.key else { return }
-        GameLog.note(Self.phaseLine(game.name, phase, since: clock.at))
+        let now = phase == "Play" ? clock.at : Date()
+        if let line = Self.phaseLine(game.name, phase, at: now, since: clock.at) { GameLog.note(line) }
     }
 
     /// Confirms the way a game started with once it has drawn frames (LaunchHealth.verdict), watching
