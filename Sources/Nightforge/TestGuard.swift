@@ -15,6 +15,10 @@ enum TestGuard {
     /// This is a test program run with the account's real home.
     static let realHome: Bool = isTestWithRealHome(bundleID: Bundle.main.bundleIdentifier, home: NSHomeDirectory(), account: accountHome())
 
+    /// This is a test program, whatever its home: what belongs to the whole Mac – its volume, a picture of the screen – it
+    /// never changes or takes (SystemVolume, GameScreenshot), not even with a home of its own.
+    static let testProgram: Bool = Bundle.main.bundleIdentifier == nil
+
     nonisolated static func isTestWithRealHome(bundleID: String?, home: String, account: String) -> Bool {
         bundleID == nil && !account.isEmpty && canonical(home) == canonical(account)
     }
