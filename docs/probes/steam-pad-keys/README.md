@@ -59,6 +59,26 @@ Ablauf am Abend, zum Beispiel mit der Startoption von Drawful 2:
 
 Valheims Cloud-Frage geht genauso, nur dass Esc dort den Start ebenfalls abbricht.
 
+## Lesart nach dem Lauf: was als Nächstes
+
+**Vorab:** Die Probe sieht nur Fenster des **Windows-Steam** unter Wine. Drawful 2 (die Startoption kam in Steam für Mac,
+22.11.) und Valheim (läuft als Mac-Version) fragen über **Steam für Mac**: Dort findet sie nichts. Taugt nur eine Frage
+eines Windows-Spiels über Nightforge, also eine, bei der der Vorhang das Windows-Steam nennt. Nie an Overwatch (Anti-Cheat).
+
+| Ergebnis im Protokoll | Was man gesehen hat | Nächster Schritt |
+|---|---|---|
+| `Esc schließt Steams Dialog (SendInput)` | Fokusrahmen wanderte bei Tab | **Weg B bauen:** Ⓑ = Esc, Steuerkreuz = Tab/Umschalt-Tab über `pad-answer.exe` bei Steams Fragen im Windows-Steam; Leiste nennt Ⓑ und das Steuerkreuz. Ⓐ = Enter erst nach einer eigenen Probe an einem harmlosen Knopf. |
+| `Esc schließt Steams Dialog (SendInput)` | kein Fokusrahmen zu sehen | **Weg B nur für Ⓑ:** Esc ja, Navigation bleibt beim Zeiger (Weg A). |
+| `Esc schließt Steams Dialog (PostMessage)` | – | **Weg B über PostMessage:** wie oben, aber ohne Vordergrund-Wechsel; Tab ggf. nochmals per PostMessage prüfen. |
+| `ERGEBNIS (nur per Auge)`, exit 3 | Frage nach Esc **weg** | wie Zeile 1 bzw. 2, je nach Fokusrahmen. |
+| `ERGEBNIS (nur per Auge)`, exit 3 | Frage nach Esc **noch da** | wie die nächste Zeile. |
+| `Dialog noch offen`, Tab/Esc `exit 4` oder 0 | nichts reagierte | **Steam nimmt Tasten aus Wine nicht an:** Weg B verworfen. Bleibt Weg A (Zeiger, braucht „Bedienungshilfen“) und als Ausweg E (Startoption in Nightforge). Weg C (Steam für Mac) ist damit auch fraglich: erst eigene Probe. |
+| `kein neues Steam-Fenster` (`--warten`) bzw. `0 sichtbare Steam-Fenster` (`--jetzt`) | Frage stand trotzdem auf dem Schirm | **Die Frage kam von Steam für Mac:** Probe B sagt dazu nichts. Gehört zu Weg C; Probe B an einer Frage des Windows-Steam wiederholen. |
+| `2 sichtbare Steam-Fenster …, nichts geschickt` (`--jetzt`) | – | Noch einmal mit `--warten` und die Frage danach auslösen. |
+| `exit 3` bei Tab/Esc (nicht Steams Fenster) | – | Falsches Fenster, nichts geschickt: mit `--warten` wiederholen. |
+
+In allen Fällen: Klasse und Größe des Fensters und die Exit-Codes in `docs/ENTWURF-STEAM-PAD.md`, Abschnitt 5, nachtragen.
+
 ## Ablauf
 
 1. Steam von Nightforge läuft (nach dem Neustart durch den Koordinator), kein Spiel, kein Download.
