@@ -135,7 +135,7 @@ struct LaunchEdgeTest {
         check(Q.kind(licence: false, task: "ShowLaunchOption", phase: nil) == .launchOption, "the launch option, by Steam's name for it")
         check(Q.kind(licence: false, task: "ShowGameArgs", phase: nil) == .arguments,
               "ShowGameArgs asks whether a start may pass its arguments (Valheim, one macOS option, 22.11.): not the launch option")
-        check(Q.title(.arguments) == L10n.t("Allow the arguments?") && Q.note(.arguments) == nil, "its heading, and no line under it")
+        check(Q.title(.arguments) == L10n.t("The game's start details") && Q.note(.arguments) == nil, "its heading, and no line under it")
         check(Q.kind(licence: false, task: "CloudSync", phase: nil) == .cloud && Q.kind(licence: false, task: "SynchronizingCloud", phase: nil) == .cloud,
               "the cloud, whatever Steam calls the step")
         check(Q.kind(licence: false, task: "ShowInterstitials", phase: nil) == .other && Q.kind(licence: false, task: nil, phase: nil) == .other,

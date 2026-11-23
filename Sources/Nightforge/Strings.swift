@@ -937,7 +937,7 @@ enum L10n {
         "The licence, just once": "Einmal die Lizenz",
         "Steam only asks this at the first start.": "Steam fragt das nur beim ersten Start.",
         "How the game should start": "Wie das Spiel starten soll",
-        "Allow the arguments?": "Argumente erlauben?",
+        "The game's start details": "Die Startangaben fürs Spiel",
         "Which save counts": "Welcher Spielstand gilt",
         "Scan the QR code with the Steam app on your phone.": "Scanne den QR-Code mit der Steam-App auf deinem Handy.",
         "Thanks. The game is starting …": "Danke. Das Spiel startet …",

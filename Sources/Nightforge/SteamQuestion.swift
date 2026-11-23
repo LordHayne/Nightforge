@@ -43,7 +43,7 @@ enum SteamQuestion {
         switch kind {
         case .licence: return L10n.t("The licence, just once")
         case .launchOption: return L10n.t("How the game should start")
-        case .arguments: return L10n.t("Allow the arguments?")
+        case .arguments: return L10n.t("The game's start details")
         case .cloud: return L10n.t("Which save counts")
         case .signIn: return L10n.t("Sign in in the Steam window")
         case .other: return L10n.t("Steam is asking something")
