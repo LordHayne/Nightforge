@@ -447,7 +447,7 @@ zuvor.“ Und um 18:34, als Teilschritt zu 0.4 „Wie eine Konsole“:
     auf den ersten Blick auf die laufenden Spiele, der die Spiele kennt. Der erste Blick kam vor dem Einlesen der
     Bibliothek, der nächste erst nach der Pause: 3 s mit Nightforge vorn, 10 s dahinter, 30 s, wenn niemand am Mac ist
     (so morgens, ~6,7 h ohne Eingabe). Jetzt bricht das Einlesen der Bibliothek die Pause ab
-    (`IdleRest.pausesBeforeNextLook`, `lookNow`). Live ungeprüft.
+    (`IdleRest.pausesBeforeNextLook`, `lookNow`). Live bestätigt 23.11. (Koordinator): Steam-Start 1–2 s nach dem Öffnen bei sechs Einspielungen 07:04–08:18, Steam danach 5,07–5,47 s; vorher 23–31 s.
   - L1: Das F5-Gedächtnis (`steamLaunchMemory`) enthält Pfade mit dem Benutzernamen (lokal, nicht im Protokoll):
     gehört auf die Liste „nie in einen Problembericht“.
     **23.11., Zweig `claude/bericht-ohne-pfade-035`:** Wege nach außen gibt es zwei: der Problembericht („Läuft
