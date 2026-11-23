@@ -447,6 +447,16 @@ zuvor.“ Und um 18:34, als Teilschritt zu 0.4 „Wie eine Konsole“:
     ohne AppKit.
   - Erledigt auf `claude/audit-fixes-035` (d673835): M1 (Netzwerk-Reihenfolge nur in winedevice.exe, Metal/QuartzCore
     nicht mehr gebunden), S1 (Wiedereintritts-Sperre in der 60-FPS-Umlenkung), E1 (Fokus-Takt nicht im Spiel), L3.
+- [ ] **Nightforge öffnete sich während einer Testkette wieder (23.11., 06:56, Zweig `claude/tests-ohne-app-035`):**
+  Kein Test öffnet die App. Laut Systemprotokoll startete ein `/usr/bin/open` aus dem Beenden-Skript der eben beendeten
+  Nightforge (Hilfsprogramm 26117, 7 s nach dem Beenden) sie neu: Der Zweig „Spiel endet: zurück zu Nightforge“ hielt
+  einen Testprozess für ein Spiel, denn `has_process` sucht in jedem Prozess des Macs nach `\steamapps\common\` bzw.
+  `/steamapps/common/` (GameOverlayTest hat einen Stellvertreter `C:\…\steamapps\common\Stand In Game\StandIn.exe`,
+  MacVersionTest hatte zwei). Abhilfe: Nightforge gibt dem Skript mit, ob es selbst beim Beenden ein Spiel kannte
+  (`$12`, eigener Start oder Windows-Programm aus einem Spielordner der Sitzung); nur dann öffnet es nach dem Spiel.
+  Zusätzlich öffnet ein Programm ohne App-Bündel sich nie über Launch Services (`NSApplication.opensItself`), und
+  MacVersionTest nennt seine Stellvertreter nur noch über den `ps`-Ersatz. Gilt erst mit dem neuen Bau: Die
+  eingespielte App hat noch das alte Skript, also bis dahin keine Kette, solange ihr Beenden-Skript wartet.
 - [ ] **Nebenbefund der Starter-Probe (22.11.):** Unter Wine meldet `IsProcessorFeaturePresent(AVX)` immer 0, auch wenn
   CPUID AVX zeigt (`docs/probes/starter-umgebung/`). Spiele, die so fragen, sehen kein AVX. Bei Profilen mit
   AVX-Problemen bedenken.

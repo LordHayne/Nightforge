@@ -1,5 +1,6 @@
 // Checks VersionChoice, the Mac facts read from Steam's catalog, the Steam for Mac library and how
 // both versions merge into one entry per game: tests/MacVersionTest/run.sh
+import AppKit
 import Foundation
 
 @main
@@ -545,20 +546,24 @@ struct MacVersionTest {
             handle.write(Data("\(process.processIdentifier)\t\(command)\n".utf8))
             try? handle.close()
         }
-        func runScript(quitting: pid_t? = nil) -> Process {
+        /// `gameAtQuit`: $12, nil leaves it out (a script from before: as if Nightforge knew of a game).
+        func runScript(quitting: pid_t? = nil, gameAtQuit: Bool? = nil) -> Process {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/bin/bash")
             // The last argument: a game ran just now, so the script waits for its cloud saves before it ends Steam
             // (only then; QuitScriptTest has the other cases).
             process.arguments = [script.path, "", sandbox.appendingPathComponent("Prefix").path, library.path, "0", "/Fake/Nightforge.app",
                                  quitting.map(String.init) ?? "", "1", String(Int(Date().timeIntervalSince1970))]
+                + (gameAtQuit.map { ["", "", "0", $0 ? "1" : "0"] } ?? [])
             process.environment = ["PATH": shims.path + ":/usr/bin:/bin:/usr/sbin:/sbin"]
             try? process.run()
             return process
         }
         let fakeGame = Process()
         fakeGame.executableURL = URL(fileURLWithPath: "/bin/bash")
-        fakeGame.arguments = ["-c", "exec -a '\(library.path)/common/Fake Game/Fake.app/Contents/MacOS/Fake' /bin/sleep 3"]
+        // A plain sleep: the `ps` shim names it as the game. Named so for real, every `ps` on the Mac would see a game –
+        // the quit script of a Nightforge just quit too (23.11.2026).
+        fakeGame.arguments = ["-c", "exec /bin/sleep 3"]
         try? fakeGame.run()
         listed(fakeGame, as: "\(library.path)/common/Fake Game/Fake.app/Contents/MacOS/Fake")
         let quittingNightforge = Process()
@@ -596,6 +601,30 @@ struct MacVersionTest {
               "a game started by its bare name counts as running, Nightforge comes back after it (after \(Int(bareAfter)) s)")
         if bareWait.isRunning { bareWait.terminate() }
         try? fm.removeItem(at: opened)
+        // Something only named like a game, while Nightforge knew of none as it quit (23.11.2026: a test's folders
+        // called steamapps/common, and the Nightforge just quit for an install came back): the script waits for it
+        // as before, but never opens Nightforge after it.
+        let namedOnly = Process()
+        namedOnly.executableURL = URL(fileURLWithPath: "/bin/bash")
+        namedOnly.arguments = ["-c", "exec /bin/sleep 2"]
+        try? namedOnly.run()
+        listed(namedOnly, as: "\(library.path)/common/Test Folder/model-flows-test")
+        Thread.sleep(forTimeInterval: 0.3)
+        let unknownGame = runScript(gameAtQuit: false)
+        let unknownStarted = Date()
+        while unknownGame.isRunning && Date().timeIntervalSince(unknownStarted) < 14 { Thread.sleep(forTimeInterval: 0.5) }
+        check(!fm.fileExists(atPath: opened.path),
+              "a process merely named like a game, no game known to Nightforge at quit: Nightforge isn't opened after it")
+        if unknownGame.isRunning { unknownGame.terminate() }
+        try? fm.removeItem(at: opened)
+        check(Engine.steamShutdownScript.contains(#"GAME_AT_QUIT="${12:-1}""#)
+              && Engine.steamShutdownScript.contains(#"[ "$RESTART" != 1 ] && [ "$GAME_AT_QUIT" = 1 ] && [ -n "$APP" ] && game_running"#),
+              "the script reads $12, a script from before counts as knowing of a game")
+        // A test program never asks Launch Services to open "itself" (comeToFront, handFocus): it has no bundle.
+        check(!NSApplication.opensItself, "a test program doesn't open itself through Launch Services")
+        check(NSApplication.opensItself(bundleID: "io.github.lordhayne.nightforge", bundle: URL(fileURLWithPath: "/Applications/Nightforge.app"))
+              && !NSApplication.opensItself(bundleID: nil, bundle: URL(fileURLWithPath: "/private/tmp/x"))
+              && !NSApplication.opensItself(bundleID: "x", bundle: URL(fileURLWithPath: "/private/tmp/x")), "only the app opens itself")
         let idle = runScript()  // no game: it waits to shut Steam down instead
         Thread.sleep(forTimeInterval: 3)
         check(idle.isRunning && !fm.fileExists(atPath: opened.path), "without a game it doesn't open Nightforge")

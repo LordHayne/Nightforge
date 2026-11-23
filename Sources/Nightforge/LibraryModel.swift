@@ -2518,7 +2518,9 @@ final class LibraryModel: ObservableObject {
                 // through Launch Services, awaited, and then the handover below makes the game active.
                 let configuration = NSWorkspace.OpenConfiguration()
                 configuration.activates = true
-                _ = try? await NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration)
+                if NSApplication.opensItself {
+                    _ = try? await NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration)
+                }
                 for _ in 0..<30 where !NSApp.isActive { try? await Task.sleep(for: .milliseconds(50)) }
                 guard NSApp.isActive else {
                     GameLog.note("Fetching the game back: Nightforge didn't get the front to hand it over")
@@ -2551,7 +2553,7 @@ final class LibraryModel: ObservableObject {
             if !NSApp.isActive {
                 NSApp.activate(ignoringOtherApps: true)
                 for _ in 0..<6 where !NSApp.isActive { try? await Task.sleep(for: .milliseconds(50)) }
-                if !NSApp.isActive {  // macOS ignores `activate` from behind (handFocus)
+                if !NSApp.isActive, NSApplication.opensItself {  // macOS ignores `activate` from behind (handFocus)
                     let configuration = NSWorkspace.OpenConfiguration()
                     configuration.activates = true
                     _ = try? await NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration)
@@ -6647,6 +6649,15 @@ final class LibraryModel: ObservableObject {
 }
 
 extension NSApplication {
+    /// Whether Nightforge may ask Launch Services to open it: only as the app it is. A test program has no bundle
+    /// of its own (`Bundle.main` is its folder), and Launch Services, asked to open that, may well open something
+    /// else – a Finder window, or the Nightforge installed on this Mac (23.11.2026). Tests never get that far.
+    nonisolated static var opensItself: Bool { opensItself(bundleID: Bundle.main.bundleIdentifier, bundle: Bundle.main.bundleURL) }
+
+    nonisolated static func opensItself(bundleID: String?, bundle: URL) -> Bool {
+        bundleID != nil && bundle.pathExtension == "app"
+    }
+
     /// In front for macOS. Not `isActive`: that says yes while a panel that doesn't activate
     /// Nightforge has the keys – the overlay's, with the game in front (probe on 1.11.).
     var isFrontmost: Bool {
@@ -6660,6 +6671,10 @@ extension NSApplication {
     /// its window's Space. `then` once that's done.
     func comeToFront(then: (@MainActor () -> Void)? = nil) {
         activate(ignoringOtherApps: true)
+        guard Self.opensItself else {
+            Task { @MainActor in then?() }
+            return
+        }
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
         NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { _, _ in
