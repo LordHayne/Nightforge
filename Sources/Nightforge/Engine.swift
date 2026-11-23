@@ -277,6 +277,15 @@ enum Engine {
         defaults.data(forKey: launchMemoryKey).flatMap { try? JSONDecoder().decode(LaunchMemory.self, from: $0) } ?? LaunchMemory()
     }
 
+    /// Every path the memory holds (values that start with "/", parts of a list with ":" included), for
+    /// GameLog.outbound to take out of whatever leaves the Mac: they name the home folder (audit L1). The memory
+    /// itself stays in the settings and never goes into wine.log (`changedParts` names variables only).
+    static func launchMemoryPaths(defaults: UserDefaults = .standard) -> [String] {
+        let values = launchMemory(defaults).games.values.flatMap { $0.environment.values }
+        return Array(Set(values.flatMap { value in [value] + value.split(separator: ":").map(String.init) }
+            .filter { $0.hasPrefix("/") }))
+    }
+
     /// Notes Steam's settings as they are now as `game`'s (GameID.key), right after its start prepared them. A
     /// closer look's channels (WINEDEBUG) stay out: they're for one Play.
     static func rememberLaunch(for game: String, defaults: UserDefaults = .standard) {

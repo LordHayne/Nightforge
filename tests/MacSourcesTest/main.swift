@@ -294,6 +294,44 @@ struct MacSourcesTest {
         check(trimmed.count < 21_000 && trimmed.contains("line 2000 ") && !trimmed.contains("line 1 "),
               "a long log keeps its newest errors within an issue's size")
 
+        // MARK: Nothing of Nightforge's own settings, no home folder under any name (audit L1)
+        let memory = UserDefaults(suiteName: "nightforge-test-launch-memory-\(getpid())")!
+        defer { memory.removePersistentDomain(forName: "nightforge-test-launch-memory-\(getpid())") }
+        let icd = "/Users/jane/Library/Application Support/Nightforge/kosmickrisp/icd.json"
+        let layer = "/Users/jane/Library/Application Support/Nightforge/loader/layers"
+        let stored = #"{"games":{"steam.1":{"version":12,"environment":{"VK_ICD_FILENAMES":"\#(icd)","DXVK_HUD":"fps","#
+            + #""VK_ADD_IMPLICIT_LAYER_PATH":"/opt/x:\#(layer)"},"retina":false,"msync":true}},"order":["steam.1"]}"#
+        memory.set(Data(stored.utf8), forKey: Engine.launchMemoryKey)
+        let keptPaths = Engine.launchMemoryPaths(defaults: memory)
+        check(Set(keptPaths) == [icd, layer, "/opt/x", "/opt/x:" + layer], "the memory's paths, a list's parts too: \(keptPaths)")
+        check(Engine.launchMemoryPaths(defaults: UserDefaults(suiteName: "nightforge-test-launch-memory-none-\(getpid())")!).isEmpty,
+              "no memory: no paths")
+        let leaky = ProblemReportText(gameName: "Some Game", facts: [("Game", "Some Game"), ("Diagnosis", "vulkan in " + layer)],
+                                      errors: ["VK_ICD_FILENAMES=" + icd, "err:vulkan:load " + layer + "/x.json",
+                                               #"err:module:open C:\users\bo\Documents\x.dll"#, "open /Users/bob/Games/x failed",
+                                               #"err:file:open C:\users\steamuser\AppData\x and /Users/Shared/x"#],
+                                      downloadFailure: ["stopped in /Users/al/GOG"], launchOptions: "-dir " + icd,
+                                      home: "/Users/jane", user: "jane", kept: keptPaths)
+        let leakyLink: String = leaky.url?.absoluteString.removingPercentEncoding ?? ""
+        let everything: String = [leaky.title, leaky.body, leaky.clipboard ?? "", leakyLink].joined(separator: "\n")
+        check(!everything.contains("kosmickrisp") && !everything.contains("loader/layers") && everything.contains("VK_ICD_FILENAMES=<setting>"),
+              "the memory's paths go whole, from the link, the table and the clipboard: \(everything)")
+        check(!everything.contains("jane") && !everything.contains("bob") && !everything.contains(#"users\bo\"#)
+              && !everything.contains("/Users/al/"), "no home folder under any name, also not another account's")
+        check(everything.contains(#"C:\users\<user>\Documents"#) && everything.contains("/Users/<user>/Games"),
+              "…the path stays readable, the name goes")
+        check(everything.contains(#"C:\users\steamuser\AppData"#) && everything.contains("/Users/Shared/x"),
+              "Wine's own account and the shared folder keep their names")
+        check(GameLog.outbound(GameLog.outbound("open /Users/bob/x", user: "", kept: keptPaths), user: "", kept: keptPaths) == "open /Users/<user>/x",
+              "twice changes nothing")
+        check(GameLog.outbound("Thomas Was Alone", user: "", kept: keptPaths) == "Thomas Was Alone" && GameLog.outbound("Users Guide", kept: []) == "Users Guide",
+              "a game's name keeps its words")
+        let pathGame = Game(appID: 2, name: "Mod /Users/bob/x", bottle: bottle, steamRoot: bottle.url, steamExeWindowsPath: "",
+                            installDir: bottle.url, sizeOnDisk: 0)
+        let sharedLink = CompatReport.url(game: pathGame, rating: well, preset: nil, engine: nil, chip: "M", macOS: "27", nightforge: "1",
+                                          home: "/Users/jane", user: "jane", kept: keptPaths)?.absoluteString.removingPercentEncoding ?? ""
+        check(!sharedLink.contains("bob") && sharedLink.contains("/Users/<user>/x"), "the shared report too: \(sharedLink)")
+
         // MARK: The file in the repository
         if let data = try? Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[1])), let real = AGWIndex.decode(data) {
             check(real.games.count > 1000, "profiles/agw.json has \(real.games.count) games")

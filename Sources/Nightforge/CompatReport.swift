@@ -22,7 +22,7 @@ enum CompatReport {
     /// The form's fields by id, as the link fills them in.
     static func fields(game: Game, rating: GameRating, preset: GraphicsPreset?, engine: EngineBuild?,
                        chip: String, macOS: String, nightforge: String, home: String = NSHomeDirectory(),
-                       user: String = NSUserName()) -> [(id: String, value: String)] {
+                       user: String = NSUserName(), kept: [String] = Engine.launchMemoryPaths()) -> [(id: String, value: String)] {
         let (store, id) = Self.store(game)
         var setup = ["Nightforge " + nightforge]
         if let preset { setup.append("preset " + preset.rawValue) }
@@ -38,17 +38,19 @@ enum CompatReport {
             ("mac", "\(chip) · macOS \(macOS)"),
         ]
         // A game's name keeps a word like the account's ("Thomas Was Alone"); paths and the like go all the same.
-        return fields.filter { !$0.1.isEmpty }.map { ($0.0, GameLog.redacted($0.1, home: home, user: $0.0 == "game" ? "" : user)) }
+        // GameLog.outbound: also no path Nightforge keeps in its settings, no home folder under any name (audit L1).
+        return fields.filter { !$0.1.isEmpty }.map { ($0.0, GameLog.outbound($0.1, home: home, user: $0.0 == "game" ? "" : user, kept: kept)) }
     }
 
     static func url(game: Game, rating: GameRating, preset: GraphicsPreset?, engine: EngineBuild?, chip: String,
-                    macOS: String, nightforge: String, home: String = NSHomeDirectory(), user: String = NSUserName()) -> URL? {
+                    macOS: String, nightforge: String, home: String = NSHomeDirectory(), user: String = NSUserName(),
+                    kept: [String] = Engine.launchMemoryPaths()) -> URL? {
         let filled = Self.fields(game: game, rating: rating, preset: preset, engine: engine, chip: chip, macOS: macOS,
-                                 nightforge: nightforge, home: home, user: user)
+                                 nightforge: nightforge, home: home, user: user, kept: kept)
         var components = URLComponents(string: "https://github.com/LordHayne/Nightforge/issues/new")
         components?.queryItems = [
             URLQueryItem(name: "template", value: form),
-            URLQueryItem(name: "title", value: GameLog.redacted("\(game.name): \(result(rating))", home: home, user: "")),
+            URLQueryItem(name: "title", value: GameLog.outbound("\(game.name): \(result(rating))", home: home, user: "", kept: kept)),
         ] + filled.map { URLQueryItem(name: $0.id, value: $0.value) }
         return components?.url
     }
