@@ -409,6 +409,14 @@ zuvor.“ Und um 18:34, als Teilschritt zu 0.4 „Wie eine Konsole“:
 - [ ] **Aus dem Audit vor 0.3.5 (`docs/AUDIT-0.3.5.md`, Zweig `claude/audit-035`), für später:**
   - S2: Zwei Nightforge-Kopien (Release + Testbuild) beenden sich gegenseitig die Wine-Sitzung (librarySession als
     Text, 0.3.4 als Zahl); Steam startet jedes Mal neu, nie unter einem Spiel. Betrifft nur Testphasen.
+    **23.11., Zweig `claude/zwei-kopien-035`:** Befund: Das echte Release 0.3.4 (main) notiert gar nichts; die Zahl
+    kam aus frühen 0.3.5-Testbauten. Beginnt eine Kopie ohne Notiz (0.3.4) eine Sitzung mit ihrer Bibliothek, sieht
+    der Testbau nur seine eigene, passende Notiz und behielt die fremde Sitzung (dieselbe Lücke wie F4). Abhilfe: jede
+    Wine-Sitzung trägt `NIGHTFORGE_LIBRARY=sha256:…` in der Umgebung; `applyLibraryVersion` liest es am wineserver
+    nach und beendet eine Sitzung mit fremder oder fehlender Kennung auch bei passender Notiz (nie unter einem Spiel),
+    mit Zeile im Protokoll, welche andere Kopie läuft („/Applications“, „~/Applications“, „elsewhere“). Der Neustart
+    beim Wechsel zwischen verschiedenen Bibliotheken bleibt: er ist richtig. Gleiche Bibliothek in beiden Kopien:
+    kein Neustart mehr. Einmalig endet die Sitzung eines älteren 0.3.5-Testbaus (ohne Kennung).
   - S3: `waitForSteamToEnd` wartet bis zu 15 s vor einem Steam-Start. Live beobachten, wie oft das voll ausgeschöpft
     wird („Steam's processes still there …“ im Protokoll).
     **Befund 23.11. (Zweig `claude/steam-wartezeit-035`):** Seit es die Wartezeit gibt (22.11. 19:32), steht in `wine.log`

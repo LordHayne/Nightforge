@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Security
 
@@ -2665,8 +2666,49 @@ enum Engine {
     static func librarySessionValue(fingerprint: String?) -> String { "sha256:" + (fingerprint ?? "none") }
 
     /// Whether a session noted as `noted` (librarySession: nil before 0.3.2, an integer from Nightforge up to 0.3.4,
-    /// else `librarySessionValue`) began with another library than `wanted`.
-    static func librarySessionEnds(noted: Any?, wanted: String) -> Bool { noted as? String != wanted }
+    /// else `librarySessionValue`) began with another library than `wanted`. `began`: the markers its wineservers
+    /// started with (`librarySessionMarker`, "" for one without), nil when they can't be read – then the note alone
+    /// decides. Either one telling of another library ends it: the note is this copy's, the marker the session's own.
+    static func librarySessionEnds(noted: Any?, began: Set<String>? = nil, wanted: String) -> Bool {
+        if let began, began != [wanted] { return true }
+        return noted as? String != wanted
+    }
+
+    /// Carries `librarySessionValue` in every Wine process's environment (`environment(wine:)`), so the session itself
+    /// tells which library it began with. The note in the settings can't: another Nightforge with the same settings
+    /// (the release in /Applications next to a test build) begins a session with its own library and notes nothing,
+    /// or something else – and a copy that only looked at its own note kept that session (audit S2, 23.11.2026).
+    static let librarySessionMarker = "NIGHTFORGE_LIBRARY"
+
+    /// The markers the session's wineservers started with ("" for one without), nil when no wineserver is in
+    /// `session` or none can be read. The session's first Wine process starts the wineserver and hands it its
+    /// environment, as it does to Wine's device host (winedevice.exe), which F4 was about.
+    static func librarySessionMarkers(_ session: [(pid: pid_t, command: String)],
+                                      read: (pid_t) -> String? = { DockHider.startValue(of: librarySessionMarker, pid: $0) })
+        -> Set<String>? {
+        let servers = session.filter { $0.command.hasSuffix("/wineserver") || $0.command.contains("/wineserver ") }
+        let markers = Set(servers.compactMap { read($0.pid) })
+        return markers.isEmpty ? nil : markers
+    }
+
+    /// Where other running copies of Nightforge (same bundle ID, another process) come from, for wine.log: a name for
+    /// the place, never a path with the user's name in it.
+    static func otherNightforgeCopies() -> [String] {
+        guard let id = Bundle.main.bundleIdentifier else { return [] }
+        let me = ProcessInfo.processInfo.processIdentifier
+        return NSRunningApplication.runningApplications(withBundleIdentifier: id)
+            .filter { $0.processIdentifier != me && !$0.isTerminated }
+            .map { copyPlace($0.bundleURL?.path) }
+    }
+
+    /// "/Applications", "~/Applications" or "elsewhere" for the app at `path`.
+    static func copyPlace(_ path: String?, home: String = NSHomeDirectory()) -> String {
+        guard let path else { return "elsewhere" }
+        let folder = (path as NSString).deletingLastPathComponent
+        if folder == "/Applications" { return "/Applications" }
+        if folder == (home as NSString).appendingPathComponent("Applications") { return "~/Applications" }
+        return "elsewhere"
+    }
 
     /// Ends the Wine session when it began with another hide-steam-dock.dylib than the one in the data folder now,
     /// as `DockHider.path()` leaves it before Steam starts. Each Wine process loads the library at its start, and
@@ -2677,16 +2719,29 @@ enum Engine {
     /// its older library into the data folder and began a session with it, and the test build, seeing the same
     /// version number, kept that session – without the network order (F4).
     /// Never under a running game, nor when that can't be told; with Steam down, before it starts again.
-    /// `session` and `end` stand in for the process list and `stopAll` in tests.
+    /// Besides the note here, the session's own marker (`librarySessionMarker`) decides: a session another copy of
+    /// Nightforge began – with another library, or without a marker (0.3.4 and earlier) – ends even when the note
+    /// matches, and wine.log says which other copy runs (S2).
+    /// `session`, `markers`, `others` and `end` stand in for the process list, the wineserver's environment, the
+    /// running apps and `stopAll` in tests.
     static func applyLibraryVersion(_ wine: URL, defaults: UserDefaults = .standard,
                                     session ownSession: () -> [(pid: pid_t, command: String)]? = { ownProcessesKnown() },
-                                    end: (URL) -> Void = { stopAll($0, reason: "another hide-steam-dock.dylib") }) {
+                                    markers: ([(pid: pid_t, command: String)]) -> Set<String>? = { librarySessionMarkers($0) },
+                                    others: () -> [String] = { otherNightforgeCopies() },
+                                    end: (URL, String) -> Void = { wine, reason in stopAll(wine, reason: reason) }) {
         let wanted = librarySessionValue(fingerprint: DockHider.fingerprint())
-        guard librarySessionEnds(noted: defaults.object(forKey: librarySessionKey), wanted: wanted),
-              windowsGameRunningKnown == false else { return }
+        let noted = defaults.object(forKey: librarySessionKey)
         // Not known whether a session runs: none is ended, and the library isn't noted – the next start looks again.
         guard let session = ownSession() else { return }
-        if !session.isEmpty { end(wine) }
+        let began = session.isEmpty ? nil : markers(session)
+        guard librarySessionEnds(noted: noted, began: began, wanted: wanted), windowsGameRunningKnown == false else { return }
+        if !session.isEmpty {
+            let copies = others()
+            // Never silently: what told, and which copy runs beside this one (a place, no path).
+            let told = librarySessionEnds(noted: noted, wanted: wanted) ? "" : ", by the session's own marker"
+            let beside = copies.isEmpty ? "" : " (another Nightforge runs from \(copies.joined(separator: ", ")))"
+            end(wine, "another hide-steam-dock.dylib" + told + beside)
+        }
         defaults.set(wanted, forKey: librarySessionKey)
         GameLog.note("hide-steam-dock.dylib \(DockHider.sessionVersion) (\(wanted)) from this Wine session on")
     }
@@ -2699,6 +2754,9 @@ enum Engine {
         if let hider = DockHider.path() {
             env["DYLD_INSERT_LIBRARIES"] = hider
         }
+        // Which library the session begins with, for the next start to read back (applyLibraryVersion). Also without
+        // one ("sha256:none"), as applyLibraryVersion wants it then: a session without the marker is another copy's.
+        env[librarySessionMarker] = librarySessionValue(fingerprint: DockHider.fingerprint())
         env["WINEPREFIX"] = prefix.path
         // msync (installMsync); every Wine process of the session, wineserver included, has to agree,
         // so it's in the environment all of them start with. Engines without it ignore it.
