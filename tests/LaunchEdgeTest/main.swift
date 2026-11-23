@@ -116,7 +116,7 @@ struct LaunchEdgeTest {
         append("\(line) continues with user response \"CloudSync\"\n", to: log(steam))  // nothing left open from before
         var watcher = LaunchWatcher(steamRoot: steam, appID: 730)
         append("\(line) waiting for user response to ShowGameArgs \"\"\n", to: log(steam))
-        check(watcher.poll() == .needsConfirmation && watcher.questionTask == "ShowGameArgs", "the launch option's question, by name (Steam for Mac, 22.11.)")
+        check(watcher.poll() == .needsConfirmation && watcher.questionTask == "ShowGameArgs", "Steam's question about a start's arguments, by name (Steam for Mac, 22.11.)")
         append("\(line) continues with user response \"ShowGameArgs\"\n", to: log(steam))
         _ = watcher.poll()
         append("\(line) waiting for user response to SynchronizingCloud \"\"\n", to: log(steam))
@@ -132,7 +132,10 @@ struct LaunchEdgeTest {
         typealias Q = SteamQuestion
         check(Q.kind(licence: true, task: "ShowInterstitials", phase: nil) == .licence, "the licence as the watcher saw it")
         check(Q.kind(licence: false, task: "ShowEula", phase: nil) == .licence, "or by its name")
-        check(Q.kind(licence: false, task: "ShowGameArgs", phase: nil) == .launchOption, "the launch option")
+        check(Q.kind(licence: false, task: "ShowLaunchOption", phase: nil) == .launchOption, "the launch option, by Steam's name for it")
+        check(Q.kind(licence: false, task: "ShowGameArgs", phase: nil) == .arguments,
+              "ShowGameArgs asks whether a start may pass its arguments (Valheim, one macOS option, 22.11.): not the launch option")
+        check(Q.title(.arguments) == L10n.t("Allow the arguments?") && Q.note(.arguments) == nil, "its heading, and no line under it")
         check(Q.kind(licence: false, task: "CloudSync", phase: nil) == .cloud && Q.kind(licence: false, task: "SynchronizingCloud", phase: nil) == .cloud,
               "the cloud, whatever Steam calls the step")
         check(Q.kind(licence: false, task: "ShowInterstitials", phase: nil) == .other && Q.kind(licence: false, task: nil, phase: nil) == .other,
