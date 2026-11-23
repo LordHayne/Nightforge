@@ -445,7 +445,8 @@ zuvor.“ Und um 18:34, als Teilschritt zu 0.4 „Wie eine Konsole“:
     mit Zeile im Protokoll, welche andere Kopie läuft („/Applications“, „~/Applications“, „elsewhere“). Der Neustart
     beim Wechsel zwischen verschiedenen Bibliotheken bleibt: er ist richtig. Gleiche Bibliothek in beiden Kopien:
     kein Neustart mehr. Einmalig endet die Sitzung eines älteren 0.3.5-Testbaus (ohne Kennung).
-  - S3: `waitForSteamToEnd` wartet bis zu 15 s vor einem Steam-Start. Live beobachten, wie oft das voll ausgeschöpft
+  - [x] S3 (erledigt: `claude/steam-wartezeit-035`, gemergt c85adfb; live 23.11. Steam 1–2 s nach dem Öffnen bei allen
+    Einspielungen 07:04–12:37): `waitForSteamToEnd` wartet bis zu 15 s vor einem Steam-Start. Live beobachten, wie oft das voll ausgeschöpft
     wird („Steam's processes still there …“ im Protokoll).
     **Befund 23.11. (Zweig `claude/steam-wartezeit-035`):** Seit es die Wartezeit gibt (22.11. 19:32), steht in `wine.log`
     ein einziges Warten („ended 1 s after steam.exe“). Ein „still there“ kommt nie vor. Messung beim Stopp um 06:37: Die
@@ -469,7 +470,7 @@ zuvor.“ Und um 18:34, als Teilschritt zu 0.4 „Wie eine Konsole“:
     laufen jetzt durch `GameLog.outbound`: die Pfade des F5-Gedächtnisses (`Engine.launchMemoryPaths`) gehen als
     `<setting>` ganz heraus, und jeder Benutzerordner verliert seinen Namen, auch ein fremder oder ein kurzer
     (`/Users/<user>`, `C:\users\<user>`). Wines eigene Namen bleiben (steamuser, Public, Shared).
-  - L2: `if_nameindex` fragt bei jedem Aufruf alle Schnittstellen ab (nur noch in winedevice.exe).
+  - [x] L2 (erledigt: `claude/ifnameindex-035`, gemergt a181464, Befund ohne Umbau): `if_nameindex` fragt bei jedem Aufruf alle Schnittstellen ab (nur noch in winedevice.exe).
     **Befund 23.11., kein Umbau:** Wine liest die Schnittstellen bei jeder Aufzählung der NDIS-Tabelle neu ein. Im
     Mitschnitt vom 22.11. (14:46–15:14, `+nsi`) kamen nach der Anmeldung 26 Aufzählungen in 25 Minuten, alle vom
     Steam-Webhelfer, je zwei alle 120 s. Die 5795 in 20 s davor waren die F4-Warteschleife, die es nicht mehr gibt.
