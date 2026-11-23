@@ -3187,6 +3187,12 @@ final class LibraryModel: ObservableObject {
     /// a new engine, Steam and its games go back to the previous one (EngineRollback). True then.
     private func steamStartFailed(since began: Date) async -> Bool {
         guard let start = Engine.lastSteamStart, start.at >= began.addingTimeInterval(-60) else { return false }
+        // A session that came up without Wine's network driver isn't the engine's doing (Engine.sessionBootBroken): never
+        // counted, also when the new session after one is broken again (audit N1, 23.11.2026).
+        if await Engine.offMain({ Engine.steamSessionBroken() }) {
+            GameLog.note("Steam didn't come up, its Wine session without Wine's network driver: not counted against its engine")
+            return false
+        }
         let (outcome, build) = await Engine.offMain {
             (SteamStartCheck.judge(SteamStartCheck.signs(steamRoot: Engine.steamRoot, start: start.at, running: Engine.steamRunningKnown)),
              EngineRollback.shared.build(running: start.wine))
