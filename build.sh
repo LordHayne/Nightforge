@@ -94,9 +94,8 @@ fi
 # Keeps the background Steam out of the Dock, gives Wine the network interfaces in an order Steam's
 # sign-in finds the connected one in (wrapper/network-order.c), and holds the frame limit on D3DMetal
 # (wrapper/d3dmetal-pace.m). x86_64, loaded into Wine processes.
-# No framework linked: d3dmetal-pace.m opens Metal and QuartzCore in a process that has D3DMetal, and hide-steam-dock.m
-# swaps AppKit's methods once Wine's Mac driver brought it – the processes without a window go without AppKit.
-clang -arch x86_64 -mmacosx-version-min=11.0 -dynamiclib -lobjc -Wall \
+# Metal and QuartzCore not linked: d3dmetal-pace.m opens them in a process that has D3DMetal, no other loads them for it.
+clang -arch x86_64 -mmacosx-version-min=11.0 -dynamiclib -framework AppKit -Wall \
   -o "$OUT/Contents/Resources/hide-steam-dock.dylib" wrapper/hide-steam-dock.m wrapper/network-order.c \
   wrapper/d3dmetal-pace.m wrapper/d3dmetal-pace-rules.c
 
