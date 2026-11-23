@@ -34,7 +34,47 @@ struct WineSandboxTest {
         return (process.terminationStatus, output)
     }
 
+    /// Which program begins a Wine session, and with what AVX (WineSessionStart, docs/ENTWURF-AVX.md): one line, only when
+    /// no session runs, the program by its file name alone, the sandbox's helper seen through.
+    static func sessionStartLine() {
+        let wine = URL(fileURLWithPath: "/e/Libraries/Wine/bin/wine"), loader = URL(fileURLWithPath: "/e/Libraries/Wine/Nightforge Game.app/Contents/MacOS/wine")
+        let helper = URL(fileURLWithPath: "/A/Nightforge.app/Contents/Resources/nightforge-sandbox")
+        var asked = 0
+        func line(_ executable: URL, _ arguments: [String], avx: String? = nil, running: Bool = false, environment given: Bool = true) -> String? {
+            WineSessionStart.line(executable: executable, arguments: arguments,
+                                  environment: given ? (avx.map { ["ROSETTA_ADVERTISE_AVX": $0, "WINEPREFIX": "/p"] } ?? ["WINEPREFIX": "/p"]) : nil,
+                                  helper: helper, sessionRunning: { asked += 1; return running })
+        }
+        check(line(loader, [#"C:\Program Files (x86)\Steam\steam.exe"#, "-silent"], avx: "1") == "Wine session begins with steam.exe, AVX on",
+              "Steam begins it with AVX")
+        check(line(wine, ["regedit", "/S", #"C:\windows\temp\nightforge.reg"#]) == "Wine session begins with regedit, AVX off",
+              "a regedit begins it without AVX (docs/ENTWURF-AVX.md: every game of the session sees none)")
+        check(line(loader, [#"C:\Program Files (x86)\Steam\steam.exe"#], avx: "") == "Wine session begins with steam.exe, AVX off",
+              "a game that turns AVX off (Wukong): off")
+        check(line(wine, ["msiexec", "/i", #"Z:\Users\jane\Library\x.msi"#, "/qn"])?.contains("jane") == false,
+              "never a path: the player's name stays out")
+        check(line(loader, ["/Users/jane/Games/Some Game/game.exe"]) == "Wine session begins with game.exe, AVX off",
+              "a program given by its Mac path: its file name alone")
+        check(line(URL(fileURLWithPath: "/e/winetricks"), ["--unattended", "vcrun2019"]) == "Wine session begins with winetricks, AVX off",
+              "winetricks by its own name")
+        check(line(helper, ["/p/profile.sb", loader.path, #"C:\Program Files (x86)\Steam\steam.exe"#], avx: "1")
+              == "Wine session begins with steam.exe, AVX on", "inside the sandbox: the program behind the helper")
+        let before = asked
+        check(line(loader, [#"C:\Program Files (x86)\Steam\steam.exe"#], avx: "1", running: true) == nil && asked == before + 1,
+              "a session runs already: no line")
+        check(line(URL(fileURLWithPath: "/e/Libraries/Wine/bin/wineserver"), ["-k"]) == nil
+              && line(URL(fileURLWithPath: "/bin/bash"), ["/s.sh"]) == nil && asked == before + 1,
+              "the wineserver or a program that isn't Wine: no line, and no process list asked")
+        check(line(wine, ["wineboot", "-u"], environment: false)?.hasPrefix("Wine session begins with wineboot, AVX ") == true,
+              "no environment of its own: Nightforge's, as the process inherits it")
+        // Wired in where every Wine program starts.
+        let rosetta = (try? String(contentsOfFile: "Sources/Nightforge/RosettaSupport.swift", encoding: .utf8)) ?? ""
+        check(rosetta.contains("WineSessionStart.note(process)\n        try starting(process.executableURL) { try process.run() }"),
+              "RosettaSupport.run notes it right before the start")
+    }
+
     static func main() {
+        sessionStartLine()
         let arguments = CommandLine.arguments
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("wine-sandbox-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
