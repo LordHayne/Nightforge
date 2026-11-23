@@ -6,7 +6,8 @@
  * installs, buys or changes a setting. It prints no window titles (they can name a game or the account).
  *
  * Usage: steam-keys.exe list
- *          one line per visible top-level window of Steam's processes: handle, process, class, size, foreground
+ *          one line per top-level window of Steam's processes, shown or not (Nightforge hides Steam's helper apps on
+ *          the Mac, SteamWindow.hide): handle, process, class, size, visible, foreground
  *        steam-keys.exe key esc|tab|backtab <hwnd>     brings the window to the front, then SendInput
  *        steam-keys.exe post esc|tab|backtab <hwnd>    PostMessage to the window and its render child instead
  *        steam-keys.exe gone <hwnd> <milliseconds>     waits for the window to close or hide
@@ -60,14 +61,14 @@ static int is_steams(HWND window)
 
 static BOOL CALLBACK list_one(HWND window, LPARAM foreground)
 {
-    if (!IsWindowVisible(window) || !is_steams(window)) return TRUE;
+    if (!is_steams(window)) return TRUE;
     wchar_t name[MAX_PATH] = L"?", class_name[64] = L"?";
     process_name(window, name, MAX_PATH);
     GetClassNameW(window, class_name, 64);
     RECT r;
     GetWindowRect(window, &r);
-    wprintf(L"hwnd=0x%llx proc=%ls class=%ls size=%ldx%ld foreground=%d\n", (unsigned long long)(ULONG_PTR)window, name,
-            class_name, r.right - r.left, r.bottom - r.top, (HWND)foreground == window);
+    wprintf(L"hwnd=0x%llx proc=%ls class=%ls size=%ldx%ld visible=%d foreground=%d\n", (unsigned long long)(ULONG_PTR)window,
+            name, class_name, r.right - r.left, r.bottom - r.top, IsWindowVisible(window) ? 1 : 0, (HWND)foreground == window);
     return TRUE;
 }
 
