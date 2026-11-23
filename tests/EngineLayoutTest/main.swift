@@ -140,35 +140,86 @@ struct EngineLayoutTest {
         var ended = 0
         let running: () -> [(pid: pid_t, command: String)]? = { [(pid: 4242, command: #"c:\windows\system32\winedevice.exe"#)] }
         FakeProcesses.installEmpty()
-        Engine.applyLibraryVersion(wine, defaults: defaults, session: { nil }) { _ in ended += 1 }
+        Engine.applyLibraryVersion(wine, defaults: defaults, session: { nil }) { _, _ in ended += 1 }
         check(ended == 0 && defaults.object(forKey: "librarySession") as? Int == DockHider.sessionVersion,
               "release's session without a process list: not ended, not noted")
-        Engine.applyLibraryVersion(wine, defaults: defaults, session: running) { _ in ended += 1 }
+        Engine.applyLibraryVersion(wine, defaults: defaults, session: running) { _, _ in ended += 1 }
         check(ended == 1 && defaults.string(forKey: "librarySession") == wanted, "release's session: ended, and this library noted")
-        Engine.applyLibraryVersion(wine, defaults: defaults, session: running) { _ in ended += 1 }
+        Engine.applyLibraryVersion(wine, defaults: defaults, session: running) { _, _ in ended += 1 }
         _ = DockHider.path()
-        Engine.applyLibraryVersion(wine, defaults: defaults, session: running) { _ in ended += 1 }
+        Engine.applyLibraryVersion(wine, defaults: defaults, session: running) { _, _ in ended += 1 }
         check(ended == 1, "… exactly once: the next starts keep the session")
         // Another copy put its library in, but began no session: it's put back, and the session (begun with ours) stays.
         write(older, foreign)
         _ = rename(foreign.path, installed.path)
-        Engine.applyLibraryVersion(wine, defaults: defaults, session: running) { _ in ended += 1 }
+        Engine.applyLibraryVersion(wine, defaults: defaults, session: running) { _, _ in ended += 1 }
         check(ended == 1 && (try? Data(contentsOf: installed)) == newer, "library replaced without a new session: put back, session stays")
         // This build's own library changes (a new build): the session ends once more.
         let nextBuild = work.appendingPathComponent("library-next-build/hide-steam-dock.dylib")
         write(older, nextBuild)
         DockHider.bundled = nextBuild
-        Engine.applyLibraryVersion(wine, defaults: defaults, session: running) { _ in ended += 1 }
+        Engine.applyLibraryVersion(wine, defaults: defaults, session: running) { _, _ in ended += 1 }
         check(ended == 2 && defaults.string(forKey: "librarySession") == Engine.librarySessionValue(fingerprint: DockHider.hash(older)),
               "new content in this build's bundle: the session ends once more")
         // Whether a game runs can't be told (no process list): nothing ends, nothing is noted. (A game the list shows
         // takes a process from inside the data folder, which a test can't fake; the guard is applyMsyncMode's.)
         defaults.set(DockHider.sessionVersion, forKey: "librarySession")
         FakeProcesses.installDown()
-        Engine.applyLibraryVersion(wine, defaults: defaults, session: running) { _ in ended += 1 }
+        Engine.applyLibraryVersion(wine, defaults: defaults, session: running) { _, _ in ended += 1 }
         check(ended == 2 && defaults.object(forKey: "librarySession") as? Int == DockHider.sessionVersion,
               "not when it can't be told whether a game runs")
         FakeProcesses.installEmpty()
+        sessionMarker(wine, wanted: Engine.librarySessionValue(fingerprint: DockHider.fingerprint()))
+    }
+
+    /// S2 (audit 23.11.2026): another copy of Nightforge with the same settings begins a session with its own library
+    /// and notes nothing (0.3.4) or something else. The session's own marker tells, whatever the note here says.
+    static func sessionMarker(_ wine: URL, wanted: String) {
+        let other = Engine.librarySessionValue(fingerprint: DockHider.hash(Data("another copy's library".utf8)))
+        // The decision.
+        check(!Engine.librarySessionEnds(noted: wanted, began: [wanted], wanted: wanted), "note and marker both this library: stays")
+        check(!Engine.librarySessionEnds(noted: wanted, began: nil, wanted: wanted), "marker not readable: the note decides, as before")
+        check(Engine.librarySessionEnds(noted: wanted, began: [""], wanted: wanted),
+              "a session without a marker (0.3.4, or a build before it) ends, though the note here matches")
+        check(Engine.librarySessionEnds(noted: wanted, began: [other], wanted: wanted), "a session marked with another library ends")
+        check(Engine.librarySessionEnds(noted: wanted, began: [wanted, other], wanted: wanted), "two servers, one foreign: ends")
+        check(Engine.librarySessionEnds(noted: other, began: [wanted], wanted: wanted), "the note still counts: a foreign note ends it too")
+
+        // Only wineservers are read, and "" (no marker) is kept apart from "can't be read".
+        let session: [(pid: pid_t, command: String)] = [(pid: 11, command: #"c:\windows\system32\winedevice.exe"#),
+                                                         (pid: 12, command: "/x/engine/bin/wineserver"),
+                                                         (pid: 13, command: "/x/engine/bin/wineserver -p")]
+        var read: [pid_t] = []
+        check(Engine.librarySessionMarkers(session) { read.append($0); return $0 == 12 ? "" : nil } == [""] && read == [12, 13],
+              "the markers: wineservers only, one without a marker, one unreadable")
+        check(Engine.librarySessionMarkers(session) { _ in nil } == nil, "none readable: nil")
+        check(Engine.librarySessionMarkers([session[0]]) { _ in wanted } == nil, "no wineserver: nil")
+
+        // The whole step: the note matches, but the release began the session without a marker while it ran beside.
+        let defaults = TestDefaults.suite("library-marker")
+        defaults.set(wanted, forKey: "librarySession")
+        var reasons: [String] = []
+        let running: () -> [(pid: pid_t, command: String)]? = { session }
+        Engine.applyLibraryVersion(wine, defaults: defaults, session: running, markers: { _ in [wanted] }, others: { [] }) { reasons.append($1) }
+        check(reasons.isEmpty, "this copy's session, marker and note: kept")
+        Engine.applyLibraryVersion(wine, defaults: defaults, session: running, markers: { _ in nil }, others: { [] }) { reasons.append($1) }
+        check(reasons.isEmpty, "marker unreadable, note matches: kept")
+        Engine.applyLibraryVersion(wine, defaults: defaults, session: running, markers: { _ in [""] },
+                                   others: { ["/Applications"] }) { reasons.append($1) }
+        check(reasons == ["another hide-steam-dock.dylib, by the session's own marker (another Nightforge runs from /Applications)"]
+              && defaults.string(forKey: "librarySession") == wanted,
+              "the release's session without a marker: ended, said in wine.log with the other copy's place")
+        Engine.applyLibraryVersion(wine, defaults: defaults, session: { [] }, markers: { _ in [""] }, others: { [] }) { reasons.append($1) }
+        check(reasons.count == 1, "nothing runs: nothing to end, no marker asked for")
+
+        // Every Wine start carries the marker, also without a library in the build.
+        check(Engine.environment(wine: wine)[Engine.librarySessionMarker] == wanted, "environment: the marker is this library's")
+
+        // The other copy's place, never a path with the user's name.
+        check(Engine.copyPlace("/Applications/Nightforge.app", home: "/Users/someone") == "/Applications"
+              && Engine.copyPlace("/Users/someone/Applications/Nightforge.app", home: "/Users/someone") == "~/Applications"
+              && Engine.copyPlace("/Users/someone/dev/build/Nightforge.app", home: "/Users/someone") == "elsewhere"
+              && Engine.copyPlace(nil) == "elsewhere", "the place of another copy: a name, no path")
     }
 
     static func main() {
