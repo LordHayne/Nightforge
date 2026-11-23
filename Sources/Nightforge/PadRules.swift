@@ -170,3 +170,27 @@ struct MenuHold {
         return chord ? .none : long ? .quickMenu : .options
     }
 }
+
+/// What leads when several directions are held at once – the d-pad and the left stick on one pad, or on two (local co-op,
+/// 0.4, docs/ENTWURF-ZWEI-PADS.md): the one moved last; letting go of it hands over to the newest still held. Before, the
+/// held step lived once per source for every pad, so a second pad's stick coming back to rest let go of what the first
+/// pad held, and its right stick at rest stopped the first pad's scrolling. `rest`: the value of nothing held.
+struct HeldDirections<Key: Hashable, Value: Equatable> {
+    let rest: Value
+    /// Oldest first, only what isn't at rest.
+    private var held: [(key: Key, value: Value)] = []
+
+    init(rest: Value) { self.rest = rest }
+
+    /// `key` says `value` now; what leads after it.
+    mutating func set(_ value: Value, for key: Key) -> Value {
+        held.removeAll { $0.key == key }
+        if value != rest { held.append((key, value)) }
+        return leading
+    }
+
+    var leading: Value { held.last?.value ?? rest }
+
+    mutating func clear() { held.removeAll() }
+}
+
