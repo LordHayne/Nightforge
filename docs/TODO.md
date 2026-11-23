@@ -428,6 +428,12 @@ zuvor.“ Und um 18:34, als Teilschritt zu 0.4 „Wie eine Konsole“:
   - L1: Das F5-Gedächtnis (`steamLaunchMemory`) enthält Pfade mit dem Benutzernamen (lokal, nicht im Protokoll):
     gehört auf die Liste „nie in einen Problembericht“.
   - L2: `if_nameindex` fragt bei jedem Aufruf alle Schnittstellen ab (nur noch in winedevice.exe).
+    **Befund 23.11., kein Umbau:** Wine liest die Schnittstellen bei jeder Aufzählung der NDIS-Tabelle neu ein. Im
+    Mitschnitt vom 22.11. (14:46–15:14, `+nsi`) kamen nach der Anmeldung 26 Aufzählungen in 25 Minuten, alle vom
+    Steam-Webhelfer, je zwei alle 120 s. Die 5795 in 20 s davor waren die F4-Warteschleife, die es nicht mehr gibt.
+    Ein Aufruf (Liste, `getifaddrs`, zwei ioctl je Schnittstelle) kostet hier rund 62 µs unter Rosetta. Ein
+    Zwischenspeicher spart also nichts Spürbares und könnte einen Wechsel WLAN ↔ Kabel verschlucken. L3 (`errno`)
+    ist auf staging-035 schon erledigt.
   - Umbau für später: `hide-steam-dock.dylib` bindet AppKit, und das lädt Metal und QuartzCore in jeden Wine-Prozess
     mit (Wine selbst lädt AppKit über winemac.drv ohnehin). Ganz verhindern ließe es sich nur mit einer Bibliothek
     ohne AppKit.
