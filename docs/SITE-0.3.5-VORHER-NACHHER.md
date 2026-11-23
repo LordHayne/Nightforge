@@ -7,6 +7,8 @@ Design, Bilder und Aufbau sind unverändert, es sind nur Texte.
 Spalte „Stand“: **gebaut** heißt im Release-Stand und gemessen; **[offen]** heißt gebaut, aber die Prüfung live steht noch aus
 (Abnahme heute Abend). Bleibt ein [offen]-Punkt in der Abnahme hängen, fliegt der Satz vor dem Release wieder heraus.
 
+**Freigabe des Nutzers, 23.11.2026 abends (nach der Abnahme):** Den Rest der Texte hat er freigegeben, mit zwei Änderungen. Erstens bekommt Zeile 1 eine neue Fassung, ohne Sekundenzahl und mit einer bescheidenen Überschrift: „0.3.5: Konsolenmodus“ / „Verbindest du einen Controller, fragt Nightforge einmal nach dem Konsolenmodus. Dann füllt es den Bildschirm, und das Dock bleibt beim Spielen weg. Während ein Spiel lädt, läuft ein Licht die Naht im Nightforge-Logo entlang. Steam startet gleich beim Öffnen von Nightforge im Hintergrund, so wartest du beim ersten Spiel weniger. Dazu kommt die 60-FPS-Grenze auch bei D3DMetal.“ Die Zahl stimmt nicht immer: Auf Akku brauchte Steam am 23.11. oft 15–25 s. Zweitens fällt der Satz, nach dem der Mauszeiger verschwindet, bis man die Maus wieder bewegt, auf der Landingpage und in der README weg, weil der Zeiger noch zwischendurch aufblitzt. Die Tabellen unten zeigen den Entwurf davor.
+
 ## Landingpage (`site/index.html`)
 
 | # | Stelle | Vorher | Nachher | Stand |
