@@ -1,19 +1,27 @@
 #!/bin/bash
 # Probe for docs/ENTWURF-STEAM-PAD.md, way B. Run by the coordinator, not by a worker; see README.md beside it.
-#   probe.sh <demo app ID>
+#   probe.sh <demo app ID>        opens steam://install/<ID> itself (before 16:30)
+#   probe.sh --warten [seconds]   sends nothing: waits (default 180 s) for a window of Steam's the player brings up
+#                                 (the launch option of Drawful 2, Valheim's cloud question), then the keys
+#   probe.sh --jetzt              sends nothing: takes the one visible window of Steam's at least 300 x 200 now
 # Opens Steam's install dialog for a demo (steam://install/<ID>), sends it Tab twice and Esc, and checks that the
 # dialog is closed again. Sends no Enter, no Space, no click (steam-keys.c knows only Esc and Tab). Prints window
 # handles, classes and sizes, never titles, accounts or process arguments.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-ID="${1:-}"
-[[ "$ID" =~ ^[0-9]+$ ]] || { echo "PROBE ABGEBROCHEN: App-ID einer Demo als Argument fehlt"; exit 64; }
+MODE=install; ID=""; WAIT=30
+case "${1:-}" in
+  --warten) MODE=wait; WAIT="${2:-180}"; [[ "$WAIT" =~ ^[0-9]+$ ]] || { echo "PROBE ABGEBROCHEN: Sekunden als Zahl"; exit 64; } ;;
+  --jetzt) MODE=now ;;
+  *) ID="${1:-}"; [[ "$ID" =~ ^[0-9]+$ ]] || { echo "PROBE ABGEBROCHEN: App-ID einer Demo, --warten oder --jetzt"; exit 64; } ;;
+esac
 LOG="${PROBE_LOG:-$PWD/steam-pad-probe-$(date +%Y%m%d-%H%M%S).log}"
 say() { echo "$(date +%H:%M:%S) $*" | tee -a "$LOG"; }
 
 # Guards: not from 16:30 on, a Nightforge Steam session running, no game running.
 now=$((10#$(date +%H%M)))
-[ "$now" -lt 1630 ] || { say "PROBE ABGEBROCHEN: ab 16:30 keine Proben"; exit 1; }
+# The modes that send nothing run with the player there, who brought the question up: also in the evening.
+[ "$MODE" != install ] || [ "$now" -lt 1630 ] || { say "PROBE ABGEBROCHEN: ab 16:30 keine Proben, die selbst etwas öffnen"; exit 1; }
 command -v x86_64-w64-mingw32-gcc >/dev/null || { say "PROBE ABGEBROCHEN: mingw-w64 fehlt"; exit 1; }
 SUPPORT="$HOME/Library/Application Support/Nightforge"
 SERVER="$(ps -axo comm= | grep -F "$SUPPORT/Components/" | grep -E '/bin/wineserver$' | head -n 1)"
@@ -102,6 +110,7 @@ exec_lines() {  # new ExecCommandLine lines since the start, said without their 
   done
 }
 
+if [ "$MODE" = install ]; then
 # As Engine.startSteam: steam.exe, its start arguments (Engine.steamArguments, the client being installed), the command.
 say "Öffne Steams Installationsfenster für App $ID (steam://install, nichts wird bestätigt)"
 env -i "${ENVV[@]}" "$LOADER" 'C:\Program Files (x86)\Steam\steam.exe' -no-cef-sandbox -cef-single-process -noverifyfiles \
@@ -115,11 +124,28 @@ else
   wait "$CALL"; rc=$?; say "Der zweite steam.exe endete nach $(( $(date +%s) - called )) s mit exit $rc"
 fi
 exec_lines | tee -a "$LOG"
+fi
 
-# The new window of Steam's: not there before, at least 300 x 200.
 DIALOG=""
 MAIN=""
-for _ in $(seq 1 30); do
+if [ "$MODE" = now ]; then
+  # The one visible window of Steam's of a dialog's size; with none or several, nothing is sent.
+  grep "visible=1" "$WORK/out" | while read -r line; do
+    size="$(sed -n 's/.* size=\([0-9]*\)x\([0-9]*\) .*/\1 \2/p' <<<"$line")"; set -- $size
+    [ "${1:-0}" -ge 300 ] && [ "${2:-0}" -ge 200 ] && echo "$line"
+  done > "$WORK/candidates"
+  count="$(wc -l < "$WORK/candidates" | tr -d ' ')"
+  if [ "$count" != 1 ]; then
+    sed 's/^/  sichtbar: /' "$WORK/candidates" | tee -a "$LOG"
+    say "ERGEBNIS: $count sichtbare Steam-Fenster ab 300×200, nichts geschickt (genau eines nötig; sonst --warten nehmen)"; exit 2
+  fi
+  line="$(cat "$WORK/candidates")"; DIALOG="$(cut -d' ' -f1 <<<"$line")"; DIALOG="${DIALOG#hwnd=}"; MAIN=maybe
+  echo "  gewählt: $line" | tee -a "$LOG"
+fi
+[ "$MODE" = wait ] && say "Warte bis zu $WAIT s auf ein Fenster von Steam: jetzt die Frage auslösen (Spielen drücken)"
+
+# The new window of Steam's: not there before, at least 300 x 200 – or one that was there hidden and shows now.
+for _ in $( [ -z "$DIALOG" ] && seq 1 "$WAIT" ); do
   sleep 1
   run 20 list || continue
   while read -r line; do
@@ -141,9 +167,11 @@ for _ in $(seq 1 30); do
 done
 if [ -z "$DIALOG" ]; then
   exec_lines | tee -a "$LOG"
-  [ -n "$(exec_lines)" ] || say "Steams console_log hat keine ExecCommandLine-Zeile seit dem Aufruf: der Befehl kam nicht bei Steam an"
-  [ -n "${CALL:-}" ] && kill -0 "$CALL" 2>/dev/null && kill "$CALL" 2>/dev/null
-  say "ERGEBNIS: kein neues Steam-Fenster in 30 s"; exit 2
+  if [ "$MODE" = install ]; then
+    [ -n "$(exec_lines)" ] || say "Steams console_log hat keine ExecCommandLine-Zeile seit dem Aufruf: der Befehl kam nicht bei Steam an"
+    [ -n "${CALL:-}" ] && kill -0 "$CALL" 2>/dev/null && kill "$CALL" 2>/dev/null
+  fi
+  say "ERGEBNIS: kein neues Steam-Fenster in $WAIT s"; exit 2
 fi
 
 # Hidden on the Mac (Nightforge hides Steam's helper apps under its own surface): the first key brings it forward,
@@ -160,7 +188,7 @@ sleep 2
 
 closed=""
 run 10 key esc "$DIALOG"; say "Esc per SendInput: exit $?"
-if [ -n "$MAIN" ]; then
+if [ "$MAIN" = 1 ]; then
   # A question inside Steam's main window closes without the window going: only the eye can tell.
   say "ERGEBNIS (nur per Auge): Steam zeigte die Frage in seinem Hauptfenster. Ist sie nach Esc weg? Wenn nicht: mit der Maus „Abbrechen“."
   exit 3
@@ -173,5 +201,9 @@ if [ -n "$closed" ]; then
   say "ERGEBNIS: Esc schließt Steams Dialog ($closed). Fenster ist zu."
   exit 0
 fi
-say "ERGEBNIS: Dialog noch offen. Bitte mit der Maus „Abbrechen“ drücken, nicht „Weiter“ oder „Installieren“."
+if [ "$MAIN" = maybe ]; then
+  say "ERGEBNIS (nur per Auge): Das Fenster ist noch da. Ist die Frage darin weg? Wenn nicht: mit der Maus „Abbrechen“."
+  exit 3
+fi
+say "ERGEBNIS: Dialog noch offen. Bitte mit der Maus „Abbrechen“ drücken, nicht „Weiter“, „Installieren“ oder „Spielen“."
 exit 1
