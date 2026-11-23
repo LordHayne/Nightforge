@@ -19,6 +19,12 @@ enum IdleRest {
         return inFront ? 3 : 10
     }
 
+    /// Whether the look at the running games pauses before the next one. Not while the games are known and no look
+    /// with them has counted yet: Steam's start after Nightforge's waits for that look (LibraryModel.startBackgroundSteam),
+    /// and the first look usually comes before the library is read. With nobody at the Mac the pause is 30 s – on
+    /// 23.11.2026 Steam started 23 and 31 s after Nightforge opened, at 5 s for itself (S3).
+    static func pausesBeforeNextLook(gamesKnown: Bool, lookCounted: Bool) -> Bool { lookCounted || !gamesKnown }
+
     /// Seconds between two looks at the downloads (their manifests, every tenth a whole scan). A
     /// paused one stays listed, and nobody reads progress that isn't there: it went on every 3 s all day.
     static func downloadLookPause(fetching: Bool, nobodyThere: Bool) -> Int {

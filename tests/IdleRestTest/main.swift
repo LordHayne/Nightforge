@@ -21,6 +21,19 @@ func lookPauses() {
     check(pause(ending: true, game: true, away: true) == 1, "a game that just ended comes first")
 }
 
+/// Steam's start after Nightforge's waits for the first look at the running games that knows the games (S3, 23.11.2026:
+/// 23 and 31 s from opening to Steam, with nobody at the Mac the pause between looks is 30 s).
+func firstCountingLook() {
+    check(!IdleRest.pausesBeforeNextLook(gamesKnown: true, lookCounted: false), "the games just became known: the next look comes at once")
+    check(IdleRest.pausesBeforeNextLook(gamesKnown: false, lookCounted: false), "the library still being read: the usual pause, no spinning")
+    check(IdleRest.pausesBeforeNextLook(gamesKnown: true, lookCounted: true), "once a look counted: the usual pause")
+    let model = (try? String(contentsOfFile: "Sources/Nightforge/LibraryModel.swift", encoding: .utf8)) ?? ""
+    check(model.contains("guard IdleRest.pausesBeforeNextLook(gamesKnown: libraryLoaded, lookCounted: runningScanned) else { continue }\n                nap = Task"),
+          "the look at the running games asks before its pause")
+    check(model.contains("libraryLoaded = true\n        // The look at the running games that Steam's start waits for comes now")
+          && model.contains("if !runningScanned { lookNow() }"), "the library read: a pause under way is cut short")
+}
+
 func downloadLooks() {
     check(IdleRest.downloadLookPause(fetching: true, nobodyThere: true) == 3, "one really coming down keeps its pace, nobody there or not")
     check(IdleRest.downloadLookPause(fetching: false, nobodyThere: false) == 3, "paused with someone there: a resume shows at once")
@@ -86,6 +99,7 @@ func wantedAhead() {
 struct IdleRestTest {
     static func main() async {
         lookPauses()
+        firstCountingLook()
         downloadLooks()
         windowGuard()
         wakeCatchUp()

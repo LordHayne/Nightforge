@@ -910,6 +910,8 @@ final class LibraryModel: ObservableObject {
                 let pause = Duration.seconds(IdleRest.lookPause(gameEnding: goneFor > 0, gameOrStart: !found.isEmpty || launchingID != nil || GameBackdrop.isRaised,
                                                                 downloading: KeepAwake.isHolding, inFront: NSApp.isActive,
                                                                 nobodyThere: IdleRest.nobodyThere(idle: InputRouter.secondsSinceUse)))
+                // The library came in during this look: the next one counts, at once (`rescan` cuts a pause short).
+                guard IdleRest.pausesBeforeNextLook(gamesKnown: libraryLoaded, lookCounted: runningScanned) else { continue }
                 nap = Task { try? await Task.sleep(for: pause) }
                 await nap?.value
             }
@@ -2811,6 +2813,8 @@ final class LibraryModel: ObservableObject {
         downloadLooks = 0
         measureDownloads()
         libraryLoaded = true
+        // The look at the running games that Steam's start waits for comes now, not after its pause (IdleRest.pausesBeforeNextLook).
+        if !runningScanned { lookNow() }
         askAboutRosettaOnce()
         let finished = found.filter { $0.isInstalled && wasDownloading.contains($0.id) }
         for game in finished { prepare(game) }
