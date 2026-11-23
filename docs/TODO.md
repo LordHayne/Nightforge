@@ -401,6 +401,11 @@ zuvor.“ Und um 18:34, als Teilschritt zu 0.4 „Wie eine Konsole“:
   bei Steams Fragen nicht. Zur Wahl: Erlaubnis in die Konsolenmodus-Anfrage, Probe „Tasten im Windows-Steam per Wine“
   (Weg B), Leistentext ohne Erlaubnis, Startoption in Nightforge. Noch nichts gebaut.
 
+- [ ] **Nightforges eigene Bildschirme nur mit dem Pad (Entscheidung 1, 23.11.):** Bestand in `docs/ENTWURF-PAD-ONLY.md`
+  (Zweig `claude/pad-only-04`). Fast alles geht; gebaut: Pad-Fokus für die zwei Textfelder unter Einstellungen › Stores und
+  `tests/test_pad_reach.py`. Zur Wahl: Pad-Tastatur für jedes Textfeld, Ordnerwahl ohne Dateifenster, Berichte per QR aufs
+  Handy, Meldungen mit Knopf (erst live prüfen).
+
 **Aus derselben Runde, technisch:**
 - [ ] **Zwei Nightforge-Kopien mit gleicher Kennung** (Release in `/Applications`, Testbuild in `~/Applications`,
   beide „0.3.4“): Launchpad/Spotlight/Finder öffnen das Release, und das ersetzt `hide-steam-dock.dylib` im

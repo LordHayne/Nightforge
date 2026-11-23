@@ -295,27 +295,33 @@ struct MacSourcesTest {
               "a long log keeps its newest errors within an issue's size")
 
         // MARK: Nothing of Nightforge's own settings, no home folder under any name (audit L1)
-        let memory = UserDefaults(suiteName: "nightforge-test-launch-memory-\(getpid())")!
-        defer { memory.removePersistentDomain(forName: "nightforge-test-launch-memory-\(getpid())") }
+        // Registered, not set: registered values live in memory only. Set, every run left a domain in the user's
+        // preferences (the test ends with exit(), so no defer removed it; found 23.11.2026).
+        let memoryDomain = "nightforge-test-launch-memory-\(getpid())"
+        let memory = UserDefaults(suiteName: memoryDomain)!
         let icd = "/Users/jane/Library/Application Support/Nightforge/kosmickrisp/icd.json"
         let layer = "/Users/jane/Library/Application Support/Nightforge/loader/layers"
         let drive = "/Volumes/Janes Disk/Nightforge Games", temp = "/private/var/folders/ab/xyz/T/nf"
         let stored = #"{"games":{"steam.1":{"version":12,"environment":{"VK_ICD_FILENAMES":"\#(icd)","DXVK_HUD":"fps","#
             + #""VK_ADD_IMPLICIT_LAYER_PATH":"/usr/lib/x:\#(layer)","DYLD_FALLBACK_LIBRARY_PATH":"/usr/lib:/System/Library/Frameworks","#
             + #""GAME_DIR":"\#(drive)","TMP_DIR":"\#(temp)","HOME_COPY":"/Users/jane"},"retina":false,"msync":true}},"order":["steam.1"]}"#
-        memory.set(Data(stored.utf8), forKey: Engine.launchMemoryKey)
+        check(Engine.launchMemoryPaths(defaults: memory).isEmpty, "no memory: no paths")
+        // Registered values are the whole process's (every suite and .standard see them): taken back below.
+        memory.register(defaults: [Engine.launchMemoryKey: Data(stored.utf8)])
         let keptPaths = Engine.launchMemoryPaths(defaults: memory, home: "/Users/jane")
+        let keptAgain = Engine.launchMemoryPaths(defaults: memory, home: "/Users/jane")
+        check(memory.persistentDomain(forName: memoryDomain)?[Engine.launchMemoryKey] == nil, "the test's memory isn't written to disk")
+        memory.register(defaults: [Engine.launchMemoryKey: Data()])
+        check(Engine.launchMemoryPaths().isEmpty, "…and taken back: what follows sees no memory")
         check(Set(keptPaths) == [icd, layer, drive, temp, "/Users/jane"],
               "the memory's paths that can carry something private, a list's parts too; system paths not: \(keptPaths)")
-        check(Engine.launchMemoryPaths(defaults: memory, home: "/Users/jane").allSatisfy { !$0.hasPrefix("/usr/") && !$0.hasPrefix("/System/") },
+        check(keptAgain.allSatisfy { !$0.hasPrefix("/usr/") && !$0.hasPrefix("/System/") },
               "…/usr/lib and /System/Library stay readable in a report")
         check(Engine.mayBePrivate("/Users/janet/x", home: "/Users/jane") && Engine.mayBePrivate("/opt/home/jane/x", home: "/opt/home/jane")
               && Engine.mayBePrivate("/opt/home/jane", home: "/opt/home/jane") && !Engine.mayBePrivate("/opt/home/janet", home: "/opt/home/jane")
               && !Engine.mayBePrivate("/opt/x", home: "/opt/home/jane"), "a HOME set elsewhere counts, its neighbours don't")
         check(GameLog.outbound("dlopen /usr/lib/libvulkan.dylib failed", user: "", kept: keptPaths) == "dlopen /usr/lib/libvulkan.dylib failed",
               "a system path in an error line stays as it is")
-        check(Engine.launchMemoryPaths(defaults: UserDefaults(suiteName: "nightforge-test-launch-memory-none-\(getpid())")!).isEmpty,
-              "no memory: no paths")
         let leaky = ProblemReportText(gameName: "Some Game", facts: [("Game", "Some Game"), ("Diagnosis", "vulkan in " + layer)],
                                       errors: ["VK_ICD_FILENAMES=" + icd, "err:vulkan:load " + layer + "/x.json",
                                                #"err:module:open C:\users\bo\Documents\x.dll"#, "open /Users/bob/Games/x failed",

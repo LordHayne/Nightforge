@@ -91,6 +91,9 @@ private struct StoresSettings: View {
     @AppStorage(Prefs.Keys.runnerPath) private var runnerPath = ""
     /// Folded away unless something is filled in: most players never need it.
     @State private var showsOwnWine = false
+    /// The field the pad's A put the cursor in, as in every GlassTextField: a keyboard types there.
+    @FocusState private var typing: OwnWineField?
+    private enum OwnWineField { case bottles, wine }
 
     var body: some View {
         Form {
@@ -146,6 +149,8 @@ private struct StoresSettings: View {
                     HStack {
                         TextField("", text: $bottlesRoot, prompt: Text(LibraryScanner.defaultBottlesRoot().path))
                             .labelsHidden()
+                            .focused($typing, equals: .bottles)
+                            .padFocus("settings.bottlesRoot", activate: { typing = .bottles })
                         Button(L10n.t("Choose …")) { model.chooseBottlesFolder() }
                             .padFocus("settings.chooseBottles", activate: { model.chooseBottlesFolder() })
                     }
@@ -153,6 +158,8 @@ private struct StoresSettings: View {
                 LabeledContent("Wine") {
                     TextField("", text: $runnerPath, prompt: Text(Launcher.detectRunner()))
                         .labelsHidden()
+                        .focused($typing, equals: .wine)
+                        .padFocus("settings.runnerPath", activate: { typing = .wine })
                 }
                 Text(L10n.t("Nightforge brings everything it needs. Fill this in only to also show games from CrossOver or Whisky bottles: leave Wine empty for CrossOver, or enter the path to the wine binary of Whisky or your own Wine."))
                     .font(size: 10)
