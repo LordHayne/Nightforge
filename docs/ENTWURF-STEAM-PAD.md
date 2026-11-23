@@ -81,8 +81,27 @@ per `SendInput` Enter (Ⓐ), Esc (Ⓑ) oder Tab/Umschalt-Tab (Steuerkreuz). Das 
 - Nur Windows-Steam. Steam für Mac bräuchte dafür `CGEventPost` in ein fremdes Programm, also wieder die Erlaubnis (Weg C).
 - Aufwand M; mingw-w64 ist auf diesem Mac da (`build.sh` baut `pad-answer.exe` selbst).
 
-**C · Tasten an Steam für Mac.** Wie B, aber über macOS-Ereignisse an „Steam Helper“. Braucht dieselbe Erlaubnis wie A und
-bringt gegenüber A nur die Fokus-Navigation. Erst nach der Probe zu B.
+**C · Steam für Mac: Weg B geht dort grundsätzlich nicht.** Steam für Mac ist kein Wine-Programm. Seine Fenster gehören
+„Steam Helper“ (`com.valvesoftware.steam.helper`, Chromium), einem gewöhnlichen Mac-Prozess (`MacSteam.helperBundleID`). Es gibt
+keine Wine-Sitzung, in der ein Programm wie `pad-answer.exe` mit `SendInput` stehen könnte; Win32-Nachrichten erreichen es nicht.
+Jeder Tastendruck von außen ist ein macOS-Ereignis, und macOS lässt ein Programm in fremde Apps nur mit der Erlaubnis
+„Bedienungshilfen“ schreiben (dieselbe Prüfung wie für die Zeiger-Klicks: `CGPreflightPostEventAccess`, `PadPointerAccess`).
+Was in Frage kommt, alles nur **mit** dieser Erlaubnis:
+
+| Weg | Wie | Dafür | Dagegen |
+|---|---|---|---|
+| C1 · Taste an die App vorn | `CGEvent(keyboardEventSource:…)` mit Esc, Tab, Enter, `.post(tap: .cghidEventTap)`, wie heute die Klicks (`PadPointer.swift:282`). Vorher bekommt Steam Helper die Front (`MacSteam.comeForward`). | kleinster Bau, dasselbe Muster wie der Zeiger | geht an die App vorn: hat in dem Moment etwas anderes die Front, landet die Taste dort. Vor jedem Druck prüfen, dass Steam Helper vorn ist |
+| C2 · Taste an einen Prozess | `CGEvent.postToPid(_:)` an Steam Helper | trifft nur Steam, auch wenn die Front kurz wechselt | Chromium nimmt Tasten oft nur im aktiven Fenster an **[Vermutung]**; Probe nötig |
+| C3 · Knopf über die Bedienungshilfen-Schnittstelle | `AXUIElement`: Knopf im Fenster suchen und mit `AXPress` drücken | Ⓐ träfe den richtigen Knopf, nicht nur „Enter“ | Chromium gibt seinen Baum erst auf Anfrage frei (`AXManualAccessibility`); Knöpfe nur am Text erkennbar, und der ändert sich mit Sprache und Steam-Version. Viel Steam-Wissen, zerbrechlich |
+| C4 · AppleScript „System Events“ | `keystroke` | – | braucht zusätzlich „Automation“, also eine zweite macOS-Frage. Nicht empfohlen |
+
+Dazu der Weg ohne Fenster, wo es ihn schon gibt: Steam für Mac startet mit `-applaunch` die erste Startoption, ohne zu fragen
+(`MacSteam.applaunch`). Die Lizenz geht dort nach dem Ja in derselben Sekunde weiter (`SteamLicence`, 5 von 5).
+
+**Folgerung:** Für Steam für Mac ist die Erlaubnis aus Punkt 1 (Abschnitt 4) die Voraussetzung für alles. Mit ihr klickt der
+Zeiger schon heute. C1 bringt zusätzlich Ⓑ = Esc und das Steuerkreuz = Tab, ohne Zeiger. Sinnvoll erst, wenn Probe B im
+Windows-Steam zeigt, dass Steams Dialoge Esc und Tab überhaupt annehmen: Beide Steams nutzen dieselbe Oberfläche (Chromium,
+React), das Ergebnis gilt also wohl für beide **[Vermutung]**. Ohne die Erlaubnis bleibt bei Steam für Mac nur die Maus.
 
 **D · Steams eigene Controller-Bedienung (Big Picture, Steam Input).** Dort sind alle Dialoge für das Pad gemacht. Dagegen:
 Steam müsste das Pad sehen und reicht es dann doppelt an Spiele weiter; die PS-Taste wurde bewusst von Big Picture getrennt
@@ -117,3 +136,5 @@ Steam müsste das Pad sehen und reicht es dann doppelt an Spiele weiter; die PS-
 - Pad-Zeiger mit Erlaubnis bei S3 und S4: Trifft R2 auf dem TV die Knöpfe sicher? Wie groß sind sie aus 3 m?
 - S7 (zweites Gerät): Schrittname im `console_log.txt` notieren, damit der Vorhang eine eigene Überschrift bekommen kann.
 - S8: Erscheint Steams Installationsfenster vor Nightforge, und lässt sich die Laufwerksliste mit dem Zeiger öffnen?
+- Steam für Mac, erst nach Probe B und nur mit erteilter Erlaubnis: dasselbe Installationsfenster (`steam://install/<Demo>`),
+  Esc und Tab über C1. Schließt Esc es, ist C1 baubar.
