@@ -43,6 +43,11 @@ enum LaunchRepair: Equatable {
         }
     }
 
+    /// On the curtain: only the end of a start, which the player has to know about. A try between two starts is
+    /// for the log (the user, 22.11.2026: no technical lines while Nightforge only works).
+    var curtainTitle: String? { endsStart ? title : nil }
+    var curtainDetail: String? { endsStart ? detail : nil }
+
     /// No start follows it: the line says the end. Every other one promises a try, and one comes
     /// (the coordinator's rule of 15.11.2026: "Sagt der Vorhang „Noch ein Versuch …“, muss einer kommen").
     var endsStart: Bool {

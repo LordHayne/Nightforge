@@ -63,6 +63,14 @@ final class PadFocus: ObservableObject {
     /// Puts the highlight on a control, as when a list closes and it goes back to its chip.
     func focus(_ id: String) { focused = id }
 
+    /// The highlight where the pad would start in `window` (its preferred control, else the first), with no press yet:
+    /// console mode's at-once highlight (ConsoleMode.focusPlace). Nothing where one stands in it already.
+    func placeAtOnce(in window: NSWindow, within zone: PadZone? = nil) {
+        // One in the zone asked for (an open panel) counts; one on the level behind it doesn't.
+        guard focusedItem(in: window).map({ zone == nil || $0.zone == zone }) != true else { return }
+        move(dx: 0, dy: 0, in: window, within: zone)
+    }
+
     /// Brings the highlighted control into view where a scroll view hides it, with room around it
     /// (`top` more where a bar covers the top, like a game page's) – smoothly, as the trackpad
     /// would, not with a jump.

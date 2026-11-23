@@ -61,6 +61,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         GameDisplay.follow()
         TVLayout.shared.start()
         GameOverlay.resumeLeftovers()
+        // The Dock's setting, should the last session have ended without putting it back (DockAutoHide).
+        DockAutoHide.run({ DockAutoHide.restore($0) }, why: ", after the last session ended without it")
+        CurtainPreview.startIfAsked()
         MacIntegration.setUp(delegate: self)
         // Game apps an older Nightforge wrote get the key that lets their link start the game.
         Task.detached(priority: .utility) { GameShortcut.addKey(GameShortcut.key()) }
@@ -138,5 +141,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         if took >= 2 { GameLog.note("Quit: handing Steam's shutdown to its script took \(Int(took)) s") }
         GameDisplay.quitting()
         GameOverlay.close()  // a game paused under the overlay runs on
+        // Before Nightforge goes, not in a task that may not get to run: the Dock as the player had it.
+        if let line = DockAutoHide.restore(DockAutoHide.live).logLine { GameLog.note(line + ", as Nightforge quits") }
     }
 }

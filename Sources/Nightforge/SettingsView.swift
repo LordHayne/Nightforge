@@ -478,6 +478,20 @@ private struct ControllerSettings: View {
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in readHomeButton() }
             }
 
+            // Console mode (ConsoleMode): the same switch as in the small menu.
+            let console = Binding(get: { model.consoleMode }, set: { model.setConsoleMode($0, by: "Settings") })
+            Toggle(isOn: console) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(L10n.t("Console mode"))
+                    Text(L10n.t("Full screen on every screen, the Dock stays away while you play."))
+                        .font(size: 10)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padFocus("settings.consoleMode", toggle: console)
+            .padding(.top, 6)
+
             SectionTitle(L10n.t("Button labels"))
                 .padding(.top, 6)
             Segmented(options: PadSymbols.Style.allCases.map { ($0.rawValue, $0.label, nil) }, selection: padGlyphs,

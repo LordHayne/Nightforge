@@ -63,6 +63,8 @@ run "no D3DM_MAX_FPS (an anti-cheat game's environment)" "redirected 0 sync 0" "
 run "another game than the permit's (Steam's environment from the game before)" "redirected 0 sync 0" \
   'C:\Program Files (x86)\Steam\steamapps\common\Overwatch\Overwatch.exe' "$D3DMETAL" D3DM_MAX_FPS=60
 run "a limit other than the permit's" "redirected 0 sync 0" "$GAME" "$D3DMETAL" D3DM_MAX_FPS=30
+# Metal handing on to presentDrawable: from inside afterMinimumDuration: Metal's own, once – no loop, no crash (S1).
+run "Metal calls presentDrawable: back from inside" "redirected 3 sync 1" "$GAME" "$D3DMETAL" D3DM_MAX_FPS=60 NIGHTFORGE_TEST_REENTER=1
 rm -f "$PERMIT"
 run "no permit (Nightforge took it away for a game with an anti-cheat)" "redirected 0 sync 0" "$GAME" "$D3DMETAL" D3DM_MAX_FPS=60
 

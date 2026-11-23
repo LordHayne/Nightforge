@@ -1,6 +1,8 @@
 // Prints what if_nameindex() gives this program, one interface per line with what macOS says of it:
 // "name ipv4 link address up" (link: 1, 0, -1 unknown). Run with and without hide-steam-dock.dylib by
-// tests/NetworkOrderTest/run.sh. x86_64, like the Wine processes the library goes into.
+// tests/NetworkOrderTest/run.sh. x86_64, like the Wine processes the library goes into. An argument becomes the
+// program's name (argv[0]) first, as Wine sets it to the Windows path: the library orders only in winedevice.exe.
+#include <crt_externs.h>
 #include <ifaddrs.h>
 #include <net/if.h>
 #include <net/if_media.h>
@@ -11,8 +13,9 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-int main(void)
+int main(int argc, char **argv)
 {
+    if (argc > 1) (*_NSGetArgv())[0] = argv[1];
     struct if_nameindex *list = if_nameindex(), *entry;
     struct ifaddrs *addresses = NULL, *a;
     int sock = socket(AF_INET, SOCK_DGRAM, 0);

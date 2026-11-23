@@ -209,8 +209,8 @@ final class InputRouter {
             if let menu = model.libraryMenu { model.closeLibraryMenu(menu); return true }
             if model.awaitingSteam { model.cancelLaunch(); return true }
             if model.back() { return true }
-            // Nothing to go back from: Esc leaves full screen, as in macOS's.
-            guard FullScreen.isOn else { return false }
+            // Nothing to go back from: Esc leaves full screen, as in macOS's – but not console mode (ConsoleMode).
+            guard FullScreen.isOn, ConsoleMode.escLeavesFullScreen(consoleMode: model.consoleMode) else { return false }
             FullScreen.toggle()
             return true
         default: break

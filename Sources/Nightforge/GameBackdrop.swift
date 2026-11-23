@@ -41,6 +41,9 @@ enum GameBackdrop {
         @Published var seam: CGRect?
         /// The pad's buttons for what the player has to do now (CurtainButton), in the tip's place: the rule of 15.11.2026.
         @Published var buttons: [CurtainButton] = []
+        /// Some of the page is on the screen (its window's occlusion state): behind a game in full screen it isn't, and
+        /// nothing on it moves then.
+        @Published var seen = false
     }
 
     /// What the curtain says about Steam's question: its kind at the top, the way to answer in the bar.
@@ -340,6 +343,7 @@ enum GameBackdrop {
             }
             guard !Task.isCancelled else { return }
             window.orderOut(nil)
+            state.seen = false  // nothing moves on a page that's gone, whether or not macOS says so
             if let observer { NotificationCenter.default.removeObserver(observer) }
             observer = nil
             then?()
@@ -537,8 +541,18 @@ enum GameBackdrop {
         let host = NSHostingView(rootView: BackdropView(state: state).modifier(AccessibilityFromSettings()))
         host.sizingOptions = []  // the screen's size, not the content's
         window.contentView = host
+        // The light moves only where it's seen: behind a game that covers the page it would cost the game for nothing.
+        occlusionObserver = NotificationCenter.default.addObserver(forName: NSWindow.didChangeOcclusionStateNotification,
+                                                                   object: window, queue: .main) { _ in
+            MainActor.assumeIsolated {
+                let seen = window.isVisible && window.occlusionState.contains(.visible)
+                if state.seen != seen { state.seen = seen }
+            }
+        }
         return window
     }
+
+    private static var occlusionObserver: NSObjectProtocol?
 }
 
 /// Never key or main: keys and the pad stay with the game, or with Nightforge's window.
@@ -568,7 +582,9 @@ struct BackdropView: View {
 
     private var page: some View {
             VStack(spacing: 0) {
-                BrandMark(moving: state.stage.raised)
+                // Up, or the page seen behind a game whose picture went: the light runs either way, a page that
+                // stands still looks as if it hangs (the user, 22.11.2026).
+                BrandMark(moving: state.stage.raised || state.seen)
                 // The banner's wordmark, and under it the game in the blue of its tagline.
                 Spaced(text: "NIGHTFORGE", kern: 15)
                     .fontWidth(.expanded)
@@ -581,14 +597,17 @@ struct BackdropView: View {
                     .foregroundStyle(Color(nsColor: BrandArt.tagline))
                     .lineLimit(2)
                     .padding(.top, 18)
-                // What's happening; each step fades over the last.
+                // Under the name a short light glides to and fro, quicker and fainter than the seam's.
+                GlideLine(moving: (state.stage.raised || state.seen) && state.progress == nil)
+                    .padding(.top, 26)
+                // What the player has to do, or an update's figures; nothing while Nightforge only works.
                 ZStack {
                     Text(status).id(status).transition(.opacity)
                 }
                 .font(size: 18, weight: .medium)
                 .foregroundStyle(Theme.muted)
                 .animation(.easeInOut(duration: 0.4), value: status)
-                .padding(.top, 34)
+                .padding(.top, 14)
                 // In the gap above the second line, which is there anyway: an update's bar – nothing moves when it comes.
                 UpdateBar(fraction: state.stage == .starting ? state.progress : nil)
                     .frame(height: 34)
@@ -633,11 +652,13 @@ struct BackdropView: View {
             .padding(Theme.gutter)
     }
 
+    /// No words while Nightforge only works – "at a console nobody wants to know what happens technically" (the user,
+    /// 22.11.2026): the start's line only where there is one (LibraryModel.curtainStatus), none behind the game or on
+    /// the way back. A space keeps the page's place, so nothing moves when a line comes.
     private var status: String {
         switch state.stage {
-        case .starting: return state.step ?? L10n.t("Starting …")
-        case .behind: return L10n.t("Nightforge waits here until you're done.")
-        case .returning: return L10n.t("Back to Nightforge …")
+        case .starting: return state.step ?? " "
+        case .behind, .returning: return " "
         }
     }
 }
@@ -779,13 +800,22 @@ private struct BrandNight: View {
 
 /// The N in brushed metal, its seam a picture of its own on top. The layout counts the N alone;
 /// its shadow and the seam's glow reach beyond.
+///
+/// While it moves (the board "Ladebildschirm wie eine Konsole", variant A, the user's choice of 22.11.2026): a light
+/// runs along the seam – BrandArt.seam, from (49, 170) to (332, 440) in the design's units, in the seam's own
+/// picture as its mask, so it never leaves it – one run each `seamRun` seconds with no pause, and the seam breathes
+/// between 60 and 100 % each `breath` seconds. The seam is the brighter and slower of the two layers, the line under
+/// the name (GlideLine) the fainter and quicker; their times share no divisor, so they never fall into step.
+/// With "Reduce motion" the seam only breathes.
 private struct BrandMark: View {
-    /// The curtain is up: a light runs along the seam (with "Reduce motion" it breathes).
     let moving: Bool
     @Environment(\.displayScale) private var scale
     @Environment(\.reduceMotion) private var reduceMotion
-    @State private var on = false
+    @State private var along: CGFloat = -0.15
+    @State private var bright = false
     private static let height: CGFloat = 230
+    static let seamRun: Double = 3.7
+    static let breath: Double = 5.3
 
     var body: some View {
         let unit = Self.height / BrandArt.glyphSize.height
@@ -805,17 +835,15 @@ private struct BrandMark: View {
             if let metal { Image(decorative: metal, scale: scale) }
             if let seam {
                 Image(decorative: seam, scale: scale)
-                    .opacity(moving && reduceMotion ? (on ? 1 : 0.45) : runs ? 0.8 : 1)
+                    .opacity(moving ? (bright ? 1 : 0.6) : 1)
                 if runs {
-                    // A light along the seam, in it only (the seam's own picture as the mask), and
-                    // a pause off its ends before the next run.
+                    // The seam's ends in the picture: BrandArt.seam, scaled and placed as drawSeam draws it.
                     let from = CGPoint(x: origin.x + BrandArt.seam.0.x * unit, y: origin.y + BrandArt.seam.0.y * unit)
                     let to = CGPoint(x: origin.x + BrandArt.seam.1.x * unit, y: origin.y + BrandArt.seam.1.y * unit)
-                    let along: CGFloat = on ? 1.3 : -0.3
                     Circle()
-                        .fill(RadialGradient(colors: [Color(red: 0.85, green: 0.93, blue: 1), Color(nsColor: BrandArt.seamBlue).opacity(0.5), .clear],
-                                             center: .center, startRadius: 0, endRadius: 45))
-                        .frame(width: 90, height: 90)
+                        .fill(RadialGradient(colors: [.white, Color(red: 0.85, green: 0.93, blue: 1), Color(nsColor: BrandArt.seamBlue).opacity(0.6), .clear],
+                                             center: .center, startRadius: 0, endRadius: 62))
+                        .frame(width: 124, height: 124)
                         .offset(x: from.x + (to.x - from.x) * along - size.width / 2,
                                 y: from.y + (to.y - from.y) * along - size.height / 2)
                         .frame(width: size.width, height: size.height)
@@ -825,14 +853,58 @@ private struct BrandMark: View {
             }
         }
         .frame(width: size.width, height: size.height)
-        .animation(moving ? (reduceMotion ? Animation.easeInOut(duration: 1.8) : .linear(duration: 2.6)).repeatForever(autoreverses: reduceMotion)
-                          : nil, value: on)
         .padding(-reach)
-        .task(id: moving) {
-            on = false
+        .task(id: [moving, reduceMotion]) {
+            await Self.still { along = -0.15; bright = false }
             guard moving else { return }
             try? await Task.sleep(for: .milliseconds(300))  // once the page has its size
-            on = true
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeInOut(duration: Self.breath).repeatForever(autoreverses: true)) { bright = true }
+            // Off one end and in at the other: a light that never stops, the step between runs hidden past the seam's ends.
+            if !reduceMotion { withAnimation(.linear(duration: Self.seamRun).repeatForever(autoreverses: false)) { along = 1.15 } }
+        }
+    }
+
+    /// A change with no animation: a repeating one is ended by it.
+    @MainActor static func still(_ change: () -> Void) async {
+        var quiet = Transaction()
+        quiet.disablesAnimations = true
+        withTransaction(quiet, change)
+    }
+}
+
+/// Under the game's name: a short light (80 pt) that glides to and fro on a faint line (300 pt), fainter and quicker
+/// than the seam's light (variant A). Nothing with "Reduce motion", nor while an update's bar has the place below.
+private struct GlideLine: View {
+    let moving: Bool
+    @Environment(\.reduceMotion) private var reduceMotion
+    @State private var right = false
+    static let width: CGFloat = 300
+    static let light: CGFloat = 80
+    /// One way; to and fro takes twice as long.
+    static let glide: Double = 2.3
+
+    var body: some View {
+        let runs = moving && !reduceMotion
+        ZStack {
+            Capsule().fill(.white.opacity(0.06))
+            Capsule()
+                .fill(LinearGradient(colors: [.clear, Color(nsColor: BrandArt.seamBlue), Color(red: 0.81, green: 0.89, blue: 1),
+                                              Color(nsColor: BrandArt.seamBlue), .clear], startPoint: .leading, endPoint: .trailing))
+                .frame(width: Self.light)
+                .offset(x: (right ? 1 : -1) * (Self.width - Self.light) / 2)
+                .opacity(0.7)
+        }
+        .frame(width: Self.width, height: 2)
+        .clipped()
+        .opacity(runs ? 1 : 0)
+        .animation(.easeInOut(duration: 0.5), value: runs)
+        .task(id: runs) {
+            await BrandMark.still { right = false }
+            guard runs else { return }
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeInOut(duration: Self.glide).repeatForever(autoreverses: true)) { right = true }
         }
     }
 }

@@ -193,10 +193,13 @@ struct LauncherMenu: View {
         VStack(spacing: 8) {
             ForEach(model.launchers) { LauncherRow(state: $0) }
             let power = PowerMenu.entries(gameOn: model.gameOnScreen, downloading: model.downloadStanding.rulesOutSleep(listed: !model.downloads.isEmpty))
-            if !power.isEmpty {
+            // Console mode, two presses away with the pad: on with a controller in hand, off whenever it's on.
+            let console = !model.gameOnScreen && (model.consoleMode || model.controllerConnected)
+            if !power.isEmpty || console {
                 Rectangle().fill(Theme.ink.opacity(0.1)).frame(height: 1).padding(.vertical, 2)
-                ForEach(power) { PowerRow(entry: $0) }
             }
+            if console { ConsoleModeRow() }
+            ForEach(power) { PowerRow(entry: $0) }
         }
         .padding(16)
         .frame(width: 400 * textScale)
@@ -208,6 +211,36 @@ struct LauncherMenu: View {
         .shadow(color: .black.opacity(0.55), radius: 22, y: 12)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(L10n.t("Launchers"))
+    }
+}
+
+/// Console mode from the small menu (ConsoleMode): "Leave Console Mode" while it's on, "Console Mode" otherwise.
+private struct ConsoleModeRow: View {
+    @EnvironmentObject private var model: LibraryModel
+
+    private func act() {
+        model.closeLauncherMenu()
+        model.setConsoleMode(!model.consoleMode, by: "the small menu")
+    }
+
+    var body: some View {
+        Button(action: act) {
+            HStack(spacing: 12) {
+                Image(systemName: model.consoleMode ? "arrow.down.right.and.arrow.up.left" : "gamecontroller")
+                    .font(size: 16, weight: .semibold, scales: false)
+                    .foregroundStyle(Theme.ink)
+                    .frame(width: 44)
+                Text(model.consoleMode ? L10n.t("Leave Console Mode") : L10n.t("Console Mode"))
+                    .font(size: 15, weight: .semibold)
+                    .foregroundStyle(Theme.ink)
+                Spacer(minLength: 0)
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .padFocus("menu.consoleMode", cornerRadius: 10, activate: act)
     }
 }
 
