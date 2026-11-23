@@ -125,3 +125,83 @@ einem eigenen losgelösten Task aus. Beim Start nach einem Absturz läuft `resto
 Konsolenmodus sehr schnell ein Spiel, läuft gleichzeitig `engage` (`LibraryModel.swift:1463`). In ungünstiger Reihenfolge stellt
 `restore` den Wert zurück, nachdem `engage` den Merker schon neu gesetzt hat. Dann bleibt das Dock beim ersten Spiel sichtbar. Beim
 nächsten Spiel greift `engage` wieder (der Merker fehlt dann). Vorschlag: beide Schritte über eine serielle Schlange.
+
+## Gegenlesen Worker C (Worker A, 23.11.2026, nur gelesen)
+
+Gelesen wurden die Quellen der neun Zweige, wie sie in `claude/staging-035` stehen (`f7c1988c`), jeweils gegen ihren Merge
+und gegen den Code um sie herum: zwei-kopien-035, bericht-ohne-pfade-035, tests-ohne-app-035, tests-ohne-steam-035,
+vorhang-wiederheber-035, pad-only-04, tests-ohne-reste-04, dock-schlange-04 und haenger-erkennen-04. Gesucht waren
+Fehler, keine Stilfragen. Nichts davon verhindert den Release. Es gibt drei kleine Funde; einer davon hängt hinter einem
+Testschalter.
+
+### Funde
+
+**W1 · Das Zurückstellen des Docks beim Beenden geht an der neuen Schlange vorbei (gering).** `App.swift:150` ruft
+`DockAutoHide.restore(DockAutoHide.live)` direkt auf dem Hauptthread auf. Die Schritte aus K2 laufen dagegen über
+`DockAutoHide.serially` (`DockAutoHide.swift:25–30`, `FullScreen.swift:20`). Startet im Konsolenmodus ein Spiel und beendet
+der Spieler Nightforge gleich danach, kann ein schon eingereihtes `engage` (`LibraryModel.swift:1463`) nach dem `restore`
+des Beendens laufen, falls der Prozess dafür noch lebt.
+- Was dann passiert: Das Dock bleibt ausgeblendet. Beim nächsten Öffnen holt `App.swift:65` den Wert zurück, die Einstellung
+  des Spielers ist also nur bis dahin verstellt.
+- Wahrscheinlichkeit: gering. Das Beenden müsste in die Sekunde fallen, in der der Schritt eingereiht und noch nicht gelaufen ist.
+- Vorschlag: Beim Beenden über dieselbe Schlange und darauf warten, etwa eine Funktion `DockAutoHide.seriallyAndWait`, die
+  `steps.sync` aufruft. Der Schritt meldet sich nie beim Hauptthread zurück, `sync` vom Hauptthread aus ist deshalb sicher.
+
+**W2 · Ein Vorhang, der innerhalb von 0,3 s nach einer Ausblendung wieder kommt, kann trotzdem verblassen (gering, Vermutung).**
+`GameBackdrop.fade` (`GameBackdrop.swift:350–359`) startet die Animation über den Animator und setzt den Endwert nach Ablauf selbst.
+Das behebt den Hänger bei schlafendem Bildschirm. Kommt der Vorhang aber zurück, während die Ausblendung noch läuft
+(`put` bricht `hiding` ab), setzt `put` die Deckkraft direkt (`GameBackdrop.swift:434`: `alphaValue = appearing ? 0 : 1`,
+das Fenster ist noch sichtbar, also 1). Die laufende Animation des Animators wird davon nicht abgelöst. Läuft sie zu Ende, steht
+der Vorhang oben, aber mit Deckkraft 0.
+- Neu ist das nicht: Vor dem Fix bestand dasselbe Rennen, auch da lief die Animation nach dem Abbruch weiter. Der Fix lässt es nur
+  bestehen.
+- Wahrscheinlichkeit: gering. Es braucht ein Ausblenden und ein neues Heben in derselben Drittelsekunde. Ob AppKit die
+  Animation bei direktem Setzen wirklich weiterlaufen lässt, ist ungeprüft.
+- Vorschlag: In `put` und am Ende von `fade` die Deckkraft über eine Animationsgruppe mit `duration = 0` setzen
+  (`window.animator().alphaValue = …`). Eine neue Animation derselben Eigenschaft löst die laufende ab.
+
+**W3 · „moves again“ auch dann, wenn sich nichts bewegt hat (gering, hinter dem Testschalter).** `HangRule.change`
+(`HangRule.swift:90`) meldet bei jedem Wechsel von `.hung` zu etwas anderem `.movesAgain`, also auch zu `.unknown`. Das passiert,
+wenn der Spieler das Overlay öffnet (`paused`), das Spiel nicht mehr vorn ist oder sein Fenster nicht mehr zeigt. Gerade wenn
+jemand ein hängendes Spiel über das Overlay beendet, schreibt wine.log dann „Hang watch: … moves again after … s“.
+- Was schiefgeht: Die Messung von Stufe 1, die über das Angebot „Spiel beenden“ entscheiden soll, zählt Hänger als erholt, die
+  nur verlassen wurden.
+- Vorschlag: `.movesAgain` nur beim Wechsel `.hung → .busy`. Bei `.hung → .unknown` den Hänger halten oder eine eigene Zeile
+  schreiben („left the watch“).
+
+### Geprüft, in Ordnung
+
+- **zwei-kopien-035:**
+  - `DockHider.startValue` gibt für eine fehlende Variable `""` zurück, nicht nil. Eine Sitzung von 0.3.4 ohne Kennung zählt
+    damit als fremd, wie gewollt.
+  - Der Fingerabdruck wird zwischengespeichert.
+  - `environment(wine:)` ruft `DockHider.path()` vor dem Fingerabdruck auf; Kennung und geladene Bibliothek passen zueinander.
+  - Jeder Wine-Start von Nightforges eigener Sitzung baut auf `environment(wine:)` auf: msiexec, winetricks, regedit,
+    GOG-Redists, PadAnswerRun, UnityDialog und `directEnvironment`. Nur Flaschen von CrossOver oder Whisky nicht, und die sind
+    nicht Nightforges Sitzung.
+  - Hinweis ohne Fund: `librarySessionMarkers` liest die Kennung aller eigenen wineserver unter dem Datenordner. Startete
+    Nightforge einmal einen zweiten Prefix unter Wine, etwa Battle.net, beendete dessen fremde Kennung die Hauptsitzung. Heute
+    liest Nightforge den Battle.net-Prefix nur. Falls das kommt, nach `WINEPREFIX` des wineservers filtern.
+- **bericht-ohne-pfade-035:**
+  - `outbound` ersetzt die gemerkten Pfade, längste zuerst, vor `redacted`; ein gemerkter Pfad mit dem Home darin geht also ganz.
+  - Die Muster für Benutzerordner lassen Wines eigene Namen und schon ersetzte Stellen stehen.
+  - Die Standardwerte (`launchMemoryPaths`) werden je Bericht einmal gelesen, nicht je Zeile.
+- **tests-ohne-app-035 und tests-ohne-steam-035:**
+  - `gameAtQuit` zählt „unbekannt“ jetzt nicht mehr als Spiel.
+  - Im Beenden-Skript zählen Windows-Spiele nur noch als eigene Prozesse (`own_pids` über lsof txt, der Datenordner mit
+    `pwd -P` aufgelöst, wie lsof ihn zeigt).
+  - `has_own_process` sagt ohne Liste „läuft“, wartet also lieber.
+  - `TestGuard` greift nur in Programmen ohne eigenes Bundle mit dem echten Home; die App und Tests mit eigenem Home berührt er nicht.
+  - Mac-Spiele zählen im Skript weiter über jeden Prozess mit `/steamapps/common/`, das ist so gewollt. Zurück holt der Zweig
+    Nightforge nur noch mit `GAME_AT_QUIT=1`.
+- **vorhang-wiederheber-035:** Der Fix ist richtig; das Rennen aus W2 ist älter.
+- **pad-only-04:** `@FocusState` und `padFocus` der beiden Felder sind korrekt verdrahtet.
+- **tests-ohne-reste-04:** `MacUnityScreen.look` liest über einen übergebenen `kept` statt über CFPreferences; der Standard ist
+  derselbe Aufruf wie vorher.
+- **dock-schlange-04:** Die serielle Schlange schließt K2. Für das Beenden siehe W1.
+- **haenger-erkennen-04:**
+  - Ohne Schalter läuft nichts; der Schalter wird je Blick gelesen.
+  - `proc_pid_rusage`, die Prozessobjekte von Core Audio und `CGWindowList` lesen von außen; in den Prozess des Spiels gelangt nichts.
+  - Ein neuer Prozess (andere PID) beginnt frisch.
+  - `quiet` teilt nur durch eine Zeitspanne über null.
+  - Bis auf W3 in Ordnung.
