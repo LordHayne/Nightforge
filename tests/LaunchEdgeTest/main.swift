@@ -23,6 +23,7 @@ struct LaunchEdgeTest {
         launchOptions()
         watcher()
         startCheck()
+        startPhases()
         print(failures == 0 ? "✓ The start against odd input" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
     }
@@ -217,5 +218,37 @@ struct LaunchEdgeTest {
         check(SteamStartCheck.judge(.init(askingForAccount: true, running: false, quietFor: 10_000, sinceStart: 500)) == .cameUp, "its window asking counts as up")
         // An update takes as long as it takes.
         check(SteamStartCheck.judge(.init(bootstrap: .downloading, running: false, quietFor: 10_000, sinceStart: 5000)) == .undecided, "while it updates itself: never judged")
+    }
+
+    /// The start's phases in the log (docs/ENTWURF-STARTZEIT.md): one line each, the time of day to a tenth and the
+    /// seconds since Play – only with the test switch gameTest.startPhases (the finished build measures nothing).
+    static func startPhases() {
+        var parts = DateComponents()
+        (parts.year, parts.month, parts.day, parts.hour, parts.minute, parts.second, parts.nanosecond) = (2026, 11, 22, 19, 34, 26, 400_000_000)
+        let play = Calendar.current.date(from: parts)!
+        check(GameLog.clock(play) == "19:34:26" && GameLog.clock(play, tenths: true) == "19:34:26.4", "the time of day, to a tenth when asked")
+
+        let off = TestDefaults.suite("start-phases-off")
+        check(!GameTest.notesStartPhases(defaults: off), "the switch is off unless set")
+        check(LibraryModel.phaseLine("Hades", "Play", at: play, since: play, defaults: off) == nil
+              && LibraryModel.phaseLine("Hades", "to Steam", at: play.addingTimeInterval(1), since: play, defaults: off) == nil,
+              "without the switch: no line at all")
+
+        let on = TestDefaults.suite("start-phases-on")
+        on.set(true, forKey: GameTest.startPhasesKey)
+        check(GameTest.startPhasesKey == "gameTest.startPhases" && GameTest.notesStartPhases(defaults: on), "the switch, by its name")
+        check(LibraryModel.phaseLine("Hades", "Play", at: play, since: play, defaults: on) == "Start phases of Hades: Play at 19:34:26.4",
+              "Play itself: no seconds since")
+        check(LibraryModel.phaseLine("Hades", "to Steam", at: play.addingTimeInterval(1.04), since: play, defaults: on)
+              == "Start phases of Hades: to Steam at 19:34:27.4, 1.0 s after Play", "a phase: the time, and the seconds since Play")
+        check(LibraryModel.phaseLine("Hades", "curtain down", at: play.addingTimeInterval(29.96), since: play, defaults: on)?.hasSuffix("30.0 s after Play") == true,
+              "rounded to a tenth")
+        check(LibraryModel.phaseLine("Hades", "x", at: play, since: play.addingTimeInterval(5), defaults: on)?.hasSuffix(", 0.0 s after Play") == true,
+              "never before Play")
+        check(LibraryModel.phaseLine("Hades", "Play", at: play, since: play, defaults: on)?.contains("Curtain down for") == false,
+              "a line of its own: GameTestMeasure reads \"Curtain down for\" by its exact words")
+        // The model writes these lines through phaseLine only, so the switch holds for each of them.
+        let model = (try? String(contentsOfFile: "Sources/Nightforge/LibraryModel.swift", encoding: .utf8)) ?? ""
+        check(model.components(separatedBy: "Start phases of").count == 3, "\"Start phases of\" only in phaseLine (and its comment)")
     }
 }

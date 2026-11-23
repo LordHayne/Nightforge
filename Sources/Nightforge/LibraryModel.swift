@@ -1340,6 +1340,8 @@ final class LibraryModel: ObservableObject {
     private var curtainOrphan = CurtainEscape.Orphan()
     /// Curtain watches running; one that was called off may end after the next has begun.
     private var curtainWatches = 0
+    /// When Play was pressed for a game (GameID.key), for the start's phases in the log (`notePhase`).
+    private var playClock: (game: String, at: Date)?
     private var comingBackSince: Date?
 
     private var curtainOwners: CurtainEscape.Owners {
@@ -1906,6 +1908,7 @@ final class LibraryModel: ObservableObject {
                 let screen = GameDisplay.gameScreen.map { "\(Int($0.frame.width))×\(Int($0.frame.height))" } ?? "?"
                 GameLog.note("Curtain down for \(game.name): \(front.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName } ?? "nobody") in front, its window \(size ?? "none") on \(screen)")
                 GameLog.note("  at \(GameLog.clock())")
+                notePhase(game, "curtain down")
                 // Down because it had stood long enough: going up again for the front would only flap.
                 if !gameFront { return end("its picture doesn't stay under the curtain, the stage watch has it") }
             case .raiseAgain:
@@ -4974,6 +4977,10 @@ final class LibraryModel: ObservableObject {
         else { return }
         // DirectX 12 only, and Apple's D3DMetal isn't in the engine: asked once, before anything starts.
         if !d3dMetalChecked, askAboutD3DMetalBeforeStart(game) { return }
+        // The clock for the start's phases (`notePhase`), with the test switch only: from here, the player's question
+        // about D3DMetal aside.
+        playClock = GameTest.notesStartPhases() ? (game.gameID.key, Date()) : nil
+        notePhase(game, "Play")
         let viaSteam = game.provider == .steam
         if viaSteam && game.bottle.isBuiltIn && !Engine.steamSignedIn && !otherSteamFree(for: .windows) { return }
         let number = beginLaunch(game)
@@ -5739,6 +5746,7 @@ final class LibraryModel: ObservableObject {
             && Engine.startupFinished(steamRoot: Engine.steamRoot)
         var client: DetachedProcess?
         var sentAt = Date()
+        notePhase(game, "to Steam")
         do {
             // Off the main thread: it reads Steam's app catalog and writes the registry, which
             // would freeze the window for a moment.
@@ -5746,6 +5754,7 @@ final class LibraryModel: ObservableObject {
                 try Launcher.launch(game, runnerPath: runner ?? "", options: options, profile: profile,
                                     frameLimit: frameLimit, recipe: recipe)
             }.value
+            notePhase(game, "-applaunch client started")
         } catch {
             startFailed(game, error) { RosettaSupport.playerText(error) }
             return false
@@ -5840,6 +5849,7 @@ final class LibraryModel: ObservableObject {
             switch event {
             case .running?:
                 launchNeedsConfirmation = false
+                notePhase(game, "Steam started its process")
                 return true
             case .needsConfirmation?:
                 askingSince = askingSince ?? totalSeconds
@@ -6022,6 +6032,7 @@ final class LibraryModel: ObservableObject {
                                                retina: Engine.retinaModeApplied))
         }
         let process: DetachedProcess
+        notePhase(game, "starts directly")
         do {
             process = try await Task.detached(priority: .userInitiated) {
                 try Launcher.launchDirect(game, command: command, runnerPath: runner, options: options, profile: profile,
@@ -6038,10 +6049,30 @@ final class LibraryModel: ObservableObject {
         for _ in 0..<30 {
             try? await Task.sleep(for: .seconds(1))
             if Task.isCancelled { return false }
-            if await Task.detached(priority: .utility, operation: { Self.runningGames(folders) }).value[game.id] != nil { break }
+            if await Task.detached(priority: .utility, operation: { Self.runningGames(folders) }).value[game.id] != nil {
+                notePhase(game, "its process runs")
+                break
+            }
             if !process.isRunning { break }
         }
         return true
+    }
+
+    /// One line on the start's way in the log, for a look at where its time goes (docs/ENTWURF-STARTZEIT.md):
+    /// "Start phases of Hades: to Steam at 19:34:27.3, 1.0 s after Play". `since`: Play's moment; Play itself, it's the
+    /// moment. Nil without the test switch (GameTest.notesStartPhases): the finished build measures nothing.
+    nonisolated static func phaseLine(_ name: String, _ phase: String, at now: Date = Date(), since start: Date,
+                                      defaults: UserDefaults = .standard) -> String? {
+        guard GameTest.notesStartPhases(defaults: defaults) else { return nil }
+        return "Start phases of \(name): \(phase) at \(GameLog.clock(now, tenths: true))"
+            + (now == start ? "" : ", " + String(format: "%.1f", max(0, now.timeIntervalSince(start))) + " s after Play")
+    }
+
+    /// `phaseLine` for this game's start, from its Play – none for a start of another game's, none without the switch.
+    private func notePhase(_ game: Game, _ phase: String) {
+        guard let clock = playClock, clock.game == game.gameID.key else { return }
+        let now = phase == "Play" ? clock.at : Date()
+        if let line = Self.phaseLine(game.name, phase, at: now, since: clock.at) { GameLog.note(line) }
     }
 
     /// Confirms the way a game started with once it has drawn frames (LaunchHealth.verdict), watching

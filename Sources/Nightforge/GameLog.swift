@@ -49,11 +49,13 @@ enum GameLog {
 
     /// The time of day for a line that needs one ("13:55:02"). Nightforge's lines have none of their
     /// own – the games' log parsers go by their exact words – so only a few say when they happened.
-    static func clock(_ date: Date = Date()) -> String {
+    static func clock(_ date: Date = Date(), tenths: Bool = false) -> String {
         var seconds = time_t(date.timeIntervalSince1970)
         var parts = tm()
         localtime_r(&seconds, &parts)
-        return String(format: "%02d:%02d:%02d", parts.tm_hour, parts.tm_min, parts.tm_sec)
+        guard tenths else { return String(format: "%02d:%02d:%02d", parts.tm_hour, parts.tm_min, parts.tm_sec) }
+        let tenth = min(9, Int((date.timeIntervalSince1970 - Double(seconds)) * 10))
+        return String(format: "%02d:%02d:%02d.%d", parts.tm_hour, parts.tm_min, parts.tm_sec, tenth)
     }
 
     /// What a start on D3DMetal goes with, by name and 1/0: MetalFX for the game's DLSS, a frame limit,

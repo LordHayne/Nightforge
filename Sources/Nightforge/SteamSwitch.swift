@@ -76,6 +76,10 @@ enum SteamCloudStart {
     nonisolated static let beginsWithin: TimeInterval = 20
     /// How long after its start the sync may hold a game at all.
     nonisolated static let finishesWithin: TimeInterval = 30
+    /// How many earlier starts of the same Steam the log has to show, none of them with that sync, before a Steam
+    /// counts as one that doesn't do it. On the MacBook Pro M5 Pro neither Steam did in 50 starts (22./23.11.2026),
+    /// and waiting for it held a game started right after Steam until Steam was 20 s old (16:47:56–16:48:16).
+    nonisolated static let quietStarts = 3
 
     static func shouldWait(steamRoot: URL, now: Date = Date()) -> Bool {
         let url = steamRoot.appendingPathComponent("logs/cloud_log.txt")
@@ -93,7 +97,8 @@ enum SteamCloudStart {
         guard let started = date(log[lineStart..<start.lowerBound]) else { return false }
         let age = now.timeIntervalSince(started)
         let lines = log[start.upperBound...].split(whereSeparator: \.isNewline).filter { $0.contains(controllerConfigs) }
-        guard !lines.isEmpty else { return age < beginsWithin }
+        // Not looked at yet: it may still begin – unless this Steam never does (`neverSyncs`).
+        guard !lines.isEmpty else { return age < beginsWithin && !neverSyncs(log[..<lineStart]) }
         var evaluated = false
         var toFetch = false
         for line in lines {
@@ -103,6 +108,11 @@ enum SteamCloudStart {
             if line.contains("Download complete") || line.contains("Successfully synced to ChangeNumber") { toFetch = false }
         }
         return (!evaluated || toFetch) && age < finishesWithin
+    }
+
+    /// `before`: the log before this start. At least `quietStarts` starts in it, and none looked at the controller configs.
+    static func neverSyncs(_ before: Substring) -> Bool {
+        before.components(separatedBy: "Client version:").count - 1 >= quietStarts && !before.contains(controllerConfigs)
     }
 
     /// "[2026-11-08 14:55:37] "

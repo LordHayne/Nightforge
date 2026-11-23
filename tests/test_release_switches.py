@@ -42,9 +42,9 @@ class ReleaseSwitchTests(unittest.TestCase):
                 for key in KEY.findall(code(line)):
                     self.keys[key] = source.name
 
-    def test_the_five_switches_are_found(self):
-        self.assertEqual(sorted(self.keys), ["gameTest.curtainPreview", "gameTest.measurePlay", "gameTest.missingRosetta", "gameTest.testFinding",
-                                             "testRootQuestion"])
+    def test_the_six_switches_are_found(self):
+        self.assertEqual(sorted(self.keys), ["gameTest.curtainPreview", "gameTest.measurePlay", "gameTest.missingRosetta", "gameTest.startPhases",
+                                             "gameTest.testFinding", "testRootQuestion"])
 
     def test_the_workflow_looks_for_each_of_them(self):
         workflow = (ROOT / ".github/workflows/release.yml").read_text()

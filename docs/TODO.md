@@ -391,6 +391,12 @@ zuvor.“ Und um 18:34, als Teilschritt zu 0.4 „Wie eine Konsole“:
 4. Ladeanzeige: schöne Animation, kein Fortschrittsbalken mit Technikschritten.
 5. Overlay in 0.4.0, Klänge später in 0.4.x.
 
+- [ ] **Spielstart-Zeit (zu 2., Zweig `claude/startzeit-04`, `docs/ENTWURF-STARTZEIT.md`):** Phasen der Starts vom
+  22.11. Bester Fall 30 s: 6 s Nightforge vor der Übergabe, 0 s Steam, 24 s lädt das Spiel. Gebaut: kein Warten mehr
+  auf Steams Controller-Abgleich, den dieses Steam nie macht (bis zu 20 s je Start kurz nach einem Steam-Start), und
+  Zeitmarken „Start phases of …“ im Protokoll. Offen: die 6-s-Lücke mit den Zeitmarken messen (drei Starts heute
+  Abend, Liste im Dokument), Vorhang nach dem ersten Bild (~2,5 s) als Wahl für den Nutzer, Befunde im Dokument.
+
 **Aus derselben Runde, technisch:**
 - [ ] **Zwei Nightforge-Kopien mit gleicher Kennung** (Release in `/Applications`, Testbuild in `~/Applications`,
   beide „0.3.4“): Launchpad/Spotlight/Finder öffnen das Release, und das ersetzt `hide-steam-dock.dylib` im
