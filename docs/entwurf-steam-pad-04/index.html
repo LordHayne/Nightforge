@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Steams Fragen mit dem Controller · zur Wahl</title>
+<!-- Entwurf zu docs/ENTWURF-STEAM-PAD.md, Abschnitt 4, Punkte 1, 3 und 4. Bilder nachgebaut, keine Bildschirmfotos.
+     Stil wie docs/entwuerfe/konsolenmodus (Zweig claude/konsolenmodus-035): Glasblatt, Lichtnaht, Leiste unten. -->
+<style>
+body{margin:0;background:#0f141c;color:#f3f1ec;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-serif}
+main{width:1480px;margin:0 auto;padding:40px 40px 60px;box-sizing:border-box}
+header h1{margin:0 0 10px;font-size:32px;font-weight:800;font-stretch:expanded}
+header p{margin:0 0 8px;font-size:16px;line-height:24px;color:#9aa3af;max-width:1100px}
+section{margin-top:48px;padding-top:32px;border-top:1px solid rgba(255,255,255,.08)}
+.label{font-size:11px;font-weight:700;letter-spacing:.8px;color:#9aa3af;text-transform:uppercase;margin-bottom:8px}
+h2{margin:0 0 10px;font-size:26px;font-weight:800;font-stretch:expanded}
+.lead{margin:0 0 22px;font-size:15px;line-height:22px;color:#9aa3af;max-width:1100px}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:28px}
+.cap{display:flex;flex-direction:column;gap:4px;margin-top:10px;font-size:13px;line-height:19px;color:#9aa3af}
+.cap b{font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:#f3f1ec}
+.plus,.minus{margin:6px 0 0;font-size:14px;line-height:21px}
+.minus{color:#9aa3af}
+/* Ein Bildschirm, 1512 × 982 gedacht, auf 680 verkleinert. */
+.frame{position:relative;width:680px;height:442px;overflow:hidden;border-radius:10px;box-shadow:0 12px 22px rgba(0,0,0,.55);background:#000}
+.screen{position:absolute;left:0;top:0;width:1512px;height:982px;transform:scale(.4497);transform-origin:top left;overflow:hidden}
+.lib{position:absolute;inset:0;background:linear-gradient(180deg,#151b27,#080a0f)}
+.lib h3{position:absolute;left:80px;top:90px;margin:0;font-size:34px;font-weight:700}
+.cards{position:absolute;left:80px;top:160px;display:flex;gap:30px}
+.cards div{width:230px;height:320px;border-radius:14px;background:linear-gradient(160deg,#2a3448,#141a26)}
+.cards div.f{outline:5px solid #8ca8db;outline-offset:5px}
+.dim{position:absolute;inset:0;background:rgba(0,0,0,.5)}
+/* Glasblatt */
+.sheet{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:700px;box-sizing:border-box;padding:40px 44px 34px;border-radius:28px;background:rgba(40,46,60,.88);border:1px solid rgba(255,255,255,.14);text-align:center;box-shadow:0 30px 60px rgba(0,0,0,.6)}
+.sheet h4{margin:0 0 14px;font-size:32px;font-weight:700}
+.sheet p{margin:0 0 30px;font-size:21px;line-height:30px;color:#c9ced8}
+.btns{display:flex;gap:18px;justify-content:center}
+.btn{min-width:210px;padding:16px 24px;border-radius:24px;font-size:21px;background:rgba(255,255,255,.12);display:flex;gap:12px;align-items:center;justify-content:center}
+.btn.p{background:#3a63b8;outline:5px solid #8ca8db;outline-offset:5px}
+.pg{display:inline-flex;width:32px;height:32px;border-radius:16px;border:2px solid currentColor;align-items:center;justify-content:center;font-size:17px;font-weight:700}
+/* Vorhang mit Steams Frage */
+.curtain{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 35%,#1d2638,#06080b 72%)}
+.banner{position:absolute;left:0;right:0;top:64px;text-align:center;font-size:24px;letter-spacing:8px;font-stretch:expanded;color:#c8d3e6}
+.note{position:absolute;left:0;right:0;top:112px;text-align:center;font-size:19px;color:#9aa3af}
+.steam{position:absolute;left:50%;top:50%;transform:translate(-50%,-52%);width:640px;height:380px;border-radius:6px;background:#1b2838;box-shadow:0 0 0 2px #8ca8db,0 0 34px rgba(140,168,219,.6);overflow:hidden}
+.steam .t{height:40px;background:#171d25;display:flex;align-items:center;padding-left:18px;font-size:16px;color:#c6d4df}
+.steam .b{padding:26px 30px;font-size:18px;color:#c6d4df;line-height:28px}
+.steam .opt{display:flex;gap:12px;align-items:center;margin:10px 0}
+.steam .opt i{width:18px;height:18px;border-radius:9px;border:2px solid #8f98a0;display:inline-block}
+.steam .opt i.on{background:#66c0f4;border-color:#66c0f4}
+.steam .sb{position:absolute;right:24px;bottom:22px;display:flex;gap:12px}
+.steam .sb span{padding:10px 22px;border-radius:3px;background:#3d4450;font-size:16px;color:#dfe3e6}
+.steam .sb span.go{background:linear-gradient(90deg,#47bfff,#1a44c2);color:#fff}
+.bar{position:absolute;left:0;right:0;bottom:0;height:96px;background:rgba(6,8,11,.78);border-top:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;gap:48px;font-size:22px;color:#c8d3e6}
+.bar .g{display:flex;gap:12px;align-items:center}
+/* Nightforges eigene Auswahl */
+.rows{display:flex;flex-direction:column;gap:12px;margin:0 0 28px;text-align:left}
+.rows div{padding:16px 22px;border-radius:16px;background:rgba(255,255,255,.08);font-size:21px}
+.rows div.f{background:rgba(58,99,184,.55);outline:5px solid #8ca8db;outline-offset:3px}
+.rows small{display:block;font-size:16px;color:#aab3c2;margin-top:4px}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>Steams Fragen mit dem Controller</h1>
+  <p>Zu Entscheidung 1 („Controller-only ist hart“). Heute beantwortet man Steams Fragen mit dem Controller nur über den
+  Zeiger (Touchpad oder rechter Stick, R2 klickt). Klicken darf der Zeiger in Steams Fenstern erst, wenn macOS es einmal
+  erlaubt hat, und diese Erlaubnis gibt man nur mit Maus oder Trackpad.</p>
+  <p>Drei Punkte zur Wahl, je mit Vorher und Nachher. Jeder lässt sich einzeln nehmen.</p>
+</header>
+
+<section>
+  <div class="label">Punkt 1 · Erlaubnis gleich beim Konsolenmodus</div>
+  <h2>Einmal erlauben, dann klickt der Controller auch in Steam</h2>
+  <p class="lead">Nach Ⓐ auf „Konsolenmodus“ folgt ein zweites Glasblatt. Es kommt nur, wenn die Erlaubnis noch fehlt, und nie
+  mitten in einem Spielstart. Ⓐ öffnet die passende Seite der Systemeinstellungen; dort braucht es einmal Maus oder Trackpad.</p>
+  <div class="pair">
+    <div>
+      <div class="frame"><div class="screen"><div class="lib"><h3>Bibliothek</h3><div class="cards"><div></div><div></div><div></div><div></div><div></div></div></div><div class="dim"></div>
+        <div class="sheet"><h4>Konsolenmodus?</h4><p>Nightforge füllt den Bildschirm und hält das Dock auch beim Spielen fern.</p>
+        <div class="btns"><div class="btn"><span class="pg">B</span>Nicht jetzt</div><div class="btn p"><span class="pg">A</span>Konsolenmodus</div></div></div></div></div>
+      <div class="cap"><b>Vorher</b>Die Frage endet hier. Fehlt die Erlaubnis, merkt man es erst bei Steams erster Frage.</div>
+    </div>
+    <div>
+      <div class="frame"><div class="screen"><div class="lib"><h3>Bibliothek</h3><div class="cards"><div></div><div></div><div></div><div></div><div></div></div></div><div class="dim"></div>
+        <div class="sheet"><h4>Auch in Steams Fenstern?</h4><p>Damit der Controller dort klicken kann, braucht es einmal die Erlaubnis „Bedienungshilfen“. Die gibst du mit Maus oder Trackpad.</p>
+        <div class="btns"><div class="btn"><span class="pg">B</span>Später</div><div class="btn p"><span class="pg">A</span>Erlauben …</div></div></div></div></div>
+      <div class="cap"><b>Nachher</b>Zweites Blatt nach Ⓐ, nur wenn die Erlaubnis fehlt. „Später“ fragt nicht wieder; die Zeile bleibt unter Einstellungen › Controller.</div>
+    </div>
+  </div>
+  <p class="plus">+ Danach geht jede Steam-Frage mit dem Controller, auch Steam für Mac</p>
+  <p class="minus">– Einmal Maus oder Trackpad bleibt nötig, das lässt macOS nicht anders zu</p>
+</section>
+
+<section>
+  <div class="label">Punkt 3 · Die Leiste, wenn die Erlaubnis fehlt</div>
+  <h2>Sagen, was einmal nötig ist</h2>
+  <p class="lead">Steht Steams Frage auf dem Vorhang und der Controller darf noch nicht klicken, nennt die Leiste heute nur die Maus.
+  Nachher sagt sie, wo man es einmal einschaltet. Sonst bleibt alles wie heute.</p>
+  <div class="pair">
+    <div>
+      <div class="frame"><div class="screen"><div class="curtain"></div>
+        <div class="banner">VALHEIM · WELCHER SPIELSTAND ZÄHLT</div>
+        <div class="steam"><div class="t">Steam</div><div class="b">Steam konnte deine Dateien nicht abgleichen.<br><br>Trotzdem spielen oder erneut versuchen?</div><div class="sb"><span>Erneut versuchen</span><span class="go">Trotzdem spielen</span></div></div>
+        <div class="bar"><span>Antworten mit Maus oder Trackpad</span><span class="g"><span class="pg">B</span>Hängt es?</span></div></div></div>
+      <div class="cap"><b>Vorher</b>„Antworten mit Maus oder Trackpad“</div>
+    </div>
+    <div>
+      <div class="frame"><div class="screen"><div class="curtain"></div>
+        <div class="banner">VALHEIM · WELCHER SPIELSTAND ZÄHLT</div>
+        <div class="steam"><div class="t">Steam</div><div class="b">Steam konnte deine Dateien nicht abgleichen.<br><br>Trotzdem spielen oder erneut versuchen?</div><div class="sb"><span>Erneut versuchen</span><span class="go">Trotzdem spielen</span></div></div>
+        <div class="bar"><span>Für den Controller einmal erlauben: Einstellungen › Controller</span><span class="g"><span class="pg">B</span>Hängt es?</span></div></div></div>
+      <div class="cap"><b>Nachher</b>„Für den Controller einmal erlauben: Einstellungen › Controller“. Bis dahin gehen Maus und Trackpad wie bisher.</div>
+    </div>
+  </div>
+  <p class="plus">+ Nur ein Satz anders, kein neuer Knopf</p>
+  <p class="minus">– Hilft erst beim nächsten Mal; die Frage jetzt braucht noch die Maus</p>
+</section>
+
+<section>
+  <div class="label">Punkt 4 · Startoption in Nightforge</div>
+  <h2>Wie das Spiel starten soll, gefragt von Nightforge</h2>
+  <p class="lead">Hat ein Spiel mehrere Startwege, fragt heute Steam in einem kleinen Fenster. Nachher fragt Nightforge vor dem Start
+  auf dem Vorhang, mit Steuerkreuz, Ⓐ und Ⓑ, und startet den gewählten Weg direkt. Steam fragt dann nicht mehr.</p>
+  <div class="pair">
+    <div>
+      <div class="frame"><div class="screen"><div class="curtain"></div>
+        <div class="banner">DRAWFUL 2 · WIE DAS SPIEL STARTEN SOLL</div>
+        <div class="steam"><div class="t">Steam</div><div class="b">Drawful 2 starten<div class="opt"><i class="on"></i>Drawful 2 spielen</div><div class="opt"><i></i>Drawful 2 spielen (mit Protokoll)</div></div><div class="sb"><span>Abbrechen</span><span class="go">Spielen</span></div></div>
+        <div class="bar"><span>Antworten mit Maus oder Trackpad</span><span class="g"><span class="pg">B</span>Hängt es?</span></div></div></div>
+      <div class="cap"><b>Vorher</b>Steams Fenster mit kleinen Knöpfen, am Fernseher schwer zu treffen.</div>
+    </div>
+    <div>
+      <div class="frame"><div class="screen"><div class="curtain"></div>
+        <div class="banner">DRAWFUL 2</div>
+        <div class="sheet"><h4>Wie soll es starten?</h4>
+          <div class="rows"><div class="f">Drawful 2 spielen</div><div>Drawful 2 spielen (mit Protokoll)</div></div>
+          <div class="btns"><div class="btn"><span class="pg">B</span>Zurück</div><div class="btn p"><span class="pg">A</span>Spielen</div></div></div></div></div>
+      <div class="cap"><b>Nachher</b>Glasblatt auf dem Vorhang. Die Wahl gilt für dieses Spiel, bis man sie auf der Spielseite ändert.</div>
+    </div>
+  </div>
+  <p class="plus">+ Ganz ohne Zeiger und ohne Erlaubnis, auf jedem Bildschirm gut lesbar</p>
+  <p class="minus">– Nur für diese eine Frage; Lizenz, Cloud und Anmeldung bleiben in Steams Fenster</p>
+  <p class="minus">– Größerer Bau: Nightforge muss Steams Startwege kennen und einen davon direkt starten</p>
+</section>
+</main>
+</body>
+</html>
