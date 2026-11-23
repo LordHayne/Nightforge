@@ -250,5 +250,23 @@ struct LaunchEdgeTest {
         // The model writes these lines through phaseLine only, so the switch holds for each of them.
         let model = (try? String(contentsOfFile: "Sources/Nightforge/LibraryModel.swift", encoding: .utf8)) ?? ""
         check(model.components(separatedBy: "Start phases of").count == 3, "\"Start phases of\" only in phaseLine (and its comment)")
+        // Epic's and GOG's own steps before a direct start, for the measurement of 23.11.2026 (would running them side
+        // by side gain anything?): each step between its two marks, each mark once.
+        let framed: [(begins: String, call: String, ends: String)] = [
+            ("Epic's saves: sync begins", "await epic.syncSaves(game, upload: false)", "Epic's saves synced"),
+            ("GOG's saves: sync begins", "await gog.syncSaves(game, upload: false)", "GOG's saves synced"),
+            ("asks Epic for the launch details", "try await epic.launchCommand(for: game)", "Epic's launch details came"),
+        ]
+        for step in framed {
+            let marks = [step.begins, step.ends].map { "notePhase(game, \"\($0)\")" }
+            check(marks.allSatisfy { model.components(separatedBy: $0).count == 2 }, "\(step.begins): once each")
+            if let begins = model.range(of: marks[0]), let call = model.range(of: step.call, range: begins.upperBound..<model.endIndex),
+               let ends = model.range(of: marks[1], range: call.upperBound..<model.endIndex) {
+                let between = model[begins.upperBound..<ends.lowerBound]
+                check(between.split(separator: "\n").count <= 3, "\(step.begins): right around \(step.call)")
+            } else {
+                check(false, "\(step.begins): before \(step.call), \(step.ends) after it")
+            }
+        }
     }
 }

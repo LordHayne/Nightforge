@@ -658,7 +658,9 @@ final class LibraryModel: ObservableObject {
         }
         if gog.isSignedIn, gog.hasCloudSaves(game) != false {
             launchPhase = .syncingSaves
+            notePhase(game, "GOG's saves: sync begins")
             _ = await gog.syncSaves(game, upload: false)
+            notePhase(game, "GOG's saves synced")
             launchPhase = nil
         }
         return !Task.isCancelled
@@ -5093,7 +5095,9 @@ final class LibraryModel: ObservableObject {
             // Epic: the newest save comes down from Epic before the game reads it.
             if game.provider == .epic, epic.catalog.games.contains(where: { $0.appName == game.gameID.id && $0.cloudSaves }) {
                 launchPhase = .syncingSaves
+                notePhase(game, "Epic's saves: sync begins")
                 await epic.syncSaves(game, upload: false)
+                notePhase(game, "Epic's saves synced")
                 launchPhase = nil
                 if Task.isCancelled { return }  // it ran to its end, nothing is left half done, and the game doesn't start
             }
@@ -6055,7 +6059,13 @@ final class LibraryModel: ObservableObject {
         if game.provider == .epic { launchPhase = .signingInEpic }
         let command: StoreLaunchCommand
         do {
-            command = game.provider == .gog ? try gog.launchCommand(for: game) : try await epic.launchCommand(for: game)
+            if game.provider == .gog {
+                command = try gog.launchCommand(for: game)
+            } else {
+                notePhase(game, "asks Epic for the launch details")
+                command = try await epic.launchCommand(for: game)
+                notePhase(game, "Epic's launch details came")
+            }
         } catch {
             launchPhase = nil
             if !Task.isCancelled { startFailed(game, error) { L10n.t("%@ couldn't start: %@", game.name, RosettaSupport.playerText(error)) } }
