@@ -98,18 +98,39 @@ struct SteamStopTest {
         let clean = await run([[]])
         check(clean.looks == 1 && clean.log.isEmpty, "nothing left of it: Steam goes on at once, no line")
         let helper = await run([["steamwebhelper.exe", "steamservice.exe"], ["steamwebhelper.exe"], []])
-        check(helper.looks == 3 && helper.log == ["Steam's last processes ended 2 s after steam.exe"],
-              "its web helper ends 2 s later: waited for, and said how long")
+        check(helper.looks == 3 && helper.log == ["Steam's last processes ended 0.002 s after steam.exe, last steamwebhelper.exe"],
+              "its web helper ends two pauses later: waited for, and said how long and what went last")
         let never = await run([["steamwebhelper.exe"]], limit: 6)
-        check(never.looks == 7 && never.log == ["Steam's processes still there 6 s after steam.exe: steamwebhelper.exe – Steam goes on without waiting longer"],
+        check(never.looks == 7 && never.log == ["Steam's processes still there 0.006 s after steam.exe: steamwebhelper.exe – Steam goes on without waiting longer"],
               "one that doesn't end: the limit, then on as before, with the names – nothing ended")
         let service = await run([["steamservice.exe"]], limit: 15, service: 3)
-        check(service.looks == 4 && service.log.first?.contains("3 s after steam.exe: steamservice.exe") == true,
+        check(service.looks == 4 && service.log.first?.contains(" 0.003 s after steam.exe: steamservice.exe") == true,
               "Steam's service alone (a Windows service, it may stay): its own shorter limit")
         let both = await run([["steamservice.exe", "steamwebhelper.exe"]], limit: 8, service: 3)
         check(both.looks == 9, "the service beside the web helper: the whole limit")
         let blind = await run([nil])
         check(blind.looks == 1 && blind.log.isEmpty, "no process list: no wait, as before")
+
+        // The log says the wait in seconds, whatever the pause (S3, 23.11.2026).
+        check(Engine.seconds(1, of: .seconds(1)) == "1" && Engine.seconds(3, of: .milliseconds(250)) == "0.75"
+              && Engine.seconds(60, of: .milliseconds(250)) == "15" && Engine.seconds(2, of: .milliseconds(1)) == "0.002"
+              && Engine.seconds(0, of: .seconds(1)) == "0", "a wait in seconds, no trailing zeros")
+        // Before a Steam starts again it looks four times a second, up to the same 15 s (5 s for the service alone): on
+        // 23.11. at 06:37 Steam's service went 0.6 s after steam.exe, the whole seconds made that 1 s before the game.
+        check(Engine.steamLeftoverLooks == 4 && 1000 % Engine.steamLeftoverLooks == 0 && Engine.steamLeftoverWait == 15
+              && Engine.steamServiceWait == 5, "four looks a second, the same limits")
+
+        // Only a stop before Steam's files are touched waits for the rest of Steam (S3): a stop that the session's end
+        // or Steam for Mac follows went on at once before 22.11., and a Steam that starts again waits anyway.
+        let sources = ((try? FileManager.default.contentsOfDirectory(atPath: "Sources/Nightforge")) ?? [])
+            .filter { $0.hasSuffix(".swift") }
+            .map { (try? String(contentsOfFile: "Sources/Nightforge/" + $0, encoding: .utf8)) ?? "" }
+        let waiting = sources.flatMap { $0.components(separatedBy: "\n") }.filter { $0.contains("stopSteam(") && $0.contains("leftovers: true") }
+        check(waiting.count == 4 && waiting.allSatisfy { $0.contains("endWait: Engine.filesEndWait") },
+              "the four stops before Steam's files are touched wait for the rest of Steam (\(waiting.count))")
+        let engineText = (try? String(contentsOfFile: "Sources/Nightforge/Engine.swift", encoding: .utf8)) ?? ""
+        check(engineText.contains("static func stopSteam(_ wine: URL, endWait: Int = 20, leftovers: Bool = false)")
+              && engineText.contains("leftovers: { leftovers ? steamLeftovers : [] }"), "every other stop goes on once steam.exe is gone")
 
         // Every start of Steam in the background after one ended – by "-shutdown", with its session (stopAll, a new
         // session for msync, Retina or the library) – waits the same way first (19:32 on 22.11.: ended :23, started :24).
@@ -218,9 +239,9 @@ struct SteamStopTest {
         }.joined()
         check(!sources.contains("guard !Engine.steamMayBeRunning else { throw DriveError.steamStarted }"),
               "no move throws \"started again\" from one look right after the stop")
-        check(sources.components(separatedBy: "Engine.stopSteam(wine, endWait: Engine.filesEndWait)\n").count == 4
+        check(sources.components(separatedBy: "Engine.stopSteam(wine, endWait: Engine.filesEndWait, leftovers: true)\n").count == 4
               && sources.components(separatedBy: "if let still = await Engine.steamStillThere() { throw still }").count == 4,
-              "the three Windows Steam paths (move, drive download, forget) stop with filesEndWait and ask steamStillThere")
+              "the three Windows Steam paths (move, drive download, forget) stop with filesEndWait, wait for the rest of Steam and ask steamStillThere")
 
         print(failures == 0 ? "✓ SteamStop" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)

@@ -411,6 +411,20 @@ zuvor.“ Und um 18:34, als Teilschritt zu 0.4 „Wie eine Konsole“:
     Text, 0.3.4 als Zahl); Steam startet jedes Mal neu, nie unter einem Spiel. Betrifft nur Testphasen.
   - S3: `waitForSteamToEnd` wartet bis zu 15 s vor einem Steam-Start. Live beobachten, wie oft das voll ausgeschöpft
     wird („Steam's processes still there …“ im Protokoll).
+    **Befund 23.11. (Zweig `claude/steam-wartezeit-035`):** Seit es die Wartezeit gibt (22.11. 19:32), steht in `wine.log`
+    ein einziges Warten („ended 1 s after steam.exe“). Ein „still there“ kommt nie vor. Messung beim Stopp um 06:37: Die
+    Webhelfer gingen mit steam.exe, Steams Dienst 0,6 s danach, die ganze Sitzung nach 1,1 s. Der nächste Start brauchte
+    5,01 s. Geändert: Nur noch vor einem neuen Windows-Steam (`waitForSteamToEnd`) und vor Steams Dateien
+    (Laufwerk übernehmen, Spiel verschieben, Laufwerk vergessen) wird auf die Reste gewartet. Alle anderen Stopps gehen
+    weiter, sobald steam.exe weg ist: Schlaf, Steam für Mac, neue Sitzung für einen Spielstart, Engine-Wechsel. Vor einem
+    Start wird 4-mal je Sekunde geschaut statt einmal. Die Protokollzeile nennt, was zuletzt ging. Die Grenzen (15 s,
+    Dienst allein 5 s) bleiben.
+    **Größer waren die 23–31 s vom Öffnen bis zum Steam-Start** (06:31, 06:37, 06:48; Steam selbst danach 5–6 s). Gemessen
+    um 06:48: Dazwischen lief kein Wine-Programm, und `sample` zeigt Nightforge wartend. `startBackgroundSteam` wartet
+    auf den ersten Blick auf die laufenden Spiele, der die Spiele kennt. Der erste Blick kam vor dem Einlesen der
+    Bibliothek, der nächste erst nach der Pause: 3 s mit Nightforge vorn, 10 s dahinter, 30 s, wenn niemand am Mac ist
+    (so morgens, ~6,7 h ohne Eingabe). Jetzt bricht das Einlesen der Bibliothek die Pause ab
+    (`IdleRest.pausesBeforeNextLook`, `lookNow`). Live ungeprüft.
   - L1: Das F5-Gedächtnis (`steamLaunchMemory`) enthält Pfade mit dem Benutzernamen (lokal, nicht im Protokoll):
     gehört auf die Liste „nie in einen Problembericht“.
   - L2: `if_nameindex` fragt bei jedem Aufruf alle Schnittstellen ab (nur noch in winedevice.exe).
