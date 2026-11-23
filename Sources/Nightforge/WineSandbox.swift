@@ -189,6 +189,8 @@ enum WineSandbox {
     /// would open for all of them what the sandbox keeps away. `sandboxed` false: a CrossOver bottle,
     /// not Nightforge's Wine. Throws when the sandbox is switched on and can't be applied.
     static func process(_ executable: URL, _ arguments: [String], sandboxed: Bool = true) throws -> DetachedProcess {
+        // No Wine program from the player's data folder starts in a test program (TestGuard).
+        if TestGuard.keepsOut(executable.path) { throw TestGuard.KeptOut() }
         var program: URL? = executable
         var programArguments: [String]? = arguments
         if sandboxed {

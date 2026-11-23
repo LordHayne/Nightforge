@@ -70,7 +70,7 @@ struct QuitScriptTest {
                 /bin/sleep 4 &
                 wait
                 """, to: bin.appendingPathComponent("caffeinate"), executable: true)
-            QuitScriptTest.write("#!/bin/sh\nexit 0\n", to: bin.appendingPathComponent("lsof"), executable: true)
+            QuitScriptTest.write("#!/bin/sh\n# lsof: the program of a listed process lies in the data folder (HOME is the world's root, the prefix in it), unless the\n# test lists it as foreign (FAKE_FOREIGN, a pid a line): a stand-in somebody else runs. Its working folder: none.\ncase \"$*\" in\n  *\"-d txt\"*)\n    pid=\"$(echo \"$*\" | sed -n 's/.*-p \\([0-9]*\\).*/\\1/p')\"\n    [ -n \"$FAKE_FOREIGN\" ] && grep -qx \"$pid\" \"$FAKE_FOREIGN\" 2>/dev/null && exit 1\n    printf 'p%s\\nn%s/engine/bin/wine-preloader\\n' \"$pid\" \"$(cd \"$HOME\" && pwd -P)\" ;;\nesac\nexit 0\n", to: bin.appendingPathComponent("lsof"), executable: true)
             QuitScriptTest.write("#!/bin/sh\necho \"$*\" >> \"$FAKE_SLEEPLOG\"\n", to: bin.appendingPathComponent("sleep"), executable: true)
             QuitScriptTest.write("#!/bin/sh\n\(record)\n", to: bin.appendingPathComponent("open"), executable: true)
             // FAKE_HANG: steam.exe -shutdown and osascript don't come back, as with a Steam that doesn't answer.
@@ -101,7 +101,7 @@ struct QuitScriptTest {
         /// `switchAfter`: the stand-in ps lists `later` instead of `processes` from its n-th answer on.
         func run(limit: Int? = nil, quitting: Int = 0, app: String? = nil, lastGame: Int? = nil,
                  switchAfter: Int? = nil, psLimit: Int? = nil, restart: Bool = false, hang: Bool = false,
-                 macSteam: Bool = false, gameAtQuit: Bool? = nil) -> (calls: [String], status: Int32, timedOut: Bool) {
+                 macSteam: Bool = false, gameAtQuit: Bool? = nil, foreign: [Int] = []) -> (calls: [String], status: Int32, timedOut: Bool) {
             try? FileManager.default.removeItem(at: log)
             try? FileManager.default.removeItem(at: sleepLog)
             var environment = ["PATH": bin.path + ":/usr/bin:/bin:/usr/sbin", "FAKE_PS": processList.path, "FAKE_LOG": log.path,
@@ -117,6 +117,10 @@ struct QuitScriptTest {
             }
             if macSteam { environment["FAKE_MAC_STEAM"] = "1" }
             environment["FAKE_COUNT"] = root.appendingPathComponent("ps-count").path
+            // Processes that aren't Nightforge's own: their program lies elsewhere (lsof stand-in).
+            let foreignList = root.appendingPathComponent("foreign.txt")
+            QuitScriptTest.write(foreign.map(String.init).joined(separator: "\n") + "\n", to: foreignList)
+            environment["FAKE_FOREIGN"] = foreignList.path
             if let switchAfter {
                 environment["FAKE_PS_LATER"] = later.path
                 environment["FAKE_SWITCH"] = String(switchAfter)
@@ -412,6 +416,22 @@ struct QuitScriptTest {
                 check(shutDown(result.calls), "\(case_): Steam is ended once the game is gone: \(result.calls)")
             }
         }
+        // A process that only names a game folder but isn't Nightforge's own – its program lies elsewhere, as a test's
+        // stand-in – is no game: the script neither waits for it nor opens Nightforge after it (12:08 on 23.11.2026).
+        do {
+            let world = World()
+            defer { world.cleanUp() }
+            world.processes([(200, steam), (600, #"C:\Program Files (x86)\Steam\steamapps\common\Stand In Game\StandIn.exe"#)])
+            let result = world.run(gameAtQuit: true, foreign: [600])
+            check(!result.timedOut && !result.calls.contains("open \(world.app)") && shutDown(result.calls),
+                  "a stranger's process named like a game: Steam ends, Nightforge stays closed: \(result.calls)")
+        }
+        check(Engine.gameAtQuit(started: true, windowsGame: nil) && Engine.gameAtQuit(started: false, windowsGame: true)
+              && !Engine.gameAtQuit(started: false, windowsGame: nil) && !Engine.gameAtQuit(started: false, windowsGame: false),
+              "GAME_AT_QUIT: a game Nightforge started or one in its session; not known is none")
+        check(Engine.steamShutdownScript.contains(#"has_own_process '\steamapps\common\'"#)
+              && Engine.steamShutdownScript.contains(#"SUPPORT="$(cd "$(dirname "$PREFIX")" 2>/dev/null && pwd -P || dirname "$PREFIX")""#),
+              "Windows games count only as Nightforge's own processes, by the program in the data folder")
         do {
             // Known as it quit, but no game in the list any more: nothing to come back for, Steam goes.
             let world = World()

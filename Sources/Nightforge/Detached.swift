@@ -211,7 +211,9 @@ final class DetachedProcess: @unchecked Sendable {
     /// (removable volumes) once, not again after every build (8.11.). The copy's quarantine flag goes,
     /// it isn't part of the signature. Else made here from the program and signed ad hoc, as before.
     static func helperApp() -> URL? {
-        appLock.withLock {
+        // Not the player's helper app from a test program (TestGuard): the program runs attached instead.
+        if TestGuard.keepsOut(home.path) { return nil }
+        return appLock.withLock {
             guard !helperFailed else { return nil }
             if prepared == nil || prepared?.program != helperProgram { prepared = (helperProgram, makeHelperApp()) }
             return prepared?.app
