@@ -19,6 +19,16 @@ enum DockAutoHide {
         var restartDock: () -> Void
     }
 
+    /// One step at a time, in the order asked: `restore` at a start after a crash and `engage` at a game started right
+    /// after it, each in a task of its own, could overtake each other – restore then put the setting back after engage had
+    /// found its note and left it, and the Dock stayed in sight for that first game (audit K2, 23.11.2026).
+    private static let steps = DispatchQueue(label: "nightforge.dock-autohide", qos: .utility)
+
+    /// Runs `work` after every step asked for before it, away from the caller's thread.
+    static func serially(_ work: @escaping @Sendable () -> Void) {
+        steps.async(execute: work)
+    }
+
     /// Set while Nightforge has the setting on for console mode: what to put back (always false so far).
     static let restoreKey = "console.dockAutoHideBefore"
 

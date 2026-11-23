@@ -87,6 +87,23 @@ struct DockAutoHideTest {
               && DockAutoHide.Outcome.playersAlready.logLine != nil && DockAutoHide.Outcome.playerChanged.logLine != nil
               && DockAutoHide.Outcome.nothing.logLine == nil && DockAutoHide.Outcome.oursAlready.logLine == nil, "the log lines")
 
+        // Steps run one after the other, in the order asked (audit K2): a restore asked first, slow, and an engage right
+        // after it never overlap, and the engage sees what the restore left.
+        final class Trace: @unchecked Sendable {
+            let lock = NSLock()
+            var order: [String] = []
+            var inside = 0, overlapped = false
+            func enter(_ name: String) { lock.withLock { inside += 1; if inside > 1 { overlapped = true }; order.append(name) } }
+            func leave() { lock.withLock { inside -= 1 } }
+        }
+        let trace = Trace()
+        let done = DispatchSemaphore(value: 0)
+        DockAutoHide.serially { trace.enter("restore"); Thread.sleep(forTimeInterval: 0.2); trace.leave() }
+        DockAutoHide.serially { trace.enter("engage"); trace.leave() }
+        DockAutoHide.serially { done.signal() }
+        check(done.wait(timeout: .now() + 5) == .success, "the steps ran")
+        check(trace.order == ["restore", "engage"] && !trace.overlapped, "one after the other, in the order asked: \(trace.order)")
+
         print(failures == 0 ? "✓ DockAutoHide" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
     }
