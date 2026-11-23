@@ -199,3 +199,146 @@ Die übrigen sind DX11/12-Spiele.
 Für Direct3D 3–8 gibt es im Konto keinen Testfall. **Vorschlag zur Wahl:** Thomas holt sich zwei, drei günstige
 GOG-Klassiker, etwa je einen mit DirectDraw/D3D5–7 und einen mit D3D8. Welche, entscheidet er. Ohne sie lässt sich
 D7VK nicht prüfen.
+
+## 4. Fix 4 im Einzelnen: GTA V Enhanced und der Rockstar Launcher (Befund, kein Bau)
+
+Stand 23.11. Weder GTA V noch der Rockstar Launcher sind auf diesem Mac installiert (Prefix und Spiele-Laufwerk durchgesehen).
+Live gesehen wurde nur der Spieletest vom 10.11. auf dem alten Mac. Sein Laufordner mit `steam.3240220.log` liegt nicht im Repo.
+
+### Was passiert ist
+
+- Der Spieletest startete über Steam `PlayGTAV.exe`. Ein Fenster von 332×134 Punkten wartete 5 min, ein Bild kam nicht.
+  Der Vorhang sah „asks yes, curtain under the question“ (spieletest/2026-11-10.md:34-41, TODO:1312-1314).
+- Was das Fenster sagt, ist nicht festgehalten. Die Quelle vermutet den Rockstar Launcher (TODO:1314).
+- Nightforge erkennt den Launcher schon am Spielordner: `PlayGTAV.exe` steht in `GameAnalysis.launchers`
+  (Sources/Nightforge/GameAnalysis.swift:251). Darum gibt es keinen stillen zweiten Versuch (LaunchHealth.swift:78-79).
+  Steams Installationsskript, das den Launcher und seine Lizenz bringt, wird als `runningInstallScript` gesehen
+  (Launcher.swift:424-426).
+- Thomas' Entscheidung vom 9./10.11.: Enhanced bekommt keinen Anti-Cheat-Eintrag. BattlEye sperrt nur GTA Online
+  (TODO:1312-1314).
+
+### Welche Fenster der Rockstar-Weg zeigt (Recherche, nicht auf dem Mac gesehen)
+
+Nach `docs/recherche/launcher.md` und Berichten von Linux-Spielern kommen der Reihe nach:
+1. **Steams Lizenz und das Installationsskript.** Steam installiert den Rockstar Games Launcher
+   (`Redistributables\Rockstar-Games-Launcher.exe`), mit dessen Lizenz und Ordnerwahl (launcher.md:116, Launcher.swift:425).
+   Die Lizenz in Steams Fenster deckt Nightforge schon ab (`SteamLicence`, Live-Test offen: TODO:1519).
+2. **`PlayGTAV.exe`, Rockstars „Redirector“.** Er wartet ohne Zeitlimit auf `Launcher.exe` (launcher.md:131). Unter Proton
+   meldeten Spieler ein kleines schwarzes Fenster mit dem Rockstar-Logo, das nicht weiterging
+   ([Steam-Diskussion zu GTA V Legacy](https://steamcommunity.com/app/271590/discussions/0/4041482298414356988/)). Das passt
+   zu 332×134, ist aber nicht belegt.
+3. **Der Launcher selbst, ein Chromium-Fenster (Social Club, CEF 143, `SocialClubHelper.exe`).** Auf D3DMetal läuft er in
+   eine Absturzschleife, auf DXMT bleibt er schwarz. Gelaufen ist er dort nur mit DXVK für `Launcher.exe` und
+   `SocialClubHelper.exe` per AppDefaults (launcher.md:44, launcher.md:61). Ohne die Chromium-Schalter, die CrossOver bis 24
+   von selbst anhängte, zeichnet er nicht sicher. `-scDisableGpu` ist Rockstars offizieller Schalter, `--single-process`
+   bricht ab (launcher.md:44-58).
+4. **Anmeldung beim Rockstar-Konto und Verknüpfen mit Steam.** Dafür kommt ein E-Mail-Code, und es braucht einmal Maus und
+   Tastatur (launcher.md:160-165). Bei falscher Zeitzone gibt es die Fehler #1.000.7 bzw. #1.500.7. Ohne angemeldeten
+   Steam-Client im selben Prefix kommen die Fehler 113 bzw. 133 (launcher.md:120, launcher.md:166).
+5. **Danach startet der Launcher das Spiel im „min mode“** (launcher.md:22). Beim Beenden kann er in SHUTDOWN_IN_PROGRESS
+   hängen. Dann sieht Nightforge das Spiel nie enden. Endet `Launcher.exe` nicht mit Code 0, meldet Steam „Unable to launch
+   game“ (launcher.md:131, launcher.md:159).
+
+Belegt läuft GTA V Enhanced auf CrossOver 26.3 („Runs Well“, nur Story), laut Quelle nur auf M4 Pro/M5 Pro (CX:377,
+launcher.md:22). Ohne den Downmix aus Wine 11.21 fehlt die Dialogstimme bei 7.1.4 (CX:259).
+
+### Mit dem Pad zu beantworten?
+
+- Steams Lizenz ja, über den Pad-Zeiger, sobald „Bedienungshilfen“ erlaubt sind (ENTWURF-STEAM-PAD.md).
+- Das Rockstar-Fenster nur als Zeiger, ohne eigene Tasten. Es ist ein Chromium-Fenster in Wine, also gilt dasselbe wie für
+  Steams Fenster. Die Anmeldung mit E-Mail-Code braucht eine Tastatur: die Pad-Tastatur, sobald sie in fremde Fenster schreiben
+  kann (ENTWURF-STEAM-PAD.md, Punkt 5, offen), sonst eine echte Tastatur.
+- Xalia (MIT, CodeWeavers) hat fertige Controller-Regeln für Launcher-Fenster, Proton schaltet es ein (launcher.md:163).
+  Das wäre ein neues Programm im Prefix und damit eine eigene Entscheidung.
+
+### Was Nightforge ohne Eingriff in fremde Programme tun kann (Vorschlag)
+
+1. **Erst sehen, was das Fenster ist.** Ein Live-Lauf über den Koordinator, mit Bildschirmfoto des Fensters und dem Fenstertitel
+   aus der Fensterliste (`CurtainLook`). Steams Lizenz vorher nicht auslösen (TODO:1519). Ohne diesen Lauf ist alles Weitere
+   Vermutung.
+2. **AppDefaults für den Launcher** (Registry im Prefix, wie die Profile es schon können): `Launcher.exe` und
+   `SocialClubHelper.exe` auf DXVK (`dxgi`, `d3d11`, `d3d10core` = native, `d3d12` = aus), belegt bei frankea/Whisky #276
+   (launcher.md:61). Das ist ein Profilfeld (`registry`), kein Eingriff in Rockstars Dateien. Das Spiel selbst bleibt auf
+   D3DMetal.
+3. **`-scDisableGpu`** an `Launcher.exe`, falls Steams Weg es durchreicht. Sonst über `commandline_launcher.txt`
+   (launcher.md:55). Das ist eine Datei des Launchers, also schon ein Eingriff in dessen Ordner. Dafür braucht es Thomas'
+   Entscheidung.
+4. **Ansage auf dem Vorhang**, nach der Regel „eine Zeile, mehr nur, wenn der Spieler handeln muss“: beim ersten Start
+   „Rockstar möchte einmal eine Anmeldung. Danach startet GTA direkt.“ Dazu der Zeiger und die Leiste wie bei Steams Fragen.
+   Fenster-Erkennung über `GameAnalysis.launchers`, die es schon gibt. *Text als Vorschlag, zur Wahl.*
+5. **Nicht tun:** Der Launcher wird nicht umgangen (`GTA5_Enhanced.exe` direkt starten). Rockstars DRM lässt das laut
+   Spielern nicht über das Hauptmenü hinaus ([ProtonDB-Bericht](https://www.protondb.com/users/2145546869)), und es
+   widerspräche „keine Tricks“.
+
+Grenzen: Ob der Launcher auf winecx 4.7.3 ohne die Chromium-Schalter überhaupt zeichnet, zeigt erst Schritt 1. Die Schaltertabelle
+in Wine zurückzuholen (launcher.md:51-56, Weg 3) wäre ein Eingriff in Wine (LGPL) und braucht Thomas' OK.
+
+## 5. Fix 10 im Einzelnen: WineD3D unter WoW64 und der DEP-Patch (Befund, kein Bau)
+
+KosmicKrisp und D7VK bearbeitet Worker O. Hier geht es nur um WineD3D über OpenGL und um Wines Speicherschutz.
+
+### Was unter WoW64 bei WineD3D bricht
+
+macOS führt keine 32-Bit-Prozesse mehr aus. Wine lässt 32-Bit-Spiele deshalb im „neuen WoW64“ laufen: als 64-Bit-Prozess,
+jeder Systemaufruf geht durch einen Thunk (EN:228-236). Für WineD3D über OpenGL heißt das:
+
+- **Jeder GL-Aufruf wird gethunkt**, das kostet CPU. Bei Mafia II waren es 230–440 % CPU, also zwei volle Threads, und der
+  Ton knackte (PROF:389, TODO:3503-3515).
+- **Gemappte GL-Puffer liegen über 4 GB**, wo 32-Bit-Code sie nicht sieht. Wine kopiert sie hin und zurück
+  („Doing a copy of a mapped buffer“, EN:238-241). Unter Linux brach die Hardware-Grafik damit auf 6–34 FPS ein
+  ([Wine-Bug 55981](https://list.winehq.org/archives/list/wine-bugs@list.winehq.org/thread/DV3PBNKTFJ3QP7V2AP2TOELZCQYEGTIX/)).
+- **Die drei Abhilfen von Upstream greifen auf dem Mac nicht.** Vulkan-Speicherimport, GL_AMD_pinned_memory und
+  GL_MESA_map_buffer_client_pointer (Wine 11.21) brauchen Erweiterungen, die Apples eingefrorenes OpenGL 4.1 nicht hat
+  (EN:242-247; [Phoronix zu 11.21](https://phoronix.com/news/Wine-Mesa-Map-Buffer-Client-Ptr)). Ein neueres Wine hilft
+  WineD3D auf dem Mac hier also nicht.
+- **WineD3D über Vulkan** ist auch in Wine 11.21 „not yet at parity“ und nicht Standard. CrossOver nimmt Vulkan-wined3d erst ab
+  D3D10, für D3D9 bleibt OpenGL (EN:249, CX:240-244).
+- **x87-lastige Spiele** bremst Rosetta unabhängig vom Renderer (EN:262-266).
+- **Aus Wine 11.18–11.21 fehlen winecx 4.7.3**: Vertex Blending, die schnellere CS-Queue und der Swapchain-Reset (CX:246-250).
+  Die CS-Queue hilft auch auf dem Mac (eigene Lesart: Sie betrifft die Warteschlange zwischen den Threads, nicht OpenGL).
+
+### Der DEP-Patch
+
+**Woher:** [LuidgiAlt/crossover-rosetta-patches](https://github.com/LuidgiAlt/crossover-rosetta-patches), Patch 0004
+„rosetta-lazy-exec“ vom 11.10.2026, gegen die Quellen von CrossOver 26.3.0. Lizenz LGPL-2.1-or-later wie Wine. Das Repo ist
+seit dem 4.11.2026 archiviert. Gemeldet hatte das Problem zuerst rdbell am 4.9.2026 in athei/wine-build#3 (laut README).
+
+**Das Problem, wie es der Autor beschreibt:**
+- Fehlt einem geladenen Modul das PE-Merkmal NX_COMPAT, schaltet Wine DEP für den ganzen Prozess ab (`loader.c`). Dann
+  markiert es allen lesbaren Speicher als schreib- und ausführbar (`force_exec_prot` in `ntdll/unix/virtual.c`).
+- Unter Rosetta löst danach jeder erste Schreibzugriff auf eine solche Seite einen Fehler aus. CrossOvers Behandlung dafür
+  („CW Hack 24945“) läuft unter der prozessweiten `virtual_mutex`.
+- Bei Black Ops II (32 Bit) waren das ~13 Mio. Seitenfehler in 6 min. Textur- und Puffer-Uploads standen 1–41 s, der
+  Render-Thread hing 32 s im Kernel. In einem Testprogramm stieg die Zeit von 12 ms auf 2 260 ms je Frame (README).
+
+**Was 0004 ändert:** nur `dlls/ntdll/unix/virtual.c`, alles in `#ifdef __APPLE__`, und nur mit `WINE_ROSETTA_LAZY_EXEC=1`.
+- Ist DEP aus, wird `force_exec_prot` nicht gesetzt. Seiten bekommen „ausführbar“ erst beim ersten Ausführen
+  (Fehler → `mprotect(… | PROT_EXEC)`).
+- Ein späterer Schreibzugriff nimmt „ausführbar“ wieder weg.
+- Wines Entscheidung „DEP aus“ bleibt, nur ihre Kosten unter Rosetta fallen weg.
+- Ergebnis laut Autor: bei BO2 keine Upload-Stopps mehr. Er schreibt selbst: „tested in depth with one game“.
+
+**Ist er schon in einer neueren Fassung?** Dafür gibt es keinen Beleg. Das README nennt weder ein Einreichen bei Wine noch bei
+CodeWeavers. Upstreams `virtual.c` war über gitlab.winehq.org nicht lesbar (Bot-Sperre), der CodeWeavers-Blog zu CrossOver 27
+auch nicht (403). Offen bleibt also, ob CrossOver 26.x nach 26.3 oder Wine 11.18–11.21 etwas Ähnliches haben. Nachzusehen in
+den Quellen von CrossOver 26.3+ bzw. im Wine-Mirror auf GitHub.
+
+**Warum das für die Klassiker zählt (eigene Lesart, zu prüfen):** NX_COMPAT setzen Linker standardmäßig erst ab Visual Studio
+2008. Bei 32-Bit-Spielen aus der Zeit davor fehlt es oft, und dann ist DEP für den ganzen Prozess aus. Trifft das zu, hätten
+gerade die GOG-Klassiker diese Stopps unter Rosetta, unabhängig vom Grafikweg (WineD3D, DXVK oder D7VK). Ob die Stopps von
+Mafia II auf KosmicKrisp (3–7,7 s, KK:5-7) oder die 156 s bis zum Bild bei Batman (TODO:1418-1424) damit zu tun haben, ist
+**nicht belegt**.
+
+### Vorschlag (Reihenfolge)
+
+1. **Nur lesen, ohne Wine-Eingriff:** Nightforges Spielanalyse (`GameAnalysis`, liest schon die PE-Dateien) meldet zusätzlich, ob
+   die Exe und ihre DLLs NX_COMPAT tragen (DllCharacteristics 0x0100). Das ergibt eine Liste, welche getesteten Spiele DEP aus
+   haben: Mafia II, Alan Wake, L4D2, Batman, Dishonored. Kein Risiko, kein LGPL-Thema.
+2. **Probe mit dem Patch, in einem eigenen Engine-Bau** (braucht Thomas' OK, LGPL): 0004 auf winecx 4.7.3 anwenden, ein
+   32-Bit-Spiel ohne NX_COMPAT mit und ohne `WINE_ROSETTA_LAZY_EXEC=1` messen, Stopps über das HUD-Frame-Log. Nur bei klarem
+   Gewinn je Spiel per Profil einschalten. Der Patch ist dafür schon ein Schalter.
+3. **Nicht jetzt:** WineD3D-OpenGL unter WoW64 schneller machen. Ohne neue Apple-OpenGL-Erweiterungen gibt es keinen Weg, und
+   Abhilfe liegt bei Vulkan (KosmicKrisp, Worker O).
+4. **Für macOS 28 merken:** 32-Bit-Spiele brauchen unter einer ARM64-Engine ein eingeschränktes Entitlement
+   (ENTWURF-ARM64.md:103-106). CrossOver 27 soll 32-Bit-Bottles nicht mehr ausführen (EN:294, nur Suchauszug). Über WoW64 in
+   einem 64-Bit-Prefix, wie Nightforge es nutzt, sagt das nichts aus.
