@@ -552,20 +552,66 @@ struct GameOverlayTest {
 
     /// The curtain at each look: down only once the game itself is in front, and up again when
     /// another app takes the front from it (the TV test on 1.11.: the Claude app came up instead).
+    /// The rest of the picture before the curtain sinks (the user's decision of 23.11.2026): 1 s for a game proven on this
+    /// Mac whose first picture fills the screen, 2 s for every other – and always for Overwatch and anti-cheat games.
+    static func curtainRest() {
+        let screen = CGSize(width: 1512, height: 982)
+        let wukong = GameID.steam(2_358_720).key
+        func rest(_ game: String = wukong, proven: Bool = true, antiCheat: Bool = false, first: String? = "1512×982",
+                  now: String? = "1512×982", on: CGSize? = screen) -> TimeInterval {
+            LibraryModel.pictureSteadyNeeded(game: game, proven: proven, antiCheat: antiCheat, firstPicture: first, picture: now, screen: on)
+        }
+        let short = LibraryModel.pictureSteadyProven, full = LibraryModel.pictureSteady
+        check(short == 1 && full == 2, "1 s against 2 s")
+        // The four cases: proven or not, the first picture the screen's size or not.
+        check(rest() == short, "proven here, first picture full screen: 1 s")
+        check(rest(first: "668×434", now: "668×434") == full, "proven here, a smaller first picture (Wukong's benchmark, 22.11.): 2 s")
+        check(rest(proven: false) == full, "no proof on this Mac, full screen: 2 s")
+        check(rest(proven: false, first: "1512×949", now: "1512×949") == full, "no proof, a window under the menu bar (Valheim): 2 s")
+        // Overwatch and anti-cheat games keep the full rest, whatever they proved.
+        check(rest(GameID.steam(2_357_570).key) == full, "Overwatch on Steam: 2 s, proven and full screen as it may be")
+        check(rest(GameID.battlenet("pro").key) == full, "Overwatch as Battle.net's title: 2 s")
+        check(rest(antiCheat: true) == full, "an anti-cheat game: 2 s")
+        // Without evidence it stays long: a start that hasn't said yet what it proved counts as an anti-cheat game unproven.
+        check(rest(proven: false, antiCheat: true) == full, "nothing known of the start: 2 s")
+        // Only the first picture counts, and only while it keeps its size.
+        check(rest(first: "1392×742", now: "1512×982") == full, "the screen's size only after another one first (Overwatch, 8.11.): 2 s")
+        check(rest(first: nil, now: "1512×982") == full && rest(first: "1512×982", now: nil) == full, "no picture known: 2 s")
+        check(rest(on: nil) == full, "no screen known: 2 s")
+        check(rest(first: "1513×981", now: "1513×981") == short, "a point either way is still the screen's size")
+        check(rest(first: "1512×980", now: "1512×980") == full, "two points short is a window, not the screen")
+        check(!LibraryModel.fillsScreen("1512x982", screen: screen) && !LibraryModel.fillsScreen("", screen: screen),
+              "a size that isn't one: not the screen")
+        // The start hands the watch what it knows, fresh at each Play.
+        let model = (try? String(contentsOfFile: "Sources/Nightforge/LibraryModel.swift", encoding: .utf8)) ?? ""
+        check(model.contains("curtainProof = (game.gameID.key, wayConfirmed, handsOff)"), "the proof: the start's own way confirmed, its anti-cheat")
+        check(model.contains("curtainProof = nil\n        notePhase(game, \"Play\")"), "nothing left over from the start before")
+        check(model.contains("antiCheat: proof?.antiCheat ?? true"), "without the start's word, as an anti-cheat game")
+        check(model.contains("else if size != firstPicture { firstSizeKept = false }")
+              && model.contains("picture: firstSizeKept ? pictureSize?.size : nil"),
+              "a picture that changed its size once never gets the short rest, back at its first size or not")
+    }
+
     static func curtain() {
         func step(lowered: Bool = false, gameFront: Bool = false, nightforgeFront: Bool = false, macOS: Bool = false,
                   here: Bool = false, anywhere: Bool = false, asks: Bool = false, frontFor: TimeInterval = 0,
                   settle: TimeInterval = 1, guardOver: Bool = false, pictureFor: TimeInterval = 0, broughtBack: Int = 0,
-                  playerActed: Bool = false, shieldOnly: Bool = false, steadyFor: TimeInterval = .infinity) -> LibraryModel.CurtainStep {
+                  playerActed: Bool = false, shieldOnly: Bool = false, steadyFor: TimeInterval = .infinity,
+                  steadyNeeded: TimeInterval = LibraryModel.pictureSteady) -> LibraryModel.CurtainStep {
             LibraryModel.curtainStep(lowered: lowered, gameFront: gameFront, nightforgeFront: nightforgeFront, macOSAsks: macOS,
                                      windowHere: here, windowAnywhere: anywhere || here, asks: asks, frontFor: frontFor,
                                      settle: settle, guardOver: guardOver, pictureFor: pictureFor, broughtBack: broughtBack,
-                                     playerActed: playerActed, shieldOnly: shieldOnly, steadyFor: steadyFor)
+                                     playerActed: playerActed, shieldOnly: shieldOnly, steadyFor: steadyFor, steadyNeeded: steadyNeeded)
         }
         // Overwatch, 8.11. 14:53: its window went 1392×742, 1342×710, and only then the display mode.
         check(step(gameFront: true, here: true, frontFor: 1, steadyFor: 0.5) == .wait, "the picture's size still changing: the curtain stays")
         check(step(gameFront: true, here: true, frontFor: 1, steadyFor: 2) == .lower, "steady for 2 s: the curtain sinks")
         check(step(gameFront: true, here: true, frontFor: 1, pictureFor: 15, steadyFor: 0) == .lower, "the ceiling holds whatever the size does")
+        check(step(gameFront: true, here: true, frontFor: 1, steadyFor: 1) == .wait, "1 s is too short for the full rest")
+        check(step(gameFront: true, here: true, frontFor: 1, steadyFor: 1, steadyNeeded: 1) == .lower, "the short rest: the curtain sinks after 1 s")
+        check(step(gameFront: true, here: true, frontFor: 0.5, steadyFor: 1, steadyNeeded: 1) == .wait, "the short rest still waits for the game's second in front")
+        check(step(gameFront: true, here: true, frontFor: 1, steadyFor: 0.5, steadyNeeded: 1) == .wait, "and for its size to stay that second")
+        curtainRest()
         check(!LibraryModel.fetchesFrontItself(again: false, active: false), "a plain handover doesn't go through Launch Services")
         check(!LibraryModel.fetchesFrontItself(again: true, active: true), "Nightforge in front already: it hands over as ever")
         check(LibraryModel.fetchesFrontItself(again: true, active: false), "fetching a game back from behind needs a real round through the front")

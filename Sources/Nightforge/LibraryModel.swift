@@ -1342,6 +1342,9 @@ final class LibraryModel: ObservableObject {
     private var curtainWatches = 0
     /// When Play was pressed for a game (GameID.key), for the start's phases in the log (`notePhase`).
     private var playClock: (game: String, at: Date)?
+    /// What the curtain of a start goes by (`pictureSteadyNeeded`): the game, whether its way is proven on this Mac for this
+    /// start, and whether it keeps an anti-cheat – known once the start chose its way, nil from each Play on.
+    private var curtainProof: (game: String, proven: Bool, antiCheat: Bool)?
     private var comingBackSince: Date?
 
     private var curtainOwners: CurtainEscape.Owners {
@@ -1508,6 +1511,9 @@ final class LibraryModel: ObservableObject {
         var fullScreenSaid = false
         /// The picture's size on the Space shown, and since when it hasn't changed.
         var pictureSize: (size: String, since: Date)?
+        /// The size of its first picture on the Space shown, and whether every picture since had it (`pictureSteadyNeeded`).
+        var firstPicture: String?
+        var firstSizeKept = true
         /// The game's time in front the pointer was hidden for, and the app in front at the last look.
         var pointerHidden: Date?
         var pointerFront: pid_t? = getpid()  // raiseCurtain hid it with Nightforge in front
@@ -1776,6 +1782,7 @@ final class LibraryModel: ObservableObject {
                  GameProcesses.windowList(pids), GameProcesses.onlyShield(pids), GameProcesses.windowSize(pids))
             }.value
             if here, let size {
+                if firstPicture == nil { firstPicture = size } else if size != firstPicture { firstSizeKept = false }
                 if pictureSize?.size != size { pictureSize = (size, Date()) }
             } else {
                 pictureSize = nil
@@ -1867,6 +1874,10 @@ final class LibraryModel: ObservableObject {
             sayOnCurtain(gameRuns: !pids.isEmpty, shaders: buildsShaders, asks: asks, errorBox: reportsError,
                          macOSAsks: macOSAsks, fullScreen: fullScreenHint.map { $0.setting ?? "" })
             pictureSince = here ? (pictureSince ?? Date()) : nil
+            let proof = curtainProof.flatMap { $0.game == game.gameID.key ? $0 : nil }
+            let steadyNeeded = Self.pictureSteadyNeeded(game: game.gameID.key, proven: proof?.proven == true, antiCheat: proof?.antiCheat ?? true,
+                                                        firstPicture: firstPicture, picture: firstSizeKept ? pictureSize?.size : nil,
+                                                        screen: GameDisplay.gameScreen?.frame.size)
             switch Self.curtainStep(lowered: loweredAt != nil, gameFront: gameFront, nightforgeFront: front == getpid(),
                                     macOSAsks: macOSAsks || front.map(askers.contains) ?? false,
                                     windowHere: here, windowAnywhere: anywhere, asks: asks,
@@ -1875,7 +1886,7 @@ final class LibraryModel: ObservableObject {
                                     guardOver: loweredAt.map { Date().timeIntervalSince($0) > Self.focusGuard } ?? false,
                                     pictureFor: pictureSince.map { Date().timeIntervalSince($0) } ?? 0,
                                     broughtBack: broughtBack, playerActed: Self.playerActed(), shieldOnly: shieldOnly,
-                                    steadyFor: pictureSize.map { Date().timeIntervalSince($0.since) } ?? 0) {
+                                    steadyFor: pictureSize.map { Date().timeIntervalSince($0.since) } ?? 0, steadyNeeded: steadyNeeded) {
             case .wait:
                 break
             case .handOver:
@@ -1906,7 +1917,8 @@ final class LibraryModel: ObservableObject {
                 LaunchHealth.pictureShown(game.gameID)  // it started, however soon it ends now
                 let size = await Task.detached(priority: .utility) { GameProcesses.windowSize(pids) }.value
                 let screen = GameDisplay.gameScreen.map { "\(Int($0.frame.width))×\(Int($0.frame.height))" } ?? "?"
-                GameLog.note("Curtain down for \(game.name): \(front.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName } ?? "nobody") in front, its window \(size ?? "none") on \(screen)")
+                GameLog.note("Curtain down for \(game.name): \(front.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName } ?? "nobody") in front, its window \(size ?? "none") on \(screen)"
+                             + (steadyNeeded < Self.pictureSteady ? ", the short rest of a game proven here" : ""))
                 GameLog.note("  at \(GameLog.clock())")
                 notePhase(game, "curtain down")
                 // Down because it had stood long enough: going up again for the front would only flap.
@@ -2428,7 +2440,7 @@ final class LibraryModel: ObservableObject {
                                         windowHere: Bool, windowAnywhere: Bool, asks: Bool = false, frontFor: TimeInterval,
                                         settle: TimeInterval = 1, guardOver: Bool, pictureFor: TimeInterval = 0,
                                         broughtBack: Int = 0, playerActed: Bool = false, shieldOnly: Bool = false,
-                                        steadyFor: TimeInterval = .infinity) -> CurtainStep {
+                                        steadyFor: TimeInterval = .infinity, steadyNeeded: TimeInterval = pictureSteady) -> CurtainStep {
         if lowered {
             if guardOver || (nightforgeFront && playerActed) { return .done }
             return gameFront || macOSAsks ? .wait : .raiseAgain
@@ -2440,7 +2452,7 @@ final class LibraryModel: ObservableObject {
         guard gameFront else { return handOver }
         // Only with its window on the Space shown: elsewhere, the curtain sinking showed Nightforge's
         // page while the game had the front (1.11.).
-        if windowHere { return frontFor >= settle && steadyFor >= pictureSteady ? .lower : .wait }
+        if windowHere { return frontFor >= settle && steadyFor >= steadyNeeded ? .lower : .wait }
         guard !macOSAsks, frontFor >= windowAwayPatience else { return .wait }
         if broughtBack < maxBroughtBack { return .bringBack }
         // Only a black shield on screen (Overwatch, 8.11.): sinking would count it as a picture and
@@ -2452,6 +2464,31 @@ final class LibraryModel: ObservableObject {
     /// a window of 1392×742, then 1342×710, and only then set its display mode. The curtain sank in
     /// between, so the page and a black screen flashed up.
     nonisolated static let pictureSteady: TimeInterval = 2
+    /// The rest a proven game's picture needs (`pictureSteadyNeeded`).
+    nonisolated static let pictureSteadyProven: TimeInterval = 1
+    /// Games that keep the full rest whatever they proved: Overwatch, whose two window sizes came before its display
+    /// mode (8.11.), on Steam and as Battle.net's title.
+    nonisolated static let keepsFullRest: Set<String> = [GameID.steam(2_357_570).key, GameID.battlenet("pro").key]
+
+    /// How long the picture's size has to stay before the curtain sinks: `pictureSteadyProven` for a game that ran on this
+    /// Mac on this very way before (`proven`: the start's evidence `known`, StartEvidence and LaunchHealth) and whose first
+    /// picture under the curtain filled the screen and still has that size; `pictureSteady` for every other one – and for
+    /// Overwatch (`keepsFullRest`) and any game with an anti-cheat (NextStart.handsOff), whatever they proved. The user's
+    /// decision of 23.11.2026 (docs/ENTWURF-STARTZEIT.md): about a second less at each start of a game that has proven
+    /// itself.
+    nonisolated static func pictureSteadyNeeded(game: String, proven: Bool, antiCheat: Bool, firstPicture: String?,
+                                                picture: String?, screen: CGSize?) -> TimeInterval {
+        guard proven, !antiCheat, !keepsFullRest.contains(game), let firstPicture, picture == firstPicture,
+              fillsScreen(firstPicture, screen: screen) else { return pictureSteady }
+        return pictureSteadyProven
+    }
+
+    /// Whether a picture's size ("1512×982", GameProcesses.windowSize) is the screen's, to a point.
+    nonisolated static func fillsScreen(_ size: String, screen: CGSize?) -> Bool {
+        let sides = size.split(separator: "×").compactMap { Double($0) }
+        guard let screen, sides.count == 2 else { return false }
+        return abs(sides[0] - screen.width) <= 1 && abs(sides[1] - screen.height) <= 1
+    }
     /// How long a picture may stand under the curtain, whatever has the front.
     nonisolated static let curtainCeiling: TimeInterval = 15
     /// How long the game has the front with its window off the screen before it's fetched back.
@@ -4980,6 +5017,7 @@ final class LibraryModel: ObservableObject {
         // The clock for the start's phases (`notePhase`), with the test switch only: from here, the player's question
         // about D3DMetal aside.
         playClock = GameTest.notesStartPhases() ? (game.gameID.key, Date()) : nil
+        curtainProof = nil
         notePhase(game, "Play")
         let viaSteam = game.provider == .steam
         if viaSteam && game.bottle.isBuiltIn && !Engine.steamSignedIn && !otherSteamFree(for: .windows) { return }
@@ -5246,6 +5284,8 @@ final class LibraryModel: ObservableObject {
                                        kind: analysis?.kind, recipe: recipe, profiled: profile?.shapesStart, closerLook: closerLook,
                                        name: game.name, parts: build?.parts)
                 }
+                // The curtain over a game proven here may sink after a shorter rest (pictureSteadyNeeded).
+                curtainProof = (game.gameID.key, wayConfirmed, handsOff)
                 // Another program in the game's LaunchOptions also comes with the Steam that starts it (SteamProgram).
                 let programChanged = viaSteam && game.bottle.isBuiltIn
                     ? await Engine.offMain { [options] in
