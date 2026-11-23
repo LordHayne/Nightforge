@@ -852,18 +852,20 @@ final class InputRouter {
 
     /// The curtain went down on the game and the pad was used last: the pointer leaves the picture
     /// without waiting for the next press.
-    func parkPointerForGame() { parkPointerIfDue(padInUse: Self.padUsedLast) }
+    func parkPointerForGame() { parkPointerIfDue(padInUse: Self.padUsedLast, curtainGoing: true) }
 
     /// The pad in use with a game in front: the pointer out of the picture (PointerParking). At most
-    /// twice a second, as this runs beside a game: a stick reports hundreds of times.
-    private func parkPointerIfDue(padInUse: Bool) {
+    /// twice a second, as this runs beside a game: a stick reports hundreds of times. `curtainGoing`: the
+    /// curtain was just lowered and still fades (PointerParking.overGame).
+    private func parkPointerIfDue(padInUse: Bool, curtainGoing: Bool = false) {
         guard padInUse, let model else { return }
         let now = ProcessInfo.processInfo.systemUptime
         guard now - parkingLook >= 0.5 else { return }
         parkingLook = now
         guard parking.parksNow(padInUse: true, now: now, mouseAgo: Self.mouseIdle,
                                pointerInUse: pointer.isMouse || pointer.touchedRecently(now: now), setting: Prefs.parkPointer,
-                               overGame: reach == .none && model.gamePlaying && !GameBackdrop.isRaised && Self.gameHasTheFront(model),
+                               overGame: reach == .none && PointerParking.overGame(gameInFront: Self.gameHasTheFront(model), playing: model.gamePlaying,
+                                                                                   curtainUp: GameBackdrop.isRaised, curtainGoing: curtainGoing),
                                question: model.windowsQuestion != nil || model.overGame != nil || PadPointer.macOSAsks),
               let location = CGEvent(source: nil)?.location
         else { return }

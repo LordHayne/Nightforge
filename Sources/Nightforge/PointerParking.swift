@@ -22,6 +22,14 @@ struct PointerParking {
         CGPoint(x: display.maxX - 48, y: display.maxY - 1)
     }
 
+    /// Whether the pad's player looks at the game: a game in front of Nightforge, playing, and no curtain over it –
+    /// or the curtain on its way down (`curtainGoing`: LibraryModel lowers it, then parks the pointer at once). The
+    /// curtain counts as up for the 0.3 s it fades, and parking right after `lower()` never happened: the pointer the
+    /// game's activation had brought back stayed in the picture until the pad was next used (23.11.2026).
+    nonisolated static func overGame(gameInFront: Bool, playing: Bool, curtainUp: Bool, curtainGoing: Bool) -> Bool {
+        gameInFront && playing && (curtainGoing || !curtainUp)
+    }
+
     /// Whether to move the pointer away now. `mouseAgo`: seconds since the mouse or trackpad itself
     /// was used. Once parked it stays so until the mouse is used, then the next use of the pad
     /// parks it again. `overGame` and `question` are looked up only when it would be parked.
