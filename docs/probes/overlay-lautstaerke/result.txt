@@ -1,0 +1,4 @@
+output volume (main): exists true, settable true (status 0)
+output volume (channel 1): exists false, settable false (status -1)
+mute exists: true
+process object: true, volume on it: false
