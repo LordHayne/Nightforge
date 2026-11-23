@@ -396,6 +396,10 @@ zuvor.“ Und um 18:34, als Teilschritt zu 0.4 „Wie eine Konsole“:
   auf Steams Controller-Abgleich, den dieses Steam nie macht (bis zu 20 s je Start kurz nach einem Steam-Start), und
   Zeitmarken „Start phases of …“ im Protokoll. Offen: die 6-s-Lücke mit den Zeitmarken messen (drei Starts heute
   Abend, Liste im Dokument), Vorhang nach dem ersten Bild (~2,5 s) als Wahl für den Nutzer, Befunde im Dokument.
+- [ ] **Steams Abfragen mit dem Pad (Entscheidung 1, 23.11.):** Bestand und Wege in `docs/ENTWURF-STEAM-PAD.md`
+  (Zweig `claude/steam-dialoge-pad-04`). Heute nur der Pad-Zeiger, der ohne „Bedienungshilfen“ nicht klickt; Ⓐ/Ⓑ wirken
+  bei Steams Fragen nicht. Zur Wahl: Erlaubnis in die Konsolenmodus-Anfrage, Probe „Tasten im Windows-Steam per Wine“
+  (Weg B), Leistentext ohne Erlaubnis, Startoption in Nightforge. Noch nichts gebaut.
 
 **Aus derselben Runde, technisch:**
 - [ ] **Zwei Nightforge-Kopien mit gleicher Kennung** (Release in `/Applications`, Testbuild in `~/Applications`,
