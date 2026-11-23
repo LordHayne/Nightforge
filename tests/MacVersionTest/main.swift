@@ -90,6 +90,12 @@ struct MacVersionTest {
     }
 
     static func main() {
+        // A copy of this program as a game's stand-in whose program lies in the data folder: it only waits, then ends.
+        if let flag = CommandLine.arguments.firstIndex(of: "--stand-in-sleep"), flag + 1 < CommandLine.arguments.count,
+           let seconds = Double(CommandLine.arguments[flag + 1]) {
+            Thread.sleep(forTimeInterval: seconds)
+            exit(0)
+        }
         TestDefaults.useWorkFolder()
         // MARK: Decision
         typealias Facts = VersionChoice.Facts
@@ -588,7 +594,14 @@ struct MacVersionTest {
         bareGame.executableURL = URL(fileURLWithPath: "/bin/bash")
         bareGame.currentDirectoryURL = bareFolder
         // The sandbox in its arguments only so that the ps stand-in lists it.
-        bareGame.arguments = ["-c", "exec -a 'BareGame_DX11.exe --log=\(sandbox.path)/bare.log' /bin/sleep 3"]
+        // Its program in the data folder the script is handed (the prefix's parent), as a Wine game's loader lies in
+        // Nightforge's: the script counts only Nightforge's own processes (lsof's txt).
+        // A copy of this test program (macOS won't start a copied system program from elsewhere).
+        let ownSleep = sandbox.appendingPathComponent("engine/bin/stand-in")
+        try? fm.createDirectory(at: ownSleep.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? fm.removeItem(at: ownSleep)
+        try? fm.copyItem(at: URL(fileURLWithPath: CommandLine.arguments[0]), to: ownSleep)
+        bareGame.arguments = ["-c", "exec -a 'BareGame_DX11.exe --log=\(sandbox.path)/bare.log' '\(ownSleep.path)' --stand-in-sleep 3"]
         try? bareGame.run()
         listed(bareGame, as: "BareGame_DX11.exe --log=\(sandbox.path)/bare.log")
         Thread.sleep(forTimeInterval: 0.5)

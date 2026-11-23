@@ -138,7 +138,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let start = Date()
         // A game Nightforge knows of (its own start, or a Windows program from a game folder in its session) brings it
         // back when it ends; what other processes merely name doesn't (Engine.steamShutdownScript, GAME_AT_QUIT).
-        let gameAtQuit = MacIntegration.model?.running.isEmpty == false || Engine.windowsGameRunningKnown != false
+        // Unknown (no process list) is no game here: it only decides whether Nightforge comes back after one (12:08 on
+        // 23.11.2026, a quit under three test chains).
+        let gameAtQuit = Engine.gameAtQuit(started: MacIntegration.model?.running.isEmpty == false, windowsGame: Engine.windowsGameRunningKnown)
         Engine.scheduleSteamShutdown(restart: Engine.restarting, gameAtQuit: gameAtQuit)
         let took = Date().timeIntervalSince(start)
         if took >= 2 { GameLog.note("Quit: handing Steam's shutdown to its script took \(Int(took)) s") }

@@ -1184,6 +1184,11 @@ enum Engine {
     /// for Mac too, and opens Nightforge again once the session is down.
     nonisolated(unsafe) static var restarting = false
 
+    /// $12 of the quit script: a game Nightforge started runs, or a Windows game runs in its session. Not known (no
+    /// process list, nil) is no game: it only decides whether Nightforge opens again after one, and at 12:08 on 23.11.2026
+    /// an unknown counted as one and a test's stand-in brought a quit Nightforge back.
+    nonisolated static func gameAtQuit(started: Bool, windowsGame: Bool?) -> Bool { started || windowsGame == true }
+
     /// `gameAtQuit`: Nightforge knew of a game running as it quit; only then does the script bring it back
     /// after that game (`steamShutdownScript`, $12).
     static func scheduleSteamShutdown(restart: Bool = false, gameAtQuit: Bool = false) {
@@ -1290,7 +1295,8 @@ enum Engine {
         UNKNOWN_SINCE=""
         PS_OUT=""
         read_processes() {
-          if PS_OUT="$(ps "$@" 2>/dev/null)" && [ -n "$PS_OUT" ]; then UNKNOWN_SINCE=""; return 0; fi
+          # Blank is no answer either: a list of nothing but spaces holds no process (a real one always lists this script).
+          if PS_OUT="$(ps "$@" 2>/dev/null)" && [ -n "$(printf '%s' "$PS_OUT" | tr -d '[:space:]')" ]; then UNKNOWN_SINCE=""; return 0; fi
           [ -n "$UNKNOWN_SINCE" ] || UNKNOWN_SINCE="$(date +%s)"
           return 1
         }
@@ -1313,16 +1319,32 @@ enum Engine {
         steam_running() { has_process '\steam\steam.exe'; }
         # A Windows program a launcher started by its bare name ("Control_DX11.exe -AUTH_LOGIN=…") shows
         # no folder; Wine gives it the game's as its working folder. Not Windows' or Steam's own programs.
+        # Nightforge's data folder: its engines and the Game loader lie there. A Windows game counts only as one of its
+        # own processes – the program it runs lies in there (lsof's txt), as Engine.ownProcesses has it. Before, any
+        # process on the Mac that named \steamapps\common\ counted: a test's stand-in kept this script waiting and
+        # then opened Nightforge (23.11.2026, 12:08).
+        # Resolved as lsof prints paths (/private/var for /var); the data folder as given where it can't be.
+        SUPPORT="$(cd "$(dirname "$PREFIX")" 2>/dev/null && pwd -P || dirname "$PREFIX")"
+        own_pids() {  # of the pids given, those whose program lies in the data folder
+          local pid
+          for pid in "$@"; do lsof -a -p "$pid" -d txt -Fn 2>/dev/null | grep -qF "n$SUPPORT/" && echo "$pid"; done
+        }
+        has_own_process() {  # a process of Nightforge's own whose command line names $1
+          read_processes -axo pid=,command= || return 0
+          local pids
+          pids="$(printf '%s\n' "$PS_OUT" | grep -iF -- "$1" | awk '{ print $1 }')"
+          [ -n "$pids" ] && [ -n "$(own_pids $pids)" ]
+        }
         runs_from_game_folder() {
           local list pids
           list="$(ps -axo pid=,command=)"
-          pids="$(printf '%s\n' "$list" | grep -iF .exe | grep -viF -e 'c:\windows\' -e '\steam\' -e steamwebhelper | awk '{ print $1 }' | paste -sd, -)"
+          pids="$(own_pids $(printf '%s\n' "$list" | grep -iF .exe | grep -viF -e 'c:\windows\' -e '\steam\' -e steamwebhelper | awk '{ print $1 }') | paste -sd, -)"
           [ -n "$pids" ] && lsof -a -d cwd -Fn -p "$pids" 2>/dev/null | grep -qiE '/steamapps/common/|/epic games/|/gog games/'
         }
         game_running() {
-          has_process '\steamapps\common\' && return 0                                  # a Windows game
-          has_process '\Epic Games\' && return 0                                         # an Epic game (same Wine session)
-          has_process '\GOG Games\' && return 0                                          # a GOG game (same Wine session)
+          has_own_process '\steamapps\common\' && return 0                              # a Windows game of Nightforge's
+          has_own_process '\Epic Games\' && return 0                                     # an Epic game (same Wine session)
+          has_own_process '\GOG Games\' && return 0                                      # a GOG game (same Wine session)
           [ -n "$MAC_STEAMAPPS" ] && has_process "/steamapps/common/" && return 0         # a Mac game, in any library (Windows paths have backslashes)
           runs_from_game_folder && return 0                                               # one a launcher started
           return 1
