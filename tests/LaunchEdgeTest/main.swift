@@ -16,6 +16,33 @@ struct LaunchEdgeTest {
 
     static let work = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("launch-edge-\(UUID().uuidString)", isDirectory: true)
 
+    /// The steps before a game's own start (LibraryModel.startSteps), Epic's saves, and in which order launch takes them.
+    static func startStepsRule() {
+        typealias S = LibraryModel.StartSteps
+        func steps(_ provider: Provider, builtIn: Bool = true, update: Bool = false) -> S {
+            LibraryModel.startSteps(provider: provider, builtIn: builtIn, pendingUpdate: update)
+        }
+        check(steps(.steam, update: true) == S(windowsSteam: true), "a Steam game in Nightforge's bottle: the Windows Steam's steps only")
+        check(steps(.steam, builtIn: false) == S() && steps(.battlenet, builtIn: false) == S(), "a bottle of the player's own: none of Steam's")
+        check(steps(.epic, update: true) == S(waitsForSteamRestart: true, epicUpdate: true, epic: true), "Epic: a Steam restart under way, the update, the saves")
+        check(steps(.epic) == S(waitsForSteamRestart: true, epic: true), "Epic without an update waiting: no update")
+        check(steps(.gog, update: true) == S(waitsForSteamRestart: true, gog: true), "GOG: its own steps (beforeGOGStart)")
+        check(steps(.battlenet) == S(waitsForSteamRestart: true), "Battle.net: only the wait for a Steam restart")
+        check(Provider.allCases.allSatisfy { steps($0).windowsSteam != steps($0).waitsForSteamRestart }, "in Nightforge's bottle: one or the other")
+        var kept = EpicGame(appName: "Heron", title: "Alan Wake")
+        kept.cloudSaves = true
+        let plain = EpicGame(appName: "Quail", title: "ABZÛ")
+        check(LibraryModel.keepsSavesWithEpic("Heron", in: [plain, kept]) && !LibraryModel.keepsSavesWithEpic("Quail", in: [plain, kept])
+              && !LibraryModel.keepsSavesWithEpic("Heron", in: []), "Epic's saves only where Epic keeps them")
+        let model = (try? String(contentsOfFile: "Sources/Nightforge/LibraryModel.swift", encoding: .utf8)) ?? ""
+        let order = ["if steps.windowsSteam {\n                await steamSwitch.makeWayForWindows", "await waitForSteamCloud(Engine.steamRoot)",
+                     "await takeSavesAlong(game, to: .windows)", "if steps.waitsForSteamRestart, let restart = steamStartup",
+                     "if steps.epicUpdate {", "if steps.epic, Self.keepsSavesWithEpic(game.gameID.id", "if steps.gog { guard await beforeGOGStart"]
+        let places = order.map { model.range(of: $0)?.lowerBound }
+        check(places.allSatisfy { $0 != nil } && zip(places, places.dropFirst()).allSatisfy { $0! < $1! },
+              "launch takes the steps in this order: Steam's cloud before the saves along, Epic's update before its saves")
+    }
+
     static func main() {
         TestDefaults.useWorkFolder()
         try? FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
@@ -23,6 +50,7 @@ struct LaunchEdgeTest {
         launchOptions()
         watcher()
         startCheck()
+        startStepsRule()
         startPhases()
         print(failures == 0 ? "✓ The start against odd input" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)

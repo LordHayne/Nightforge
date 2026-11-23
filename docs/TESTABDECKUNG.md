@@ -4,6 +4,52 @@ Stand 31.10.2026. Gemessen auf `claude/ux-roadmap-next` 159acfa (GOG gemergt), d
 aufsetzt. Zum Vergleich steht auch 001a3e0 da, der Stand vor dem GOG-Merge. Die Prozentzahlen sind Zeilenabdeckung
 laut `llvm-cov`.
 
+## Stand 23.11.2026 (0.4, auf `claude/staging-035`, Zweig `claude/abdeckung-04`)
+
+`scripts/coverage.sh -P 2 --files` vorher (6bf188f, staging nach den Merges vom Morgen) und nachher (dieser Zweig auf
+6004b62), alle 126 Reihen grün, am Exit-Code abgelesen. Auftrag: die Wege, die heute geändert wurden – Steam-Start und
+-Ende, der Spielstart-Weg, das Beenden-Skript.
+
+| | vorher (6bf188f) | nachher |
+|---|---|---|
+| Zeilen | 39,47 % | 39,51 % |
+| Funktionen | 53,52 % | 53,56 % |
+| Regionen | 50,66 % | 50,73 % |
+
+Seit dem 10.11. (37,34 %) sind es zwei Punkte mehr, vor allem durch die Reihen der Startlogik und von 0.3.5.
+
+Je Datei, alles was sich bewegt hat (Zeilen gesamt, Abdeckung vorher → nachher):
+
+| Datei | Zeilen | vorher | nachher | Δ | woher |
+|---|---|---|---|---|---|
+| `Engine.swift` | 2831 → 2845 | 66,58 % | 67,38 % | +0,80 | dieser Zweig |
+| `LibraryModel.swift` | 8068 → 8085 | 19,82 % | 20,10 % | +0,28 | dieser Zweig |
+| `GOGStore.swift` | 896 | 60,94 % | 62,95 % | +2,01 | Basis (Testreihen mit eigenen Einstellungen) |
+| `VDF.swift` | 178 | 99,44 % | 100,00 % | +0,56 | Basis |
+| `GameInfoStore.swift` | 266 | 57,14 % | 56,39 % | −0,75 | Basis |
+| `MacUnityScreen.swift` | 71 → 72 | 94,37 % | 93,06 % | −1,31 | Basis (Quelle geändert) |
+| `DriveTakeover.swift` | 397 | 24,18 % | 20,15 % | −4,03 | Basis |
+| `DriveMoves.swift` | 421 | 27,79 % | 22,33 % | −5,46 | Basis |
+
+Die Rückgänge kommen aus 6a50690f („Tests leave nothing in the Mac's preferences“): DriveTakeoverTest und andere lesen
+ihre Einstellungen jetzt aus einem eigenen, leeren Ordner. Vorher fanden sie Reste früherer Läufe in
+~/Library/Preferences und liefen dadurch Wege, die sie nicht selbst vorbereitet hatten. Die neue Zahl zeigt, was diese Reihen selbst durchlaufen; die Lücke ist jetzt sichtbar (DriveTakeover, DriveMoves: Übernahme und Umzug mit gemerkten Laufwerken).
+
+**Was dazukam.** Die geänderten Wege sind fast nur Ablauf mit dem System (Wine starten, `wineserver -k`, das Skript
+im Hintergrund, der Vorhang) und lassen sich nicht ausführen, ohne echte Programme zu öffnen. Daraus gezogen, ohne
+das Verhalten zu ändern, und vollständig von Tests durchlaufen:
+- `Engine.shutdownArguments` – was das Beenden-Skript bekommt; QuitScriptTest liest $1–$12 aus dem Skript selbst und
+  prüft jede Stelle, dazu `GAME_AT_QUIT` in vier Fällen (bekannt, unbekannt, ohne $12, Spiel schon weg).
+- `Engine.hardStopSteam` – `wineserver -k` nur ohne Spiel in der Sitzung, nie, wenn es nicht zu sagen ist (SteamStopTest).
+- `Engine.waitForSteamToEnd(leftovers:log:)` – vier Blicke je Sekunde, die Zeile im Protokoll, keine Wartezeit ohne Reste
+  oder ohne Prozessliste (SteamStopTest).
+- `Engine.steamLaunch` – steam.exe, seine Argumente, die Umgebung der Sitzung mit Steams eigener darüber, der Loader
+  nur, wenn er nicht wine selbst ist, die des Aufrufers über allem (EngineLayoutTest).
+- `Engine.steamEngineStep` – wohin Steam bei einer für ein Spiel gehaltenen Engine geht (EngineLayoutTest).
+- `LibraryModel.startSteps`, `keepsSavesWithEpic` – welche Schritte vor dem eigentlichen Start zu welchem Spiel gehören,
+  und die Reihenfolge, in der `launch` sie nimmt (LaunchEdgeTest).
+Die Fälle von `GAME_AT_QUIT` prüfen das Bash-Skript; llvm-cov zählt davon nichts.
+
 ## Stand 10.11.2026, Nachtmessung (0.3.3, auf `claude/staging-033` 0df3c58)
 
 Nur gemessen, keine neuen Reihen: `scripts/coverage.sh -P 2` nach dem Spieletest der Nacht, alle 114 Reihen grün.

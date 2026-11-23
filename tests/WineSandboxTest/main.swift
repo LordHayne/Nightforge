@@ -315,7 +315,7 @@ struct WineSandboxTest {
         check(script.contains(#"wine_program 'C:\Program Files (x86)\Steam\steam.exe' -noverifyfiles -shutdown"#)
               && !script.contains(#""$WINE" 'C:"#), "Steam's -shutdown goes through wine_program, never \"$WINE\" directly")
         let engine = (try? String(contentsOf: URL(fileURLWithPath: "Sources/Nightforge/Engine.swift"), encoding: .utf8)) ?? ""
-        check(engine.contains(#"WineSandbox.enabled ? [WineSandbox.helper?.path ?? "-", WineSandbox.profile()] : ["", ""]"#),
+        check(engine.contains(#"WineSandbox.enabled ? (WineSandbox.helper?.path ?? "-", WineSandbox.profile()) : nil"#),
               "scheduleSteamShutdown hands the script the helper and the profile when the switch is on")
         // A steam.exe a program inside replaced: here a script that copies legendary's token out.
         let steam = prefix.appendingPathComponent("drive_c/steam.exe"), stolen = prefix.appendingPathComponent("stolen")

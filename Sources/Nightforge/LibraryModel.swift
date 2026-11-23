@@ -5036,20 +5036,21 @@ final class LibraryModel: ObservableObject {
             raiseCurtain(for: game)
             await leftStartEnded()
             if Task.isCancelled { return }
-            if viaSteam, game.bottle.isBuiltIn {
+            let steps = Self.startSteps(provider: game.provider, builtIn: game.bottle.isBuiltIn, pendingUpdate: game.pendingUpdate != nil)
+            if steps.windowsSteam {
                 await steamSwitch.makeWayForWindows(facts: steamFacts, phase: { self.launchPhase = $0 },
                                                     restartWindows: { await self.restartWindowsSteam() })
                 launchPhase = nil
             }
-            if viaSteam, game.bottle.isBuiltIn { wakeSteam(forStart: true, game: (game.gameID.key, game.name)) }
-            if viaSteam, game.bottle.isBuiltIn, let startup = steamStartup {
+            if steps.windowsSteam { wakeSteam(forStart: true, game: (game.gameID.key, game.name)) }
+            if steps.windowsSteam, let startup = steamStartup {
                 if !Engine.isSteamRunning { launchPhase = .startingSteam }
                 await startup.value
                 launchPhase = nil
             }
             // Steam for Mac signed in since and signed this Steam out: sign it in again, or the
             // game starts without its cloud saves.
-            if viaSteam, game.bottle.isBuiltIn, Engine.sessionReplaced(), let wine = await Engine.installedWine() {
+            if steps.windowsSteam, Engine.sessionReplaced(), let wine = await Engine.installedWine() {
                 launchPhase = .signingInAgain
                 _ = await restartStuckSteam(wine)
                 launchPhase = nil
@@ -5058,7 +5059,7 @@ final class LibraryModel: ObservableObject {
             // Offline Mode"): wait for it while it comes along (steamSignInStep). One that is stuck is
             // restarted once, together with a restart the game's settings need anyway (restartsSteamForStart).
             var steamStuck = false
-            if viaSteam, game.bottle.isBuiltIn, Engine.isSteamSignedIn, !Engine.steamSignedIn {
+            if steps.windowsSteam, Engine.isSteamSignedIn, !Engine.steamSignedIn {
                 launchPhase = .signingIn
                 let began = Date()
                 waiting: while true {
@@ -5080,20 +5081,20 @@ final class LibraryModel: ObservableObject {
                 }
                 launchPhase = nil
             }
-            if viaSteam, game.bottle.isBuiltIn { await waitForSteamCloud(Engine.steamRoot) }
+            if steps.windowsSteam { await waitForSteamCloud(Engine.steamRoot) }
             if Task.isCancelled { return }  // no saves taken along, and no question about them, for a start that's over
-            if viaSteam, game.bottle.isBuiltIn { await takeSavesAlong(game, to: .windows) }
+            if steps.windowsSteam { await takeSavesAlong(game, to: .windows) }
             // A Steam restart still under way ends its Wine session at its end, with whatever started in it.
-            if !viaSteam, game.bottle.isBuiltIn, let restart = steamStartup {
+            if steps.waitsForSteamRestart, let restart = steamStartup {
                 await restart.value
                 if Task.isCancelled { return }
             }
             // Epic: a waiting update comes first, like Steam's "Update & Play".
-            if game.provider == .epic, game.pendingUpdate != nil {
+            if steps.epicUpdate {
                 guard await updateEpic(game) else { return }
             }
             // Epic: the newest save comes down from Epic before the game reads it.
-            if game.provider == .epic, epic.catalog.games.contains(where: { $0.appName == game.gameID.id && $0.cloudSaves }) {
+            if steps.epic, Self.keepsSavesWithEpic(game.gameID.id, in: epic.catalog.games) {
                 launchPhase = .syncingSaves
                 notePhase(game, "Epic's saves: sync begins")
                 await epic.syncSaves(game, upload: false)
@@ -5102,7 +5103,7 @@ final class LibraryModel: ObservableObject {
                 if Task.isCancelled { return }  // it ran to its end, nothing is left half done, and the game doesn't start
             }
             // GOG: the same, an update first and then the newest save.
-            if game.provider == .gog { guard await beforeGOGStart(game) else { return } }
+            if steps.gog { guard await beforeGOGStart(game) else { return } }
             var runner = game.bottle.isBuiltIn ? await Engine.installedWine()?.path : Prefs.runnerPath
             let newest = runner
             // Known fixes for this game (profiles/profiles.json) and what its files reveal.
@@ -6116,6 +6117,29 @@ final class LibraryModel: ObservableObject {
         guard GameTest.notesStartPhases(defaults: defaults) else { return nil }
         return "Start phases of \(name): \(phase) at \(GameLog.clock(now, tenths: true))"
             + (now == start ? "" : ", " + String(format: "%.1f", max(0, now.timeIntervalSince(start))) + " s after Play")
+    }
+
+    /// The steps before a game's own start that belong to it by what it is (`launch`, in this order): a Steam game in
+    /// Nightforge's own bottle has the Windows Steam made ready, woken, signed in (again), its cloud waited for and the saves
+    /// taken along; any other game there waits for a Steam restart under way, which ends the Wine session it would start
+    /// in; an Epic game has its waiting update, then its saves when Epic keeps them (`keepsSavesWithEpic`); a GOG game
+    /// its update and saves (`beforeGOGStart`). A game in a bottle of the player's own has none of Steam's.
+    struct StartSteps: Equatable {
+        var windowsSteam = false
+        var waitsForSteamRestart = false
+        var epicUpdate = false
+        var epic = false
+        var gog = false
+    }
+
+    nonisolated static func startSteps(provider: Provider, builtIn: Bool, pendingUpdate: Bool) -> StartSteps {
+        StartSteps(windowsSteam: provider == .steam && builtIn, waitsForSteamRestart: provider != .steam && builtIn,
+                   epicUpdate: provider == .epic && pendingUpdate, epic: provider == .epic, gog: provider == .gog)
+    }
+
+    /// Whether Epic keeps the game's saves (its catalog entry's cloud saves): then they come down before it starts.
+    nonisolated static func keepsSavesWithEpic(_ appName: String, in games: [EpicGame]) -> Bool {
+        games.contains { $0.appName == appName && $0.cloudSaves }
     }
 
     /// `phaseLine` for this game's start, from its Play – none for a start of another game's, none without the switch.

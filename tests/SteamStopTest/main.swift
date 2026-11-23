@@ -169,9 +169,39 @@ struct SteamStopTest {
         check(engine.contains(#"GameLog.note("Wine session ends: \(reason)")"#), "and stopAll writes it down first")
     }
 
+    /// Steam that didn't end after "-shutdown" (Engine.hardStopSteam): the session ends only with no game in it.
+    static func hardStopRule() {
+        let wine = URL(fileURLWithPath: "/nowhere/bin/wine")
+        for (running, ends, case_) in [(false, true, "no game"), (true, false, "a game in the session"),
+                                       (nil, false, "no process list")] as [(Bool?, Bool, String)] {
+            var stops: [String] = [], notes: [String] = []
+            Engine.hardStopSteam(wine, gameRunning: running, stop: { stops.append($0.path + " " + $1) }, log: { notes.append($0) })
+            check(ends ? stops == ["/nowhere/bin/wine Steam didn't end after -shutdown"] && notes.isEmpty
+                       : stops.isEmpty && notes == ["Steam didn't end, and a game runs in its session: it's left as it is"],
+                  "hard stop, \(case_): \(stops) \(notes)")
+        }
+    }
+
+    /// Before a Steam starts again (Engine.waitForSteamToEnd): four looks a second until the last one's rest is gone.
+    static func waitToEndRule() async {
+        var looks = 0, notes: [String] = []
+        let began = Date()
+        await Engine.waitForSteamToEnd(leftovers: { looks += 1; return looks <= 2 ? ["steamservice.exe"] : [] }, log: { notes.append($0) })
+        let took = Date().timeIntervalSince(began)
+        check(looks == 3 && took >= 0.45 && took < 2, "two quarter-second pauses for Steam's service: \(looks) looks, \(took) s")
+        check(notes == ["Steam's last processes ended 0.5 s after steam.exe, last steamservice.exe"], "the log says how long: \(notes)")
+        looks = 0; notes = []
+        await Engine.waitForSteamToEnd(leftovers: { looks += 1; return [] }, log: { notes.append($0) })
+        check(looks == 1 && notes.isEmpty, "nothing left: no wait, no line")
+        await Engine.waitForSteamToEnd(leftovers: { nil }, log: { notes.append($0) })
+        check(notes.isEmpty, "no process list: no wait")
+    }
+
     static func main() async {
         await leftovers()
         sessionEndReasons()
+        hardStopRule()
+        await waitToEndRule()
         // Not running: nothing is done – above all no "-shutdown", which would start a Steam.
         let off = FakeSteam(lifetime: 0)
         await stop(off)
