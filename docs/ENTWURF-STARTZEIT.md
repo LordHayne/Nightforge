@@ -47,7 +47,9 @@ Cloud-Abgleich, den es hier nie gibt** (16:36, 16:47).
    Schlaf, Nightforge gerade geöffnet, Neustart für ein Spiel). Test: `SteamSwitchTest.cloudStart`.
 2. **Zeitmarken je Start im Protokoll**, für die Messung heute Abend: `Start phases of <Spiel>: <Schritt> at
    HH:MM:SS.t, n.n s after Play` für Play, „to Steam“, „-applaunch client started“, „Steam started its process“
-   (bzw. „starts directly“ / „its process runs“ bei Epic und GOG) und „curtain down“. Nur mit dem versteckten
+   (bzw. „starts directly“ / „its process runs“ bei Epic und GOG) und „curtain down“; seit 23.11. auch Epics und GOGs
+   eigene Schritte: „Epic's saves: sync begins“/„Epic's saves synced“, „GOG's saves: sync begins“/„GOG's saves
+   synced“, „asks Epic for the launch details“/„Epic's launch details came“. Nur mit dem versteckten
    Testschalter `gameTest.startPhases`, ohne Eintrag in der Oberfläche; im Release-Bau gibt es ihn nicht (kein Tracking).
    Damit lässt sich die 6-s-Lücke vor der Übergabe zuordnen, die aus dem Code allein nicht folgt: `GameResolution.fit`
    schrieb um 19:34 nichts (kein regedit), `/usr/bin/open` für den Helfer braucht hier ~30 ms, und der
@@ -69,7 +71,25 @@ Nach möglichem Gewinn geordnet.
   ~1 s bei jedem Start; Risiko: kurzes Aufblitzen bei einem Spiel, das danach noch umschaltet.
 - **Epic/GOG: Schritte nebeneinander.** Epic holt Spielstände (`syncSaves`, legendary) und danach die Startangaben
   (`launchCommand`, legendary); GOG gleicht jede Spielstand-Stelle nacheinander ab. Nebeneinander spart das die Dauer
-  des kürzeren Schritts, aber zwei legendary- bzw. gogdl-Aufrufe zugleich sind nicht geprüft.
+  des kürzeren Schritts. **Geprüft am 23.11. (0.4, Zweig `claude/startphasen-stores-04`), nicht gebaut:**
+  - *Gemessen:* Epics Abfrage der Spielstände (`legendary list-saves`, Anmeldung + Liste, wie `sync-saves` ohne neuen
+    Stand) dauert hier 1,3–1,8 s, nebeneinander mit einem zweiten legendary-Aufruf genauso. Die Startangaben ließen
+    sich nicht messen: alle zehn Epic-Spiele liegen auf dem Laufwerk „Games“, das nicht angeschlossen war, und
+    legendary bricht dann vor der Anmeldung ab (0,2 s). Erwartet ist eine ähnliche Dauer (Anmeldung + ein bis zwei
+    Abfragen). 7 der 9 Epic-Spiele, die die Bibliothek hier kennt, haben Cloud-Spielstände; bei GOG kostet jeder gogdl-Aufruf ~3 s (kein
+    PackedApp), die meisten Spiele haben eine Spielstand-Stelle (dann kein Gewinn).
+  - *Sicherheit nach Quelltext (legendary 0.21.1):* Die Anmeldung läuft unter einer Dateisperre auf `user.json`
+    (`userdata_lock`), zwei Aufrufe erneuern das Token also nie gleichzeitig. `launch` schreibt nichts. `sync-saves`
+    schreibt `installed.json` nur beim ersten Abgleich eines Spiels (Spielstand-Pfad noch leer, `--accept-path`), und
+    zwar ohne atomares Ersetzen: ein `launch` zur selben Zeit könnte eine halbe Datei lesen und „nicht installiert“
+    melden. Nebeneinander also nur, wenn der Spielstand-Pfad des Spiels in `installed.json` schon steht. Für gogdl
+    nicht geprüft (eigene Token-Erneuerung ohne bekannte Sperre): dort nur nacheinander.
+  - *Anderer Weg ohne zweiten Aufruf:* die Kette der Laden-Schritte (Spielstände, dann Startangaben) gleich nach dem
+    Update-Schritt anwerfen und erst vor `startDirect` abwarten, neben Nightforges eigener Vorbereitung (Profil,
+    Analyse, Engine, Laufzeiten, ein Steam-Neustart, der gerade läuft). Gewinn = die kürzere der beiden Strecken; die
+    Vorbereitung eines Direktstarts ist ungemessen.
+  - *Zum Belegen:* Zeitmarken je Laden-Schritt (unten, Punkt 4 der Messliste). Gebaut wird erst, wenn ein Epic-Start
+    zeigt, dass die Schritte zusammen mehr als etwa eine Sekunde ausmachen, die sich verstecken lässt.
 - **Unabhängige Vorbereitung neben der Anmelde-Wartezeit.** Profil, Analyse des Spiels, Engine-Prüfung, Laufzeiten
   und `FramePacing.learn` laufen erst nach dem Warten auf Steams Anmeldung. Nebeneinander spart das bei einem
   Kaltstart ihre Dauer (meist klein, die Analyse ist zwischengespeichert). Die Engine-Prüfung kann aber Steam
@@ -77,7 +97,14 @@ Nach möglichem Gewinn geordnet.
 - **10 s, bis ein nicht laufendes Steam beim Anmelden als hängend gilt.** Gestern 00:11 einmal. Die 10 s schützen vor
   einem Neustart mitten in Steams eigenem Update-Neustart; kürzer nur mit Blick auf Steams Bootstrapper.
 - **Prozessliste (`ps`) ohne Zwischenspeicher.** Vorhang (0,5 s), Bühne (1 s), laufende Spiele und Startschleifen
-  fragen je eigens; meist zehn bis einige Dutzend Millisekunden je Aufruf, zusammen spürbar auf einem vollen Mac.
+  fragen je eigens. **Geprüft am 23.11., nicht gebaut, kein Gewinn zu zeigen:** Ein `ps -axo pid=,ppid=,command=` kostet
+  hier 23 ms (7,7 ms Nutzer-, 15,3 ms Systemzeit, 762 Prozesse). Alle Blicke laufen abseits des Hauptfadens
+  (`Task.detached`, `.utility`), die UI stockt also nicht. Die Bühne schaut über `CGWindowList`, nicht `ps`. Beim
+  Start kommen rund drei `ps` je Sekunde zusammen (Vorhang 0,5 s, erste Sekunden 1 s, laufende Spiele 3 s), ein
+  Zwischenspeicher von 0,5 s spart davon etwa einen: ~25 ms Rechenzeit je Sekunde auf einem von 15 Kernen, neben Wine
+  und dem ladenden Spiel nicht messbar. Im Spiel fragt fast nur der Blick auf laufende Spiele (10 s mit Nightforge
+  dahinter), unbeschäftigt zählte eine Minute lang 2 Kindprozesse von Nightforge. Dagegen stünde ein Risiko: Eine
+  bis 0,5 s alte Liste gälte als „frisch“, und nur eine frische Liste darf „das Spiel ist weg“ sagen.
 - **1-s-Pausen vor dem ersten Blick** nach `-applaunch` und beim direkten Start (Epic/GOG): halten das erste Bild nicht
   auf (der Vorhang schaut selbst alle 0,5 s), nur Nightforges Wissen um den laufenden Prozess.
 
@@ -93,3 +120,7 @@ Vorher `defaults write io.github.lordhayne.nightforge gameTest.startPhases -bool
 1. Warm: Steam läuft seit Minuten mit den Einstellungen des Spiels (zweiter Start desselben Spiels).
 2. Kalt: nach Steams Schlaf (30 min nichts) oder gleich nach dem Öffnen von Nightforge – zeigt den Cloud-Fund.
 3. Ein Spiel mit anderen Einstellungen direkt danach (Neustart für das Spiel).
+4. Mit angeschlossenem Laufwerk „Games“: ein Epic-Spiel mit Cloud-Spielständen (7 der 9 hier), zweimal. Aus den
+   Zeilen: Dauer des Abgleichs (sync begins → synced), der Startangaben (asks → came) und was dazwischen liegt
+   (Nightforges Vorbereitung). Nebeneinander spart die kürzere von Abgleich und Startangaben, der andere Weg die kürzere
+   von Laden-Kette und Vorbereitung. Ein GOG-Spiel, wenn eins mit Cloud-Spielständen da ist.
