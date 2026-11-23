@@ -451,6 +451,17 @@ zuvor.“ Und um 18:34, als Teilschritt zu 0.4 „Wie eine Konsole“:
   - Umbau für später: `hide-steam-dock.dylib` bindet AppKit, und das lädt Metal und QuartzCore in jeden Wine-Prozess
     mit (Wine selbst lädt AppKit über winemac.drv ohnehin). Ganz verhindern ließe es sich nur mit einer Bibliothek
     ohne AppKit.
+    **Befund 23.11., kein Umbau (Test auf `claude/wine-bibliothek-test-04`):** Der Versuch bdbd92a hängte sich an
+    `dlopen`. Ein umgeleitetes `dlopen` ruft aus der Bibliothek heraus, und dyld löst `@rpath`, `@loader_path` und
+    Suchpfade vom Aufrufer aus auf. Wines Unix-Teile fanden dadurch FreeType und D3DMetal nicht mehr, Steam startete
+    am 23.11. um 07:25 gar nicht. Ein Weg ohne Umleitung (Beobachter auf AppKits Start über CoreFoundation)
+    funktioniert, Schriften und Dock wie vorher, bringt aber nichts: Wines `ntdll.so` bindet CoreFoundation, `win32u.so`
+    bindet AppKit. Ohne Bibliothek haben `plugplay` und ein `winedevice` AppKit schon, alle Windows-Prozesse
+    CoreFoundation. Ein Sitzungsstart im Test-Prefix (6 Runden, ruhig): 0,80–0,83 s ohne Bibliothek, 0,82–0,84 s
+    mit AppKit, 0,80–0,84 s über CoreFoundation. Die früheren 0,57 gegen 0,81–1,20 s waren Rauschen. Die Bibliothek
+    bleibt an AppKit gebunden. Neu: `tests/WineLibraryTest` startet ein Windows-Programm ohne Fenster mit der
+    Bibliothek wie aus `build.sh` in echtem winecx und prüft, dass Wine seine Schriften findet. Außerdem darf nichts
+    `dlopen`/`dlsym` umleiten. Gegen bdbd92a schlägt der Test an.
   - Erledigt auf `claude/audit-fixes-035` (d673835): M1 (Netzwerk-Reihenfolge nur in winedevice.exe, Metal/QuartzCore
     nicht mehr gebunden), S1 (Wiedereintritts-Sperre in der 60-FPS-Umlenkung), E1 (Fokus-Takt nicht im Spiel), L3.
 - [ ] **Nightforge öffnete sich während einer Testkette wieder (23.11., 06:56, Zweig `claude/tests-ohne-app-035`):**
