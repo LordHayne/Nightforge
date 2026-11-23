@@ -647,6 +647,24 @@ oder ein Bildschirmfoto.
   (16:52, 187f905 nach vollem Neustart), 5,65 s (19:01, 871c0c8 mit Sitzungsprüfung per Inhalt). Die Runde 16:47–16:51
   mit 26–40 s lief mit dem Release 0.3.4 aus `/Applications` (über Launchpad/Spotlight geöffnet), nicht mit dem
   Testbuild – kein Rückfall von F4.
+  **23.11. 11:34, Testbau 6004b62: „CalcUnIPThisBox - GetAdaptersAddresses returned 2“, kein F4-Rückfall (Worker A,
+  Zweig `claude/netz-robust-035`, nur dieser Befund):** Steam startete in einer frischen Wine-Sitzung (11:34:56, der Mac
+  ~2,5 h unbenutzt, Steam davor im Schlaf) und schrieb keine Zeile in console_log. Fehler 2 heißt in Wines nsi.dll
+  `ERROR_FILE_NOT_FOUND` beim Öffnen von `\\.\Nsi` (`get_nsi_device`, `return GetLastError()`): Das Gerät gab es nicht.
+  In dieser Sitzung lud winedevice.exe nach `mountmgr.sys` (samt cfgmgr32/setupapi) nichts mehr, `nsiproxy.sys` kam
+  nie; plugplay.exe lud dasselbe wie in jeder Sitzung. Sonst folgt `nsiproxy.sys` gleich auf mountmgr (Sitzungen 11:36:13
+  und danach). Unter 43 Sitzungen mit Steam in wine.log und wine.previous.log ist es die einzige ohne nsiproxy, und die
+  Zeile steht zum ersten Mal da. network-order.c kann daran nichts haben: Es greift nur, wenn nsiproxy `if_nameindex()`
+  fragt – nsiproxy war nicht geladen –, und reicht ohne Adressen, ohne Liste oder ohne Speicher die echte Liste durch;
+  Wines Schnittstellen-Tabelle selbst liefert nur Erfolg oder „Puffer zu klein“ (von `NsiAllocateAndGetTable`
+  wiederholt), nie 2. Wodurch winedevice nach mountmgr hing, sagt das Protokoll nicht (Vermutung ohne Beleg: mountmgr
+  nach dem langen Leerlauf, etwa am Netzlaufwerk unter /Volumes). Nightforge fing es selbst: Steam galt als hängend,
+  „Wine session ends: Steam didn't end after -shutdown“, neuer Start 11:36:13 in 7,21 s – 77 s verloren. Kein Umbau an
+  network-order.c (eine neue Bibliothek beendete bei jedem Spieler einmal die Sitzung, für nichts). Möglich für später:
+  die Zeile „GetAdaptersAddresses returned 2“ (oder winedevice ohne nsiproxy) als Zeichen einer kaputt gestarteten
+  Sitzung nehmen und sie gleich neu beginnen statt nach ~70 s. Die zwei „Curtain: nobody would take it away“ um
+  11:35:47 und 11:36:06 räumten herrenlose Vorhänge während der Vorschau (`takeAwayOrphanCurtain`) und hängen nicht mit
+  Steam zusammen.
 - [ ] **Bau mit gesetztem `SDKROOT` rot (22.11.):** In Heinzels Sessions ist `SDKROOT` auf das Standard-SDK
   (`MacOSX.sdk`, 27.2) gesetzt. `build.sh` (Zeile 9) fällt nur bei leerem `SDKROOT` auf `MacOSX26.5.sdk` zurück, mit
   27.2 fehlen die SwiftUI-Makros („cannot find '$barShown' in scope“). Heinzel baute deshalb mit
