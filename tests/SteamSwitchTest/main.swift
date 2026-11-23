@@ -282,6 +282,16 @@ struct SteamSwitchTest {
         check(!SteamCloudStart.shouldWait(log: "[2026-11-08 14:55:37] [AppID 7] Starting sync (init,)", now: at("14:55:39")), "the start not in the log's tail: long ago, no wait")
         // Steam that's been up for a long time doesn't wait for anything.
         check(!wait(["[2026-11-08 09:00:00] Client version: 1792618285", "[2026-11-08 09:00:05] [AppID 241100] Starting sync (eval,)"], "14:00:00"), "up for hours: no wait")
+        // A Steam that never looks at the controller configs after its starts won't now either (MacBook Pro M5 Pro,
+        // 22./23.11.2026: neither Steam did in 50 starts; the wait held a game until Steam was 20 s old).
+        let quiet = (1...SteamCloudStart.quietStarts).flatMap { hour in
+            ["[2026-11-08 0\(hour):00:00] Client version: 1792618285", "[2026-11-08 0\(hour):00:01] [AppID 7] Starting sync (init,)"]
+        }
+        check(!wait(quiet + begun, "14:55:39"), "never after its last three starts: the game goes at once")
+        check(wait(Array(quiet.dropFirst(2)) + begun, "14:55:39"), "with less of its past in the log: it waits as before")
+        let once = quiet + ["[2026-11-08 03:00:02] [AppID 241100] Starting sync (eval,)", "[2026-11-08 03:00:02] [AppID 241100] Eval complete"]
+        check(wait(once + begun, "14:55:39"), "a Steam that did it after an earlier start: it waits as before")
+        check(!wait(quiet + begun, "14:56:10"), "and never past its time")
     }
 
     @MainActor

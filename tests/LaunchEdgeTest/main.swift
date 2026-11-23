@@ -23,6 +23,7 @@ struct LaunchEdgeTest {
         launchOptions()
         watcher()
         startCheck()
+        startPhases()
         print(failures == 0 ? "✓ The start against odd input" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
     }
@@ -217,5 +218,23 @@ struct LaunchEdgeTest {
         check(SteamStartCheck.judge(.init(askingForAccount: true, running: false, quietFor: 10_000, sinceStart: 500)) == .cameUp, "its window asking counts as up")
         // An update takes as long as it takes.
         check(SteamStartCheck.judge(.init(bootstrap: .downloading, running: false, quietFor: 10_000, sinceStart: 5000)) == .undecided, "while it updates itself: never judged")
+    }
+
+    /// The start's phases in the log (docs/ENTWURF-STARTZEIT.md): one line each, the time of day to a tenth and
+    /// the seconds since Play, for a look at where a start's time goes.
+    static func startPhases() {
+        var parts = DateComponents()
+        (parts.year, parts.month, parts.day, parts.hour, parts.minute, parts.second, parts.nanosecond) = (2026, 11, 22, 19, 34, 26, 400_000_000)
+        let play = Calendar.current.date(from: parts)!
+        check(GameLog.clock(play) == "19:34:26" && GameLog.clock(play, tenths: true) == "19:34:26.4", "the time of day, to a tenth when asked")
+        check(LibraryModel.phaseLine("Hades", "Play", at: play, since: nil) == "Start phases of Hades: Play at 19:34:26.4", "Play itself: no seconds since")
+        check(LibraryModel.phaseLine("Hades", "to Steam", at: play.addingTimeInterval(1.04), since: play)
+              == "Start phases of Hades: to Steam at 19:34:27.4, 1.0 s after Play", "a phase: the time, and the seconds since Play")
+        check(LibraryModel.phaseLine("Hades", "curtain down", at: play.addingTimeInterval(29.96), since: play).hasSuffix("30.0 s after Play"),
+              "rounded to a tenth")
+        check(LibraryModel.phaseLine("Hades", "x", at: play, since: play.addingTimeInterval(5)).hasSuffix(", 0.0 s after Play"),
+              "never before Play")
+        check(!LibraryModel.phaseLine("Hades", "Play", at: play, since: nil).contains("Curtain down for"),
+              "a line of its own: GameTestMeasure reads \"Curtain down for\" by its exact words")
     }
 }
