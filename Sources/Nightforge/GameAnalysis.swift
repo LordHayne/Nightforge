@@ -53,6 +53,13 @@ struct GameAnalysis: Codable, Equatable {
     var middleware: [String] = []
     /// Its program is a 64-bit one; nil when its header wasn't read.
     var is64Bit: Bool?
+    /// A 32-bit game's own modules without NX_COMPAT in their PE header (the started program and the libraries beside
+    /// it, names as in the folder). Wine turns DEP off for the whole process when it loads one (ntdll's loader,
+    /// ProcessExecuteFlags; a 64-bit process ignores that), and every readable page below 4 GB becomes executable
+    /// (force_exec_prot): under Rosetta each first write to such a page traps, which can stall a game for seconds
+    /// (docs/KOMPATIBILITAET-0.4.md, section 5). Only knowledge for the log and the game test: nothing changes at a start.
+    /// nil: not looked at (a 64-bit game, or its width unknown).
+    var withoutNXCompat: [String]?
 
     /// Direct3D 10/11 is what DXMT and DXVK translate.
     var usesD3D11: Bool { apis.contains(.d3d10) || apis.contains(.d3d11) }
@@ -89,6 +96,24 @@ struct GameAnalysis: Codable, Equatable {
         if engine == .unity { parts.append("Unity") }
         if usesDotNet { parts.append(".NET") }
         return parts.filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
+    /// The log's line, nil when there's nothing to say (64-bit, or every module has NX_COMPAT).
+    var depLine: String? {
+        guard let names = withoutNXCompat, !names.isEmpty else { return nil }
+        return "32-bit, \(Self.listed(names)) without NX_COMPAT: Wine turns DEP off for the whole process (Rosetta: slow first writes)"
+    }
+
+    /// The game test's note, in German like its other notes.
+    var depNote: String? {
+        guard let names = withoutNXCompat, !names.isEmpty else { return nil }
+        return "32 Bit, ohne NX_COMPAT: \(Self.listed(names)) – Wine schaltet DEP für den ganzen Prozess ab (unter Rosetta langsame erste Schreibzugriffe)"
+    }
+
+    /// At most four names, then how many more.
+    static func listed(_ names: [String]) -> String {
+        let shown = names.prefix(4).joined(separator: ", ")
+        return names.count > 4 ? shown + " and \(names.count - 4) more" : shown
     }
 }
 
@@ -216,6 +241,10 @@ extension GameAnalysis {
         let program = largest ?? targets.first { fm.fileExists(atPath: $0.path) }
         let facts = program.flatMap(PEImports.facts(of:))
         analysis.is64Bit = facts?.is64Bit
+        if analysis.is64Bit == false {
+            let started = targets.filter { fm.fileExists(atPath: $0.path) }
+            analysis.withoutNXCompat = withoutNXCompat(programs: Array(started.prefix(1)) + (program.map { [$0] } ?? []))
+        }
         switch analysis.engine {
         case .unreal: analysis.engineVersion = GameKind.unrealVersion(facts?.fileVersion) ?? (unreal3 ? "3" : nil)
         case .unity:
@@ -332,6 +361,26 @@ extension GameAnalysis {
         let base = dir.standardizedFileURL.path + "/"
         let path = file.standardizedFileURL.path
         return path.hasPrefix(base) ? String(path.dropFirst(base.count)) : nil
+    }
+
+    /// The modules of `programs` and the libraries beside them (at most `limit` per folder, by name) whose PE header
+    /// lacks NX_COMPAT, by file name, each once. Only headers are read: a few hundred bytes a file.
+    static func withoutNXCompat(programs: [URL], limit: Int = 256) -> [String] {
+        let fm = FileManager.default
+        var files: [URL] = []
+        for program in programs where !files.contains(program) { files.append(program) }
+        for folder in Set(programs.map { $0.deletingLastPathComponent() }).sorted(by: { $0.path < $1.path }) {
+            let libraries = ((try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? [])
+                .filter { $0.pathExtension.lowercased() == "dll" }
+                .sorted { $0.lastPathComponent.lowercased() < $1.lastPathComponent.lowercased() }
+            files += libraries.prefix(limit)
+        }
+        var seen = Set<String>()
+        return files.compactMap { file in
+            let name = file.lastPathComponent
+            guard seen.insert(name.lowercased()).inserted, PEImports.nxCompat(of: file) == false else { return nil }
+            return name
+        }
     }
 
     private static func scan(_ dir: URL) -> Contents {
@@ -498,6 +547,24 @@ enum PEImports {
             }
         }
         return names
+    }
+
+    /// IMAGE_DLLCHARACTERISTICS_NX_COMPAT (0x0100) in the optional header's DllCharacteristics (at 70 in PE32 and
+    /// PE32+); nil for a file that isn't a PE image.
+    static func nxCompat(of file: URL) -> Bool? {
+        guard let handle = try? FileHandle(forReadingFrom: file) else { return nil }
+        defer { try? handle.close() }
+        func read(_ offset: UInt64, _ count: Int) -> Data? {
+            guard (try? handle.seek(toOffset: offset)) != nil else { return nil }
+            return try? handle.read(upToCount: count)
+        }
+        guard let dos = read(0, 64), dos.count == 64, dos.u16(0) == 0x5A4D else { return nil }
+        let pe = UInt64(dos.u32(0x3C))
+        guard let coff = read(pe, 24), coff.count == 24, coff.u32(0) == 0x4550, coff.u16(20) >= 72,
+              let optional = read(pe + 24, 72), optional.count == 72,
+              [0x10B, 0x20B].contains(optional.u16(0))
+        else { return nil }
+        return optional.u16(70) & 0x0100 != 0
     }
 
     /// Whether a program is a 64-bit one, and the version in its version resource (VS_FIXEDFILEINFO's

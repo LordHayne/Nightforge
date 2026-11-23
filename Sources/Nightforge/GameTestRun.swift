@@ -200,6 +200,8 @@ final class GameTestRun {
         let learnedBefore = LearnedFixes.winetricks(game.gameID)
         var seen = GameTest.Seen()
         var notes = before
+        // A 32-bit game without NX_COMPAT runs with DEP off: its stalls may be Rosetta's, not the graphics layer's.
+        if let note = await model.insight(of: game)?.analysis.depNote { notes.append(note) }
         var processAt: Date?
         var pictureAt: Date?
         var appeared: Date?

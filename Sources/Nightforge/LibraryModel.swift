@@ -5180,6 +5180,8 @@ final class LibraryModel: ObservableObject {
                                                profile: profile, hint: insight?.hint, source: insight?.hintSource,
                                                sortGames: insight?.sortGames ?? 0))
             }
+            // Only knowledge (GameAnalysis.withoutNXCompat): a stall of a 32-bit game reads differently with it.
+            if let line = insight?.analysis.depLine { GameLog.note("\(game.name): \(line)") }
             if game.bottle.isBuiltIn {
                 // The last session's frame rates decide this one's automatic frame limit.
                 await Task.detached(priority: .utility) {
