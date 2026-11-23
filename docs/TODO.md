@@ -13,8 +13,9 @@ Was nach der Abnahme heute Abend wartet. Stand 23.11.2026, 13:45, `claude/stagin
 gepusht. Gemergt wird erst mit dem OK des Nutzers.
 
 **Wartende Zweige**
-- [ ] `claude/zwei-pads-04` (f109d2b0, Worker 1, noch in Arbeit): zwei Pads, gehaltene Richtungen und Scrollen je Pad.
-  Zum Merge mit `audit-klein-035`. Live mit zwei Pads prüfen: Nummern, Licht, Abstecken.
+- [ ] `claude/zwei-pads-04` (f109d2b0, Kette grün, vom Koordinator geprüft): zwei Pads, gehaltene Richtungen und Scrollen je
+  Pad. Fertig, wartet auf den Merge nach der Abnahme (zusammen mit `audit-klein-035`), danach Gegenprüfung mit einem Pad.
+  Live mit zwei Pads: Nummern, Licht, Abstecken.
 - [ ] `claude/audit-klein-035` (395c98ce, Kette grün 13:31): N3–N5 aus `docs/AUDIT-0.3.5-NACHTRAG.md`. Der Blick auf eine
   kaputte Sitzung liest nur den Zuwachs von wine.log. Die Adapter-Zeile zählt nur vor dem ersten Programm eines Spiels.
   `neverSyncs` wird je Steam-Start gemerkt. Vom Koordinator geprüft, Merge nach der Abnahme.
