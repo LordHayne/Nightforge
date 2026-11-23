@@ -1428,8 +1428,23 @@ Offen: Live-Test; `+loaddll` beim ersten Start (braucht bei Steam einen Neustart
 
 ## Rosetta und macOS 28
 
-Plan und Stand in `docs/ENTWURF-ARM64.md`. Vorbereitung auf `claude/arm64-vorbereitung` (Abschnitt 6). Offen sind die
-Entscheidungen in Abschnitt 7 und die monatliche Beobachtungsliste in Abschnitt 8.
+Plan und Stand in `docs/ENTWURF-ARM64.md`. Maßgeblich ist dort **Abschnitt 9, „Stand November 2026“** (21.11., nach
+staging geholt am 23.11., was seitdem überholt ist, steht dort als **[überholt 23.11.]**):
+
+- **Es geht ohne Rosetta.** Ein fertiges ARM64-Wine mit FEX, DXMT, vkd3d-proton und Windows-Steam gibt es zum Einbetten
+  (mach9, signiert und notarisiert). Wine selbst hat die Patches am 18.11. eingereicht (Merge-Request 12716).
+- **Die Berechtigung** braucht ein bezahltes Apple-Entwicklerkonto (99 US-Dollar im Jahr) oder einen fremden, schon
+  signierten Loader. Ein kostenloses Konto bekommt sie nicht.
+- **Prototyp halb fertig** (Zweig `claude/vibrant-meninsky-0f7097`, `tests/arm64/fex-proto.sh`, nicht in staging): Die
+  Rosetta-Seite ist gemessen. Die FEX-Seite muss der Nutzer starten, die Sitzung durfte kein geladenes Programm
+  ausführen: `tests/arm64/fex-proto.sh fex build/arm64/mach9-0.4.0/wine`, dann `tests/arm64/fex-proto.sh table` (9.3).
+- **Plan:** Meilensteine M0 bis M6 (macOS-28-Beta, Juni 2027) in 9.4, die Umbauliste in 9.5. M0 kommt nach den
+  Engine-Punkten 1–4 der Roadmap 0.4.
+- **Entscheidungen des Nutzers** in 9.7, zuerst: den FEX-Lauf starten, fremder Loader oder eigenes Konto, LGPL-Teile aus
+  fremdem Bau, was bei Direct3D 12 wegfallen darf.
+
+Die Vorarbeit vom 8.11. (Abschnitt 6) ist im Testzweig. Die Beobachtungsliste in Abschnitt 8 hat den Stand vom 21.11.
+und ist monatlich fortzuschreiben.
 
 ## Nächster Release (0.3.0)
 

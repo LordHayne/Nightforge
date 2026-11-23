@@ -51,8 +51,9 @@ KosmicKrisp, MoltenVK 1.4.2.
    Profil- und Engine-Fixes daraus.
 4. **Klassiker (fest eingeplant, deine Wahl vom 23.11.: „Klassiker sollten aber auch laufen in Zukunft“):** Direct3D 3–7
    über D7VK auf KosmicKrisp, Direct3D 8/9 über DXVK 3.1.1 bzw. WineD3D als Rückfall. Testfälle sind GOG-Klassiker.
-5. **Rosetta-Ende mit macOS 28:** der ARM64-Plan (`ENTWURF-ARM64.md`, Abschnitt 9, bisher nur auf einem Zweig) nach
-   staging holen. Der Weg führt über vkd3d-proton auf KosmicKrisp und DXMT als ARM64X.
+5. **Rosetta-Ende mit macOS 28:** der ARM64-Plan (`ENTWURF-ARM64.md`, Abschnitt 9) ist seit dem 23.11. auf
+   `claude/arm64-plan-04`, mit Vermerken, was seitdem überholt ist. Der Prototyp liegt weiter auf
+   `claude/vibrant-meninsky-0f7097`. Der Weg führt über vkd3d-proton auf KosmicKrisp und DXMT als ARM64X.
 6. **Wine-Basis:** dem nächsten CrossOver folgen, ohne eigenen Sprung auf eine neuere Wine-Version.
 
 ## Deine Entscheidungen vom 22.11.
