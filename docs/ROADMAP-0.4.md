@@ -3,6 +3,17 @@
 Stand 23.11.2026, nach den Merges in `claude/staging-035` (1b563a4d). Zum Durchgehen in fünf Minuten: je Punkt, wo er steht,
 was du wählst oder live prüfst und was danach gebaut wird.
 
+## Leitlinie: der Mac als Konsole (deine Entscheidung vom 23.11.)
+
+Launcher gibt es schon einige. Was Nightforge von ihnen unterscheidet, ist der Mac als Konsole. Darauf werden der
+Konsolenmodus, das Gefühl beim Spielen und alles andere ausgelegt. Diese Leitlinie steht über den Punkten unten. Bei jeder
+Planung kommt zuerst, was ihr dient:
+
+1. Controller-only: Alles geht mit dem Pad.
+2. Fließende Übergänge: vom Start über den Vorhang bis zurück zu Nightforge ohne Bruch.
+3. Kein Dock und keine macOS-Fenster vor dem Spieler.
+4. Steams Fragen werden am Pad beantwortet.
+
 ## Deine Entscheidungen vom 22.11.
 
 1. Controller-only ist hart: alles muss mit dem Pad gehen, auch Steams Abfragen.
