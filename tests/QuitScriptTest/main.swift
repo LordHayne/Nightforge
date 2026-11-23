@@ -101,7 +101,7 @@ struct QuitScriptTest {
         /// `switchAfter`: the stand-in ps lists `later` instead of `processes` from its n-th answer on.
         func run(limit: Int? = nil, quitting: Int = 0, app: String? = nil, lastGame: Int? = nil,
                  switchAfter: Int? = nil, psLimit: Int? = nil, restart: Bool = false, hang: Bool = false,
-                 macSteam: Bool = false) -> (calls: [String], status: Int32, timedOut: Bool) {
+                 macSteam: Bool = false, gameAtQuit: Bool? = nil) -> (calls: [String], status: Int32, timedOut: Bool) {
             try? FileManager.default.removeItem(at: log)
             try? FileManager.default.removeItem(at: sleepLog)
             var environment = ["PATH": bin.path + ":/usr/bin:/bin:/usr/sbin", "FAKE_PS": processList.path, "FAKE_LOG": log.path,
@@ -123,7 +123,8 @@ struct QuitScriptTest {
             }
             let outcome = Subprocess.run("/bin/bash", [script.path, wine.path, prefix.path, "", macSteam ? "1" : "0", app ?? self.app,
                                                        quitting == 0 ? "" : String(quitting), "1",
-                                                       lastGame.map(String.init) ?? "0", "", "", restart ? "1" : "0"],
+                                                       lastGame.map(String.init) ?? "0", "", "", restart ? "1" : "0"]
+                                                       + (gameAtQuit.map { [$0 ? "1" : "0"] } ?? []),
                                          environment: environment, timeout: 60)
             let calls = ((try? String(contentsOf: log, encoding: .utf8)) ?? "").split(separator: "\n").map(String.init)
             return (calls, outcome.status, outcome.timedOut)
@@ -157,7 +158,31 @@ struct QuitScriptTest {
         calls.contains { $0.hasPrefix("wine ") && $0.contains("-shutdown") } && calls.contains("wineserver -k")
     }
 
+    /// Engine.shutdownArguments against the script's own $1…$12.
+    static func scriptArguments() {
+        let arguments = Engine.shutdownArguments(script: "/s.sh", wine: "/w", prefix: "/p", macLibrary: "/m", macSteam: true, app: "/A.app",
+                                                 quitting: 42, msync: false, lastGame: Date(timeIntervalSince1970: 1_700_000_000),
+                                                 sandbox: ("/helper", "/profile"), restart: false, gameAtQuit: true)
+        let pattern = try! NSRegularExpression(pattern: #"([A-Z_]+)="\$\{?([1-9][0-9]*)"#)
+        let script = Engine.steamShutdownScript as NSString
+        var position: [String: Int] = [:]
+        for match in pattern.matches(in: script as String, range: NSRange(location: 0, length: script.length)) {
+            position[script.substring(with: match.range(at: 1))] = Int(script.substring(with: match.range(at: 2)))
+        }
+        let wanted = ["WINE": "/w", "PREFIX": "/p", "MAC_STEAMAPPS": "/m", "QUIT_MAC": "1", "APP": "/A.app", "QUITTING": "42", "MSYNC": "0",
+                      "LAST_GAME": "1700000000", "SANDBOX": "/helper", "PROFILE": "/profile", "RESTART": "0", "GAME_AT_QUIT": "1"]
+        check(arguments.count == 13 && arguments[0] == "/s.sh" && position.count == 12, "the script and its twelve: \(position)")
+        for (name, value) in wanted {
+            check(position[name].map { arguments[$0] } == value, "\(name) ($\(position[name] ?? 0)) gets \(value)")
+        }
+        let off = Engine.shutdownArguments(script: "/s.sh", wine: nil, prefix: "/p", macLibrary: "", macSteam: false, app: "/A.app", quitting: 1,
+                                           msync: true, lastGame: nil, sandbox: nil, restart: true, gameAtQuit: false)
+        check(off[1] == "" && off[8] == "0" && off[9] == "" && off[10] == "" && off[11] == "1" && off[12] == "0",
+              "no Wine, no game time, no sandbox: empty and 0; a restart, no game: \(off)")
+    }
+
     static func main() {
+        scriptArguments()
         let probe = World()
         defer { probe.cleanUp() }
         let syntax = Subprocess.run("/bin/bash", ["-n", probe.script.path], timeout: 20)
@@ -368,6 +393,33 @@ struct QuitScriptTest {
             let result = world.run(app: "", switchAfter: 3)
             check(!result.timedOut && shutDown(result.calls), "a game ends while the script waits: then Steam is ended: \(result.calls)")
             check(sleeps(world).contains("30"), "… after the 30 s for the cloud saves (slept \(sleeps(world)))")
+        }
+
+        // $12, GAME_AT_QUIT: only a game Nightforge knew of as it quit brings it back at its end (06:56 on 23.11.2026, a
+        // test's stand-in named like a game opened a Nightforge just quit). Without $12 (a script from before): as known.
+        for (gameAtQuit, opens, case_) in [(true, true, "a game Nightforge knew of"), (false, false, "a game Nightforge didn't know of"),
+                                           (nil, true, "a script from before, without $12")] as [(Bool?, Bool, String)] {
+            let world = World()
+            defer { world.cleanUp() }
+            world.processes([(200, steam), (500, #"C:\Program Files (x86)\Steam\steamapps\common\Some Game\game.exe"#)])
+            QuitScriptTest.write("200\t\(steam)\n", to: world.later)
+            let result = world.run(switchAfter: 3, gameAtQuit: gameAtQuit)
+            check(!result.timedOut && result.status == 0, "\(case_): the script ended (status \(result.status))")
+            if opens {
+                check(result.calls == ["open \(world.app)"], "\(case_): its end opens Nightforge, and Steam stays for it: \(result.calls)")
+            } else {
+                check(!result.calls.contains("open \(world.app)"), "\(case_): its end doesn't open Nightforge: \(result.calls)")
+                check(shutDown(result.calls), "\(case_): Steam is ended once the game is gone: \(result.calls)")
+            }
+        }
+        do {
+            // Known as it quit, but no game in the list any more: nothing to come back for, Steam goes.
+            let world = World()
+            defer { world.cleanUp() }
+            world.processes([(200, steam)])
+            let result = world.run(gameAtQuit: true)
+            check(!result.calls.contains("open \(world.app)") && shutDown(result.calls),
+                  "a game known at quit, gone already: Steam ends, Nightforge stays closed: \(result.calls)")
         }
 
         // A ps that answers nothing (a real one always lists the script) is "unknown", not "no game": the

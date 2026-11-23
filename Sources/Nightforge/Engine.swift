@@ -1193,14 +1193,24 @@ enum Engine {
         let process = DetachedProcess()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         // Steam's -shutdown is a Windows program like any other: in the sandbox when it's switched on.
-        let sandbox = WineSandbox.enabled ? [WineSandbox.helper?.path ?? "-", WineSandbox.profile()] : ["", ""]
-        process.arguments = [script.path, wine?.path ?? "", prefix.path, macLibrary, macSteam ? "1" : "0", Bundle.main.bundlePath,
-                             String(getpid()), msync ? "1" : "0", String(Int(lastGameActivity?.timeIntervalSince1970 ?? 0))] + sandbox
-            + [restart ? "1" : "0", gameAtQuit ? "1" : "0"]
+        let sandbox = WineSandbox.enabled ? (WineSandbox.helper?.path ?? "-", WineSandbox.profile()) : nil
+        process.arguments = shutdownArguments(script: script.path, wine: wine?.path, prefix: prefix.path, macLibrary: macLibrary,
+                                              macSteam: macSteam, app: Bundle.main.bundlePath, quitting: getpid(), msync: msync,
+                                              lastGame: lastGameActivity, sandbox: sandbox, restart: restart, gameAtQuit: gameAtQuit)
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         try? process.run()  // keeps running after Nightforge has quit
+    }
+
+    /// What `bash` gets for the quit script: the script, then $1 to $12 in the order `steamShutdownScript` reads them.
+    /// `sandbox`: Wine's sandbox helper ("-" when it's switched on without one) and profile, nil when it's off.
+    static func shutdownArguments(script: String, wine: String?, prefix: String, macLibrary: String, macSteam: Bool, app: String,
+                                  quitting: pid_t, msync: Bool, lastGame: Date?, sandbox: (helper: String, profile: String)?,
+                                  restart: Bool, gameAtQuit: Bool) -> [String] {
+        [script, wine ?? "", prefix, macLibrary, macSteam ? "1" : "0", app, String(quitting), msync ? "1" : "0",
+         String(Int(lastGame?.timeIntervalSince1970 ?? 0)), sandbox?.helper ?? "", sandbox?.profile ?? "",
+         restart ? "1" : "0", gameAtQuit ? "1" : "0"]
     }
 
     /// The script scheduleSteamShutdown runs: $1 wine, $2 prefix, $3 Steam for Mac's steamapps,
@@ -1544,12 +1554,32 @@ enum Engine {
         guard let held = rollback.steamPinnedBuild(), rollback.build(running: wine) == rollback.history().current,
               let heldWine = wineBinary(in: rollback.folder(of: held, part: held.build.engineID))
         else { return wine }
-        if let session = sessionWine(), session.standardizedFileURL.path != heldWine.standardizedFileURL.path {
-            guard !windowsGameRunning else { return session }
+        switch steamEngineStep(held: heldWine, session: sessionWine(), gameRunning: windowsGameRunning) {
+        case .session(let session):
+            return session
+        case .endSessionThenHeld(let session):
             stopAll(session, reason: "a game held back on another engine")
+        case .held:
+            break
         }
         useHeld(held, wine: heldWine)
         return heldWine
+    }
+
+    enum SteamEngineStep: Equatable {
+        /// The engine held back for a game, with no other session in the way.
+        case held
+        /// A session on another engine runs with a game in it: Steam joins that one, nothing is ended.
+        case session(URL)
+        /// A session on another engine without a game: it ends first.
+        case endSessionThenHeld(URL)
+    }
+
+    /// Where Steam starts when an engine is held back for a game (`steamEngine`): the session's own engine counts as the
+    /// held one by its standardized path.
+    static func steamEngineStep(held: URL, session: URL?, gameRunning: Bool) -> SteamEngineStep {
+        guard let session, session.standardizedFileURL.path != held.standardizedFileURL.path else { return .held }
+        return gameRunning ? .session(session) : .endSessionThenHeld(session)
     }
 
     /// Copies DXMT (Direct3D 10/11 → Metal) into the engine's builtin DLL folders. Safe to repeat.
@@ -3167,13 +3197,15 @@ enum Engine {
         try await stopSteam(wine, running: { isSteamRunning }, leftovers: { leftovers ? steamLeftovers : [] },
                             installing: { SteamBootstrap(steamRoot: steamRoot) == .installing },
                             shutdown: { try startSteam(sessionWine() ?? $0, arguments: ["-shutdown"]) },
-                            hardStop: { wine in
-                                // `wineserver -k` ends everything in the session: never with a game in it.
-                                guard windowsGameRunningKnown == false else {
-                                    return GameLog.note("Steam didn't end, and a game runs in its session: it's left as it is")
-                                }
-                                stopAll(wine, reason: "Steam didn't end after -shutdown")
-                            }, endWait: endWait)
+                            hardStop: { hardStopSteam($0, gameRunning: windowsGameRunningKnown) }, endWait: endWait)
+    }
+
+    /// Steam that didn't end after "-shutdown": `wineserver -k` ends everything in the session – never with a game in it,
+    /// nor when that can't be told (`gameRunning` nil: no process list).
+    static func hardStopSteam(_ wine: URL, gameRunning: Bool?, stop: (URL, String) -> Void = { wine, reason in stopAll(wine, reason: reason) },
+                              log: (String) -> Void = GameLog.note) {
+        guard gameRunning == false else { return log("Steam didn't end, and a game runs in its session: it's left as it is") }
+        stop(wine, "Steam didn't end after -shutdown")
     }
 
     /// For a stop before Steam's files are touched (a game moved, a library added or forgotten): within five
@@ -3227,10 +3259,11 @@ enum Engine {
     /// On 22.11.2026 at 19:32 the session ended at :23 and Steam started at :24 (13.8 s, at 19:01 5.65 s).
     /// Looked at four times a second: after a "-shutdown" on 23.11. at 06:37 the web helpers had gone with steam.exe
     /// and Steam's service 0.6 s after it – waited for in whole seconds, that was 1 s before the player's game.
-    static func waitForSteamToEnd() async {
-        try? await waitForSteamLeftovers({ steamLeftovers }, pause: .milliseconds(1000 / steamLeftoverLooks),
+    /// `leftovers` and `log` stand in for the process list and wine.log in tests.
+    static func waitForSteamToEnd(leftovers: () -> [String]? = { steamLeftovers }, log: (String) -> Void = GameLog.note) async {
+        try? await waitForSteamLeftovers(leftovers, pause: .milliseconds(1000 / steamLeftoverLooks),
                                          limit: steamLeftoverWait * steamLeftoverLooks,
-                                         serviceLimit: steamServiceWait * steamLeftoverLooks, log: GameLog.note)
+                                         serviceLimit: steamServiceWait * steamLeftoverLooks, log: log)
     }
 
     /// How long a stop of Steam waits for its last processes after steam.exe, in seconds, and for Steam's
@@ -3453,6 +3486,19 @@ enum Engine {
     /// SteamSwitch first, and "-shutdown" has to reach a Steam that's still up.
     static func holdsBack(arguments: [String], heldBack: Bool) -> Bool { heldBack && arguments == backgroundStart }
 
+    /// What Steam's process starts with: steam.exe, the arguments every start of it gets, then the caller's; the session's
+    /// environment with Steam's own over it – its variables, its DLL overrides, the loader when that isn't wine itself, its
+    /// WINEDEBUG – and the caller's over everything.
+    static func steamLaunch(wine: URL, loader: URL, clientInstalled: Bool, arguments: [String], session: [String: String],
+                            extraEnvironment: [String: String]) -> (arguments: [String], environment: [String: String]) {
+        var env = session.merging(steamEnvironment) { _, new in new }
+        env["WINEDLLOVERRIDES"] = steamDLLOverrides
+        if loader != wine { env["WINELOADER"] = loader.path }
+        env["WINEDEBUG"] = wineDebug
+        return ([steamExeWindowsPath] + startArguments(clientInstalled: clientInstalled) + arguments,
+                env.merging(extraEnvironment) { _, new in new })
+    }
+
     /// Starts Steam without waiting; used for signing in and for launching games.
     static func startSteam(_ wine: URL, arguments: [String] = [], extraEnvironment: [String: String] = [:]) throws {
         if holdsBack(arguments: arguments, heldBack: windowsSteamHeldBack) {
@@ -3471,13 +3517,10 @@ enum Engine {
         }
         do {
             let loader = loader(for: wine)
-            let process = try WineSandbox.process(loader, [steamExeWindowsPath]
-                + startArguments(clientInstalled: SteamBootstrap.clientInstalled(steamRoot: steamRoot)) + arguments)
-            var env = environment(wine: wine).merging(steamEnvironment) { _, new in new }
-            env["WINEDLLOVERRIDES"] = steamDLLOverrides
-            if loader != wine { env["WINELOADER"] = loader.path }
-            env["WINEDEBUG"] = wineDebug
-            process.environment = env.merging(extraEnvironment) { _, new in new }
+            let launch = steamLaunch(wine: wine, loader: loader, clientInstalled: SteamBootstrap.clientInstalled(steamRoot: steamRoot),
+                                     arguments: arguments, session: environment(wine: wine), extraEnvironment: extraEnvironment)
+            let process = try WineSandbox.process(loader, launch.arguments)
+            process.environment = launch.environment
             process.standardInput = FileHandle.nullDevice
             // Its games inherit this, so their errors end up in the log too.
             let log = GameLog.handleForSteam()

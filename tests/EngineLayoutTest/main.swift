@@ -222,9 +222,35 @@ struct EngineLayoutTest {
               && Engine.copyPlace(nil) == "elsewhere", "the place of another copy: a name, no path")
     }
 
+    /// What Steam's process starts with (Engine.steamLaunch), and where Steam goes with an engine held back (steamEngineStep).
+    static func steamLaunchRule() {
+        let wine = URL(fileURLWithPath: "/e/bin/wine"), loader = URL(fileURLWithPath: "/e/bin/wine-preloader")
+        let session = ["WINEPREFIX": "/p", "WINEDEBUG": "-all", "WINEDLLOVERRIDES": "mscoree,mshtml=", "KEEP": "1"]
+        let plain = Engine.steamLaunch(wine: wine, loader: wine, clientInstalled: true, arguments: ["-silent"], session: session,
+                                       extraEnvironment: [:])
+        check(plain.arguments == [Engine.steamExeWindowsPath] + Engine.startArguments(clientInstalled: true) + ["-silent"],
+              "steam.exe, its own arguments, then the caller's: \(plain.arguments)")
+        check(plain.environment["WINEDLLOVERRIDES"] == Engine.steamDLLOverrides && plain.environment["WINEDEBUG"] == Engine.wineDebug,
+              "Steam's DLL overrides and WINEDEBUG over the session's")
+        check(plain.environment["WINELOADER"] == nil && plain.environment["KEEP"] == "1" && plain.environment["WINEPREFIX"] == "/p",
+              "wine itself loads: no WINELOADER; the session's environment stays")
+        let other = Engine.steamLaunch(wine: wine, loader: loader, clientInstalled: false, arguments: [], session: session,
+                                       extraEnvironment: ["WINEDEBUG": "+loaddll", "EXTRA": "x"])
+        check(other.environment["WINELOADER"] == loader.path, "another loader is named")
+        check(other.environment["WINEDEBUG"] == "+loaddll" && other.environment["EXTRA"] == "x", "the caller's environment over everything")
+        check(other.arguments == [Engine.steamExeWindowsPath] + Engine.startArguments(clientInstalled: false), "no client yet: its arguments")
+        let held = URL(fileURLWithPath: "/engines/held/bin/wine"), newer = URL(fileURLWithPath: "/engines/new/bin/wine")
+        check(Engine.steamEngineStep(held: held, session: nil, gameRunning: true) == .held, "no session: the held engine")
+        check(Engine.steamEngineStep(held: held, session: URL(fileURLWithPath: "/engines/held/bin/../bin/wine"), gameRunning: false) == .held,
+              "a session on the held engine, by its standardized path: nothing ends")
+        check(Engine.steamEngineStep(held: held, session: newer, gameRunning: true) == .session(newer), "a game in another engine's session: Steam joins it")
+        check(Engine.steamEngineStep(held: held, session: newer, gameRunning: false) == .endSessionThenHeld(newer), "no game there: that session ends first")
+    }
+
     static func main() {
         TestDefaults.useWorkFolder()
         folderNames()
+        steamLaunchRule()
         let work = fm.temporaryDirectory.appendingPathComponent("elt-\(UUID().uuidString)", isDirectory: true)
         defer { try? fm.removeItem(at: work) }
 
