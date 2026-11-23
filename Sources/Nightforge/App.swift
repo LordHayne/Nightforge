@@ -136,7 +136,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         // The script goes through the detached helper, which can take its time (Launch Services busy:
         // up to 30 s, DetachedProcess.run): Nightforge is still listed meanwhile, a quit that looks hung.
         let start = Date()
-        Engine.scheduleSteamShutdown(restart: Engine.restarting)
+        // A game Nightforge knows of (its own start, or a Windows program from a game folder in its session) brings it
+        // back when it ends; what other processes merely name doesn't (Engine.steamShutdownScript, GAME_AT_QUIT).
+        let gameAtQuit = MacIntegration.model?.running.isEmpty == false || Engine.windowsGameRunningKnown != false
+        Engine.scheduleSteamShutdown(restart: Engine.restarting, gameAtQuit: gameAtQuit)
         let took = Date().timeIntervalSince(start)
         if took >= 2 { GameLog.note("Quit: handing Steam's shutdown to its script took \(Int(took)) s") }
         GameDisplay.quitting()
