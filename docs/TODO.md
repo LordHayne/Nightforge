@@ -33,6 +33,8 @@ gepusht. Gemergt wird erst mit dem OK des Nutzers.
 - [ ] AVX unter Wine (`docs/ENTWURF-AVX.md`): Weg A oder D (Empfehlung für 0.3.5: D).
 - [ ] Großes Overlay: die Variante (Board `entwuerfe/Overlay.dc.html`), dazu, was es live können soll
   (`docs/ENTWURF-OVERLAY-FUNKTIONEN.md`). Der DXMT-Patch für eine Bildratengrenze im laufenden Spiel bräuchte das OK wegen LGPL.
+  Technik liegt bereit, noch nicht eingehängt: `SystemVolume` (Lautstärke des Macs, Kachel aus ohne Software-Lautstärke) und
+  `GameScreenshot` (nur das Spielfenster, Erlaubnis nur geprüft), Testreihe `tests/OverlayServicesTest`.
 - [ ] Klänge (0.4.x): einen der drei Sätze in `docs/entwurf-klaenge-04/index.html` anhören und wählen.
 - [ ] Startzeit (`docs/ENTWURF-STARTZEIT.md`): die drei Starts mit Zeitmarken heute Abend. Der kürzere Vorhang nach dem ersten
   Bild steht zur Wahl.

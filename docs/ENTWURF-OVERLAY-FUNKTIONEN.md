@@ -39,7 +39,7 @@ beenden, Zu Nightforge, und die Pause per SIGSTOP bzw. die stille Eingabe (`PadS
 - Nur das Spielfenster: `ScreenCaptureKit` (`SCScreenshotManager.captureImage`, macOS 14) mit einem `SCContentFilter` auf das
   Fenster des Spiels, auch im eigenen Vollbild des Spiels.
 - Braucht **„Bildschirmaufnahme“**, eine macOS-Erlaubnis, die nur mit Maus oder Trackpad zu erteilen ist. Wie beim Pad-Zeiger
-  also vorher einholen (Ersteinrichtung oder Konsolenmodus-Anfrage). Ohne sie: `needsRight` mit einem Satz.
+  also vorher einholen (Ersteinrichtung oder Konsolenmodus-Anfrage). Ohne sie: `needsPermission` mit einem Satz.
 - Im Spielprozess nichts, also auch bei Anti-Cheat-Spielen unbedenklich: Das Bild kommt vom Fenstersystem.
 - Wohin: dorthin, wo macOS Bildschirmfotos ablegt (`com.apple.screencapture location`, sonst Schreibtisch), Name
   „<Spiel> <Datum Uhrzeit>.png“. Mit dem Pad dann eine kurze Meldung, kein Fenster. **Geht live, mit Erlaubnis.**
