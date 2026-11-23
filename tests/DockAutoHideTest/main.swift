@@ -104,6 +104,16 @@ struct DockAutoHideTest {
         check(done.wait(timeout: .now() + 5) == .success, "the steps ran")
         check(trace.order == ["restore", "engage"] && !trace.overlapped, "one after the other, in the order asked: \(trace.order)")
 
+        // W1: the restore at quit waits in the same line – an engage asked for just before runs first, not after it.
+        let atQuit = Trace()
+        DockAutoHide.serially { atQuit.enter("engage"); Thread.sleep(forTimeInterval: 0.2); atQuit.leave() }
+        let answer = DockAutoHide.seriallyAndWait { () -> String in atQuit.enter("restore"); atQuit.leave(); return "put back" }
+        check(answer == "put back" && atQuit.order == ["engage", "restore"] && !atQuit.overlapped,
+              "at quit: after the engage asked before, and waited for: \(atQuit.order)")
+        let app = (try? String(contentsOfFile: "Sources/Nightforge/App.swift", encoding: .utf8)) ?? ""
+        check(app.contains("DockAutoHide.seriallyAndWait({ DockAutoHide.restore(DockAutoHide.live) })")
+              && !app.contains("if let line = DockAutoHide.restore(DockAutoHide.live)"), "the quit goes through the line")
+
         print(failures == 0 ? "✓ DockAutoHide" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
     }

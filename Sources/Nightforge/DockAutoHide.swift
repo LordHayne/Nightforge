@@ -29,6 +29,13 @@ enum DockAutoHide {
         steps.async(execute: work)
     }
 
+    /// `serially`, and waits for it: at quit, where an `engage` asked for just before would otherwise run after the
+    /// Dock was put back, and the Dock stayed hidden once Nightforge was gone (W1 of the cross-read, 23.11.2026).
+    /// Never from a step itself (it would wait for itself).
+    static func seriallyAndWait<T>(_ work: () -> T) -> T {
+        steps.sync(execute: work)
+    }
+
     /// Set while Nightforge has the setting on for console mode: what to put back (always false so far).
     static let restoreKey = "console.dockAutoHideBefore"
 
