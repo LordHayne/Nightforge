@@ -14,6 +14,22 @@ Planung kommt zuerst, was ihr dient:
 3. Kein Dock und keine macOS-Fenster vor dem Spieler.
 4. Steams Fragen werden am Pad beantwortet.
 
+Dazu zwei neue Punkte für 0.4 (deine Wahl vom 23.11.). Gebaut wird nach dem Release 0.3.5:
+
+- **Start direkt in den Konsolenmodus:** Mac an, Controller an, und Nightforge ist da, ohne Schreibtisch dazwischen.
+  - Weg: Nightforge als Anmeldeobjekt (`SMAppService`). War der Konsolenmodus zuletzt an, öffnet es gleich darin.
+  - Grenzen: Die Anmeldung selbst (Passwort, Touch ID, mit FileVault immer) bleibt bei macOS. Das Anmeldeobjekt meldet
+    macOS mit einer Mitteilung, also gehört es in die Konsolenmodus-Anfrage, nie mitten ins Spielen.
+  - Wie lange der Schreibtisch noch kurz zu sehen ist, zeigt erst ein Versuch.
+- **Sitzungsende wie bei einer Konsole:** Home- bzw. Guide-Taste lange drücken, dann ein Glasblatt mit Ruhezustand, Neustart
+  und Ausschalten am Pad.
+  - Zu prüfen: ob Nightforge den langen Druck überhaupt hört. macOS 27 legt ihn auf „App öffnen“ bzw. sein Game Overlay
+    (`ENTWURF-OVERLAY.md`, PS-Taste). Bis eine Probe das klärt, öffnet das Blatt über einen anderen Weg, etwa das kleine
+    Menü (⧉).
+  - Ruhezustand geht vermutlich ohne Erlaubnis.
+  - Neustart und Ausschalten gehen über Apple Events an das System (`loginwindow`). Ob macOS dafür eine Erlaubnis
+    verlangt, klärt eine Probe. Die startet den Mac nur mit deinem OK wirklich neu.
+
 ## Deine Entscheidungen vom 22.11.
 
 1. Controller-only ist hart: alles muss mit dem Pad gehen, auch Steams Abfragen.
