@@ -27,6 +27,8 @@ struct ExternalDriveTest {
         try? fm.createSymbolicLink(atPath: prefix.appendingPathComponent("dosdevices/z:").path, withDestinationPath: "/")
         try? fm.createSymbolicLink(atPath: prefix.appendingPathComponent("dosdevices/e:").path, withDestinationPath: "/Volumes/Gone Letter")
 
+        checkOwnDrives(root.appendingPathComponent("own", isDirectory: true))
+
         // Where a library is and whether its drive is there.
         func missing(_ path: String) -> String? { LibraryScanner.missingVolume(forLibrary: path, in: bottle, volumes: volumes) }
         check(missing(#"Z:\Volumes\T7\Nightforge Games"#) == "T7", "through Z:, the drive's name")
@@ -676,6 +678,26 @@ struct ExternalDriveTest {
         check(calls == [["move", "DLC1", driveBase.path, "--skip-move"], ["move", "Game1", driveBase.path, "--skip-move"]],
               "legendary notes the game and its add-on: \(calls)")
         check(gameIsWhole(driveBase.appendingPathComponent("Game")) && !fm.fileExists(atPath: folder.path), "the Epic game is on the drive")
+    }
+
+    /// The drives a test brings itself (TestDrives, ExternalDrive.source): the same on every Mac, whatever is plugged in.
+    /// Afterwards the source goes again – the disk images below are mounted for real, in this test's own folder.
+    static func checkOwnDrives(_ root: URL) {
+        defer { ExternalDrive.source = nil }
+        let (games, stick, empty) = TestDrives.three(in: root)
+        check(ExternalDrive.connected().map(\.name) == ["Empty", "Games", "Stick"], "the test's three drives, by name, and nothing of the Mac's")
+        check(DriveTakeover.drives(testHome: true) == [games] && DriveTakeover.drives(testHome: false) == [games],
+              "taken over: only the one with Nightforge's folder that games can go on (not FAT32), in a test's home or not")
+        check(ExternalDrive.at(games.url) == games && ExternalDrive.at(stick.url) == stick
+              && ExternalDrive.at(root.appendingPathComponent("Volumes/Gone")) == nil, "a drive by its place: the test's, none for another")
+        let choices = DriveChoice.options(ExternalDrive.connected(), size: 10 << 30)
+        check(choices.map(\.drive.name) == ["Empty", "Games", "Stick"] && choices.prefix(2).allSatisfy(\.usable) && !choices[2].usable,
+              "where a game can go: the usable ones first, FAT32 last and not usable")
+        check(DriveChoice.options(ExternalDrive.connected(), size: 10 << 30, except: games.url).map(\.drive.name) == ["Empty", "Stick"],
+              "not the one it's on")
+        check(games.hasLibrary && stick.hasLibrary && !empty.hasLibrary, "Nightforge's folder on two of them")
+        TestDrives.none()
+        check(ExternalDrive.connected().isEmpty && DriveTakeover.drives(testHome: true).isEmpty, "no drive: none, on any Mac")
     }
 
     // MARK: - Real drives (only when asked)

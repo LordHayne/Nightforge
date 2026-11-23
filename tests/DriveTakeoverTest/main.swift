@@ -89,8 +89,14 @@ struct DriveTakeoverTest {
                        DriveFinds.Waiting(provider: .gog, platform: .windows, name: "D", reason: .notOwned)]
         check(DriveTakeover.summary(waiting) == "2 Steam game(s) wait for their Steam to be set up, 1 Epic Games game(s) wait for the sign-in, "
               + "1 folder(s) are no GOG game of this account", "the log says what waits and for what: \(DriveTakeover.summary(waiting))")
-        // A test's home never looks at a real drive: only at a disk image built for it.
-        check(!DriveTakeover.drives(testHome: true).contains { !ExternalDrive.isDiskImage($0.url) }, "in a test's home only disk images count as drives")
+        // The drives looked at are the test's own (TestDrives): what is plugged into the Mac, or mounted by another series
+        // meanwhile, changes nothing here.
+        let own = FileManager.default.temporaryDirectory.appendingPathComponent("drive-takeover-own-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: own) }
+        let (games, _, _) = TestDrives.three(in: own)
+        check(DriveTakeover.drives(testHome: true) == [games], "only the drive with Nightforge's folder that games can go on is looked at")
+        TestDrives.none()
+        check(DriveTakeover.drives(testHome: true).isEmpty, "no drive: nothing looked at, whatever the Mac has plugged in")
     }
 
     // MARK: - What the player reads (the user's pick 15.11.: A, one line)

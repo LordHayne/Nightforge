@@ -35,9 +35,16 @@ struct ExternalDrive: Identifiable, Hashable {
     /// Nightforge has put games there before: its folder is on it.
     var hasLibrary: Bool { FileManager.default.fileExists(atPath: DriveLibrary.root(on: url).path) }
 
+    /// Drives handed in instead of those mounted now: a test's own, on folders of its own (tests/Shared/TestDrives.swift).
+    /// While it's set nothing asks macOS what is plugged in – what a test sees can't depend on the Mac it runs on, a drive
+    /// plugged in or a disk image another series mounted meanwhile (23.11.2026: DriveTakeover's and DriveMoves' coverage
+    /// moved by 4–5 points with them). Nightforge itself never sets it.
+    nonisolated(unsafe) static var source: (() -> [ExternalDrive])?
+
     /// Drives plugged in now: mounted under /Volumes, not the Mac's own disk, not a network share
     /// and not a hidden one (disk images Nightforge mounts for itself).
     static func connected() -> [ExternalDrive] {
+        if let source { return source().sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending } }
         let keys: [URLResourceKey] = [.volumeIsInternalKey, .volumeIsLocalKey]
         let volumes = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: keys, options: [.skipHiddenVolumes]) ?? []
         let drives = volumes.compactMap { volume -> ExternalDrive? in
@@ -81,6 +88,8 @@ struct ExternalDrive: Identifiable, Hashable {
     /// The drive mounted at `url`; nil for the Mac's own disk, a network share, or a folder that
     /// isn't where a volume is mounted. `volumes` is /Volumes, other in tests.
     static func at(_ url: URL, volumes: URL = URL(fileURLWithPath: "/Volumes", isDirectory: true)) -> ExternalDrive? {
+        // A test's drives (`source`): the one at that place, as it was handed in.
+        if let source { return source().first { $0.url.standardizedFileURL.path == url.standardizedFileURL.path } }
         var info = statfs()
         guard statfs(url.path, &info) == 0 else { return nil }
         let mountPoint = withUnsafeBytes(of: info.f_mntonname) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
