@@ -73,8 +73,60 @@ struct WineSandboxTest {
               "RosettaSupport.run notes it right before the start")
     }
 
+    /// Audit N2: whether a session runs, from the wineserver's lock – no process list, nothing that holds a start up. A
+    /// second run of this program holds the lock, as a running wineserver does.
+    static func sessionLock() {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent("wine-lock-\(UUID().uuidString)", isDirectory: true)
+        defer { try? fm.removeItem(at: root) }
+        let prefix = root.appendingPathComponent("Prefix", isDirectory: true)
+        try? fm.createDirectory(at: prefix, withIntermediateDirectories: true)
+        let tmp = root.appendingPathComponent("tmp").path
+        func running() -> Bool? { WineSessionStart.sessionRunning(prefix: prefix, root: tmp) }
+        check(running() == false, "no server folder: no session")
+        guard let folder = WineSessionStart.serverFolder(prefix: prefix, root: tmp) else { return check(false, "the server folder's name") }
+        check(folder.hasPrefix(tmp + "/.wine-\(getuid())/server-") && folder.range(of: #"server-[0-9a-f]+-[0-9a-f]+$"#, options: .regularExpression) != nil,
+              "Wine's name for it: server-<device>-<inode> in hex")
+        try? fm.createDirectory(atPath: folder, withIntermediateDirectories: true)
+        fm.createFile(atPath: folder + "/lock", contents: nil)
+        check(running() == false, "a lock file nobody holds (a server that ended): no session")
+        let holder = Process()
+        holder.executableURL = URL(fileURLWithPath: CommandLine.arguments[0])
+        holder.arguments = ["--hold-wine-lock", folder + "/lock"]
+        let out = Pipe()
+        holder.standardOutput = out
+        guard (try? holder.run()) != nil else { return check(false, "the lock's holder starts") }
+        let said = String(decoding: out.fileHandleForReading.availableData, as: UTF8.self)
+        check(said.contains("held"), "the stand-in holds the lock")
+        check(running() == true, "held by a running process: a session")
+        holder.terminate()
+        holder.waitUntilExit()
+        check(running() == false, "its process gone: the lock goes with it")
+        check(WineSessionStart.sessionRunning(prefix: root.appendingPathComponent("missing"), root: tmp) == nil, "no prefix: not to be told")
+        let source = (try? String(contentsOfFile: "Sources/Nightforge/WineSessionStart.swift", encoding: .utf8)) ?? ""
+        check(source.contains("sessionRunning(prefix: prefix(of: process)) ?? true") && !source.contains("Engine.sessionWine()"),
+              "note asks the lock, never the process list")
+    }
+
+    /// The other half of `sessionLock`: holds a write lock on `path` and says so, until it's ended.
+    static func holdWineLock(_ path: String) -> Never {
+        let file = open(path, O_RDWR)
+        var lock = flock()
+        lock.l_type = Int16(F_WRLCK)
+        lock.l_whence = Int16(SEEK_SET)
+        guard file >= 0, fcntl(file, F_SETLK, &lock) == 0 else { exit(2) }
+        print("held")
+        fflush(stdout)
+        sleep(30)
+        exit(0)
+    }
+
     static func main() {
+        if let at = CommandLine.arguments.firstIndex(of: "--hold-wine-lock"), at + 1 < CommandLine.arguments.count {
+            holdWineLock(CommandLine.arguments[at + 1])
+        }
         sessionStartLine()
+        sessionLock()
         let arguments = CommandLine.arguments
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("wine-sandbox-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
