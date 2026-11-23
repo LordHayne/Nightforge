@@ -43,7 +43,7 @@ class ReleaseSwitchTests(unittest.TestCase):
                     self.keys[key] = source.name
 
     def test_the_six_switches_are_found(self):
-        self.assertEqual(sorted(self.keys), ["gameTest.curtainPreview", "gameTest.measurePlay", "gameTest.missingRosetta", "gameTest.startPhases",
+        self.assertEqual(sorted(self.keys), ["gameTest.curtainPreview", "gameTest.hangWatch", "gameTest.measurePlay", "gameTest.missingRosetta", "gameTest.startPhases",
                                              "gameTest.testFinding", "testRootQuestion"])
 
     def test_the_workflow_looks_for_each_of_them(self):

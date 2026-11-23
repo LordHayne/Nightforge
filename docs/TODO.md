@@ -412,6 +412,10 @@ zuvor.“ Und um 18:34, als Teilschritt zu 0.4 „Wie eine Konsole“:
   Unix-Umgebung des Kinds, Rosetta folgt (AVX an/aus ohne Neustart des Elternprozesses). Zur Entscheidung: Weg 1
   (Abfangen in steam.exe, braucht OK wegen Anti-Cheat-Prozessen und eine Probe mit Steam), Weg 2 (Steam vorab passend),
   Weg 3 (so lassen). Noch nichts an der App gebaut.
+- [ ] **Hängendes Spiel erkennen, Stufe 1 (0.4.0, 23.11.):** `docs/ENTWURF-HAENGER.md` (Zweig `claude/haenger-erkennen-04`).
+  Regel `HangRule` (vorn, sichtbar, nicht angehalten, 30 s bzw. 90 s beim ersten Start ohne CPU, Lesen und Ton), Zeichen nur von
+  außen (`proc_pid_rusage`, Core Audio, Fensterliste), hinter dem Testschalter `gameTest.hangWatch` nur eine Zeile in
+  wine.log. Messen: Schalter an, spielen, „Hang watch:“ suchen. Danach Wahl des Angebots im Overlay (A/B/C).
 
 **Aus derselben Runde, technisch:**
 - [ ] **Zwei Nightforge-Kopien mit gleicher Kennung** (Release in `/Applications`, Testbuild in `~/Applications`,

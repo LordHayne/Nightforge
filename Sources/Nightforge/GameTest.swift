@@ -76,6 +76,20 @@ enum GameTest {
     }
     #endif
 
+    /// Whether a running game is watched for hangs, a line in wine.log when it looks hung and when it moves again
+    /// (HangWatch, HangRule, docs/ENTWURF-HAENGER.md). Stage 1 only measures: no surface, nothing in the game's process. A
+    /// switch with no place in the window: `defaults write io.github.lordhayne.nightforge gameTest.hangWatch -bool true`.
+    /// A release build has no such switch, not even its name.
+    #if NIGHTFORGE_RELEASE
+    static func watchesHangs(defaults: UserDefaults = .standard) -> Bool { false }
+    #else
+    static let hangWatchKey = "gameTest.hangWatch"
+
+    static func watchesHangs(defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: hangWatchKey)
+    }
+    #endif
+
     /// When a measured session of play began and under what, a line for the log beside the start's limit
     /// (GameTestMeasure.limitNote): the list counts a frame rate only with its conditions on record, and
     /// finds the start in the evidence by the moment (scripts/laeuft-liste.py, PLAY_LINE).
