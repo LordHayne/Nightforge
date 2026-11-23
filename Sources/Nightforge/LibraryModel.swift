@@ -3983,16 +3983,18 @@ final class LibraryModel: ObservableObject {
             let launchStarted = Date()
             // With several launch options Steam asks which one, in a window that didn't come forward
             // (Drawful 2: standalone or the Jackbox Megapicker, 8.11.). steam://launch starts Steam's
-            // first straight away; it passes no arguments, so with the player's own Steam asks as before.
-            let command = launchType.flatMap { withScreen.isEmpty ? "launch/\(appID)/\($0)" : nil } ?? "run/\(appID)" + extra
-            // Options steam://launch has no name for ("none", no type), or the player's own arguments:
-            // -applaunch starts the first and takes arguments, with no question. Tried once; a resend
-            // (Steam didn't note it) goes the old way, where Steam may ask.
-            var handOver = SteamProgram.macNeedsApplaunch(macLaunch, hasArguments: !arguments.isEmpty)
+            // first straight away; it passes no arguments. Arguments – the player's own or the full-screen
+            // switch – go by -applaunch: by steam://run Steam asks whether to pass them (SteamProgram.macHandOver).
+            let way = SteamProgram.macHandOver(macLaunch, arguments: withScreen)
+            let command: String
+            if case .launch(let type) = way { command = "launch/\(appID)/\(type)" } else { command = "run/\(appID)" + extra }
+            // -applaunch starts the first option and takes arguments. Tried once; with no Steam to take it, or a resend
+            // (Steam didn't note it), it goes the old way, where Steam may ask.
+            var handOver = way == .applaunch
             let run = {
                 if handOver {
                     handOver = false
-                    if MacSteam.applaunch(appID, arguments: Launcher.splitArguments(arguments)) { return }
+                    if MacSteam.applaunch(appID, arguments: Launcher.splitArguments(withScreen)) { return }
                 }
                 MacSteam.open(command)
             }

@@ -6,8 +6,11 @@ enum SteamQuestion {
     enum Kind: Equatable {
         /// The game's licence (ShowEula, SteamLicence).
         case licence
-        /// Which of the game's launch options to start (ShowGameArgs; seen in Steam for Mac's log, 22.11.2026).
+        /// Which of the game's launch options to start (ShowLaunchOption, Steam's name in steamui.dylib's list of launch steps).
         case launchOption
+        /// Whether a start may pass the arguments it came with (ShowGameArgs): Steam for Mac asked it for Valheim, which has one
+        /// macOS launch option, after steam://run/892970//-screen-fullscreen%201 (console_log, 22.11.2026).
+        case arguments
         /// The Steam Cloud: a sync that failed or saves that disagree (MacSteam.waitsInDialog).
         case cloud
         /// Steam's sign-in window (LaunchPhase.signInInSteamWindow, .signInAgain).
@@ -29,7 +32,8 @@ enum SteamQuestion {
         if phase == .signInInSteamWindow || phase == .signInAgain { return .signIn }
         if licence || task == "ShowEula" { return .licence }
         guard let task else { return .other }
-        if task == "ShowGameArgs" { return .launchOption }
+        if task == "ShowLaunchOption" { return .launchOption }
+        if task == "ShowGameArgs" { return .arguments }
         if task.localizedCaseInsensitiveContains("cloud") { return .cloud }
         return .other
     }
@@ -39,6 +43,7 @@ enum SteamQuestion {
         switch kind {
         case .licence: return L10n.t("The licence, just once")
         case .launchOption: return L10n.t("How the game should start")
+        case .arguments: return L10n.t("The game's start details")
         case .cloud: return L10n.t("Which save counts")
         case .signIn: return L10n.t("Sign in in the Steam window")
         case .other: return L10n.t("Steam is asking something")
@@ -53,7 +58,7 @@ enum SteamQuestion {
         // the fresh-setup test saw it in the Windows Steam (docs/LIVETEST-LAUFWERK.md, step 4), and Steam for Mac kept
         // its QR open for 40 minutes on 26.10. (docs/PLAN-STEAM-FUER-MAC-EINRICHTUNG.md).
         case .signIn: return L10n.t("Scan the QR code with the Steam app on your phone.")
-        case .launchOption, .cloud, .other: return nil
+        case .launchOption, .arguments, .cloud, .other: return nil
         }
     }
 }

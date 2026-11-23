@@ -81,6 +81,27 @@ enum SteamProgram {
         return macLaunchType(entries) == nil || hasArguments
     }
 
+    /// How a start reaches Steam for Mac.
+    enum MacHandOver: Equatable {
+        /// steam://launch/<id>/<type>: Steam's first option by its type, without arguments.
+        case launch(String)
+        /// `steam_osx -applaunch <id> <arguments>`, handed to the running Steam (MacSteam.applaunch); steam://run if none takes it.
+        case applaunch
+        /// steam://run/<id>.
+        case run
+    }
+
+    /// The way for a start with `arguments` (the player's own and Nightforge's switch, MacUnityScreen). Arguments never go by
+    /// steam://run/<id>//<arguments>: Steam for Mac asks then whether the start may pass them (ShowGameArgs, Valheim's
+    /// "-screen-fullscreen 1", 22.11.2026), while steam://run/<id> alone started it without a question (twice). -applaunch
+    /// carries arguments (the Windows Steam starts every game of Nightforge's so, with a profile's too). Without arguments
+    /// as before: several options go by steam://launch where its type has a name (Drawful 2, 8.11.), else by -applaunch.
+    static func macHandOver(_ entries: [SteamCatalog.LaunchEntry], arguments: String) -> MacHandOver {
+        if arguments.isEmpty, let type = macLaunchType(entries) { return .launch(type) }
+        if !arguments.isEmpty || macNeedsApplaunch(entries, hasArguments: false) { return .applaunch }
+        return .run
+    }
+
     /// steam://launch/<id>/<type>, for Steam's command line.
     static func url(appID: Int, type: String) -> String { "steam://launch/\(appID)/\(type)" }
 
