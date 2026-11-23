@@ -66,7 +66,7 @@ jobs:
       # build that has one keeps it as text.
       - name: No test switches in a release
         run: |
-          for key in gameTest.measurePlay gameTest.testFinding testRootQuestion gameTest.missingRosetta gameTest.curtainPreview gameTest.startPhases; do
+          for key in gameTest.measurePlay gameTest.testFinding testRootQuestion gameTest.missingRosetta gameTest.curtainPreview gameTest.startPhases gameTest.hangWatch; do
             if strings -a build/Nightforge.noindex/Nightforge.app/Contents/MacOS/Nightforge | grep -q "$key"; then
               echo "::error::The release build has the test switch $key"
               exit 1

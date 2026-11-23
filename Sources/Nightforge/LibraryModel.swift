@@ -871,6 +871,8 @@ final class LibraryModel: ObservableObject {
                 if loaded { runningScanned = true }  // only a look with the games known counts
                 await Task.detached(priority: .utility) { GameDisplay.observeWineSession() }.value
                 watchForGameEnd(found)
+                // Behind the hidden test switch only: a line in wine.log when a game in front looks hung (HangWatch).
+                if GameTest.watchesHangs() { await hangWatch.look(hangWatchGames(found)) }
                 if found.isEmpty, launchingID == nil, playing.isEmpty, judging == nil { idleLooks += 1 } else { idleLooks = 0 }
                 if idleLooks == 20 {  // a start that never got going (~1 min)
                     GameDisplay.leaveGame()
@@ -1025,6 +1027,17 @@ final class LibraryModel: ObservableObject {
     /// processes went), Nightforge comes back to the front: the controller keeps working, and
     /// neither the desktop nor Steam is what the player sees. Until then the page behind the game
     /// says it's on its way (GameBackdrop).
+    private let hangWatch = HangWatch()
+
+    /// The running games as HangWatch looks at them: process, name, when the session began, and whether the game has
+    /// no play time yet (a first start may set itself up quietly for longer).
+    private func hangWatchGames(_ found: [String: pid_t]) -> [String: (pid: pid_t, name: String, started: Date?, firstStart: Bool)] {
+        Dictionary(uniqueKeysWithValues: found.compactMap { id, pid in
+            guard let game = allGames.first(where: { $0.id == id }) else { return nil }
+            return (id, (pid, game.name, sessionStarts[id]?.date, (game.playtimeMinutes ?? 0) == 0))
+        })
+    }
+
     private func watchForGameEnd(_ found: [String: pid_t]) {
         for id in startedHere.intersection(found.keys) where sessionStarts[id] == nil {
             sessionStarts[id] = (Date(), allGames.first { $0.id == id }?.playtimeMinutes ?? 0)

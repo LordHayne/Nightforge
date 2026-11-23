@@ -69,6 +69,9 @@ enum GameOverlay {
 
     static var isOpen: Bool { panel?.isVisible == true }
 
+    /// The overlay is up, or its game is still stopped after it closed (`runningOn`): a quiet game then is no hang (HangWatch).
+    static var mayHoldGame: Bool { isOpen || runningOn != nil }
+
     /// Up over a game that isn't stopped and shows its picture (a Mac game that only runs online, a Windows
     /// one our pad driver keeps the pad from): whatever the pointer does, the game sees it.
     static var gameRunsUnder: Bool { isOpen && runsUnder(centered: state.centered, paused: state.paused) }
