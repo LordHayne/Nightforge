@@ -1545,6 +1545,38 @@ enum Engine {
 
     private static let steamStart = LockedValue<(wine: URL, at: Date)?>(nil)
 
+    /// Where wine.log stood just before that start (`startSteam`): what follows is its own, the boot of a session it
+    /// began included (`steamSessionBroken`).
+    static var steamStartLogMark: UInt64? {
+        get { steamStartMark.withLock { $0 } }
+        set { steamStartMark.withLock { $0 = newValue } }
+    }
+
+    private static let steamStartMark = LockedValue<UInt64?>(nil)
+
+    /// A Wine session that came up without Wine's network driver (23.11.2026, 11:34): winedevice.exe loaded mountmgr.sys
+    /// and nothing after it, nsiproxy.sys never came, and nsi.dll found no \\.\Nsi – Steam said "GetAdaptersAddresses
+    /// returned 2", wrote no line of its own and hung until the session was ended ~70 s later. In the 42 sessions with
+    /// Steam that worked, nsiproxy.sys came before steam.exe. `log`: wine.log since Steam's start (its loaddll lines);
+    /// `age`: how long ago that start was. Without those lines (another WINEDEBUG) only Steam's own words tell.
+    static func sessionBootBroken(log: String, age: TimeInterval) -> Bool {
+        if log.contains("GetAdaptersAddresses returned 2") { return true }
+        // Only a session that began with this start: its drivers come after its wineboot.
+        guard age >= sessionBootPatience, let boot = log.range(of: #"\wineboot.exe" at"#, options: .backwards) else { return false }
+        let since = log[boot.upperBound...]
+        return since.contains(#"\mountmgr.sys" at"#) && since.contains(#"\steam.exe" at"#) && !since.contains(#"\nsiproxy.sys" at"#)
+    }
+
+    /// How long after Steam's start a session may still be without nsiproxy.sys: in the sessions that worked it came
+    /// within a second of mountmgr.sys.
+    static let sessionBootPatience: TimeInterval = 15
+
+    /// `sessionBootBroken` for the Steam started last.
+    static func steamSessionBroken(now: Date = Date()) -> Bool {
+        guard let start = lastSteamStart, let mark = steamStartLogMark else { return false }
+        return sessionBootBroken(log: GameLog.text(since: mark), age: now.timeIntervalSince(start.at))
+    }
+
     /// The engine a fresh Steam starts with: `wine` – or, when Steam didn't come up on the newest
     /// engine, the build held back for it (EngineRollback.steamPinnedBuild), its share of the prefix
     /// put in place. A Wine session left on another engine ends first; one a game runs in, Steam
@@ -3149,13 +3181,13 @@ enum Engine {
     /// A Steam that stopped taking commands (SteamCommands) doesn't take its "-shutdown" either: it
     /// ends with its Wine session instead – the caller makes sure no game runs in it – and starts
     /// again in the background. A client update going in finishes first.
-    static func restartHungSteam(_ wine: URL) async throws {
+    static func restartHungSteam(_ wine: URL, reason: String = "Steam stopped taking commands") async throws {
         var waited = 0
         while waited < 120, SteamBootstrap(steamRoot: steamRoot) == .installing {
             try await Task.sleep(for: .seconds(1))
             waited += 1
         }
-        await offMain { stopAll(wine, reason: "Steam stopped taking commands") }
+        await offMain { stopAll(wine, reason: reason) }
         applySessionSettings(wine)
         await waitForSteamToEnd()
         try startSteam(wine, arguments: ["-silent"])
@@ -3526,6 +3558,7 @@ enum Engine {
             let log = GameLog.handleForSteam()
             process.standardOutput = log ?? FileHandle.nullDevice
             process.standardError = log ?? FileHandle.nullDevice
+            if fresh { steamStartLogMark = GameLog.mark() }
             try RosettaSupport.run(process)
         } catch {
             // A start that never happened isn't judged as the engine's failure (SteamStartCheck, review B5).
