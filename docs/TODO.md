@@ -673,6 +673,20 @@ oder ein Bildschirmfoto.
   Sitzung nehmen und sie gleich neu beginnen statt nach ~70 s. Die zwei „Curtain: nobody would take it away“ um
   11:35:47 und 11:36:06 räumten herrenlose Vorhänge während der Vorschau (`takeAwayOrphanCurtain`) und hängen nicht mit
   Steam zusammen.
+  **Nachtrag 23.11., Zweig `claude/sitzung-robust-04`:** (1) Netzlaufwerke sind es nicht: winecx' mountmgr.so ruft
+  weder getmntinfo noch statfs; DiskArbitration läuft in einem eigenen Thread, nicht in `DriverEntry`, und überspringt
+  jedes Volume ohne `DAMediaBSDName` – jede SMB-Freigabe, etwa /Volumes/lexi – vor dem ersten Zugriff; dosdevices hat nur
+  `c:` und `z:`; das Systemprotokoll zeigt um 11:35 nichts von smbfs oder diskarbitrationd. Heraushalten bräuchte es
+  also nichts. Das Muster in wine.log: In allen 42 guten Sitzungen kam nsiproxy.sys vor steam.exe, nur in dieser
+  steam.exe zuerst, und nsiproxy danach nie (mountmgrs `DriverEntry` meldet seine Geräte über plugplay an; wo es dort
+  hing, sagt das Protokoll nicht). (2) Gebaut: `Engine.sessionBootBroken` – Steams Zeile „GetAdaptersAddresses returned
+  2“ seit seinem Start, oder in einer mit diesem Start begonnenen Sitzung mountmgr.sys und steam.exe ohne nsiproxy.sys
+  nach 15 s. Die Wache nach Steams Start (`watchSteamStart`, alle 5 s) beginnt dann sofort eine neue Sitzung
+  (`restartHungSteam`, „Wine session ends: the session came up without Wine's network driver“), ohne es der Engine
+  anzurechnen; vor einem Spiel gilt Steam beim Warten auf die Anmeldung als hängend (`steamSignInStep`), und der eine
+  Neustart beginnt ebenfalls eine neue Sitzung. Beides nur, wenn sicher kein Windows-Spiel läuft. Statt ~70 s dauert
+  es so höchstens ~5 s nach Steams Zeile bzw. ~20 s ohne sie. Test: `SteamStopTest.brokenSessionRule`. Live ungeprüft
+  (der Fall kam einmal in 43 Sitzungen).
 - [ ] **Bau mit gesetztem `SDKROOT` rot (22.11.):** In Heinzels Sessions ist `SDKROOT` auf das Standard-SDK
   (`MacOSX.sdk`, 27.2) gesetzt. `build.sh` (Zeile 9) fällt nur bei leerem `SDKROOT` auf `MacOSX26.5.sdk` zurück, mit
   27.2 fehlen die SwiftUI-Makros („cannot find '$barShown' in scope“). Heinzel baute deshalb mit

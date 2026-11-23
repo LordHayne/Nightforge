@@ -197,11 +197,53 @@ struct SteamStopTest {
         check(notes.isEmpty, "no process list: no wait")
     }
 
+    /// A Wine session that came up without Wine's network driver (Engine.sessionBootBroken; 23.11.2026, 11:34): told by
+    /// Steam's own line, or by mountmgr.sys and steam.exe in a new session with no nsiproxy.sys 15 s on.
+    static func brokenSessionRule() {
+        func loaded(_ pid: String, _ file: String) -> String {
+            #"\#(pid):\#(pid):trace:loaddll:build_module Loaded L"C:\\windows\\system32\\\#(file)" at 0000000140000000: builtin"#
+        }
+        let boot = [loaded("0028", "wineboot.exe"), loaded("0034", "services.exe"), loaded("0044", "winedevice.exe"),
+                    loaded("0044", #"drivers\\mountmgr.sys"#), loaded("006c", "plugplay.exe")]
+        let steam = #"0020:0024:trace:loaddll:build_module Loaded L"C:\\Program Files (x86)\\Steam\\steam.exe" at 0000000140000000: native"#
+        let said = #"src\common\net_misc.cpp (252) : Assertion Failed: CalcUnIPThisBox - GetAdaptersAddresses returned 2"#
+        let broken = (boot + [steam, said]).joined(separator: "\n")
+        let quiet = (boot + [steam]).joined(separator: "\n")
+        let good = (boot + [loaded("0044", #"drivers\\nsiproxy.sys"#), steam]).joined(separator: "\n")
+        check(Engine.sessionBootBroken(log: broken, age: 1), "Steam's own line tells it at once")
+        check(Engine.sessionBootBroken(log: quiet, age: 15) && !Engine.sessionBootBroken(log: quiet, age: 14),
+              "without it: no nsiproxy.sys 15 s after Steam's start, not before")
+        check(!Engine.sessionBootBroken(log: good, age: 60), "nsiproxy.sys came: the session is whole")
+        check(!Engine.sessionBootBroken(log: steam, age: 60), "Steam in a session that was there already: nothing to tell by")
+        check(!Engine.sessionBootBroken(log: (boot + [steam]).filter { !$0.contains("mountmgr") }.joined(separator: "\n"), age: 60),
+              "no mountmgr.sys yet either: the session is still on its way")
+        check(!Engine.sessionBootBroken(log: boot.joined(separator: "\n"), age: 60), "no steam.exe: not Steam's start")
+        check(!Engine.sessionBootBroken(log: quiet + "\n" + good, age: 60), "a newer session that came up whole counts, not the one before")
+        check(!Engine.sessionBootBroken(log: "", age: 60) && !Engine.sessionBootBroken(log: "Steam started", age: 60),
+              "without loaddll lines (another WINEDEBUG) only Steam's own line tells")
+        check(LibraryModel.steamSignInStep(signedIn: false, running: true, waited: 0, quietFor: 0, sessionBroken: true) == .stuck,
+              "before a game: a broken session is stuck at once")
+        check(LibraryModel.steamSignInStep(signedIn: true, running: true, waited: 0, quietFor: 0, sessionBroken: true) == .signedIn,
+              "signed in all the same: nothing to restart")
+        // The watch after Steam's start and the start of a game act on it: a new session, never with a Windows game in it.
+        let model = (try? String(contentsOfFile: "Sources/Nightforge/LibraryModel.swift", encoding: .utf8)) ?? ""
+        check(model.contains("Engine.steamSessionBroken() && Engine.windowsGameRunningKnown == false")
+              && model.contains("restartStuckSteam(wine, freshSession: Self.brokenSessionReason, hung: true)"),
+              "the watch: a new session at once, with no game in it")
+        check(model.contains("steamSessionBroken ? await Engine.offMain { Engine.windowsGameRunningKnown == false } : false"),
+              "the start of a game: a new session only with no Windows game in it")
+        let engine = (try? String(contentsOfFile: "Sources/Nightforge/Engine.swift", encoding: .utf8)) ?? ""
+        check(engine.contains("if fresh { steamStartLogMark = GameLog.mark() }\n            try RosettaSupport.run(process)"),
+              "the mark is taken right before Steam's process starts")
+        check(!LibraryModel.brokenSessionReason.contains("/") && !LibraryModel.brokenSessionReason.isEmpty, "the reason is a name")
+    }
+
     static func main() async {
         await leftovers()
         sessionEndReasons()
         hardStopRule()
         await waitToEndRule()
+        brokenSessionRule()
         // Not running: nothing is done – above all no "-shutdown", which would start a Steam.
         let off = FakeSteam(lifetime: 0)
         await stop(off)

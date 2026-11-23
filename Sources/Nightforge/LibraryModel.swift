@@ -3158,6 +3158,13 @@ final class LibraryModel: ObservableObject {
                 await steamCameUp(since: began)
                 return
             }
+            // Its session came up without Wine's network driver: it never would sign in. Not the engine's fault, so not
+            // counted against it; never with a Windows game in that session.
+            if !gameUnderWay, await Engine.offMain({ Engine.steamSessionBroken() && Engine.windowsGameRunningKnown == false }) {
+                GameLog.note("Steam's Wine session came up without Wine's network driver (nsiproxy.sys): a new one at once")
+                _ = await restartStuckSteam(wine, freshSession: Self.brokenSessionReason, hung: true)
+                return
+            }
             if Engine.steamHadTimeToHang(began: began, quietFor: 45), !gameUnderWay, Engine.steamLooksStuck(quietFor: 45),
                !(await Engine.offMain { Engine.windowsGameRunning }) {
                 _ = await steamStartFailed(since: began)
@@ -3212,8 +3219,11 @@ final class LibraryModel: ObservableObject {
 
     /// The wait for a Steam that signs in: on while it comes along – its process there, something in its logs
     /// lately – up to two minutes; stuck without a process, with its logs quiet, or after that.
-    nonisolated static func steamSignInStep(signedIn: Bool, running: Bool, waited: TimeInterval, quietFor: TimeInterval) -> SteamSignInStep {
+    nonisolated static func steamSignInStep(signedIn: Bool, running: Bool, waited: TimeInterval, quietFor: TimeInterval,
+                                            sessionBroken: Bool = false) -> SteamSignInStep {
         if signedIn { return .signedIn }
+        // A session without Wine's network driver (Engine.sessionBootBroken): no wait makes it sign in.
+        if sessionBroken { return .stuck }
         if waited >= steamSignInPatience { return .stuck }
         if !running, waited >= steamGonePatience { return .stuck }
         if waited >= steamQuietPatience, quietFor >= steamQuietPatience { return .stuck }
@@ -3222,6 +3232,9 @@ final class LibraryModel: ObservableObject {
 
     /// The phase while Steam restarts for a start: a fault only when it got stuck.
     nonisolated static func restartPhase(stuck: Bool) -> LaunchPhase { stuck ? .restartingSteam : .restartingSteamForGame }
+
+    /// Why a session that came up without Wine's network driver ends (wine.log, "Wine session ends: …").
+    nonisolated static let brokenSessionReason = "the session came up without Wine's network driver"
 
     /// One Steam restart for a start: the game's settings that come with Steam's environment (only while no Windows
     /// game runs in it), or a Steam stuck signing in – both at once in one.
@@ -3262,13 +3275,14 @@ final class LibraryModel: ObservableObject {
     /// Not up again because of its engine (steamStartFailed), it starts once more on the previous
     /// one when nothing waits on it; a start under way gets the previous engine with its next try.
     /// `freshSession`: with a new Wine session, for the reason it names (the log line of the session's end); nil: none.
+    /// With `hung`, the reason its session ends for.
     private func restartStuckSteam(_ wine: URL, freshSession: String? = nil, hung: Bool = false, again: Bool = true) async -> Bool {
         let previous = steamStartup
         let began = Date()
         let restart = Task {
             await previous?.value
             if hung {
-                try? await Engine.restartHungSteam(wine)
+                try? await Engine.restartHungSteam(wine, reason: freshSession ?? "Steam stopped taking commands")
             } else if let freshSession {
                 try? await DockHider.restartSteam(wine, reason: freshSession)
             } else {
@@ -5072,17 +5086,20 @@ final class LibraryModel: ObservableObject {
             // Offline Mode"): wait for it while it comes along (steamSignInStep). One that is stuck is
             // restarted once, together with a restart the game's settings need anyway (restartsSteamForStart).
             var steamStuck = false
+            /// Stuck because its session came up without Wine's network driver: the restart begins a new session.
+            var steamSessionBroken = false
             if steps.windowsSteam, Engine.isSteamSignedIn, !Engine.steamSignedIn {
                 launchPhase = .signingIn
                 let began = Date()
                 waiting: while true {
-                    let quiet = await Engine.offMain { Engine.steamLogsQuiet() }
+                    let (quiet, broken) = await Engine.offMain { (Engine.steamLogsQuiet(), Engine.steamSessionBroken()) }
                     switch Self.steamSignInStep(signedIn: Engine.steamSignedIn, running: Engine.isSteamRunning,
-                                                waited: Date().timeIntervalSince(began), quietFor: quiet) {
+                                                waited: Date().timeIntervalSince(began), quietFor: quiet, sessionBroken: broken) {
                     case .signedIn:
                         break waiting
                     case .stuck:
                         steamStuck = true
+                        steamSessionBroken = broken
                         GameLog.note("Steam isn't signed in after \(Int(Date().timeIntervalSince(began))) s"
                                      + (Engine.isSteamRunning ? ", nothing in its logs for \(Int(min(quiet, 9999))) s" : ", and it isn't running")
                                      + ": it's restarted once, before the game")
@@ -5337,8 +5354,12 @@ final class LibraryModel: ObservableObject {
                     // Planned, for the game's settings, it doesn't sound like a fault; only a Steam that got stuck does.
                     launchPhase = Self.restartPhase(stuck: steamStuck)
                     GameLog.note("Steam restarts for \(game.name)" + Self.restartReason(stuck: steamStuck, parts: changedParts))
-                    _ = await restartStuckSteam(URL(fileURLWithPath: runner))
+                    // Its session without Wine's network driver ends with it – only with no Windows game in it.
+                    let newSession = steamSessionBroken ? await Engine.offMain { Engine.windowsGameRunningKnown == false } : false
+                    _ = await restartStuckSteam(URL(fileURLWithPath: runner), freshSession: newSession ? Self.brokenSessionReason : nil,
+                                                hung: newSession)
                     steamStuck = false  // restarted: the next way of this start finds it fresh
+                    steamSessionBroken = false
                     launchPhase = nil
                 }
                 if Task.isCancelled { return }
