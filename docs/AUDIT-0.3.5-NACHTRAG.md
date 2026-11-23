@@ -91,3 +91,37 @@ nichts am Ergebnis.
     `settleSession` dort beenden könnte. Gleich.
   - `startSteps`: `!viaSteam, builtIn` wird zu `provider != .steam && builtIn`, dazu Battle.net. Gleich.
     `game.pendingUpdate` wird früher gelesen, aber am selben Wert.
+
+## Nachtrag: Lichtnaht und Konsolenmodus (Worker B, in staging seit ad8d44c)
+
+Gelesen: `ConsoleMode.swift`, `DockAutoHide.swift`, `FullScreen.swift` (DockAutoHide.run), `CurtainEscape.swift`,
+`GameStage.swift`, `GameBackdrop.swift`, `LaunchPhase.swift`, `SetupView.swift` und die Aufrufer in `LibraryModel.swift` und
+`InputRouter.swift`. Nur gelesen. Stand 1b563a4d.
+
+| Prüfpunkt | Ergebnis |
+|---|---|
+| Dock: alter Wert zurück, auch nach Absturz | **in Ordnung.** `DockAutoHide.engage` merkt `console.dockAutoHideBefore`, *bevor* es die Einstellung ändert (`DockAutoHide.swift`, engage). `restore` läuft bei Konsolenmodus aus (`LibraryModel.swift:4342`), beim Beenden synchron (`App.swift:150`) und beim nächsten Start nach einem Absturz (`App.swift:65`). Ein Wert, den der Spieler selbst gesetzt hatte, wird nie angefasst; hat er ihn zwischendurch geändert, wird nichts zurückgestellt. |
+| Fokusrahmen sofort sichtbar | **Fund K1**, siehe unten. Sonst wie entworfen: nur in Dialogen und offenen Panels, nicht auf Bibliothek und Startseite (`ConsoleMode.focusPlace`). |
+| Esc beendet den Konsolenmodus nicht | **in Ordnung.** `InputRouter.swift:213`: Mit nichts zum Zurückgehen verlässt Esc nur außerhalb des Konsolenmodus das Vollbild. ⌃⌘F, Ansicht › Vollbild und der grüne Knopf beenden ihn absichtlich (`FullScreen.swift:78`, `toggleEndsConsoleMode`). |
+| Anfrage nur einmal, erst nach „Los geht's“ | **in Ordnung.** `offers` verlangt `!asked && !firstStart` (`ConsoleMode.swift`); `showsFirstStart` = `setup.isActive \|\| needsSetup` (`LibraryModel.swift:430`), und die Enthüllungsseite schließt das Setup erst mit „Los geht's“ (`SetupView.swift:22`). Geprüft wird im 3-s-Takt (`LibraryModel.swift:905`). Kleinigkeit: `askedKey` wird beim *Zeigen* gesetzt (`LibraryModel.swift:4311`); beendet jemand Nightforge mit offener Anfrage, kommt sie nie wieder (dann bleiben kleines Menü und Einstellungen). |
+| Ⓑ „Zurück zu Nightforge“ ab 30 s, sichtbar ab 90 s | **in Ordnung.** `CurtainEscape.openAfter` 30, `tipAfter` 90 (`CurtainEscape.swift`), gezählt ab „kein Prozess des Spiels und keine erklärende Phase“ (`noProcessSince`, `LibraryModel.swift:1750`). Ab 90 s kommt zusätzlich die Frage „… antwortet nicht“ (`askAfter` 90). |
+| Nach 10 s ohne Spielfenster zurück | **in Ordnung, mit Lesart.** `GameStage.endingPatience` 10 s ab `pictureWentAt` (`LibraryModel.swift:2022`). `pictureWentAt` setzt `wentDark` erst nach 3 s ohne Bild (Audit E2): vom Verschwinden des Bilds bis „Back to Nightforge“ also ~13 s plus ein Blick. Mit Fenster irgendwo (nicht auf dem Bildschirm) geht nach 10 s nur der Vorhang hinter das Spiel (`curtainEnds`). |
+| Satz beim langen Erststart ab 60 s | **in Ordnung.** `LaunchPhase.firstTimeAfter` 60; die Einrichtungsphasen haben keinen eigenen Vorhangtitel, also greift `firstTime` (`LibraryModel.swift:2264`, `longFirstTime`). Gemessen an `GameBackdrop.upFor` (wie lange der Vorhang *so* steht). |
+| Vorhang blieb nach der Vorschau stehen | behoben in a78dacc2 (`GameBackdrop.fade`), siehe dort. |
+
+**K1 · Der Fokus-Takt endet ganz, sobald einmal kein Schlüsselfenster da ist (mittel, heute Abend gut möglich).**
+`LibraryModel.swift:4374–4376`: In der Schleife von `watchConsoleFocus` steht `guard let self, …, let key = NSApp.keyWindow else { return }`.
+Gibt es einen Augenblick lang kein Schlüsselfenster, endet der Task, nicht nur dieser Blick. Das kann zwischen zwei Blättern sein,
+während ein Blatt schließt, beim Wechsel ins Vollbild (`FullScreen.set`) oder während das kleine Menü aufgeht. Erst das nächste
+Aktivieren von Nightforge (`didBecomeActive`) startet ihn wieder. Bis dahin erscheint der Rahmen in Dialogen nicht mehr von selbst,
+sondern erst nach einem Druck aufs Steuerkreuz, wie außerhalb des Konsolenmodus.
+- Wahrscheinlich: beim Einschalten des Konsolenmodus selbst. `setConsoleMode` schaltet das Vollbild um und ruft danach
+  `watchConsoleFocus()`; liegt beim ersten Blick 0,25 s später kein Schlüsselfenster vor, ist der Takt schon aus.
+- Vorschlag: Ohne Schlüsselfenster nur diesen Blick überspringen (`continue` nach dem Schlaf), `return` nur, wenn der Modus aus ist,
+  ein Spiel läuft oder Nightforge nicht vorn ist.
+
+**K2 · Zwei Dock-Schritte können sich beim Start überholen (gering).** `DockAutoHide.run` (`FullScreen.swift:20`) führt jeden Schritt in
+einem eigenen losgelösten Task aus. Beim Start nach einem Absturz läuft `restore` (`App.swift:65`). Startet der Spieler im
+Konsolenmodus sehr schnell ein Spiel, läuft gleichzeitig `engage` (`LibraryModel.swift:1463`). In ungünstiger Reihenfolge stellt
+`restore` den Wert zurück, nachdem `engage` den Merker schon neu gesetzt hat. Dann bleibt das Dock beim ersten Spiel sichtbar. Beim
+nächsten Spiel greift `engage` wieder (der Merker fehlt dann). Vorschlag: beide Schritte über eine serielle Schlange.
