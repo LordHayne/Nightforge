@@ -15,10 +15,10 @@ import ObjectiveC
 /// The green button, ⌃⌘F (View › Full Screen) and Esc with nothing to go back from switch it;
 /// GameDisplay switches it for a TV and keeps what the player chose for each screen.
 extension DockAutoHide {
-    /// `engage` or `restore` on the Mac's setting, away from the main thread (the Dock's restart waits for killall),
-    /// with its line in the log; `why` is added to it.
+    /// `engage` or `restore` on the Mac's setting, away from the main thread (the Dock's restart waits for killall), one
+    /// after the other in the order asked (`serially`), with its line in the log; `why` is added to it.
     static func run(_ step: @escaping @Sendable (System) -> Outcome, why: String = "") {
-        Task.detached(priority: .utility) {
+        serially {
             if let line = step(live).logLine { GameLog.note(line + why) }
         }
     }
