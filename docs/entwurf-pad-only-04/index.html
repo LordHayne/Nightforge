@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Nightforge nur mit dem Controller · zur Wahl</title>
+<!-- Entwurf zu docs/ENTWURF-PAD-ONLY.md, Abschnitt 3. Bilder nachgebaut. Stil wie docs/entwurf-steam-pad-04/index.html. -->
+<style>
+body{margin:0;background:#0f141c;color:#f3f1ec;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-serif}
+main{width:1480px;margin:0 auto;padding:40px 40px 60px;box-sizing:border-box}
+header h1{margin:0 0 10px;font-size:32px;font-weight:800;font-stretch:expanded}
+header p{margin:0 0 8px;font-size:16px;line-height:24px;color:#9aa3af;max-width:1100px}
+section{margin-top:48px;padding-top:32px;border-top:1px solid rgba(255,255,255,.08)}
+.label{font-size:11px;font-weight:700;letter-spacing:.8px;color:#9aa3af;text-transform:uppercase;margin-bottom:8px}
+h2{margin:0 0 10px;font-size:26px;font-weight:800;font-stretch:expanded}
+.lead{margin:0 0 22px;font-size:15px;line-height:22px;color:#9aa3af;max-width:1100px}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:28px}
+.cap{display:flex;flex-direction:column;gap:4px;margin-top:10px;font-size:13px;line-height:19px;color:#9aa3af}
+.cap b{font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:#f3f1ec}
+.plus,.minus{margin:6px 0 0;font-size:14px;line-height:21px}
+.minus{color:#9aa3af}
+/* Ein Bildschirm, 1512 × 982 gedacht, auf 680 verkleinert. */
+.frame{position:relative;width:680px;height:442px;overflow:hidden;border-radius:10px;box-shadow:0 12px 22px rgba(0,0,0,.55);background:#000}
+.screen{position:absolute;left:0;top:0;width:1512px;height:982px;transform:scale(.4497);transform-origin:top left;overflow:hidden}
+.lib{position:absolute;inset:0;background:linear-gradient(180deg,#151b27,#080a0f)}
+.lib h3{position:absolute;left:80px;top:90px;margin:0;font-size:34px;font-weight:700}
+.cards{position:absolute;left:80px;top:160px;display:flex;gap:30px}
+.cards div{width:230px;height:320px;border-radius:14px;background:linear-gradient(160deg,#2a3448,#141a26)}
+.cards div.f{outline:5px solid #8ca8db;outline-offset:5px}
+.dim{position:absolute;inset:0;background:rgba(0,0,0,.5)}
+/* Glasblatt */
+.sheet{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:700px;box-sizing:border-box;padding:40px 44px 34px;border-radius:28px;background:rgba(40,46,60,.88);border:1px solid rgba(255,255,255,.14);text-align:center;box-shadow:0 30px 60px rgba(0,0,0,.6)}
+.sheet h4{margin:0 0 14px;font-size:32px;font-weight:700}
+.sheet p{margin:0 0 30px;font-size:21px;line-height:30px;color:#c9ced8}
+.btns{display:flex;gap:18px;justify-content:center}
+.btn{min-width:210px;padding:16px 24px;border-radius:24px;font-size:21px;background:rgba(255,255,255,.12);display:flex;gap:12px;align-items:center;justify-content:center}
+.btn.p{background:#3a63b8;outline:5px solid #8ca8db;outline-offset:5px}
+.pg{display:inline-flex;width:32px;height:32px;border-radius:16px;border:2px solid currentColor;align-items:center;justify-content:center;font-size:17px;font-weight:700}
+/* Vorhang mit Steams Frage */
+.curtain{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 35%,#1d2638,#06080b 72%)}
+.banner{position:absolute;left:0;right:0;top:64px;text-align:center;font-size:24px;letter-spacing:8px;font-stretch:expanded;color:#c8d3e6}
+.note{position:absolute;left:0;right:0;top:112px;text-align:center;font-size:19px;color:#9aa3af}
+.steam{position:absolute;left:50%;top:50%;transform:translate(-50%,-52%);width:640px;height:380px;border-radius:6px;background:#1b2838;box-shadow:0 0 0 2px #8ca8db,0 0 34px rgba(140,168,219,.6);overflow:hidden}
+.steam .t{height:40px;background:#171d25;display:flex;align-items:center;padding-left:18px;font-size:16px;color:#c6d4df}
+.steam .b{padding:26px 30px;font-size:18px;color:#c6d4df;line-height:28px}
+.steam .opt{display:flex;gap:12px;align-items:center;margin:10px 0}
+.steam .opt i{width:18px;height:18px;border-radius:9px;border:2px solid #8f98a0;display:inline-block}
+.steam .opt i.on{background:#66c0f4;border-color:#66c0f4}
+.steam .sb{position:absolute;right:24px;bottom:22px;display:flex;gap:12px}
+.steam .sb span{padding:10px 22px;border-radius:3px;background:#3d4450;font-size:16px;color:#dfe3e6}
+.steam .sb span.go{background:linear-gradient(90deg,#47bfff,#1a44c2);color:#fff}
+.bar{position:absolute;left:0;right:0;bottom:0;height:96px;background:rgba(6,8,11,.78);border-top:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;gap:48px;font-size:22px;color:#c8d3e6}
+.bar .g{display:flex;gap:12px;align-items:center}
+/* Nightforges eigene Auswahl */
+.rows{display:flex;flex-direction:column;gap:12px;margin:0 0 28px;text-align:left}
+.rows div{padding:16px 22px;border-radius:16px;background:rgba(255,255,255,.08);font-size:21px}
+.rows div.f{background:rgba(58,99,184,.55);outline:5px solid #8ca8db;outline-offset:3px}
+.rows small{display:block;font-size:16px;color:#aab3c2;margin-top:4px}
+</style>
+<style>
+.kb{position:absolute;left:50%;bottom:40px;transform:translateX(-50%);width:1100px;padding:22px;border-radius:26px;background:rgba(30,36,48,.94);border:1px solid rgba(255,255,255,.14);display:grid;grid-template-columns:repeat(10,1fr);gap:10px}
+.kb div{height:62px;border-radius:12px;background:rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;font-size:24px}
+.kb div.f{background:#3a63b8;outline:4px solid #8ca8db}
+.field{margin:0 0 18px;padding:14px 18px;border-radius:14px;background:rgba(0,0,0,.3);border:2px solid rgba(255,255,255,.12);font-size:21px;text-align:left;font-family:Menlo,monospace}
+.field.on{border-color:#e8a75a}
+.mac{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:860px;height:560px;border-radius:12px;background:#ececec;color:#222;box-shadow:0 30px 60px rgba(0,0,0,.6);overflow:hidden}
+.mac .t{height:44px;background:#dcdcdc;display:flex;align-items:center;gap:8px;padding-left:16px}
+.mac .t i{width:13px;height:13px;border-radius:7px;background:#ff5f57;display:inline-block}
+.mac .side{position:absolute;left:0;top:44px;bottom:70px;width:220px;background:#e2e2e2;padding:16px;font-size:16px;line-height:30px}
+.mac .list{position:absolute;left:236px;top:60px;right:20px;font-size:17px;line-height:34px}
+.mac .sb{position:absolute;right:20px;bottom:18px;display:flex;gap:10px}
+.mac .sb span{padding:8px 18px;border-radius:7px;background:#fff;border:1px solid #bbb;font-size:15px}
+.mac .sb span.go{background:#2f74e6;color:#fff;border-color:#2f74e6}
+.qr{width:220px;height:220px;margin:0 auto 22px;border-radius:14px;background:repeating-linear-gradient(90deg,#f3f1ec 0 14px,#0f141c 14px 28px),#f3f1ec;opacity:.9;box-shadow:inset 0 0 0 14px #f3f1ec}
+.toast{position:absolute;left:50%;bottom:110px;transform:translateX(-50%);padding:14px 16px 14px 26px;border-radius:30px;background:rgba(40,46,60,.94);border:1px solid rgba(255,255,255,.14);display:flex;gap:18px;align-items:center;font-size:21px}
+.toast span{padding:10px 20px;border-radius:20px;background:#f3f1ec;color:#0f141c;font-weight:600}
+.toast span.f{outline:4px solid #8ca8db;outline-offset:4px}
+.ask{position:absolute;left:50%;bottom:180px;transform:translateX(-50%);font-size:20px;color:#e8a75a}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>Nightforge nur mit dem Controller</h1>
+  <p>Fast alles in Nightforge geht schon mit dem Pad (<code>docs/ENTWURF-PAD-ONLY.md</code>). Diese fünf Stellen brauchen
+  heute noch Maus, Tastatur oder Browser. Je Punkt Vorher und Nachher, nachgebaut, keine Bildschirmfotos. Jeder lässt
+  sich einzeln nehmen.</p>
+</header>
+<section>
+  <div class="label">Punkt 1 · Pad-Tastatur für jedes Textfeld</div>
+  <h2>Tippen mit dem Controller, überall</h2>
+  <p class="lead">Heute gibt es die Pad-Tastatur nur bei der Suche. Nachher öffnet Ⓐ auf einem Textfeld dieselbe Tastatur, unten über dem Blatt; das Feld bleibt darüber sichtbar. Betrifft die Startparameter und unter Einstellungen › Stores den Bottles-Ordner und den Wine-Pfad.</p>
+  <div class="pair">
+    <div><div class="frame"><div class="screen"><div class="lib"><h3>Bibliothek</h3><div class="cards"><div></div><div></div><div></div><div></div><div></div></div></div><div class="dim"></div><div class="sheet"><h4>Spieloptionen</h4><p>Startparameter</p><div class="field on">-dx11 -skipintro|</div><div class="btns"><div class="btn p"><span class="pg">B</span>Fertig</div></div></div></div></div><div class="cap"><b>Vorher</b>Ⓐ setzt den Cursor ins Feld, tippen geht nur mit einer Tastatur.</div></div>
+    <div><div class="frame"><div class="screen"><div class="lib"><h3>Bibliothek</h3><div class="cards"><div></div><div></div><div></div><div></div><div></div></div></div><div class="dim"></div><div class="sheet" style="top:30%"><h4>Spieloptionen</h4><p>Startparameter</p><div class="field on">-dx11 -skipintro -d|</div></div><div class="kb"><div>q</div><div>w</div><div>e</div><div>r</div><div>t</div><div>z</div><div>u</div><div>i</div><div>o</div><div>p</div><div>a</div><div>s</div><div class="f">d</div><div>f</div><div>g</div><div>h</div><div>j</div><div>k</div><div>l</div><div>-</div></div></div></div><div class="cap"><b>Nachher</b>Die Pad-Tastatur der Suche: ☰ oder Ⓐ auf „Fertig“ übernimmt, Ⓑ schließt sie.</div></div>
+  </div>
+  <p class="plus">+ Eine Tastatur für alles, die schon da ist</p><p class="minus">– Längere Eingaben bleiben mit dem Pad mühsam</p>
+</section>
+<section>
+  <div class="label">Punkt 2 · Ordnerwahl ohne Dateifenster</div>
+  <h2>Ordner aus einer Liste wählen</h2>
+  <p class="lead">Heute öffnet „Wählen …“ macOS’ Dateifenster, das nur mit Maus oder Trackpad geht. Nachher zeigt Nightforge eine kurze Liste der Orte, an denen Bottles liegen könnten, mit dem, was es dort findet. Das Dateifenster bleibt für die Maus.</p>
+  <div class="pair">
+    <div><div class="frame"><div class="screen"><div class="lib"><h3>Bibliothek</h3><div class="cards"><div></div><div></div><div></div><div></div><div></div></div></div><div class="dim"></div><div class="mac"><div class="t"><i></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div><div class="side">Favoriten<br>Programme<br>Schreibtisch<br>Downloads<br>Orte<br>Games</div><div class="list">CrossOver<br>Whisky<br>Bottles<br>Steam</div><div class="sb"><span>Abbrechen</span><span class="go">Diesen Ordner verwenden</span></div></div></div></div><div class="cap"><b>Vorher</b>macOS’ Dateifenster.</div></div>
+    <div><div class="frame"><div class="screen"><div class="lib"><h3>Bibliothek</h3><div class="cards"><div></div><div></div><div></div><div></div><div></div></div></div><div class="dim"></div><div class="sheet" style="width:760px"><h4>Bottles-Ordner wählen</h4><div class="rows"><div class="f">CrossOver<small>Dieser Mac · 3 Bottles gefunden</small></div><div>Whisky<small>Dieser Mac · 1 Bottle gefunden</small></div><div>Games<small>Laufwerk · keine Bottles</small></div></div><div class="btns"><div class="btn"><span class="pg">B</span>Zurück</div><div class="btn p"><span class="pg">A</span>Wählen</div></div></div></div></div><div class="cap"><b>Nachher</b>Glasblatt mit den gefundenen Orten, Ⓐ wählt.</div></div>
+  </div>
+  <p class="plus">+ Kein Systemfenster am Sofa</p><p class="minus">– Nur Orte, die Nightforge kennt; ein ganz anderer Ordner braucht weiter die Maus</p>
+</section>
+<section>
+  <div class="label">Punkt 3 · Berichte aufs Handy</div>
+  <h2>Problem melden und Bericht teilen per QR-Code</h2>
+  <p class="lead">Heute öffnen beide den Browser auf dem Mac mit GitHubs Formular. Nachher zeigt Nightforge einen QR-Code; das Handy öffnet dasselbe Formular, schon ausgefüllt, wie heute nur mit festen Angaben ohne Pfade und Konten.</p>
+  <div class="pair">
+    <div><div class="frame"><div class="screen"><div class="lib"><h3>Bibliothek</h3><div class="cards"><div></div><div></div><div></div><div></div><div></div></div></div><div class="dim"></div><div class="sheet"><h4>Startet nicht?</h4><p>Nightforge hat alle Wege versucht.</p><div class="btns"><div class="btn"><span class="pg">B</span>Schließen</div><div class="btn p"><span class="pg">A</span>Problem melden …</div></div></div></div></div><div class="cap"><b>Vorher</b>„Problem melden …“ öffnet den Browser auf dem Mac.</div></div>
+    <div><div class="frame"><div class="screen"><div class="lib"><h3>Bibliothek</h3><div class="cards"><div></div><div></div><div></div><div></div><div></div></div></div><div class="dim"></div><div class="sheet"><h4>Problem melden</h4><div class="qr"></div><p>Mit der Handykamera öffnen: das Formular ist schon ausgefüllt, nur ohne Pfade und Konten.</p><div class="btns"><div class="btn p"><span class="pg">B</span>Fertig</div></div></div></div></div><div class="cap"><b>Nachher</b>QR-Code auf einem Glasblatt; Ⓑ schließt.</div></div>
+  </div>
+  <p class="plus">+ Am Sofa ohne Maus und Tastatur</p><p class="minus">– Ein GitHub-Konto braucht es weiter, nur eben auf dem Handy</p>
+</section>
+<section>
+  <div class="label">Punkt 4 · Meldungen mit Knopf</div>
+  <h2>Erst prüfen, dann vielleicht ein eigener Knopf</h2>
+  <p class="lead">Meldungen wie „ausgeblendet · Rückgängig“ haben schon eine Pad-Hervorhebung. Unbelegt ist, ob das Steuerkreuz von der Bibliothek dorthin kommt. Erst live prüfen; fehlt der Weg, bekommt die Meldung einen eigenen Knopf auf dem Pad.</p>
+  <div class="pair">
+    <div><div class="frame"><div class="screen"><div class="lib"><h3>Bibliothek</h3><div class="cards"><div class="f"></div><div></div><div></div><div></div><div></div></div></div><div class="toast">Valheim ist ausgeblendet <span>Rückgängig</span></div><div class="ask">Kommt die Hervorhebung vom Spiel hierher?</div></div></div><div class="cap"><b>Vorher</b>Hervorhebung da, der Weg dorthin unbelegt.</div></div>
+    <div><div class="frame"><div class="screen"><div class="lib"><h3>Bibliothek</h3><div class="cards"><div class="f"></div><div></div><div></div><div></div><div></div></div></div><div class="toast">Valheim ist ausgeblendet <span class="f"><span class="pg" style="color:#0f141c;border-color:#0f141c">X</span> Rückgängig</span></div></div></div><div class="cap"><b>Nachher</b>Nur falls nötig: Ⓧ drückt den Knopf der Meldung, solange sie steht.</div></div>
+  </div>
+  <p class="plus">+ Kein neuer Bildschirm, nur eine Taste</p><p class="minus">– Ⓧ hat anderswo schon Aufgaben: nur solange eine Meldung mit Knopf steht</p>
+</section>
+<section>
+  <div class="label">Punkt 5 · Epic-Anmeldung</div>
+  <h2>Anmelden auf dem Handy, Code mit dem Pad</h2>
+  <p class="lead">Heute sagt Nightforge bei Epic, dass es eine Tastatur braucht. Passwörter laufen nie durch Nightforge, eine Pad-Tastatur auf Epics Seite scheidet also aus. Der Weg aus dem Anmelde-Entwurf: Epics Seite auf dem Handy öffnen (QR-Code), dort anmelden und den Code, den Epic danach zeigt, mit der Pad-Tastatur eintragen.</p>
+  <div class="pair">
+    <div><div class="frame"><div class="screen"><div class="curtain"></div><div class="sheet"><h4>Bei Epic anmelden</h4><p>Dafür braucht es eine Tastatur. Mit dem Controller allein geht es hier nicht.</p><div class="btns"><div class="btn p"><span class="pg">A</span>Später anmelden</div></div></div></div></div><div class="cap"><b>Vorher</b>„Später anmelden“; tippen geht nur mit einer Tastatur.</div></div>
+    <div><div class="frame"><div class="screen"><div class="curtain"></div><div class="sheet" style="top:32%"><h4>Bei Epic anmelden</h4><div class="qr" style="width:160px;height:160px"></div><p>Auf dem Handy anmelden. Dort steht danach ein Code: hier eintragen.</p><div class="field on">a1b2c3|</div></div><div class="kb"><div>q</div><div>w</div><div>e</div><div>r</div><div>t</div><div>z</div><div>u</div><div>i</div><div>o</div><div>p</div><div>a</div><div>s</div><div class="f">d</div><div>f</div><div>g</div><div>h</div><div>j</div><div>k</div><div>l</div><div>-</div></div></div></div><div class="cap"><b>Nachher</b>QR-Code, dann der Code von Epic mit der Pad-Tastatur.</div></div>
+  </div>
+  <p class="plus">+ Ohne Tastatur, das Passwort bleibt auf dem Handy</p><p class="minus">– Epics Seite warnt davor, diesen Code weiterzugeben: vorher zu entscheiden (offene Frage im Anmelde-Entwurf)</p>
+</section>
+</main>
+</body>
+</html>
