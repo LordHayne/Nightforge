@@ -14,13 +14,14 @@ Jeder Punkt nennt, wo man anfängt.
 - [ ] Nur Entwickler-Macs: `Engine.ownProcesses` zählt die Wine-Prozesse der Testreihen mit (gleicher Components-Ordner);
   `applyLibraryVersion`/`killLeftovers` können dann Test-Wine beenden („Killed: 9“ vom 23.11. abends). Anfang: `Engine.own(in:under:)`.
 - [ ] Langes Vibrieren nach „Console mode on (the small menu)“ (23.11. 20:07), winexinput.sys kurz davor: vermutlich Wine/SDL.
-  Probe mit Thomas: a) Pad einschalten ohne Drücken, b) Konsolenmodus 3× an/aus. Notizen: `abnahme-2311-ergebnisse.md`.
+  DualSense, gut 3 s, hörte von selbst auf (Thomas). Probe mit Thomas: a) Pad einschalten ohne Drücken, b) Konsolenmodus
+  3× an/aus. Abnahme 23.11.
 - [ ] Epic-Blitzer: beim Start von Frostpunk ganz kurz Nightforge zu sehen (Befund A, 23.11. 19:23). Probe bei Worker O, dazu
   eine Bildschirmaufnahme mit ⌘⇧5 durch Thomas.
 - [ ] macOS' Frage „Lokales Netzwerk“ (Valheim, 23.11. 19:47) gehört der App: Nightforge kann sie nur auf dem Vorhang vorher
   ansagen, antworten geht nur mit Zeiger/Maus. Ziel 0.4 („der Mac als Konsole“).
-- [ ] Mauszeiger auf stehendem Vorhang (Befund 0.4 vom 23.11., Koordinator-Notizen `abnahme-2311-ergebnisse.md`); seit
-  `zeiger-park-035` (3573765f) parkt der Zeiger beim Vorhang, live noch einmal ansehen.
+- [ ] Mauszeiger auf stehendem Vorhang (Abnahme 23.11.): Seit `zeiger-park-035` (3573765f) verschwindet er, sobald der
+  Vorhang fällt. Offen bleibt der Zeiger, solange der Vorhang steht und das Spiel schon vorne ist.
 - [ ] Dock-Symbol eines Spiels im Nachlauf (Wukong, 23.11. 19:08; Beenden dauerte 48 s): nur im Spielprozess lösbar, 0.4 mit
   Probe vorweg (sample, nur lesend).
 - [ ] Steam-QoS messen: Steam 15–25 s bei 5 von 7 Starts am 23.11.; Testschalter `SteamQoS` auf `claude/start-schneller-04`
