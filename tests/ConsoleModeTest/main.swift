@@ -59,6 +59,36 @@ struct ConsoleModeTest {
         check(!ConsoleMode.focusWatchRuns(consoleMode: true, inFront: true, gameOn: true), "a game on: no beat")
         check(!ConsoleMode.focusWatchRuns(consoleMode: true, inFront: false, gameOn: false), "another app in front: no beat")
         check(!ConsoleMode.focusWatchRuns(consoleMode: false, inFront: true, gameOn: false), "outside console mode: none at all")
+        // Audit K1: a beat without a key window (going into full screen) only skips that beat; the watch ends only when the
+        // mode is off, a game runs or Nightforge is behind.
+        check(ConsoleMode.focusLook(consoleMode: true, inFront: true, gameOn: false, keyWindow: true) == .look, "a key window: the look")
+        check(ConsoleMode.focusLook(consoleMode: true, inFront: true, gameOn: false, keyWindow: false) == .skip,
+              "no key window for a moment: this look skipped, the watch goes on")
+        check(ConsoleMode.focusLook(consoleMode: false, inFront: true, gameOn: false, keyWindow: true) == .end, "the mode off: the watch ends")
+        check(ConsoleMode.focusLook(consoleMode: true, inFront: true, gameOn: true, keyWindow: true) == .end, "a game on: it ends")
+        check(ConsoleMode.focusLook(consoleMode: true, inFront: false, gameOn: false, keyWindow: false) == .end, "Nightforge behind: it ends")
+        let model = (try? String(contentsOfFile: "Sources/Nightforge/LibraryModel.swift", encoding: .utf8)) ?? ""
+        check(model.contains("case .skip: continue") && model.contains("guard let key = NSApp.keyWindow else { continue }")
+              && !model.contains("let key = NSApp.keyWindow else { return }"), "the watch skips a look, it doesn't end on it")
+        // The request is noted as asked once it's answered, not when it shows: closed by a quit, it comes again.
+        if let offer = model.range(of: "private func offerConsoleModeIfDue() {"),
+           let next = model.range(of: "func askForHomeButton()", range: offer.upperBound..<model.endIndex) {
+            check(!model[offer.upperBound..<next.lowerBound].contains("ConsoleMode.askedKey"), "showing the request notes nothing")
+        } else {
+            check(false, "offerConsoleModeIfDue is found")
+        }
+        if let decline = model.range(of: "func declineConsoleMode() {"),
+           let end = model.range(of: "GameLog.note(\"Console mode: not now\")", range: decline.upperBound..<model.endIndex) {
+            check(model[decline.upperBound..<end.lowerBound].contains("ConsoleMode.askedKey"), "Not Now notes it")
+        } else {
+            check(false, "declineConsoleMode is found")
+        }
+        if let set = model.range(of: "func setConsoleMode(_ on: Bool, by: String) {"),
+           let after = model.range(of: "ConsoleMode.askedKey", range: set.upperBound..<model.endIndex) {
+            check(model.distance(from: set.upperBound, to: after.lowerBound) < 400, "switching the mode (the request's yes) notes it")
+        } else {
+            check(false, "setConsoleMode notes it")
+        }
 
         // Kept in the defaults: on across restarts, asked once.
         // In the test's own folder, which run.sh removes: a named domain stays in ~/Library/Preferences for good (23.11.2026).

@@ -236,6 +236,17 @@ struct SteamStopTest {
         check(engine.contains("if fresh { steamStartLogMark = GameLog.mark() }\n            try RosettaSupport.run(process)"),
               "the mark is taken right before Steam's process starts")
         check(!LibraryModel.brokenSessionReason.contains("/") && !LibraryModel.brokenSessionReason.isEmpty, "the reason is a name")
+        // Audit N1: a broken session never counts against the engine, wherever a Steam start is judged – also after the
+        // quick restart, when the new session is broken again.
+        if let judged = model.range(of: "private func steamStartFailed(since began: Date) async -> Bool {"),
+           let broken = model.range(of: "Engine.steamSessionBroken()", range: judged.upperBound..<model.endIndex),
+           let counted = model.range(of: "SteamStartCheck.judge(", range: judged.upperBound..<model.endIndex) {
+            check(broken.lowerBound < counted.lowerBound, "steamStartFailed asks about the session before it judges the start")
+        } else {
+            check(false, "steamStartFailed, its question about the session and its judgement are found")
+        }
+        check(model.components(separatedBy: "await steamStartFailed(since:").count - 1 >= 2,
+              "every judgement of a Steam start goes through steamStartFailed (the watch and the restart)")
     }
 
     static func main() async {
