@@ -22,7 +22,7 @@ line="$(sed -e ':a' -e '/\\$/N; s/\\\n//; ta' build.sh | grep '^clang .*/hide-st
 for source in wrapper/hide-steam-dock.m wrapper/network-order.c; do
   case "$line" in *" $source"*) ;; *) echo "✗ build.sh doesn't build $source into hide-steam-dock.dylib"; exit 1 ;; esac
 done
-clang -arch x86_64 -mmacosx-version-min=11.0 -dynamiclib -framework AppKit -Wall \
+clang -arch x86_64 -mmacosx-version-min=11.0 -dynamiclib -lobjc -Wall \
   -o "$WORK/hide-steam-dock.dylib" wrapper/hide-steam-dock.m wrapper/network-order.c
 clang -arch x86_64 -mmacosx-version-min=11.0 -O2 -Wall -o "$WORK/probe" tests/NetworkOrderTest/probe.c
 "$WORK/probe" > "$WORK/plain"
