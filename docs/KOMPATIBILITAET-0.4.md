@@ -233,8 +233,8 @@ Nach `docs/recherche/launcher.md` und Berichten von Linux-Spielern kommen der Re
    von selbst anhängte, zeichnet er nicht sicher. `-scDisableGpu` ist Rockstars offizieller Schalter, `--single-process`
    bricht ab (launcher.md:44-58).
 4. **Anmeldung beim Rockstar-Konto und Verknüpfen mit Steam.** Dafür kommt ein E-Mail-Code, und es braucht einmal Maus und
-   Tastatur (launcher.md:160-165). Bei falscher Zeitzone gibt es die Fehler #1.000.7 bzw. #1.500.7. Ohne angemeldeten
-   Steam-Client im selben Prefix kommen die Fehler 113 bzw. 133 (launcher.md:120, launcher.md:166).
+   Tastatur (launcher.md:163, Zeitzone: launcher.md:165). Bei falscher Zeitzone gibt es die Fehler #1.000.7 bzw. #1.500.7. Ohne angemeldeten
+   Steam-Client im selben Prefix kommen die Fehler 113 bzw. 133 (launcher.md:120).
 5. **Danach startet der Launcher das Spiel im „min mode“** (launcher.md:22). Beim Beenden kann er in SHUTDOWN_IN_PROGRESS
    hängen. Dann sieht Nightforge das Spiel nie enden. Endet `Launcher.exe` nicht mit Code 0, meldet Steam „Unable to launch
    game“ (launcher.md:131, launcher.md:159).
@@ -248,7 +248,7 @@ launcher.md:22). Ohne den Downmix aus Wine 11.21 fehlt die Dialogstimme bei 7.1.
 - Das Rockstar-Fenster nur als Zeiger, ohne eigene Tasten. Es ist ein Chromium-Fenster in Wine, also gilt dasselbe wie für
   Steams Fenster. Die Anmeldung mit E-Mail-Code braucht eine Tastatur: die Pad-Tastatur, sobald sie in fremde Fenster schreiben
   kann (ENTWURF-STEAM-PAD.md, Punkt 5, offen), sonst eine echte Tastatur.
-- Xalia (MIT, CodeWeavers) hat fertige Controller-Regeln für Launcher-Fenster, Proton schaltet es ein (launcher.md:163).
+- Xalia (MIT, CodeWeavers) hat fertige Controller-Regeln für Launcher-Fenster, Proton schaltet es ein (launcher.md:164).
   Das wäre ein neues Programm im Prefix und damit eine eigene Entscheidung.
 
 ### Was Nightforge ohne Eingriff in fremde Programme tun kann (Vorschlag)
