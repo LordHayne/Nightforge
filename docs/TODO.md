@@ -417,6 +417,15 @@ zuvor.“ Und um 18:34, als Teilschritt zu 0.4 „Wie eine Konsole“:
   - Umbau für später: `hide-steam-dock.dylib` bindet AppKit, und das lädt Metal und QuartzCore in jeden Wine-Prozess
     mit (Wine selbst lädt AppKit über winemac.drv ohnehin). Ganz verhindern ließe es sich nur mit einer Bibliothek
     ohne AppKit.
+    **Gebaut 23.11. (Zweig `claude/dock-dylib-ohne-appkit-04`):** In der laufenden Sitzung hatten 10 von 13
+    Wine-Prozessen AppKit nur durch die Bibliothek, ohne `winemac.so`: wineserver, services, beide winedevice, plugplay,
+    svchost, rpcss, lsass, steamservice und die Hülle des Webhelfers. Das waren je rund 430 statt 45 Bibliotheken.
+    Im Test-Prefix startete eine Sitzung ohne AppKit in 0,57 s statt 0,81–1,20 s, mit etwa 63 statt 70–73 MB.
+    `hide-steam-dock.m` bindet nichts mehr außer libobjc. Es tauscht dieselben Methoden aus, sobald AppKit da ist:
+    beim Start oder gleich nach dem `dlopen`, das `winemac.so` bringt. Aus `finishLaunching` werden die beiden
+    Benachrichtigungen. Gleiches Verhalten im Testprogramm und mit echtem Wine: Notepad als steam.exe bleibt
+    UIElement, Notepad als Spiel kommt ins Dock, ohne Bibliothek beide ins Dock. Neu in jedem Prozess, auch in
+    Anti-Cheat-Spielen: `dlopen` geht durch die Bibliothek und wird unverändert weitergereicht. Live ungeprüft.
   - Erledigt auf `claude/audit-fixes-035` (d673835): M1 (Netzwerk-Reihenfolge nur in winedevice.exe, Metal/QuartzCore
     nicht mehr gebunden), S1 (Wiedereintritts-Sperre in der 60-FPS-Umlenkung), E1 (Fokus-Takt nicht im Spiel), L3.
 - [ ] **Nebenbefund der Starter-Probe (22.11.):** Unter Wine meldet `IsProcessorFeaturePresent(AVX)` immer 0, auch wenn
