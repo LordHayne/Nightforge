@@ -255,11 +255,7 @@ enum GameBackdrop {
         guard let window, window.isVisible, state.stage.raised else { return }
         hiding?.cancel()
         hiding = Task {
-            await NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.3
-                window.animator().alphaValue = 0
-            }
-            guard !Task.isCancelled else { return }
+            guard await fade(window, to: 0, over: 0.3) else { return }
             state.stage = .behind
             arrange(window)
             window.alphaValue = 1
@@ -337,17 +333,29 @@ enum GameBackdrop {
                 guard !Task.isCancelled else { return }
             }
             held = false
-            await NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.25
-                window.animator().alphaValue = 0
-            }
-            guard !Task.isCancelled else { return }
+            guard await fade(window, to: 0, over: 0.25) else { return }
             window.orderOut(nil)
             state.seen = false  // nothing moves on a page that's gone, whether or not macOS says so
             if let observer { NotificationCenter.default.removeObserver(observer) }
             observer = nil
             then?()
         }
+    }
+
+    /// Fades `window` to `alpha` over `seconds`, and goes on after that time whether or not the animation ran: AppKit
+    /// drives it by the screen's display link, and with the display asleep or the Mac locked it never ends. Awaited, the
+    /// curtain then never went: on 23.11.2026 after the curtain preview (11:35–12:08) it stood, unseen at alpha 0, as an
+    /// orphan, and the way back started over every 19 s. The end value is set by hand afterwards. False when the task was
+    /// called off meanwhile (another raise or hide has the window now): then nothing is set.
+    static func fade(_ window: NSWindow, to alpha: CGFloat, over seconds: TimeInterval) async -> Bool {
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = seconds
+            window.animator().alphaValue = alpha
+        }, completionHandler: nil)
+        try? await Task.sleep(for: .seconds(seconds + 0.05))
+        guard !Task.isCancelled else { return false }
+        window.alphaValue = alpha
+        return true
     }
 
     /// On the way back Nightforge asks for the front once, and macOS may give it to Steam Helper as a
