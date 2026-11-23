@@ -496,6 +496,10 @@ zuvor.“ Und um 18:34, als Teilschritt zu 0.4 „Wie eine Konsole“:
   Zusätzlich öffnet ein Programm ohne App-Bündel sich nie über Launch Services (`NSApplication.opensItself`), und
   MacVersionTest nennt seine Stellvertreter nur noch über den `ps`-Ersatz. Gilt erst mit dem neuen Bau: Die
   eingespielte App hat noch das alte Skript, also bis dahin keine Kette, solange ihr Beenden-Skript wartet.
+- [ ] **AVX-Meldung unter Wine (23.11., `docs/ENTWURF-AVX.md`, Zweig `claude/avx-meldung-04`):** `IsProcessorFeaturePresent(AVX)`
+  zeigt für die ganze Sitzung, was ihr erster Prozess hatte (Probe `docs/probes/avx-sitzung/`; Wine füllt `KUSER_SHARED_DATA` nur
+  in `start_wineboot`). In Nightforge beginnt eine Sitzung mal mit, mal ohne AVX (regedit, winetricks, Helfer ohne). Zur Wahl:
+  AVX als Sitzungseinstellung wie Retina (Vorschlag), Engine-Patch, nichts.
 - [ ] **Nebenbefund der Starter-Probe (22.11.):** Unter Wine meldet `IsProcessorFeaturePresent(AVX)` immer 0, auch wenn
   CPUID AVX zeigt (`docs/probes/starter-umgebung/`). Spiele, die so fragen, sehen kein AVX. Bei Profilen mit
   AVX-Problemen bedenken.
