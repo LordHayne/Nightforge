@@ -12,6 +12,6 @@ trap 'rm -rf "$DIR"' EXIT  # the test program and its home go with it
 OUT="$DIR/drive-takeover-test"
 SOURCES=$(ls Sources/Nightforge/*.swift | grep -v '/App.swift$')
 # shellcheck disable=SC2086
-swiftc -parse-as-library -o "$OUT" $SOURCES tests/Shared/FakeProcesses.swift tests/DriveTakeoverTest/main.swift
+swiftc -parse-as-library -o "$OUT" $SOURCES tests/Shared/FakeProcesses.swift tests/Shared/TestDefaults.swift tests/DriveTakeoverTest/main.swift
 mkdir -p "$DIR/home"
 HOME="$DIR/home" CFFIXED_USER_HOME="$DIR/home" "$OUT"

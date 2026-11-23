@@ -6,5 +6,5 @@ cd "$(dirname "$0")/../.."
 . scripts/sdk-lib.sh && nightforge_pick_sdk
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT  # the test program goes with it
-swiftc -parse-as-library -o "$WORK/test" Sources/Nightforge/DockAutoHide.swift tests/DockAutoHideTest/main.swift
+swiftc -parse-as-library -o "$WORK/test" Sources/Nightforge/DockAutoHide.swift tests/Shared/TestDefaults.swift tests/DockAutoHideTest/main.swift
 "$WORK/test"

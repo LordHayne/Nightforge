@@ -108,7 +108,8 @@ struct GameResolutionTest {
               "full screen at another size: the screen's, the names as the game has them")
         check(GameResolution.screenKeyChanges(["Adapter": 0], size: macBook, firstFit: true).isEmpty, "no screen in the key: nothing")
 
-        let defaults = UserDefaults(suiteName: "GameResolutionTest.\(UUID().uuidString)")!
+        // In the test's own folder, which run.sh removes: a named domain stays in ~/Library/Preferences for good (23.11.2026).
+        let defaults = TestDefaults.suite("screen-keys")
         check(GameResolution.screenKeysFitted(defaults).isEmpty, "nothing fitted yet")
         GameResolution.noteScreenKeyFitted("epic.Calluna|key", defaults)
         GameResolution.noteScreenKeyFitted("epic.Calluna|key", defaults)

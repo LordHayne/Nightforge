@@ -18,6 +18,9 @@ struct D3DMetalTest {
     typealias Supply = D3DMetalSupply
 
     static func main() async {
+        // Settings into the test's folder: .standard is a domain named after the program in ~/Library/Preferences,
+        // whatever HOME says, and each run left d3dmetal-test.plist or drive-takeover-test.plist there (23.11.2026).
+        TestDefaults.useWorkFolder()
         guard fm.homeDirectoryForCurrentUser.path.contains("/home") else {
             print("✗ runs only in its own home (tests/D3DMetalTest/run.sh)")
             exit(1)

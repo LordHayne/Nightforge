@@ -72,8 +72,11 @@ enum MacUnityScreen {
 
     /// Before a Mac version starts (only reading): what its Unity apps keep, and with that the decision. Several
     /// apps: the first Unity one without a mode of its own decides for the switch, else the first one that has one.
+    /// `kept`: the mode a domain keeps (`modeKey`), read through CFPreferences; tests hand in their own instead of writing
+    /// a game's domain into the Mac's preferences.
     static func look(installDir: URL, playerArguments: String,
-                     preferences: URL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Preferences")) -> Decision {
+                     preferences: URL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Preferences"),
+                     kept: (String) -> Int? = { CFPreferencesCopyAppValue(modeKey as CFString, $0 as CFString) as? Int }) -> Decision {
         let files = (try? FileManager.default.contentsOfDirectory(atPath: preferences.path)) ?? []
         var first: Decision = .notUnity
         for app in apps(in: installDir) where isUnity(app) {
@@ -82,7 +85,7 @@ enum MacUnityScreen {
             let domains = domains(bundleID: info?["CFBundleIdentifier"] as? String, product: product, preferenceFiles: files)
             var saved: [String: Int] = [:]
             for domain in domains {
-                if let mode = CFPreferencesCopyAppValue(modeKey as CFString, domain as CFString) as? Int { saved[domain] = mode }
+                if let mode = kept(domain) { saved[domain] = mode }
             }
             let decision = decide(unity: true, domains: domains, saved: saved, playerArguments: playerArguments)
             if case .fullScreen = decision { return decision }

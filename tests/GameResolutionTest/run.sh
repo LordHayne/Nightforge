@@ -11,5 +11,5 @@ OUT="$WORK/game-resolution-test"
 # The whole app except its entry point, plus the test driver.
 SOURCES=$(ls Sources/Nightforge/*.swift | grep -v '/App.swift$')
 # shellcheck disable=SC2086
-swiftc -parse-as-library -o "$OUT" $SOURCES tests/GameResolutionTest/main.swift
+swiftc -parse-as-library -o "$OUT" $SOURCES tests/Shared/TestDefaults.swift tests/GameResolutionTest/main.swift
 "$OUT" tests/GameResolutionTest
