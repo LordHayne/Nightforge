@@ -106,15 +106,17 @@ Spalte **Stand**:
 | Elden Ring (62) | D3DMetal | AC (online) | Offline nur mit getauschter EXE. Scheiterte bei Bridgeplay mit WineCX + D3DMetal. | Zurückstellen | MA:154, T2:93, CX:378 |
 | Satisfactory (97) | D3DMetal | offen | D3DMetal 3.0 stürzt ab (UE 5.6), 4.0b2 behebt es. | Mit Engine-Punkt 1 (D3DMetal 4 je Spiel) | MA:189, EN:112 |
 | Diablo IV (133) | D3DMetal | offen | Braucht macOS 26.5. Nach Season 14 ein Fehler bei `FindNextFileNameW` (Stub). | Prüfen, ob winecx den Stub hat | MA:225, CX:226, CX:373 |
-| Apex, PUBG, CoD, R6, Battlefield 6, Destiny 2, Tarkov, Fortnite u. a. | – | AC | Gesperrt, Play führt zu GeForce Now. 13 Sperren fehlen noch in PROF (ARC Raiders, Delta Force, WARDOGS, EA FC 26/27, Space Marine 2, Tarkov, Nightreign, The Isle, Gray Zone, FiveM, F1 25, skate.). | Die 13 Einträge nachtragen | MA:95-99, T2:58-72, TODO:3395 |
+| Apex, PUBG, CoD, R6, Battlefield 6, Destiny 2, Tarkov, Fortnite u. a. | – | AC | Gesperrt; wo GeForce Now das Spiel hat, führt Play dorthin. Von den 13 Sperren, die T2 am 30.10. vermisste, standen am 23.11. zehn schon in PROF (Bau vom 15.11.). WARDOGS und EA FC 27 kamen am 23.11. dazu (Zweig `claude/anticheat-sperren-04`). FiveM ist bei Steam kein Spiel (Werbeseite) und bleibt draußen. | – (erledigt, Signatur nach dem Merge) | MA:95-99, T2:58-72, TODO:3395, top200.md (Nachtrag 23.11. auf anticheat-sperren-04) |
 
 ## 2. Die zehn wichtigsten nächsten Fixes
 
 Gewichtet nach Beliebtheit (Rang in MA, wie viele Spiele es betrifft) und Aufwand (Profil < Regel im Code < Engine-Patch <
 neuer Weg). Die Reihenfolge ist eigene Lesart.
 
-1. **13 fehlende Anti-Cheat-Sperren in die Profile** (T2:58-72): ARC Raiders (30), Delta Force (34), EA FC 26/27 u. a.
-   *Aufwand klein, nur Profil.* Schützt Spieler vor einem Download, der nicht spielen kann.
+1. **Fehlende Anti-Cheat-Sperren in die Profile** (T2:58-72). *Stand 23.11.: erledigt bis auf die Signatur.* Von den 13
+   standen zehn schon seit dem Bau vom 15.11. in PROF (Abgleich über den Namen, „Running“ bei EAC/BattlEye als
+   `antiCheatOnline`). WARDOGS (Elytra) und EA FC 27 (Javelin) sind neu, beide laut GamingOnLinux „Broken“ (Zweig
+   `claude/anticheat-sperren-04`). FiveM ist bei Steam kein installierbares Spiel und bekommt keine Sperre.
 2. **Profile für vier Top-50-Spiele ohne Anti-Cheat-Sperre** (T2:80-84): Helldivers 2 (`--use-d3d11`, DXMT), Witcher 3
    (`--launcher-skip`), RDR2 (D3DMetal, `-fullscreen`), GTA V Legacy und Enhanced (`-nobattleye`, nur Story). *Aufwand klein
    (Profil), dann je ein Test.* Keines davon ist auf dem Mac getestet (T2:52).
