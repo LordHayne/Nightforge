@@ -86,12 +86,28 @@ enum SteamCloudStart {
         guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
         defer { try? handle.close() }
         let size = (try? handle.seekToEnd()) ?? 0
-        try? handle.seek(toOffset: size > 262_144 ? size - 262_144 : 0)
-        return shouldWait(log: String(decoding: (try? handle.readToEnd()) ?? Data(), as: UTF8.self), now: now)
+        let from: UInt64 = size > 262_144 ? size - 262_144 : 0
+        try? handle.seek(toOffset: from)
+        let log = String(decoding: (try? handle.readToEnd()) ?? Data(), as: UTF8.self)
+        return shouldWait(log: log, now: now) { before in
+            // Where this start's line stands in the file: the same until Steam starts again.
+            let key = QuietKey(path: url.path, startAt: from + UInt64(before.utf8.count))
+            return quiet.withLock { kept in
+                if let kept = kept[key] { return kept }
+                let answer = neverSyncs(before)
+                kept = [key: answer]
+                return answer
+            }
+        }
     }
 
+    /// What `neverSyncs` said about the starts before this one, kept by where this start's line stands (N5 of the audit
+    /// addendum: each look took the whole log apart again).
+    private struct QuietKey: Hashable { let path: String; let startAt: UInt64 }
+    private static let quiet = LockedValue<[QuietKey: Bool]>([:])
+
     /// `log`: cloud_log.txt; its last "Client version:" line is this Steam's start.
-    static func shouldWait(log: String, now: Date) -> Bool {
+    static func shouldWait(log: String, now: Date, neverSyncs: (Substring) -> Bool = neverSyncs) -> Bool {
         guard let start = log.range(of: "Client version:", options: .backwards) else { return false }
         let lineStart = log[..<start.lowerBound].lastIndex(where: \.isNewline).map { log.index(after: $0) } ?? log.startIndex
         guard let started = date(log[lineStart..<start.lowerBound]) else { return false }
@@ -112,7 +128,13 @@ enum SteamCloudStart {
 
     /// `before`: the log before this start. At least `quietStarts` starts in it, and none looked at the controller configs.
     static func neverSyncs(_ before: Substring) -> Bool {
-        before.components(separatedBy: "Client version:").count - 1 >= quietStarts && !before.contains(controllerConfigs)
+        var starts = 0
+        var rest = before[...]
+        while starts < quietStarts, let found = rest.range(of: "Client version:") {
+            starts += 1
+            rest = rest[found.upperBound...]
+        }
+        return starts >= quietStarts && !before.contains(controllerConfigs)
     }
 
     /// "[2026-11-08 14:55:37] "

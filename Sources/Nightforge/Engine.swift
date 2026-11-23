@@ -1587,21 +1587,91 @@ enum Engine {
     /// Steam that worked, nsiproxy.sys came before steam.exe. `log`: wine.log since Steam's start (its loaddll lines);
     /// `age`: how long ago that start was. Without those lines (another WINEDEBUG) only Steam's own words tell.
     static func sessionBootBroken(log: String, age: TimeInterval) -> Bool {
-        if log.contains("GetAdaptersAddresses returned 2") { return true }
-        // Only a session that began with this start: its drivers come after its wineboot.
-        guard age >= sessionBootPatience, let boot = log.range(of: #"\wineboot.exe" at"#, options: .backwards) else { return false }
-        let since = log[boot.upperBound...]
-        return since.contains(#"\mountmgr.sys" at"#) && since.contains(#"\steam.exe" at"#) && !since.contains(#"\nsiproxy.sys" at"#)
+        var scan = SessionBootScan()
+        scan.read(Substring(log))
+        return scan.broken(age: age)
+    }
+
+    /// `sessionBootBroken`, line by line, so wine.log is read once and only what came since the last look (N3 of the
+    /// audit addendum: a look read up to 4 MB, every second while a start waited for Steam's sign-in).
+    struct SessionBootScan: Equatable {
+        /// Steam's own line, said before a game's first program came.
+        private(set) var said = false
+        /// Since the last wineboot.exe: that line, then mountmgr.sys, steam.exe, nsiproxy.sys.
+        private var booted = false, mountmgr = false, steam = false, nsiproxy = false
+        /// A program that is neither Wine's nor Steam's has loaded: a game, which inherits Steam's stderr and loads
+        /// steamclient64.dll – from here on that line may be its own (N4). Steam's stderr line carries no process
+        /// number, so the line before the game's first program is all that can be told apart. Without loaddll lines
+        /// nothing loads, and the line counts as before.
+        private var gameSeen = false
+
+        mutating func read(_ text: Substring) {
+            for line in text.split(whereSeparator: \.isNewline) { read(line: line) }
+        }
+
+        mutating func read(line: Substring) {
+            if line.contains("GetAdaptersAddresses returned 2") {
+                if !gameSeen { said = true }
+                return
+            }
+            guard line.contains("trace:loaddll:build_module Loaded") else { return }
+            if line.contains(#"\wineboot.exe" at"#) { booted = true; mountmgr = false; steam = false; nsiproxy = false }
+            if line.contains(#"\mountmgr.sys" at"#) { mountmgr = true }
+            if line.contains(#"\steam.exe" at"#) { steam = true }
+            if line.contains(#"\nsiproxy.sys" at"#) { nsiproxy = true }
+            if !gameSeen, line.contains(#".exe" at"#) || line.contains(#".EXE" at"#), !Self.wineOrSteam(line) { gameSeen = true }
+        }
+
+        /// A program from Wine's own folder or Steam's (not a game in steamapps).
+        static func wineOrSteam(_ line: Substring) -> Bool {
+            let path = line.lowercased()
+            if path.contains(#":\\windows\\"#) { return true }
+            return path.contains(#"\\steam\\"#) && !path.contains(#"\\steamapps\\"#)
+        }
+
+        func broken(age: TimeInterval) -> Bool {
+            // Only a session that began with this start: its drivers come after its wineboot.
+            said || (age >= Engine.sessionBootPatience && booted && mountmgr && steam && !nsiproxy)
+        }
     }
 
     /// How long after Steam's start a session may still be without nsiproxy.sys: in the sessions that worked it came
     /// within a second of mountmgr.sys.
     static let sessionBootPatience: TimeInterval = 15
 
-    /// `sessionBootBroken` for the Steam started last.
+    /// The scan of the Steam started last: from its mark, up to where wine.log was read last (whole lines only).
+    private static let bootScan = LockedValue<(mark: UInt64, readTo: UInt64, scan: SessionBootScan)?>(nil)
+
+    /// `sessionBootBroken` for the Steam started last. Reads only what wine.log gained since the last look; the first
+    /// look reads at most the last 4 MB, as `GameLog.text(since:)` does.
     static func steamSessionBroken(now: Date = Date()) -> Bool {
         guard let start = lastSteamStart, let mark = steamStartLogMark else { return false }
-        return sessionBootBroken(log: GameLog.text(since: mark), age: now.timeIntervalSince(start.at))
+        return bootScan.withLock { kept in
+            var state = kept?.mark == mark ? kept! : (mark: mark, readTo: mark, scan: SessionBootScan())
+            state = scanGrowth(of: GameLog.url, state: state)
+            kept = state
+            return state.scan.broken(age: now.timeIntervalSince(start.at))
+        }
+    }
+
+    /// Reads what `url` gained after `state.readTo` into the scan; a log that got shorter (a fresh one) is read anew.
+    static func scanGrowth(of url: URL, state: (mark: UInt64, readTo: UInt64, scan: SessionBootScan))
+        -> (mark: UInt64, readTo: UInt64, scan: SessionBootScan) {
+        var state = state
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return state }
+        defer { try? handle.close() }
+        let end = (try? handle.seekToEnd()) ?? 0
+        if state.readTo > end { state = (mark: 0, readTo: 0, scan: SessionBootScan()) }  // a fresh log was started meanwhile
+        let from = max(state.readTo, end > 4_000_000 ? end - 4_000_000 : 0)
+        guard end > from else { return state }
+        try? handle.seek(toOffset: from)
+        let data = (try? handle.readToEnd()) ?? Data()
+        // Only whole lines: the rest is read with the next look.
+        guard let lastNewline = data.lastIndex(of: 0x0A) else { return state }
+        let whole = data[data.startIndex...lastNewline]
+        state.scan.read(Substring(String(decoding: whole, as: UTF8.self)))
+        state.readTo = from + UInt64(whole.count)
+        return state
     }
 
     /// The engine a fresh Steam starts with: `wine` – or, when Steam didn't come up on the newest
