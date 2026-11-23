@@ -406,6 +406,13 @@ zuvor.“ Und um 18:34, als Teilschritt zu 0.4 „Wie eine Konsole“:
   `tests/test_pad_reach.py`. Zur Wahl: Pad-Tastatur für jedes Textfeld, Ordnerwahl ohne Dateifenster, Berichte per QR aufs
   Handy, Meldungen mit Knopf (erst live prüfen).
 
+- [ ] **Spielwechsel ohne Steam-Neustart (0.4, 23.11.):** `docs/ENTWURF-SPIELWECHSEL.md` (Zweig `claude/spielwechsel-04`).
+  Ein Neustart kostet 27–40 s; Auslöser sind AVX, D3DMetal-Grenze/MetalFX, Anti-Cheat, Vulkan-Treiber, Startprogramm, Retina.
+  Probe `docs/probes/spielwechsel-umgebung/`: Eine Bibliothek im startenden Prozess, die `execve` abfängt, setzt die
+  Unix-Umgebung des Kinds, Rosetta folgt (AVX an/aus ohne Neustart des Elternprozesses). Zur Entscheidung: Weg 1
+  (Abfangen in steam.exe, braucht OK wegen Anti-Cheat-Prozessen und eine Probe mit Steam), Weg 2 (Steam vorab passend),
+  Weg 3 (so lassen). Noch nichts an der App gebaut.
+
 **Aus derselben Runde, technisch:**
 - [ ] **Zwei Nightforge-Kopien mit gleicher Kennung** (Release in `/Applications`, Testbuild in `~/Applications`,
   beide „0.3.4“): Launchpad/Spotlight/Finder öffnen das Release, und das ersetzt `hide-steam-dock.dylib` im
