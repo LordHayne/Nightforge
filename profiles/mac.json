@@ -65,6 +65,13 @@
    "graphics": "dxmt",
    "note": "Tested 2026-10-26 on M5: steady 60 FPS (frame limit) with DXMT and -dx11. With DXVK only the HUD showed over a black world. Steam asks for the EULA once."
   },
+  "1867240": {
+   "name": "WARDOGS",
+   "antiCheat": [
+    "Elytra Anti-Cheat"
+   ],
+   "note": "Online-only PvP. Since its Early Access launch (10.09.2026) it uses Elytra Anti-Cheat, which doesn't run under Proton: GamingOnLinux's anti-cheat list says Broken since 2026-09-09 (gamingonlinux.com/anticheat/updates); players report being kicked from the official servers. Not in AreWeAntiCheatYet. The developers said in August 2026 they are working on Proton support; look again when that changes. Not tested on a Mac."
+  },
   "2357570": {
    "name": "Overwatch",
    "graphics": "dxmt",
@@ -197,6 +204,13 @@
     }
    ],
    "note": "Tested 2026-10-28 on M5 (Unreal 5.7.4). DirectX 11 fails on every layer: DXMT stays black while its graphics memory grows by ~400 MB/s, DXVK 3 on KosmicKrisp and D3DMetal crash. DirectX 12 through D3DMetal plays; with Rosetta's AVX hint it crashes after ~2 min (illegal instruction while precompiling shaders). Nanite and virtual shadow maps cost D3DMetal half the frame rate (30 -> 64 FPS without them, Engine.ini). With full Retina output (3024x1964), Low, FSR Performance and FSR frame generation: 50-55 FPS, sharp. Ray tracing and MegaLights stay off. The menu's background video stays black."
+  },
+  "4080220": {
+   "name": "EA SPORTS FC™ 27",
+   "antiCheat": [
+    "EA anticheat"
+   ],
+   "note": "EA Javelin Anticheat, as FC 26 (AreWeAntiCheatYet: Denied). GamingOnLinux's anti-cheat list says Broken (gamingonlinux.com/anticheat/vendor/ea-javelin-anticheat, last update 2026-07-24); EA's Javelin doesn't support Linux or Proton. Not in AreWeAntiCheatYet. Not tested on a Mac."
   },
   "epic.45e7cf3c49054f2fb20b673d9b0ae69e": {
    "name": "Sonic Mania",

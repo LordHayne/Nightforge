@@ -4240,6 +4240,14 @@
     "nProtect GameGuard"
    ]
   },
+  "1867240": {
+   "name": "WARDOGS",
+   "antiCheat": [
+    "Elytra Anti-Cheat"
+   ],
+   "note": "Online-only PvP. Since its Early Access launch (10.09.2026) it uses Elytra Anti-Cheat, which doesn't run under Proton: GamingOnLinux's anti-cheat list says Broken since 2026-09-09 (gamingonlinux.com/anticheat/updates); players report being kicked from the official servers. Not in AreWeAntiCheatYet. The developers said in August 2026 they are working on Proton support; look again when that changes. Not tested on a Mac.",
+   "source": "mac"
+  },
   "1867420": {
    "name": "LEAP",
    "source": "anticheat",
@@ -5440,6 +5448,14 @@
    },
    "partial": true,
    "source": "umu"
+  },
+  "4080220": {
+   "name": "EA SPORTS FC™ 27",
+   "antiCheat": [
+    "EA anticheat"
+   ],
+   "note": "EA Javelin Anticheat, as FC 26 (AreWeAntiCheatYet: Denied). GamingOnLinux's anti-cheat list says Broken (gamingonlinux.com/anticheat/vendor/ea-javelin-anticheat, last update 2026-07-24); EA's Javelin doesn't support Linux or Proton. Not in AreWeAntiCheatYet. Not tested on a Mac.",
+   "source": "mac"
   },
   "epic.0584d2013f0149a791e7b9bad0eec102": {
    "name": "Grand Theft Auto V",
@@ -7555,5 +7571,5 @@
    "reports": 1
   }
  },
- "generated": "2026-11-15T15:31:24Z"
+ "generated": "2026-11-23T20:49:16Z"
 }
