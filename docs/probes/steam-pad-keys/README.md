@@ -36,6 +36,29 @@ Esc und Tab an, wenn ein Programm in derselben Wine-Sitzung sie per `SendInput` 
   - Ist Wines Sandbox an, bricht die Probe ab: Ihr Profil baut nur Nightforge (auf diesem Mac ist sie aus).
   - Das Protokoll nennt `ExecCommandLine` und `ExecuteSteamURL` aus Steams console_log, mit Uhrzeit, ohne Argumente.
 
+## Zweiter Lauf (23.11., 08:38) und die Betriebsarten ohne Befehl
+
+Lauf 08:38: Die Umgebung kam vom laufenden Steam (88 Einträge), Programm Nightforge Game.app. Steam bekam
+`steam://install/440` (ExecCommandLine, ExecuteSteamURL um 08:38:14), zeigte aber **kein Fenster**, auch kein kleines oder
+verborgenes. Lesart: Im Hintergrundbetrieb unter Nightforge nimmt Steam den Befehl an und zeigt die Installationsfrage nicht.
+
+Deshalb zwei Betriebsarten, die **nichts schicken außer den Tasten**. Sie sind für die Abnahme am Abend mit dem Nutzer gedacht, der
+die Frage selbst auslöst, und deshalb auch ab 16:30 zulässig. Alle anderen Schutzregeln gelten weiter (Nightforges Sitzung, Windows-Steam
+läuft, kein Spiel läuft, keine Sandbox).
+
+| Aufruf | Tut |
+|---|---|
+| `probe.sh --warten [Sekunden]` | Merkt sich Steams Fenster, sagt „jetzt die Frage auslösen“ und wartet (Standard 180 s) auf ein neues Fenster ab 300×200 oder eines, das sichtbar wird. Dann wie oben: Tab, Tab, Umschalt-Tab, Esc. |
+| `probe.sh --jetzt` | Für eine Frage, die schon steht: nimmt das **eine** sichtbare Steam-Fenster ab 300×200. Bei keinem oder mehreren schickt es nichts. |
+
+Ablauf am Abend, zum Beispiel mit der Startoption von Drawful 2:
+1. `bash docs/probes/steam-pad-keys/probe.sh --warten` starten.
+2. In Nightforge Drawful 2 spielen. Steam fragt nach der Startoption.
+3. Hinsehen, ob der Fokusrahmen bei Tab wandert. Esc bricht den Start ab, das ist Absicht; danach normal starten.
+4. Ergebnis wie unten. Bleibt das Fenster mit der Frage stehen: mit der Maus „Abbrechen“, nicht „Spielen“.
+
+Valheims Cloud-Frage geht genauso, nur dass Esc dort den Start ebenfalls abbricht.
+
 ## Ablauf
 
 1. Steam von Nightforge läuft (nach dem Neustart durch den Koordinator), kein Spiel, kein Download.
@@ -76,7 +99,8 @@ Was die Zeilen bedeuten:
 | `exit 3` | Das Fenster gehört nicht zu Steam (falsches Fenster gefunden), nichts geschickt. |
 | `kein neues Steam-Fenster in 30 s` mit `ExecuteSteamURL` | Steam bekam den Link, zeigte aber kein Fenster, das Wine sieht. Die Zeilen `neu, klein:` ansehen; sonst auf den Bildschirm schauen, ob Steam etwas zeigt. |
 | `kein neues Steam-Fenster` ohne `ExecuteSteamURL` | Der Aufruf kam nicht bei Steam an. Die Zeile „Umgebung …“ und den Exit des zweiten steam.exe ansehen. |
-| `ERGEBNIS (nur per Auge)`, exit 3 | Die Frage stand in Steams Hauptfenster. Ob Esc sie schloss, sieht nur das Auge. |
+| `ERGEBNIS (nur per Auge)`, exit 3 | Die Frage stand in Steams Hauptfenster (oder bei `--jetzt` blieb das Fenster). Ob Esc sie schloss, sieht nur das Auge. |
+| `… sichtbare Steam-Fenster ab 300×200, nichts geschickt` | `--jetzt` fand keines oder mehrere; `--warten` nehmen. |
 | `Dialog noch offen` | Weg B trägt nicht für Esc; mit der Maus abbrechen. Ergebnis in den Entwurf. |
 
 Ergebnis bitte in `docs/ENTWURF-STEAM-PAD.md`, Abschnitt 5, nachtragen: Klasse und Größe des Fensters, die Exit-Codes, ob der
