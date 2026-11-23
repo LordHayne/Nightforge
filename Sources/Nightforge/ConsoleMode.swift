@@ -58,4 +58,14 @@ enum ConsoleMode {
     /// Whether that look runs at all: in console mode, Nightforge in front, no game on. Behind a game, or with another
     /// app in front, there's no beat (docs/AUDIT-0.3.5.md, E1); Nightforge's activation starts it again.
     static func focusWatchRuns(consoleMode: Bool, inFront: Bool, gameOn: Bool) -> Bool { consoleMode && inFront && !gameOn }
+
+    enum FocusLook: Equatable { case look, skip, end }
+
+    /// One beat of that watch: it ends only when the mode is off, a game runs or Nightforge is behind. A beat without a key
+    /// window – going into full screen, right when setConsoleMode switches it and starts the watch – only skips that beat;
+    /// it used to end the watch, and the highlight came back only with the next activation (audit K1, 23.11.2026).
+    static func focusLook(consoleMode: Bool, inFront: Bool, gameOn: Bool, keyWindow: Bool) -> FocusLook {
+        guard focusWatchRuns(consoleMode: consoleMode, inFront: inFront, gameOn: gameOn) else { return .end }
+        return keyWindow ? .look : .skip
+    }
 }

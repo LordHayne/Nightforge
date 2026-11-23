@@ -4314,7 +4314,8 @@ final class LibraryModel: ObservableObject {
         let open = window.attachedSheet != nil || NSApp.modalWindow != nil || launcherMenuOpen || quickMenu != nil || padKeyboard != nil
         guard ConsoleMode.offers(asked: ConsoleMode.asked(), on: consoleMode, padConnected: controllerConnected, inFront: NSApp.isActive,
                                  firstStart: showsFirstStart, gameOn: gameOnScreen, somethingOpen: open) else { return }
-        UserDefaults.standard.set(true, forKey: ConsoleMode.askedKey)
+        // Noted as asked only once it's answered (declineConsoleMode, setConsoleMode): closed with Nightforge's quit, it
+        // comes again (audit K1).
         GameLog.note("Console mode: asked, a controller is connected")
         offersConsoleMode = true
     }
@@ -4330,6 +4331,7 @@ final class LibraryModel: ObservableObject {
     /// "Not Now" in the request: not asked again by itself; the small menu and Settings › Controller have it.
     func declineConsoleMode() {
         offersConsoleMode = false
+        UserDefaults.standard.set(true, forKey: ConsoleMode.askedKey)
         GameLog.note("Console mode: not now")
     }
 
@@ -4376,10 +4378,16 @@ final class LibraryModel: ObservableObject {
         consoleFocusWatch = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(ConsoleMode.focusLook))
-                // A game started meanwhile, or the mode went: the beat ends, the next activation brings it back.
-                guard let self, !Task.isCancelled,
-                      ConsoleMode.focusWatchRuns(consoleMode: self.consoleMode, inFront: NSApp.isActive, gameOn: self.gameOnScreen),
-                      let key = NSApp.keyWindow else { return }
+                // A game started meanwhile, or the mode went: the beat ends, the next activation brings it back. No key
+                // window for a moment (going into full screen): only this look is skipped (ConsoleMode.focusLook).
+                guard let self, !Task.isCancelled else { return }
+                switch ConsoleMode.focusLook(consoleMode: self.consoleMode, inFront: NSApp.isActive, gameOn: self.gameOnScreen,
+                                             keyWindow: NSApp.keyWindow != nil) {
+                case .end: return
+                case .skip: continue
+                case .look: break
+                }
+                guard let key = NSApp.keyWindow else { continue }
                 let main = NSApp.windows.first { $0.title == "Nightforge" }
                 let dialog = key !== main && key.isVisible
                 let panel = self.launcherMenuOpen || self.quickMenu != nil || self.showingOptions
