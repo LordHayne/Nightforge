@@ -1499,7 +1499,8 @@ Seit v0.2.0 (25.10., a4a57a0) sind über 340 Commits dazugekommen, alle auf dem 
     Nutzer hat die DMG am 1.11. geladen.
   - Integrationszweig pushen und über einen PR nach `main` bringen.
   - Tag `v0.3.0` löst `release.yml` aus.
-  - Danach das Beta-Release `d3dmetal-4.0b3` samt Tag löschen (Nutzer, 1.11.: „entfernen wir es“). Erst dann, denn
+  - [x] Danach das Beta-Release `d3dmetal-4.0b3` samt Tag löschen (Nutzer, 1.11.: „entfernen wir es“; gelöscht am 23.11.2026
+    mit seinem Ja, Release und Tag geben 404). Erst dann, denn
     `main` (0.2.0) lädt D3DMetal bis zum Release noch von dort.
   - Danach die zurückgehaltenen Dependabot-PRs #21–#26 prüfen (sie warten auf einen Release- oder Grafik-Build).
 
@@ -3867,7 +3868,8 @@ Cloud-Session ihre erste Zeile.
   - Weitergabe ist erlaubt (nicht-kommerziell, unverändert). Die Nutzung ist an „developing, testing, or evaluating
     video games“ gebunden, und das gilt für jeden Spieler. Ob Spielen darunter fällt, ist ungeklärt. Viele Projekte
     liefern es seit 2023 mit, Abmahnungen sind keine bekannt.
-  - Eigenes Risiko: Wir verteilen **4.0 beta 3**, eine Vorabversion. Das Release `d3dmetal-4.0b3` ist öffentlich.
+  - Eigenes Risiko: Wir verteilten **4.0 beta 3**, eine Vorabversion. Das Release `d3dmetal-4.0b3` ist seit 23.11.2026
+    gelöscht; seitdem gibt Nightforge nur das fertige 3.0 weiter, 4.x nur über den Import aus Apples DMG.
   - Empfehlung für 0.3.0: kein stiller Download mehr. Beim ersten DX12-Spiel ein Dialog mit Apples Lizenz und zwei
     Wegen: „Bei Apple laden und importieren“ (empfohlen) und „Von Nightforge laden“. Keine Beta weitergeben, sondern das
     finale 3.0, falls winecx damit läuft. Das Paket in ein eigenes Repo legen.

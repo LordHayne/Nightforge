@@ -21,14 +21,39 @@ Dazu zwei neue Punkte für 0.4 (deine Wahl vom 23.11.). Gebaut wird nach dem Rel
   - Grenzen: Die Anmeldung selbst (Passwort, Touch ID, mit FileVault immer) bleibt bei macOS. Das Anmeldeobjekt meldet
     macOS mit einer Mitteilung, also gehört es in die Konsolenmodus-Anfrage, nie mitten ins Spielen.
   - Wie lange der Schreibtisch noch kurz zu sehen ist, zeigt erst ein Versuch.
-- **Sitzungsende wie bei einer Konsole:** Home- bzw. Guide-Taste lange drücken, dann ein Glasblatt mit Ruhezustand, Neustart
-  und Ausschalten am Pad.
+- **Sitzungsende wie bei einer Konsole, ein Power-Menü (deine Wahl vom 23.11., 19:54):** Auf der Startseite ersetzt ein
+  dezenter Knopf mit Power-Symbol das Launcher-Menü. Die Launcher ziehen in die Einstellungen bzw. die Bibliothek, weil
+  Nightforge sie ohnehin beim ersten Start einrichtet. Dahinter liegt ein Glasblatt: Mac schlafen legen, Nightforge neu
+  starten, Nightforge beenden, später auch Mac neu starten und ausschalten. Dasselbe Blatt öffnet sich, wenn man am Pad
+  die Home- bzw. Guide-Taste lange drückt. Entwurf zuerst; nach den Engine-Punkten 1–2.
   - Zu prüfen: ob Nightforge den langen Druck überhaupt hört. macOS 27 legt ihn auf „App öffnen“ bzw. sein Game Overlay
     (`ENTWURF-OVERLAY.md`, PS-Taste). Bis eine Probe das klärt, öffnet das Blatt über einen anderen Weg, etwa das kleine
     Menü (⧉).
   - Ruhezustand geht vermutlich ohne Erlaubnis.
   - Neustart und Ausschalten gehen über Apple Events an das System (`loginwindow`). Ob macOS dafür eine Erlaubnis
     verlangt, klärt eine Probe. Die startet den Mac nur mit deinem OK wirklich neu.
+
+## Engines zuerst (deine Entscheidung vom 23.11.)
+
+„Jetzt haben wir viel Designarbeit gemacht. Als Nächstes müssen wir uns wieder auf die Engines konzentrieren.“ Overlay und
+Steams Fragen am Pad laufen weiter, wie gewählt. Neue Designrunden gibt es erst nach den Engine-Punkten 1–2. Der Stand der
+Teile vom 23.11. (gegen die offiziellen Quellen geprüft): winecx 4.7.3 = CrossOver 26.3 mit Wine 11.17, D3DMetal 3.0
+(4.0b3 nur über den Import aus Apples DMG), DXMT 0.80 mit eigenen Patches, DXVK-macOS 1.10.3 und DXVK 3.1.1 für D3D9 auf
+KosmicKrisp, MoltenVK 1.4.2.
+
+1. **D3DMetal 4 (Metal 4):** 3.0 gegen 4.0b3 messen (Wukong-Benchmark und zwei, drei DirectX-12-Spiele). 4.x je Spiel
+   zulassen, `D3DM_MTL4=0` als Notschalter. 3.0 bleibt Standard, bis Apples GPTK 4 fertig ist. Nightforge gibt nie eine
+   Beta weiter, 4.x kommt nur über den Import des Nutzers.
+2. **Startzeit und Nachlauf:** Steam beim Spielwechsel vorab passend starten (Weg 2, im Konsolenmodus, spart 20–23 s).
+   Steam mit höherer Priorität starten, nach einer Messung am Netzteil und auf Akku. Prüfen, warum Wukong 48 s zum
+   Beenden braucht.
+3. **Kompatibilitätsliste:** welche beliebten Spiele heute nicht oder schlecht laufen, je Grafikweg, und die nächsten
+   Profil- und Engine-Fixes daraus.
+4. **Klassiker (fest eingeplant, deine Wahl vom 23.11.: „Klassiker sollten aber auch laufen in Zukunft“):** Direct3D 3–7
+   über D7VK auf KosmicKrisp, Direct3D 8/9 über DXVK 3.1.1 bzw. WineD3D als Rückfall. Testfälle sind GOG-Klassiker.
+5. **Rosetta-Ende mit macOS 28:** der ARM64-Plan (`ENTWURF-ARM64.md`, Abschnitt 9, bisher nur auf einem Zweig) nach
+   staging holen. Der Weg führt über vkd3d-proton auf KosmicKrisp und DXMT als ARM64X.
+6. **Wine-Basis:** dem nächsten CrossOver folgen, ohne eigenen Sprung auf eine neuere Wine-Version.
 
 ## Deine Entscheidungen vom 22.11.
 
