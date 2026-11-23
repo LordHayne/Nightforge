@@ -559,9 +559,6 @@ class EnvironmentTests(unittest.TestCase):
                         "NVIDIA's card for DLSS (Satisfactory), as GameEnvironment.allowed lets it through")
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class SignedListFollowsMacTests(unittest.TestCase):
     """The signed list is sometimes changed by hand between builds (two anti-cheat blocks on 23.11.2026, which
@@ -583,3 +580,7 @@ class SignedListFollowsMacTests(unittest.TestCase):
             self.assertTrue(mac[key]["antiCheat"], key)
             self.assertIn("gamingonlinux.com", mac[key]["note"], key)
             self.assertNotIn("arguments", mac[key], "a block never comes with a start that leaves the cheat protection out")
+
+
+if __name__ == "__main__":
+    unittest.main()
