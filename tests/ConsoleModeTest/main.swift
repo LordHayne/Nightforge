@@ -61,9 +61,8 @@ struct ConsoleModeTest {
         check(!ConsoleMode.focusWatchRuns(consoleMode: false, inFront: true, gameOn: false), "outside console mode: none at all")
 
         // Kept in the defaults: on across restarts, asked once.
-        let suite = "ConsoleModeTest.\(UUID().uuidString)"
-        guard let defaults = UserDefaults(suiteName: suite) else { return print("✗ no defaults suite") }
-        defer { defaults.removePersistentDomain(forName: suite) }
+        // In the test's own folder, which run.sh removes: a named domain stays in ~/Library/Preferences for good (23.11.2026).
+        let defaults = TestDefaults.suite("console-mode")
         check(!ConsoleMode.isOn(defaults) && !ConsoleMode.asked(defaults), "a new Mac: off, never asked")
         defaults.set(true, forKey: ConsoleMode.onKey)
         defaults.set(true, forKey: ConsoleMode.askedKey)

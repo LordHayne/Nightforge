@@ -36,6 +36,9 @@ struct DriveTakeoverTest {
     }
 
     static func main() async {
+        // Settings into the test's folder: .standard is a domain named after the program in ~/Library/Preferences,
+        // whatever HOME says, and each run left d3dmetal-test.plist or drive-takeover-test.plist there (23.11.2026).
+        TestDefaults.useWorkFolder()
         guard NSHomeDirectory().contains("/T/") || NSHomeDirectory().contains("/tmp") else {
             print("✗ This series writes Nightforge's data: it runs in a home of its own (tests/DriveTakeoverTest/run.sh)")
             exit(1)

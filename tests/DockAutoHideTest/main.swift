@@ -25,9 +25,8 @@ struct DockAutoHideTest {
                 print("✗ " + message)
             }
         }
-        let suite = "DockAutoHideTest.\(UUID().uuidString)"
-        guard let defaults = UserDefaults(suiteName: suite) else { return print("✗ no defaults suite") }
-        defer { defaults.removePersistentDomain(forName: suite) }
+        // In the test's own folder, which run.sh removes: a named domain stays in ~/Library/Preferences for good (23.11.2026).
+        let defaults = TestDefaults.suite("dock")
 
         // Shown (never set, or set to shown): switched on, the value before kept first, put back afterwards.
         for before in [nil, false] as [Bool?] {
