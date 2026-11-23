@@ -618,6 +618,8 @@ enum Engine {
     }
 
     private static func own(in table: [(pid: pid_t, command: String)], under folder: URL) -> [(pid: pid_t, command: String)] {
+        // A test program with the real home finds none of the player's (TestGuard).
+        if TestGuard.keepsOut(folder.path) { return [] }
         let root = folder.resolvingSymlinksInPath().path
         let helper = DetachedProcess.home.appendingPathComponent(DetachedProcess.helperName).resolvingSymlinksInPath().path + "/"
         return table.filter { process in
@@ -709,8 +711,10 @@ enum Engine {
     /// `reason`: why, in the log ("Wine session ends: …") – a name for the cause, never a value or a path. The end of a
     /// session used to leave no line: at 19:32 on 22.11.2026 Steam ended with its session and nothing said why.
     static func stopAll(_ wine: URL, reason: String) {
-        GameLog.note("Wine session ends: \(reason)")
         let wine = sessionWine() ?? wine
+        // Never the player's session from a test program (TestGuard).
+        if TestGuard.keepsOut(wine.path) { return }
+        GameLog.note("Wine session ends: \(reason)")
         // `wineserver -k` asks the server to end and waits for it. A server that doesn't (a process of
         // the session stuck in the kernel) must not hold up what comes after – Steam's restart, the
         // engine switch, "Remove Nightforge completely": after the limit it is dropped, and
@@ -1183,6 +1187,7 @@ enum Engine {
     /// `gameAtQuit`: Nightforge knew of a game running as it quit; only then does the script bring it back
     /// after that game (`steamShutdownScript`, $12).
     static func scheduleSteamShutdown(restart: Bool = false, gameAtQuit: Bool = false) {
+        guard !TestGuard.keepsOut(supportDir.path) else { return }  // a test program's quit hands nothing over (TestGuard)
         let wine = isSteamInstalled ? sessionWine() ?? installedWineNow() : nil
         let macSteam = restart || MacSteam.endsWithNightforge()
         let macLibrary = FileManager.default.fileExists(atPath: MacSteam.steamapps.path) ? MacSteam.steamapps.path : ""
