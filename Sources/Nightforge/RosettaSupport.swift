@@ -84,6 +84,8 @@ enum RosettaSupport {
 
     /// The same through Nightforge Helper, which reports the program's spawn error ("error 86") as a POSIXError.
     static func run(_ process: DetachedProcess) throws {
+        // Every Wine program starts through here (WineSandbox.process): which one begins a session, and with what AVX.
+        WineSessionStart.note(process)
         try starting(process.executableURL) { try process.run() }
     }
 

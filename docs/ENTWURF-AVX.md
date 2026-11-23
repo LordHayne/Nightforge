@@ -54,6 +54,10 @@ msync/Bibliothek/Retina, nach „Steam endete nicht“, wenn der wineserver nach
 Beginnt etwa ein regedit für die Bildschirmschlüssel die Sitzung, kurz bevor Steam startet, tritt Steam dieser Sitzung bei –
 ohne AVX in der gemeinsamen Seite, für alle Spiele bis zum Ende der Sitzung. Welcher Fall auf diesem Mac wie oft vorkam, sagt das
 Protokoll nicht (es nennt nicht, wer eine Sitzung beginnt). Messen ließe es sich mit einer Zeile „Wine session begins with …“.
+**Seit `claude/avx-zeile-035`** steht die Zeile in wine.log, für jede Sitzung, die Nightforge beginnt: „Wine session begins
+with <Programm>, AVX on|off“ (`WineSessionStart`, direkt vor dem Start in `RosettaSupport.run`). Das Programm steht nur mit
+seinem Dateinamen da, etwa steam.exe, regedit, msiexec, wineboot, winetricks oder die .exe des Spiels. Auszählen mit
+`grep -a "Wine session begins with" wine.log | sort | uniq -c`. Am Verhalten ändert sich nichts.
 
 ## 3. Woher Wine die Merkmale nimmt
 
