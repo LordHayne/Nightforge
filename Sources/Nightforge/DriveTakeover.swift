@@ -415,7 +415,7 @@ extension LibraryModel {
         guard !takeoverBusy else { throw DriveError.busy("a game, a download or a move is under way") }
         guard let wine = await Engine.installedWine() else { throw DriveError.steamNotKnown }
         let wasRunning = Engine.isSteamRunning
-        try await Engine.stopSteam(wine, endWait: Engine.filesEndWait)
+        try await Engine.stopSteam(wine, endWait: Engine.filesEndWait, leftovers: true)
         do {
             // Asked a few times: a Steam a moment from its end is still listed (Engine.steamStillThere).
             if let still = await Engine.steamStillThere() { throw still }

@@ -6560,7 +6560,7 @@ final class LibraryModel: ObservableObject {
         do {
             if wantsWindows, let wine = await Engine.installedWine() {
                 let wasRunning = Engine.isSteamRunning
-                try await Engine.stopSteam(wine, endWait: Engine.filesEndWait)
+                try await Engine.stopSteam(wine, endWait: Engine.filesEndWait, leftovers: true)
                 if let still = await Engine.steamStillThere() { throw still }
                 defer { if wasRunning { Task { try? await Engine.restartSteamInBackground(wine) } } }
                 try await Engine.offMain { _ = try SteamLibraries.forget(drive: name, appID: appID, steamRoot: steamRoot, bottle: bottle) }

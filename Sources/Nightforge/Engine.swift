@@ -3076,8 +3076,11 @@ enum Engine {
     }
 
     /// `endWait`: seconds Steam gets for its "-shutdown" – `filesEndWait` where its files are touched after.
-    static func stopSteam(_ wine: URL, endWait: Int = 20) async throws {
-        try await stopSteam(wine, running: { isSteamRunning }, leftovers: { steamLeftovers },
+    /// `leftovers`: whether the rest of Steam has to end too (`waitForSteamLeftovers`), where its files are touched
+    /// after. A Steam that starts again waits for it anyway (`waitForSteamToEnd`), and a stop that the session's end
+    /// or Steam for Mac follows doesn't need it: up to 15 s the player would see as the curtain for nothing (S3).
+    static func stopSteam(_ wine: URL, endWait: Int = 20, leftovers: Bool = false) async throws {
+        try await stopSteam(wine, running: { isSteamRunning }, leftovers: { leftovers ? steamLeftovers : [] },
                             installing: { SteamBootstrap(steamRoot: steamRoot) == .installing },
                             shutdown: { try startSteam(sessionWine() ?? $0, arguments: ["-shutdown"]) },
                             hardStop: { wine in
@@ -3138,15 +3141,29 @@ enum Engine {
     /// Before Steam starts again in the background: what is left of the last one – ended by "-shutdown" or with its
     /// Wine session (stopAll, a new session for msync, Retina or the library) – ends first, as after `stopSteam`.
     /// On 22.11.2026 at 19:32 the session ended at :23 and Steam started at :24 (13.8 s, at 19:01 5.65 s).
+    /// Looked at four times a second: after a "-shutdown" on 23.11. at 06:37 the web helpers had gone with steam.exe
+    /// and Steam's service 0.6 s after it – waited for in whole seconds, that was 1 s before the player's game.
     static func waitForSteamToEnd() async {
-        try? await waitForSteamLeftovers({ steamLeftovers }, pause: .seconds(1), limit: steamLeftoverWait,
-                                         serviceLimit: steamServiceWait, log: GameLog.note)
+        try? await waitForSteamLeftovers({ steamLeftovers }, pause: .milliseconds(1000 / steamLeftoverLooks),
+                                         limit: steamLeftoverWait * steamLeftoverLooks,
+                                         serviceLimit: steamServiceWait * steamLeftoverLooks, log: GameLog.note)
     }
 
-    /// How long a stop of Steam waits for its last processes after steam.exe, in pauses (seconds), and for Steam's
+    /// How long a stop of Steam waits for its last processes after steam.exe, in seconds, and for Steam's
     /// service alone: a Windows service, which may stay longer than the client that started it.
     static let steamLeftoverWait = 15
     static let steamServiceWait = 5
+    /// How often a second `waitForSteamToEnd` looks.
+    static let steamLeftoverLooks = 4
+
+    /// `pauses` of `pause` in seconds, for the log: "1", "0.75", "0.002".
+    static func seconds(_ pauses: Int, of pause: Duration) -> String {
+        let (whole, fraction) = pause.components
+        var text = String(format: "%.3f", Double(pauses) * (Double(whole) + Double(fraction) / 1e18))
+        while text.hasSuffix("0") { text.removeLast() }
+        if text.hasSuffix(".") { text.removeLast() }
+        return text
+    }
 
     /// The programs of a Steam that end with it, by name (lower-cased): the client, its web helpers (Nightforge's
     /// wrapper and Valve's), its service and its driver queries.
@@ -3167,21 +3184,26 @@ enum Engine {
     }
 
     /// Waits until none of Steam's programs is left (`leftovers`), Steam's service alone at most `serviceLimit`
-    /// pauses, everything at most `limit`; then goes on as before, with a line in the log. Never ends anything.
+    /// pauses, everything at most `limit`; then goes on as before, with a line in the log that says how long and
+    /// what went last (which part of Steam stays, for the next look at this wait). Never ends anything.
     static func waitForSteamLeftovers(_ leftovers: () -> [String]?, pause: Duration, limit: Int, serviceLimit: Int,
                                       log: (String) -> Void) async throws {
         var waited = 0
+        var last: [String] = []
         while true {
             guard let left = leftovers() else { return }  // no process list: as before
             if left.isEmpty {
-                if waited > 0 { log("Steam's last processes ended \(waited) s after steam.exe") }
+                if waited > 0 {
+                    log("Steam's last processes ended \(seconds(waited, of: pause)) s after steam.exe, last \(last.joined(separator: ", "))")
+                }
                 return
             }
             let serviceOnly = left == ["steamservice.exe"]
             if waited >= limit || (serviceOnly && waited >= serviceLimit) {
-                log("Steam's processes still there \(waited) s after steam.exe: \(left.joined(separator: ", ")) – Steam goes on without waiting longer")
+                log("Steam's processes still there \(seconds(waited, of: pause)) s after steam.exe: \(left.joined(separator: ", ")) – Steam goes on without waiting longer")
                 return
             }
+            last = left
             try await Task.sleep(for: pause)
             waited += 1
         }
