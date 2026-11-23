@@ -7,6 +7,39 @@ Umstieg auf winecx 4.7.3 mit D3DMetal (PR #7), dem Controller-Paket (PR #8) und 
 Neue Punkte unten in den passenden Abschnitt, Erledigtes löschen (die Geschichte steht im Git-Log).
 Jeder Punkt nennt, wo man anfängt.
 
+## Nach der Abnahme 23.11.
+
+Was nach der Abnahme heute Abend wartet. Stand 23.11.2026, 13:45, `claude/staging-035` 121eb176. Nichts davon ist
+gepusht. Gemergt wird erst mit dem OK des Nutzers.
+
+**Wartende Zweige**
+- [ ] `claude/zwei-pads-04` (f109d2b0, Worker 1, noch in Arbeit): zwei Pads, gehaltene Richtungen und Scrollen je Pad.
+  Zum Merge mit `audit-klein-035`. Live mit zwei Pads prüfen: Nummern, Licht, Abstecken.
+- [ ] `claude/audit-klein-035` (395c98ce, Kette grün 13:31): N3–N5 aus `docs/AUDIT-0.3.5-NACHTRAG.md`. Der Blick auf eine
+  kaputte Sitzung liest nur den Zuwachs von wine.log. Die Adapter-Zeile zählt nur vor dem ersten Programm eines Spiels.
+  `neverSyncs` wird je Steam-Start gemerkt. Vom Koordinator geprüft, Merge nach der Abnahme.
+- [ ] `claude/site-035` (1c24bc23): Landingpage und README für 0.3.5, ungemergt, bis der Nutzer
+  `docs/SITE-0.3.5-VORHER-NACHHER.md` gesehen hat. Vor dem Release: das Datum der Zeitleiste, die Versionszeile mit der echten
+  DMG-Größe, Sätze zu [offen]-Punkten streichen, die in der Abnahme durchfallen.
+
+**Offene Wahlen des Nutzers** (Übersicht in `docs/ROADMAP-0.4.md`)
+- [ ] Steams Fragen mit dem Pad (`docs/ENTWURF-STEAM-PAD.md`): „Bedienungshilfen“ in die Konsolenmodus-Anfrage? Leistentext
+  ohne Erlaubnis (Vorher/Nachher)? Startoption in Nightforge fragen? Dazu Probe B an einer Frage des Windows-Steam.
+- [ ] Pad-only (`docs/ENTWURF-PAD-ONLY.md`): Pad-Tastatur für jedes Textfeld, Ordnerwahl ohne Dateifenster, Berichte per QR,
+  Meldungen mit Knopf (erst live prüfen), Epic-Anmeldung.
+- [ ] Spielwechsel ohne Steam-Neustart (`docs/ENTWURF-SPIELWECHSEL.md`): Weg 1, 2 oder 3 (Empfehlung für 0.3.5: 3).
+- [ ] Hängendes Spiel (`docs/ENTWURF-HAENGER.md`): erst mit `gameTest.hangWatch` messen, dann Angebot A, B oder C.
+- [ ] AVX unter Wine (`docs/ENTWURF-AVX.md`): Weg A oder D (Empfehlung für 0.3.5: D).
+- [ ] Großes Overlay: die Variante (Board `entwuerfe/Overlay.dc.html`), dazu, was es live können soll
+  (`docs/ENTWURF-OVERLAY-FUNKTIONEN.md`). Der DXMT-Patch für eine Bildratengrenze im laufenden Spiel bräuchte das OK wegen LGPL.
+- [ ] Klänge (0.4.x): einen der drei Sätze in `docs/entwurf-klaenge-04/index.html` anhören und wählen.
+- [ ] Startzeit (`docs/ENTWURF-STARTZEIT.md`): die drei Starts mit Zeitmarken heute Abend. Der kürzere Vorhang nach dem ersten
+  Bild steht zur Wahl.
+
+**Aus der Abnahme selbst** (`docs/release-notes/v0.3.5.md`, die [offen]-Punkte)
+- [ ] Lichtnaht, Konsolenmodus am Spiel, Wukong mit 60 FPS, eine Sekunde Bildruhe, Overwatch, zwei Kopien mit dem Release,
+  Startphasen. Was durchfällt, kommt aus den Release-Notizen und aus `claude/site-035` heraus.
+
 ## Sessions aufgeräumt (14.11.)
 
 Sechs Sessions sind archiviert, ihre Zweige stecken alle in `claude/staging-033` (Testbuild 4d7806c): Audit
