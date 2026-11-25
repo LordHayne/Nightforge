@@ -559,5 +559,28 @@ class EnvironmentTests(unittest.TestCase):
                         "NVIDIA's card for DLSS (Satisfactory), as GameEnvironment.allowed lets it through")
 
 
+
+class SignedListFollowsMacTests(unittest.TestCase):
+    """The signed list is sometimes changed by hand between builds (two anti-cheat blocks on 23.11.2026, which
+    AreWeAntiCheatYet doesn't have): what profiles/mac.json says about anti-cheat must be in it as well, or the next
+    build and the list in players' hands would disagree."""
+
+    def test_every_anticheat_answer_of_mac_json_is_in_profiles_json(self):
+        mac = json.loads((ROOT / "profiles/mac.json").read_text(encoding="utf-8"))["games"]
+        listed = json.loads((ROOT / "profiles/profiles.json").read_text(encoding="utf-8"))["games"]
+        for key, own in mac.items():
+            for field in ("antiCheat", "antiCheatOnline"):
+                if field in own:
+                    self.assertIn(key, listed, key)
+                    self.assertEqual(listed[key].get(field), own[field], f"{key}: {field}")
+
+    def test_the_blocks_of_23_11_have_a_reason_and_no_way_around(self):
+        mac = json.loads((ROOT / "profiles/mac.json").read_text(encoding="utf-8"))["games"]
+        for key in ("1867240", "4080220"):  # WARDOGS, EA SPORTS FC 27
+            self.assertTrue(mac[key]["antiCheat"], key)
+            self.assertIn("gamingonlinux.com", mac[key]["note"], key)
+            self.assertNotIn("arguments", mac[key], "a block never comes with a start that leaves the cheat protection out")
+
+
 if __name__ == "__main__":
     unittest.main()
