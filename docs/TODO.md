@@ -7,6 +7,31 @@ Umstieg auf winecx 4.7.3 mit D3DMetal (PR #7), dem Controller-Paket (PR #8) und 
 Neue Punkte unten in den passenden Abschnitt, Erledigtes löschen (die Geschichte steht im Git-Log).
 Jeder Punkt nennt, wo man anfängt.
 
+## Nacht 23./24.11. (Befunde und offene Entscheidungen, je eine Zeile)
+
+- [ ] 47 s bis Steam nach Update oder schnellem Wieder-Öffnen: ein Steam beim Beenden wurde stehen gelassen. Fix auf
+  `claude/update-start-04` 230931cf (wartet bis 20 s, dann Start; build.sh wartet auf das Beenden-Skript), Kette grün, Vorschlag 0.3.6, live beim nächsten Einspielen.
+- [ ] Nur Entwickler-Macs: `Engine.ownProcesses` zählt die Wine-Prozesse der Testreihen mit (gleicher Components-Ordner);
+  `applyLibraryVersion`/`killLeftovers` können dann Test-Wine beenden („Killed: 9“ vom 23.11. abends). Anfang: `Engine.own(in:under:)`.
+- [ ] Langes Vibrieren nach „Console mode on (the small menu)“ (23.11. 20:07), winexinput.sys kurz davor: vermutlich Wine/SDL.
+  DualSense, gut 3 s, hörte von selbst auf (Thomas). Probe mit Thomas: a) Pad einschalten ohne Drücken, b) Konsolenmodus
+  3× an/aus. Abnahme 23.11.
+- [ ] Epic-Blitzer: beim Start von Frostpunk ganz kurz Nightforge zu sehen (Befund A, 23.11. 19:23). Probe bei Worker O, dazu
+  eine Bildschirmaufnahme mit ⌘⇧5 durch Thomas.
+- [ ] macOS' Frage „Lokales Netzwerk“ (Valheim, 23.11. 19:47) gehört der App: Nightforge kann sie nur auf dem Vorhang vorher
+  ansagen, antworten geht nur mit Zeiger/Maus. Ziel 0.4 („der Mac als Konsole“).
+- [ ] Mauszeiger auf stehendem Vorhang (Abnahme 23.11.): Seit `zeiger-park-035` (3573765f) verschwindet er, sobald der
+  Vorhang fällt. Offen bleibt der Zeiger, solange der Vorhang steht und das Spiel schon vorne ist.
+- [ ] Dock-Symbol eines Spiels im Nachlauf (Wukong, 23.11. 19:08; Beenden dauerte 48 s): nur im Spielprozess lösbar, 0.4 mit
+  Probe vorweg (sample, nur lesend).
+- [ ] Steam-QoS messen: Steam 15–25 s bei 5 von 7 Starts am 23.11.; Testschalter `SteamQoS` auf `claude/start-schneller-04`
+  (`docs/ENTWURF-SPIELWECHSEL.md`, Abschnitt „Steam mit eigener QoS“), Messung A/B steht aus.
+- [ ] Entscheidungen von Thomas, offen: D7VK ausliefern (`claude/klassiker-bau-04`, manifest), KosmicKrisp-Mesa-Patch nach außen
+  schicken (`scripts/kosmickrisp/proposed/0003`), DEP-Patch (LGPL, `nx-compat-04`), ein GOG-Kauf als Testfall für D3D 3–8,
+  GTA-V-Live-Lauf (`gta-lizenz-livetest.md` im Notizordner).
+- [ ] Audit der 0.4-Zweige (`docs/AUDIT-0.4.md` auf `claude/audit-04`): DM1–DM4 (d3dmetal4-messen), OV1–OV3 (overlay),
+  SS1 (start-schneller), AC1/AC2 (anticheat). SP1–SP5 sind auf `claude/steam-pad-wahl-main-04` erledigt (5e55c073, Kette grün).
+
 ## Nach der Abnahme 23.11.
 
 Was nach der Abnahme heute Abend wartet. Stand 23.11.2026, 13:45, `claude/staging-035` 121eb176. Nichts davon ist
@@ -574,7 +599,8 @@ oder ein Bildschirmfoto.
 
 - [x] **Laufwerk am zweiten Mac (Teil B):** „spieleerkennung am neuen mac die platte angesteckt funktioniert!“ (21.11.,
   ~20:00, Release 0.3.3 nach dem Update). Welche Läden und ob die Zeile „… sind wieder da“ kam, ist nicht notiert.
-- [ ] **F1 – Mac-Fassung mit Unity startet auf einem frischen Mac im kleinen Fenster** (Valheim, Bildschirmfoto 21.11.
+- [x] **F1 – Mac-Fassung mit Unity startet auf einem frischen Mac im kleinen Fenster** (erledigt: `MacUnityScreen`, live
+  bestätigt 22.11., siehe unten; seit 0.3.5 über -applaunch ohne Steams Frage) (Valheim, Bildschirmfoto 21.11.
   20:01): Das Spiel läuft in einem Fenster mit Titelleiste über dem Ladescreen („Nightforge wartet hier, bis du fertig
   bist.“), Menüleiste und Dock sind zu sehen. Gelesen im Code: `GameResolution.swift` stellt Vollbild und Größe nur für
   Windows-Spiele ein (Registry, `GameUserSettings.ini`) und nur, wo das Spiel selbst Vollbild gewählt hat. Für
@@ -935,7 +961,8 @@ Landingpage-Session), Version 0.3.3 in `Info.plist`, `docs/TESTABDECKUNG.md` nac
 **Risiken:** 397 Commits ohne Sicherung außerhalb dieses Macs; die Startschleife ist umgebaut und nur an drei Spielen
 gezielt geprüft; die Laufwerk-Übernahme ist nur für GOG live gesehen; vieles vom 8./9.11. ist nie live gelaufen.
 
-- [ ] **„Shader werden vorbereitet …“ kommt zu oft (Frage des Nutzers, 15.11.).** Der Hinweis kommt, wenn die gemerkte
+- [x] **„Shader werden vorbereitet …“ kommt zu oft (Frage des Nutzers, 15.11.).** Erledigt in 60d18a70: je Spiel die
+  letzten 12 Kombinationen, der Hinweis nur bei einer neuen (`LaunchPhase.seenSignatures`). Der Hinweis kommt, wenn die gemerkte
   Kombination (`shaders.<Spiel>` in den defaults: Engine | Grafikweg | Grafik-Bausteine, `LaunchPhase.graphicsSignature`)
   von der des Starts abweicht – gemerkt wird nur die **letzte**. Wechselt ein Spiel den Weg und kehrt zurück, kommt der
   Hinweis jedes Mal, obwohl die Shader dieses Wegs schon einmal gebaut wurden. Heute bei MGS V (D3DMetal ↔ DXMT in den
