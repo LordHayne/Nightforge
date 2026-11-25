@@ -16,8 +16,9 @@ struct GameAnalysisTest {
 
     /// A Windows program that imports `imports` at start and `delayed` on first use. 32-bit
     /// programs from old linkers (`oldDelay`) name their delay-loaded DLLs by address, not offset.
+    /// `nx`: IMAGE_DLLCHARACTERISTICS_NX_COMPAT in its header, as linkers set it since Visual Studio 2008.
     static func program(_ imports: [String], delayed: [String] = [], is64: Bool = true, oldDelay: Bool = false,
-                        size: Int = 0) -> Data {
+                        size: Int = 0, nx: Bool = true) -> Data {
         let sectionRVA: UInt32 = 0x1000, sectionFile: UInt32 = 0x200
         let imageBase: UInt64 = is64 ? 0x1_4000_0000 : 0x40_0000
         let delayedAt = (imports.count + 1) * 20
@@ -49,6 +50,7 @@ struct GameAnalysisTest {
         let optional = 0x58
         header.put16(is64 ? 0x20B : 0x10B, at: optional)
         if is64 { header.put64(imageBase, at: optional + 24) } else { header.put32(UInt32(imageBase), at: optional + 28) }
+        if nx { header.put16(0x0100, at: optional + 70) }
         let directories = optional + (is64 ? 112 : 96)
         if !imports.isEmpty { header.put32(sectionRVA, at: directories + 8) }
         if !delayed.isEmpty { header.put32(sectionRVA + UInt32(delayedAt), at: directories + 13 * 8) }
@@ -319,6 +321,47 @@ struct GameAnalysisTest {
         check(packed.engineVersion == "6000.3" && packed.kind.coarse == "unity6000|d3d11", "… or from whatever data folder there is (\(packed.kind.coarse))")
         check(try analyze("plain", ["Game.exe": program(["d3d11.dll"])]).kind.fine == "other|d3d11|", "a game that brings nothing along")
 
+        // MARK: NX_COMPAT: Wine turns DEP off for a 32-bit process that loads a module without it
+        func nxCompat(_ data: Data) throws -> Bool? {
+            let file = root.appendingPathComponent("nx-\(UUID().uuidString).dll")
+            try fm.createDirectory(at: root, withIntermediateDirectories: true)
+            try data.write(to: file)
+            return PEImports.nxCompat(of: file)
+        }
+        check(try nxCompat(program(["kernel32.dll"])) == true && nxCompat(program(["kernel32.dll"], is64: false)) == true,
+              "the flag read in PE32+ and PE32")
+        check(try nxCompat(program(["kernel32.dll"], is64: false, nx: false)) == false, "an old linker's program: without it")
+        check(try nxCompat(Data("#!/bin/sh\n".utf8)) == nil && nxCompat(program([]).prefix(0x60)) == nil,
+              "no PE image, or one cut off in its headers: nothing said")
+        let classic = try analyze("classic", [
+            "Bin/Classic.exe": program(["d3d9.dll", "kernel32.dll"], is64: false, nx: false),
+            "Bin/binkw32.dll": program(["kernel32.dll"], is64: false, nx: false),
+            "Bin/fmod.dll": program(["kernel32.dll"], is64: false),
+            "Bin/readme.txt": Data("not a program".utf8),
+            "Tools/old.dll": program(["kernel32.dll"], is64: false, nx: false),  // not beside the program
+        ], launch: "Bin/Classic.exe")
+        check(classic.withoutNXCompat == ["Classic.exe", "binkw32.dll"],
+              "a 32-bit game: its program and the libraries beside it without the flag (\(classic.withoutNXCompat ?? []))")
+        check(classic.depLine == "32-bit, Classic.exe, binkw32.dll without NX_COMPAT: Wine turns DEP off for the whole process (Rosetta: slow first writes)",
+              "the log's line (\(classic.depLine ?? "–"))")
+        check(classic.depNote?.hasPrefix("32 Bit, ohne NX_COMPAT: Classic.exe, binkw32.dll – Wine schaltet DEP") == true, "the game test's note, in German")
+        let modern32 = try analyze("modern32", ["Game.exe": program(["d3d9.dll"], is64: false), "x.dll": program([], is64: false)])
+        check(modern32.withoutNXCompat == [] && modern32.depLine == nil, "a 32-bit game whose modules all have it: nothing to say")
+        let old64 = try analyze("old64", ["Game.exe": program(["d3d11.dll"], nx: false)])
+        check(old64.withoutNXCompat == nil && old64.depLine == nil, "a 64-bit game isn't looked at: Wine keeps DEP on there")
+        check(GameAnalysis.listed(["a", "b", "c", "d", "e", "f"]) == "a, b, c, d and 2 more", "long lists shortened")
+        let manyDir = root.appendingPathComponent("many", isDirectory: true)
+        try fm.createDirectory(at: manyDir, withIntermediateDirectories: true)
+        for index in 0..<5 { try program([], is64: false, nx: false).write(to: manyDir.appendingPathComponent("m\(index).dll")) }
+        try program([], is64: false).write(to: manyDir.appendingPathComponent("Game.exe"))
+        check(GameAnalysis.withoutNXCompat(programs: [manyDir.appendingPathComponent("Game.exe")], limit: 3) == ["m0.dll", "m1.dll", "m2.dll"],
+              "at most `limit` libraries a folder are read")
+        let kept32 = try JSONDecoder().decode(GameAnalysis.self, from: JSONEncoder().encode(classic))
+        check(kept32 == classic, "kept and read back with the new field")
+        let older = try JSONDecoder().decode(GameAnalysis.self, from: Data(#"{"apis":["d3d9"],"engine":"other","antiCheat":[],"usesDotNet":false,"usesWebView2":false,"usesDLSS":false,"middleware":[]}"#.utf8))
+        check(older.withoutNXCompat == nil, "an analysis kept before the field reads as not looked at")
+
+        try? fm.removeItem(at: root)
         print(failures == 0 ? "✓ GameAnalysis" : "\(failures) failed")
         exit(failures == 0 ? 0 : 1)
     }
