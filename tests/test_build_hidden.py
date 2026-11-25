@@ -26,6 +26,19 @@ class BuildHiddenTests(unittest.TestCase):
         text = (ROOT / "build.sh").read_text()
         self.assertIn('cp -R "$OUT" "$HOME/Applications/"', text)
 
+    def test_install_waits_for_the_quit_script(self):
+        """The quit script ends Steam after Nightforge has gone; replaced and opened before it is done, the new copy
+        met a Steam on its way out (23.11.2026, 19:57). The pid file is where the script names itself."""
+        text = (ROOT / "build.sh").read_text()
+        install = text[text.index('if [ "${1:-}" = "--install" ]; then'):]
+        wait = install.index('QUIT_PID_FILE="$HOME/Library/Application Support/Nightforge/steam-shutdown.pid"')
+        self.assertLess(wait, install.index('rm -rf "$HOME/Applications/$APP.app"'))
+        self.assertLess(wait, install.index('open "$HOME/Applications/$APP.app"'))
+        self.assertIn("*steam-shutdown.sh*", install, "only the script itself counts, not a pid used again")
+        self.assertIn("seq 1 180", install, "90 s at most: a game or a download keeps the script for hours")
+        engine = (ROOT / "Sources/Nightforge/Engine.swift").read_text()
+        self.assertIn('PIDFILE="${0%/*}/steam-shutdown.pid"', engine)
+
     def test_release_and_dmg_take_it_from_there(self):
         release = (ROOT / ".github/workflows/release.yml").read_text()
         self.assertIn(f"app={APP}", release)
