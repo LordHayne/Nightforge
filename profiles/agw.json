@@ -45,22 +45,26 @@
    "1192126527": "550320",
    "1193013642": "440880",
    "1207658755": "223470",
+   "1207658827": "63650",
    "1207658997": "211600",
    "1207659014": "1500",
    "1207659017": "40700",
    "1207659024": "207690",
+   "1207659029": "208110",
    "1207659037": "108710",
    "1207659102": "212680",
    "1207659133": "203830",
    "1207659172": "238210",
    "1207659209": "239030",
    "1207659221": "25600",
+   "1207659253": "225260",
    "1207659443": "239200",
    "1207659763": "211440",
    "1207664313": "266980",
    "1207665533": "400430",
    "1207667013": "248310",
    "1214553287": "2521380",
+   "1216902049": "1255560",
    "1217471463": "976590",
    "1224800338": "1092790",
    "1231448648": "603960",
@@ -149,6 +153,7 @@
    "1587536467": "1136370",
    "1590785655": "1205450",
    "1600722961": "452060",
+   "1604204642": "504390",
    "1614341910": "639170",
    "1621159343": "1283410",
    "1621558174": "1080750",
@@ -176,6 +181,7 @@
    "1752654506": "8870",
    "1756057997": "826940",
    "1762582591": "661680",
+   "1766899243": "925930",
    "1771589310": "632470",
    "1785384169": "953490",
    "1786995757": "22650",
@@ -205,6 +211,7 @@
    "1948823323": "17390",
    "1950350062": "1708010",
    "1950574400": "1681430",
+   "1956555724": "925940",
    "1957528513": "1139900",
    "1958338581": "914710",
    "1962176043": "2097230",
@@ -519,7 +526,7 @@
   },
   "730": {
    "page": "Counter-Strike 2",
-   "edited": "2025-08-10",
+   "edited": "2026-11-05",
    "paths": {
     "crossover": {
      "rating": "perfect",
@@ -546,9 +553,10 @@
       "d3dmetal"
      ],
      "chips": [
-      "M1 Max"
+      "M1 Max",
+      "M3 Pro"
      ],
-     "date": "2023-10-06"
+     "date": "2026-09-30"
     }
    }
   },
@@ -1103,7 +1111,7 @@
   },
   "9050": {
    "page": "Doom 3",
-   "edited": "2022-09-30",
+   "edited": "2026-11-04",
    "paths": {
     "native": {
      "rating": "perfect",
@@ -2410,6 +2418,13 @@
      ],
      "date": "2026-05-26"
     }
+   },
+   "hint": {
+    "graphics": "d3dmetal",
+    "from": [
+     "notes"
+    ],
+    "source": "agw"
    }
   },
   "42960": {
@@ -2693,22 +2708,14 @@
    },
    "ids": "name"
   },
-  "63660": {
-   "page": "Myst",
-   "edited": "2021-10-04",
+  "63650": {
+   "page": "Uru: Ages Beyond Myst",
+   "edited": "2026-11-05",
    "paths": {
     "native": {
-     "rating": "perfect"
-    },
-    "rosetta": {
-     "rating": "perfect",
-     "note": "Playable.",
-     "chips": [
-      "M1"
-     ]
+     "rating": "playable"
     }
-   },
-   "ids": "wikidata"
+   }
   },
   "65540": {
    "page": "Gothic",
@@ -2940,6 +2947,13 @@
       "dxvk"
      ]
     }
+   },
+   "hint": {
+    "graphics": "d3dmetal",
+    "from": [
+     "notes"
+    ],
+    "source": "agw"
    }
   },
   "110800": {
@@ -3375,6 +3389,15 @@
     },
     "crossover": {
      "rating": "perfect"
+    }
+   }
+  },
+  "208110": {
+   "page": "Myst V: End of Ages",
+   "edited": "2026-11-05",
+   "paths": {
+    "native": {
+     "rating": "playable"
     }
    }
   },
@@ -3967,6 +3990,19 @@
    },
    "ids": "wikidata"
   },
+  "225260": {
+   "page": "Brütal Legend",
+   "edited": "2026-11-27",
+   "codeweavers": "brutal-legend",
+   "paths": {
+    "rosetta": {
+     "rating": "perfect"
+    },
+    "crossover": {
+     "rating": "runs"
+    }
+   }
+  },
   "225540": {
    "page": "Just Cause 3",
    "edited": "2026-02-24",
@@ -4183,7 +4219,7 @@
   },
   "231430": {
    "page": "Company of Heroes 2",
-   "edited": "2022-07-21",
+   "edited": "2026-11-14",
    "paths": {
     "rosetta": {
      "rating": "perfect",
@@ -4191,6 +4227,14 @@
      "chips": [
       "M1"
      ]
+    },
+    "crossover": {
+     "rating": "perfect",
+     "note": "In case of Desync Error, I created a fix for it.",
+     "chips": [
+      "M1 Pro"
+     ],
+     "date": "2026-11-13"
     }
    },
    "ids": "wikidata"
@@ -4823,7 +4867,14 @@
      "date": "2026-10-15"
     }
    },
-   "ids": "wikidata"
+   "ids": "wikidata",
+   "hint": {
+    "graphics": "d3dmetal",
+    "from": [
+     "notes"
+    ],
+    "source": "agw"
+   }
   },
   "242640": {
    "page": "Styx: Master of Shadows",
@@ -4963,7 +5014,7 @@
   },
   "244210": {
    "page": "Assetto Corsa",
-   "edited": "2025-01-22",
+   "edited": "2026-11-05",
    "paths": {
     "crossover": {
      "rating": "perfect",
@@ -4980,7 +5031,15 @@
     },
     "wine": {
      "rating": "unplayable",
-     "note": "Is able toinstall and gives prompt to open but when opened Assetto Corsa closes and send back to steam page."
+     "note": "Is able toinstall and gives prompt to open but when opened Assetto Corsa closes and send back to steam page. Runs in Uncork through Steam after installing .NET Framework 4.8, d3dx11_43/d3dcompiler and fonts (Uncork's free \"Prepare to run\" does this); the Steam overlay must be off for the game. …",
+     "graphics": [
+      "d3dmetal",
+      "dxmt"
+     ],
+     "chips": [
+      "M3 Pro"
+     ],
+     "date": "2026-10-03"
     }
    },
    "ids": "wikidata"
@@ -5017,6 +5076,13 @@
      ],
      "date": "2023-09-21"
     }
+   },
+   "hint": {
+    "graphics": "d3dmetal",
+    "from": [
+     "notes"
+    ],
+    "source": "agw"
    }
   },
   "244930": {
@@ -5711,6 +5777,13 @@
       "M2"
      ]
     }
+   },
+   "hint": {
+    "graphics": "dxvk",
+    "from": [
+     "notes"
+    ],
+    "source": "agw"
    }
   },
   "268750": {
@@ -6021,7 +6094,7 @@
   },
   "284160": {
    "page": "BeamNG.drive",
-   "edited": "2025-10-20",
+   "edited": "2026-11-05",
    "paths": {
     "crossover": {
      "rating": "perfect",
@@ -6038,7 +6111,13 @@
     },
     "wine": {
      "rating": "runs",
-     "note": "https://www.reddit.com/r/BeamNG/comments/16iioxj/back_at_it_again_macos_sonoma_rc_game_porting/"
+     "note": "https://www.reddit.com/r/BeamNG/comments/16iioxj/back_at_it_again_macos_sonoma_rc_game_porting/ Runs in Uncork with D3DMetal: 100-110 fps on Hirochi at medium-high settings (no recording of the run, resolution not noted). Tested by the Uncork developer.",
+     "graphics": [
+      "d3dmetal"
+     ],
+     "chips": [
+      "M3 Pro"
+     ]
     }
    },
    "ids": "wikidata"
@@ -6703,6 +6782,13 @@
       "dxvk"
      ]
     }
+   },
+   "hint": {
+    "graphics": "dxmt",
+    "from": [
+     "notes"
+    ],
+    "source": "agw"
    }
   },
   "306760": {
@@ -7680,7 +7766,14 @@
      "date": "2024-03-23"
     }
    },
-   "ids": "wikidata"
+   "ids": "wikidata",
+   "hint": {
+    "graphics": "d3dmetal",
+    "from": [
+     "notes"
+    ],
+    "source": "agw"
+   }
   },
   "360430": {
    "page": "Mafia III",
@@ -7749,7 +7842,14 @@
      "date": "2024-12-15"
     }
    },
-   "ids": "wikidata"
+   "ids": "wikidata",
+   "hint": {
+    "graphics": "d3dmetal",
+    "from": [
+     "notes"
+    ],
+    "source": "agw"
+   }
   },
   "362890": {
    "page": "Black Mesa",
@@ -8361,6 +8461,13 @@
      ],
      "date": "2026-07-23"
     }
+   },
+   "hint": {
+    "graphics": "dxvk",
+    "from": [
+     "notes"
+    ],
+    "source": "agw"
    }
   },
   "388210": {
@@ -9968,6 +10075,13 @@
       "M3 Pro"
      ]
     }
+   },
+   "hint": {
+    "graphics": "d3dmetal",
+    "from": [
+     "notes"
+    ],
+    "source": "agw"
    }
   },
   "487720": {
@@ -10133,6 +10247,17 @@
    },
    "ids": "wikidata"
   },
+  "501590": {
+   "page": "Bulletstorm: Full Clip Edition",
+   "edited": "2022-07-01",
+   "paths": {
+    "crossover": {
+     "rating": "unplayable",
+     "note": "Don't launch"
+    }
+   },
+   "ids": "wikidata"
+  },
   "502500": {
    "page": "Ace Combat 7: Skies Unknown",
    "edited": "2025-12-15",
@@ -10224,6 +10349,16 @@
     }
    },
    "ids": "wikidata"
+  },
+  "504390": {
+   "page": "Along the Edge",
+   "edited": "2026-11-26",
+   "codeweavers": "along-the-edge",
+   "paths": {
+    "crossover": {
+     "rating": "perfect"
+    }
+   }
   },
   "505230": {
    "page": "Pathologic 2",
@@ -10870,7 +11005,14 @@
      ]
     }
    },
-   "ids": "wikidata"
+   "ids": "wikidata",
+   "hint": {
+    "graphics": "d3dmetal",
+    "from": [
+     "notes"
+    ],
+    "source": "agw"
+   }
   },
   "557340": {
    "page": "My Friend Pedro",
@@ -11865,8 +12007,16 @@
   },
   "632360": {
    "page": "Risk of Rain 2",
-   "edited": "2023-10-07",
+   "edited": "2026-11-22",
    "paths": {
+    "native": {
+     "rating": "playable",
+     "note": "Unofficial native port via Risk2Mac. Requires files from a matching Windows installation. Steam P2P lobbies work. Epic Games crossplay and direct-IP connections to dedicated servers are currently unsupported.",
+     "chips": [
+      "M1"
+     ],
+     "date": "2026-11-22"
+    },
     "crossover": {
      "rating": "perfect",
      "note": "CrossOver ≤22 requires invisible characters fix.",
@@ -13059,6 +13209,17 @@
    },
    "ids": "name"
   },
+  "736590": {
+   "page": "Operation: Harsh Doorstop",
+   "edited": "2022-12-05",
+   "paths": {
+    "crossover": {
+     "rating": "runs",
+     "note": "Game installs and runs well on firing range but poorly on large-scale maps and all of the textures are missing"
+    }
+   },
+   "ids": "wikidata"
+  },
   "736850": {
    "page": "We. The Revolution",
    "edited": "2022-04-16",
@@ -13885,7 +14046,7 @@
   },
   "813780": {
    "page": "Age of Empires II: Definitive Edition",
-   "edited": "2026-09-08",
+   "edited": "2026-11-23",
    "paths": {
     "native": {
      "rating": "perfect",
@@ -13897,7 +14058,10 @@
     },
     "crossover": {
      "rating": "playable",
-     "note": "It stutters a bit but it is playable via Crossover if you add NOINTRO startup option in Steam. Some mods might also interfere but you will be prompted to disable them on startup."
+     "note": "It stutters a bit but it is playable via Crossover if you add NOINTRO startup option in Steam. Some mods might also interfere but you will be prompted to disable them on startup. Since the 2 June 2026 patch, large selections and health bars are slow under Rosetta and the game freezes briefly every …",
+     "versions": [
+      "CrossOver 26.3.0"
+     ]
     },
     "wine": {
      "rating": "playable",
@@ -14918,6 +15082,24 @@
    },
    "ids": "wikidata"
   },
+  "925930": {
+   "page": "Myst III: Exile",
+   "edited": "2026-11-05",
+   "paths": {
+    "native": {
+     "rating": "playable"
+    }
+   }
+  },
+  "925940": {
+   "page": "Myst IV: Revelation",
+   "edited": "2026-11-05",
+   "paths": {
+    "native": {
+     "rating": "playable"
+    }
+   }
+  },
   "927380": {
    "page": "Yakuza Kiwami 2",
    "edited": "2025-10-02",
@@ -15014,17 +15196,27 @@
      "date": "2024-02-29"
     }
    },
-   "ids": "wikidata"
+   "ids": "wikidata",
+   "hint": {
+    "graphics": "dxvk",
+    "from": [
+     "notes"
+    ],
+    "source": "agw"
+   }
   },
   "934700": {
    "page": "Dead Island 2",
-   "edited": "2025-07-29",
+   "edited": "2026-11-28",
+   "codeweavers": "dead-island-2",
    "paths": {
     "native": {
      "rating": "perfect"
+    },
+    "crossover": {
+     "rating": "playable"
     }
-   },
-   "ids": "wikidata"
+   }
   },
   "935750": {
    "page": "Antiquitas",
@@ -16071,7 +16263,14 @@
      "note": "crashes"
     }
    },
-   "ids": "wikidata"
+   "ids": "wikidata",
+   "hint": {
+    "graphics": "d3dmetal",
+    "from": [
+     "notes"
+    ],
+    "source": "agw"
+   }
   },
   "1036240": {
    "page": "Definitely Not Fried Chicken",
@@ -16984,6 +17183,20 @@
     }
    }
   },
+  "1117090": {
+   "page": "Purple Place - Classic Games",
+   "edited": "2026-06-28",
+   "paths": {
+    "rosetta": {
+     "rating": "perfect",
+     "chips": [
+      "M2"
+     ],
+     "date": "2025-07-07"
+    }
+   },
+   "ids": "wikidata"
+  },
   "1118200": {
    "page": "People Playground",
    "edited": "2022-12-02",
@@ -17637,7 +17850,7 @@
   },
   "1167630": {
    "page": "Teardown",
-   "edited": "2025-02-07",
+   "edited": "2026-11-05",
    "codeweavers": "teardown",
    "paths": {
     "crossover": {
@@ -17654,14 +17867,15 @@
     },
     "wine": {
      "rating": "perfect",
-     "note": "With Whisky, it's possible to run Teardown on macOS Sequoia.",
+     "note": "With Whisky, it's possible to run Teardown on macOS Sequoia. Runs in Uncork on the built-in OpenGL renderer: Ultra settings, 95-100 fps by eye, 72 fps in a heavy fog-and-water scene, about 74 fps on a heavier map (no average recorded). Tested by the Uncork developer.",
      "versions": [
       "Whisky"
      ],
      "chips": [
-      "M1"
+      "M1",
+      "M3 Pro"
      ],
-     "date": "2024-11-24"
+     "date": "2026-10-06"
     }
    },
    "hint": {
@@ -17717,7 +17931,14 @@
      ]
     }
    },
-   "ids": "wikidata"
+   "ids": "wikidata",
+   "hint": {
+    "graphics": "d3dmetal",
+    "from": [
+     "notes"
+    ],
+    "source": "agw"
+   }
   },
   "1172470": {
    "page": "Apex Legends",
@@ -18094,6 +18315,27 @@
      "date": "2025-10-22"
     }
    }
+  },
+  "1211020": {
+   "page": "Wobbly Life",
+   "edited": "2021-12-05",
+   "paths": {
+    "crossover": {
+     "rating": "perfect",
+     "note": "Playable.",
+     "versions": [
+      "CrossOver 21"
+     ],
+     "graphics": [
+      "dxvk"
+     ],
+     "chips": [
+      "M1"
+     ],
+     "date": "2021-10-09"
+    }
+   },
+   "ids": "wikidata"
   },
   "1211930": {
    "page": "Ghost on the Shore",
@@ -18560,6 +18802,34 @@
     }
    }
   },
+  "1243850": {
+   "page": "This Bed We Made",
+   "edited": "2024-09-25",
+   "paths": {
+    "wine": {
+     "rating": "perfect",
+     "note": "Game Porting Toolkit - [GPTK 2], runs smooth on 1920x1080 (M1 Max 32Gb) with \"High\" settings. Consider turning on Upscaling in the settings to get a higher FPS.",
+     "versions": [
+      "GPTK 2"
+     ],
+     "graphics": [
+      "d3dmetal"
+     ],
+     "chips": [
+      "M1 Max"
+     ],
+     "date": "2024-09-21"
+    }
+   },
+   "ids": "wikidata",
+   "hint": {
+    "graphics": "d3dmetal",
+    "from": [
+     "wine"
+    ],
+    "source": "agw"
+   }
+  },
   "1244460": {
    "page": "Jurassic World Evolution 2",
    "edited": "2025-11-16",
@@ -18610,7 +18880,7 @@
   },
   "1245620": {
    "page": "Elden Ring",
-   "edited": "2025-05-12",
+   "edited": "2026-11-05",
    "paths": {
     "crossover": {
      "rating": "playable",
@@ -18626,8 +18896,29 @@
     },
     "wine": {
      "rating": "perfect",
-     "note": "Requires bypassing Easy Anti-Cheat"
+     "note": "Requires bypassing Easy Anti-Cheat. Also runs via MacRunner 1.1 (free; Wine + own x86 translator HyperBridge, no Rosetta; own DX12-to-Metal layer), offline only: ~45 FPS average (up to 57) at 1920x1200 High on M1 Pro, vs ~25 FPS (up to 30) with CrossOver Preview + GPTK 4.0b3 on the same Mac.",
+     "versions": [
+      "GPTK 4"
+     ],
+     "graphics": [
+      "d3dmetal"
+     ],
+     "directX": [
+      "12"
+     ],
+     "chips": [
+      "M1 Pro"
+     ],
+     "date": "2026-11-04"
     }
+   },
+   "hint": {
+    "graphics": "d3dmetal",
+    "directX": "12",
+    "from": [
+     "wine"
+    ],
+    "source": "agw"
    }
   },
   "1247170": {
@@ -18738,6 +19029,22 @@
     }
    }
   },
+  "1255560": {
+   "page": "Myst",
+   "edited": "2026-11-05",
+   "paths": {
+    "native": {
+     "rating": "perfect"
+    },
+    "rosetta": {
+     "rating": "perfect",
+     "note": "Playable.",
+     "chips": [
+      "M1"
+     ]
+    }
+   }
+  },
   "1259420": {
    "page": "Days Gone",
    "edited": "2026-04-09",
@@ -18801,7 +19108,14 @@
      ]
     }
    },
-   "ids": "name"
+   "ids": "name",
+   "hint": {
+    "graphics": "d3dmetal",
+    "from": [
+     "notes"
+    ],
+    "source": "agw"
+   }
   },
   "1262350": {
    "page": "Signalis",
@@ -18839,6 +19153,13 @@
      ],
      "date": "2026-02-24"
     }
+   },
+   "hint": {
+    "graphics": "d3dmetal",
+    "from": [
+     "notes"
+    ],
+    "source": "agw"
    }
   },
   "1262580": {
@@ -19093,7 +19414,14 @@
      "date": "2025-12-13"
     }
    },
-   "ids": "wikidata"
+   "ids": "wikidata",
+   "hint": {
+    "graphics": "d3dmetal",
+    "from": [
+     "notes"
+    ],
+    "source": "agw"
+   }
   },
   "1282730": {
    "page": "Loop Hero",
@@ -20032,6 +20360,23 @@
     }
    }
   },
+  "1395030": {
+   "page": "Kathy Rain: Director's Cut",
+   "edited": "2021-11-03",
+   "paths": {
+    "crossover": {
+     "rating": "perfect",
+     "note": "Playable.",
+     "versions": [
+      "CrossOver 21.1.0"
+     ],
+     "chips": [
+      "M1"
+     ]
+    }
+   },
+   "ids": "wikidata"
+  },
   "1402110": {
    "page": "Eternights",
    "edited": "2026-04-26",
@@ -20084,6 +20429,13 @@
      ],
      "date": "2026-02-18"
     }
+   },
+   "hint": {
+    "graphics": "dxvk",
+    "from": [
+     "notes"
+    ],
+    "source": "agw"
    }
   },
   "1408610": {
@@ -20317,7 +20669,14 @@
      "date": "2022-05-02"
     }
    },
-   "ids": "name"
+   "ids": "name",
+   "hint": {
+    "graphics": "d3dmetal",
+    "from": [
+     "notes"
+    ],
+    "source": "agw"
+   }
   },
   "1455840": {
    "page": "Dorfromantik",
@@ -20500,6 +20859,13 @@
      ],
      "date": "2026-02-22"
     }
+   },
+   "hint": {
+    "graphics": "d3dmetal",
+    "from": [
+     "notes"
+    ],
+    "source": "agw"
    }
   },
   "1477940": {
@@ -20679,6 +21045,34 @@
     }
    }
   },
+  "1509960": {
+   "page": "Pico Park",
+   "edited": "2026-02-17",
+   "paths": {
+    "crossover": {
+     "rating": "perfect",
+     "note": "Perfect (windowed).",
+     "versions": [
+      "CrossOver 26"
+     ],
+     "graphics": [
+      "d3dmetal"
+     ],
+     "chips": [
+      "M1 Pro"
+     ],
+     "date": "2026-02-17"
+    }
+   },
+   "ids": "wikidata",
+   "hint": {
+    "graphics": "d3dmetal",
+    "from": [
+     "crossover"
+    ],
+    "source": "agw"
+   }
+  },
   "1517290": {
    "page": "Battlefield 2042",
    "edited": "2024-11-02",
@@ -20783,6 +21177,53 @@
    },
    "ids": "wikidata"
   },
+  "1546970": {
+   "page": "Grand Theft Auto III: The Definitive Edition",
+   "edited": "2023-11-26",
+   "paths": {
+    "crossover": {
+     "rating": "perfect",
+     "note": "Has issues rendering anything, UI Gets rendered but beyond that nothing is rendering. Plays perfect with stable 60 fps using D3DMetal and -dx12 in Steam properties on M1 Pro",
+     "graphics": [
+      "d3dmetal"
+     ],
+     "directX": [
+      "12"
+     ],
+     "chips": [
+      "M1",
+      "M1 Pro"
+     ]
+    }
+   },
+   "ids": "name",
+   "hint": {
+    "graphics": "d3dmetal",
+    "directX": "12",
+    "from": [
+     "crossover"
+    ],
+    "source": "agw"
+   }
+  },
+  "1547000": {
+   "page": "Grand Theft Auto San Andreas: The Definitive Edition",
+   "edited": "2022-10-06",
+   "paths": {
+    "crossover": {
+     "rating": "perfect",
+     "note": "Works with MoltenVK DXVK workaround, runs very smoothly on high settings, possibly higher. Some stuttering problems, less with time.",
+     "graphics": [
+      "dxvk"
+     ],
+     "chips": [
+      "M1 Max"
+     ],
+     "date": "2022-09-29"
+    }
+   },
+   "ids": "name"
+  },
   "1547890": {
    "page": "Let's Build A Zoo",
    "edited": "2022-06-01",
@@ -20886,6 +21327,13 @@
      ],
      "date": "2024-10-23"
     }
+   },
+   "hint": {
+    "graphics": "dxvk",
+    "from": [
+     "notes"
+    ],
+    "source": "agw"
    }
   },
   "1558930": {
@@ -21407,6 +21855,16 @@
     "source": "agw"
    }
   },
+  "1649950": {
+   "page": "News Tower",
+   "edited": "2024-06-30",
+   "paths": {
+    "native": {
+     "rating": "perfect"
+    }
+   },
+   "ids": "wikidata"
+  },
   "1651960": {
    "page": "Hextech Mayhem: A League of Legends Story",
    "edited": "2021-11-27",
@@ -21832,6 +22290,34 @@
     "source": "agw"
    }
   },
+  "1766060": {
+   "page": "HumanitZ",
+   "edited": "2025-04-16",
+   "paths": {
+    "crossover": {
+     "rating": "perfect",
+     "note": "Use D3DMetal and Msync for optimal performance. * Tested with CrossOver 25 + CXPatcher + Game Porting Toolkit 2 on Mac Mini M4 Pro.",
+     "versions": [
+      "CrossOver 25",
+      "GPTK 2"
+     ],
+     "graphics": [
+      "d3dmetal"
+     ],
+     "chips": [
+      "M4 Pro"
+     ]
+    }
+   },
+   "ids": "wikidata",
+   "hint": {
+    "graphics": "d3dmetal",
+    "from": [
+     "crossover"
+    ],
+    "source": "agw"
+   }
+  },
   "1766720": {
    "page": "Outlanders",
    "edited": "2022-04-12",
@@ -22117,6 +22603,13 @@
      ],
      "date": "2026-10-10"
     }
+   },
+   "hint": {
+    "graphics": "d3dmetal",
+    "from": [
+     "notes"
+    ],
+    "source": "agw"
    }
   },
   "1849900": {
@@ -22236,18 +22729,24 @@
   },
   "1903340": {
    "page": "Clair Obscur: Expedition 33",
-   "edited": "2025-08-19",
+   "edited": "2026-11-07",
    "paths": {
     "crossover": {
      "rating": "perfect",
-     "note": "Works perfect",
+     "note": "Works perfect Works alright",
      "versions": [
-      "CrossOver 25.0.1"
+      "CrossOver 25.0.1",
+      "CrossOver 26.1",
+      "GPTK 4"
+     ],
+     "graphics": [
+      "d3dmetal"
      ],
      "chips": [
-      "M4 Max"
+      "M4 Max",
+      "M1 Pro"
      ],
-     "date": "2025-06-03"
+     "date": "2026-11-07"
     },
     "wine": {
      "rating": "perfect",
@@ -22749,6 +23248,20 @@
     "source": "agw"
    }
   },
+  "2062430": {
+   "page": "BALL x PIT",
+   "edited": "2026-02-17",
+   "paths": {
+    "native": {
+     "rating": "perfect",
+     "chips": [
+      "M1 Pro"
+     ],
+     "date": "2026-02-17"
+    }
+   },
+   "ids": "name"
+  },
   "2071280": {
    "page": "Ravenswatch",
    "edited": "2024-01-02",
@@ -22795,6 +23308,24 @@
     "native": {
      "rating": "perfect",
      "note": "According to MacUpdater."
+    }
+   },
+   "ids": "wikidata"
+  },
+  "2103140": {
+   "page": "Magicraft",
+   "edited": "2024-11-28",
+   "paths": {
+    "crossover": {
+     "rating": "playable",
+     "note": "Playable.",
+     "versions": [
+      "CrossOver 24.0.5"
+     ],
+     "chips": [
+      "M1 Pro"
+     ],
+     "date": "2024-01-02"
     }
    },
    "ids": "wikidata"
@@ -22900,7 +23431,14 @@
      ]
     }
    },
-   "ids": "wikidata"
+   "ids": "wikidata",
+   "hint": {
+    "graphics": "d3dmetal",
+    "from": [
+     "notes"
+    ],
+    "source": "agw"
+   }
   },
   "2166060": {
    "page": "Amanda the Adventurer",
@@ -22915,6 +23453,24 @@
      "versions": [
       "Whisky"
      ]
+    }
+   },
+   "ids": "wikidata"
+  },
+  "2168680": {
+   "page": "Nuclear Option",
+   "edited": "2026-11-02",
+   "paths": {
+    "crossover": {
+     "rating": "unplayable",
+     "note": "Doesn’t work",
+     "versions": [
+      "CrossOver 24.0.5"
+     ],
+     "chips": [
+      "M3"
+     ],
+     "date": "2026-03-28"
     }
    },
    "ids": "wikidata"
@@ -23653,6 +24209,36 @@
     }
    }
   },
+  "2527500": {
+   "page": "MiSide",
+   "edited": "2026-11-05",
+   "paths": {
+    "crossover": {
+     "rating": "perfect",
+     "note": "Ran flawlessly, feels native. Sat around 120fps the entire time.",
+     "versions": [
+      "CrossOver 24.0.5"
+     ],
+     "chips": [
+      "M2 Max"
+     ],
+     "date": "2025-01-13"
+    },
+    "wine": {
+     "rating": "perfect",
+     "note": "Runs in Uncork without tweaks: a steady 120 fps in game with V-Sync on (capped by the 120 Hz display), about 115 fps in the main menu. Audio not measured. Tested by the Uncork developer.",
+     "versions": [
+      "Whisky"
+     ],
+     "chips": [
+      "M3",
+      "M3 Pro"
+     ],
+     "date": "2026-10-07"
+    }
+   },
+   "ids": "wikidata"
+  },
   "2531310": {
    "page": "The Last of Us Part II Remastered",
    "edited": "2025-04-24",
@@ -23709,6 +24295,24 @@
     "native": {
      "rating": "perfect",
      "note": "According to MacUpdater."
+    }
+   },
+   "ids": "wikidata"
+  },
+  "2592160": {
+   "page": "Dispatch",
+   "edited": "2025-11-14",
+   "paths": {
+    "crossover": {
+     "rating": "perfect",
+     "note": "Runs perfectly, no lag.",
+     "versions": [
+      "CrossOver 25.0"
+     ],
+     "chips": [
+      "M4 Pro"
+     ],
+     "date": "2025-11-13"
     }
    },
    "ids": "wikidata"
@@ -23959,6 +24563,30 @@
     "source": "agw"
    }
   },
+  "2780980": {
+   "page": "LOCKDOWN Protocol",
+   "edited": "2024-12-27",
+   "paths": {
+    "crossover": {
+     "rating": "perfect",
+     "note": "Use D3DMetal and Msync for optimal performance. Tested with CrossOver + CXPatcher + Game Porting Toolkit 2.",
+     "versions": [
+      "GPTK 2"
+     ],
+     "graphics": [
+      "d3dmetal"
+     ]
+    }
+   },
+   "ids": "name",
+   "hint": {
+    "graphics": "d3dmetal",
+    "from": [
+     "crossover"
+    ],
+    "source": "agw"
+   }
+  },
   "2835570": {
    "page": "Buckshot Roulette",
    "edited": "2026-03-10",
@@ -23974,6 +24602,17 @@
     "wine": {
      "rating": "playable",
      "note": "Same as CrossOver."
+    }
+   },
+   "ids": "wikidata"
+  },
+  "2837210": {
+   "page": "Word Laces",
+   "edited": "2022-04-18",
+   "paths": {
+    "native": {
+     "rating": "perfect",
+     "note": "According to MacUpdater."
     }
    },
    "ids": "wikidata"
@@ -24024,6 +24663,40 @@
    },
    "ids": "wikidata"
   },
+  "2916430": {
+   "page": "Fast Food Simulator",
+   "edited": "2025-08-06",
+   "paths": {
+    "crossover": {
+     "rating": "perfect",
+     "note": "Perfectly playable. 60 FPS on M2.",
+     "versions": [
+      "CrossOver 25.0.1"
+     ],
+     "chips": [
+      "M2"
+     ]
+    }
+   },
+   "ids": "wikidata"
+  },
+  "2920570": {
+   "page": "Dale & Dawson Stationery Supplies",
+   "edited": "2025-01-18",
+   "paths": {
+    "crossover": {
+     "rating": "perfect",
+     "note": "M4 Max 128GB: Runs perfectly on High Settings. Crossover Preview, DXVK, MSync",
+     "graphics": [
+      "dxvk"
+     ],
+     "chips": [
+      "M4 Max"
+     ]
+    }
+   },
+   "ids": "wikidata"
+  },
   "2943650": {
    "page": "Fragpunk",
    "edited": "2025-06-03",
@@ -24041,6 +24714,19 @@
     }
    },
    "ids": "name"
+  },
+  "2948190": {
+   "page": "World of Sea Battle",
+   "edited": "2026-11-09",
+   "paths": {
+    "wine": {
+     "rating": "unplayable",
+     "note": "Unplayable.",
+     "chips": [
+      "M4"
+     ]
+    }
+   }
   },
   "3008130": {
    "page": "Dying Light: The Beast",
@@ -24117,6 +24803,17 @@
       "M4 Pro"
      ],
      "date": "2026-05-23"
+    }
+   },
+   "ids": "wikidata"
+  },
+  "3025560": {
+   "page": "Oceanhorn: Chronos Dungeon",
+   "edited": "2022-04-12",
+   "paths": {
+    "native": {
+     "rating": "perfect",
+     "note": "According to Go64."
     }
    },
    "ids": "wikidata"
@@ -24292,6 +24989,17 @@
     }
    }
   },
+  "3281100": {
+   "page": "Jumper Jon",
+   "edited": "2023-01-15",
+   "paths": {
+    "native": {
+     "rating": "perfect",
+     "note": "According to Go64."
+    }
+   },
+   "ids": "wikidata"
+  },
   "3293010": {
    "page": "Easy Delivery Co.",
    "edited": "2026-01-16",
@@ -24341,6 +25049,34 @@
     }
    },
    "ids": "name"
+  },
+  "3405340": {
+   "page": "Megabonk",
+   "edited": "2026-02-17",
+   "paths": {
+    "crossover": {
+     "rating": "perfect",
+     "note": "Perfect.",
+     "versions": [
+      "CrossOver 26"
+     ],
+     "graphics": [
+      "d3dmetal"
+     ],
+     "chips": [
+      "M1 Pro"
+     ],
+     "date": "2026-02-17"
+    }
+   },
+   "ids": "wikidata",
+   "hint": {
+    "graphics": "d3dmetal",
+    "from": [
+     "crossover"
+    ],
+    "source": "agw"
+   }
   },
   "3450310": {
    "page": "Europa Universalis V",
@@ -24456,6 +25192,30 @@
     "source": "agw"
    }
   },
+  "4070820": {
+   "page": "Nightmare Farm",
+   "edited": "2022-04-12",
+   "paths": {
+    "native": {
+     "rating": "perfect",
+     "note": "According to Go64."
+    }
+   },
+   "ids": "wikidata"
+  },
+  "4358690": {
+   "page": "Graveyard Keeper 2",
+   "edited": "2026-11-09",
+   "paths": {
+    "wine": {
+     "rating": "perfect",
+     "note": "Playable.",
+     "chips": [
+      "M4"
+     ]
+    }
+   }
+  },
   "4555040": {
    "page": "Sushiamo",
    "edited": "2026-08-06",
@@ -24523,5 +25283,9669 @@
    }
   }
  },
- "generated": "2026-11-02T22:25:16Z"
+ "directX": {
+  "8500": [
+   "11",
+   "12"
+  ],
+  "16900": [
+   "11",
+   "12"
+  ],
+  "34109": [
+   "12"
+  ],
+  "40700": [
+   "9.0",
+   "12"
+  ],
+  "40703": [
+   "9.0",
+   "12"
+  ],
+  "41000": [
+   "9.0c",
+   "11",
+   "12"
+  ],
+  "41014": [
+   "9.0c",
+   "11",
+   "12"
+  ],
+  "41019": [
+   "9.0c",
+   "11",
+   "12"
+  ],
+  "41046": [
+   "9.0c",
+   "11",
+   "12"
+  ],
+  "58597": [
+   "12"
+  ],
+  "227940": [
+   "11",
+   "12"
+  ],
+  "228880": [
+   "11",
+   "12"
+  ],
+  "236390": [
+   "11",
+   "12"
+  ],
+  "236870": [
+   "11",
+   "12"
+  ],
+  "238960": [
+   "11",
+   "12"
+  ],
+  "252330": [
+   "12"
+  ],
+  "257420": [
+   "11",
+   "12"
+  ],
+  "257510": [
+   "11",
+   "12"
+  ],
+  "284160": [
+   "11",
+   "12"
+  ],
+  "289070": [
+   "11",
+   "12"
+  ],
+  "292030": [
+   "12"
+  ],
+  "296300": [
+   "11",
+   "12"
+  ],
+  "299970": [
+   "12"
+  ],
+  "312650": [
+   "11",
+   "12"
+  ],
+  "312660": [
+   "11",
+   "12"
+  ],
+  "312670": [
+   "12"
+  ],
+  "315210": [
+   "12"
+  ],
+  "322020": [
+   "11",
+   "12"
+  ],
+  "322021": [
+   "11",
+   "12"
+  ],
+  "322022": [
+   "11",
+   "12"
+  ],
+  "323680": [
+   "11",
+   "12"
+  ],
+  "330710": [
+   "11",
+   "12"
+  ],
+  "337000": [
+   "11",
+   "12"
+  ],
+  "355620": [
+   "12"
+  ],
+  "355880": [
+   "12"
+  ],
+  "358470": [
+   "11",
+   "12"
+  ],
+  "359100": [
+   "11",
+   "12"
+  ],
+  "359550": [
+   "12"
+  ],
+  "360820": [
+   "11",
+   "12"
+  ],
+  "364360": [
+   "11",
+   "12"
+  ],
+  "365590": [
+   "11",
+   "12"
+  ],
+  "367580": [
+   "11",
+   "12"
+  ],
+  "368260": [
+   "11",
+   "12"
+  ],
+  "370000": [
+   "12"
+  ],
+  "370001": [
+   "12"
+  ],
+  "370002": [
+   "12"
+  ],
+  "370003": [
+   "12"
+  ],
+  "373950": [
+   "12"
+  ],
+  "373951": [
+   "12"
+  ],
+  "376390": [
+   "12"
+  ],
+  "376391": [
+   "12"
+  ],
+  "378640": [
+   "12"
+  ],
+  "378641": [
+   "12"
+  ],
+  "378642": [
+   "12"
+  ],
+  "378643": [
+   "12"
+  ],
+  "378644": [
+   "12"
+  ],
+  "378645": [
+   "12"
+  ],
+  "378646": [
+   "12"
+  ],
+  "378647": [
+   "12"
+  ],
+  "378648": [
+   "12"
+  ],
+  "378649": [
+   "12"
+  ],
+  "381210": [
+   "11",
+   "12"
+  ],
+  "381650": [
+   "11",
+   "12"
+  ],
+  "386180": [
+   "11",
+   "12"
+  ],
+  "391220": [
+   "11",
+   "12"
+  ],
+  "393380": [
+   "12"
+  ],
+  "397540": [
+   "11",
+   "12"
+  ],
+  "404350": [
+   "11",
+   "12"
+  ],
+  "408660": [
+   "11",
+   "12"
+  ],
+  "412020": [
+   "11",
+   "12"
+  ],
+  "413360": [
+   "11",
+   "12"
+  ],
+  "413370": [
+   "11",
+   "12"
+  ],
+  "413380": [
+   "11",
+   "12"
+  ],
+  "413390": [
+   "11",
+   "12"
+  ],
+  "414340": [
+   "11",
+   "12"
+  ],
+  "418370": [
+   "11",
+   "12"
+  ],
+  "427100": [
+   "11",
+   "12"
+  ],
+  "427410": [
+   "11",
+   "12"
+  ],
+  "428660": [
+   "11",
+   "12"
+  ],
+  "437700": [
+   "11",
+   "12"
+  ],
+  "437701": [
+   "11",
+   "12"
+  ],
+  "437702": [
+   "11",
+   "12"
+  ],
+  "439870": [
+   "11",
+   "12"
+  ],
+  "439890": [
+   "11",
+   "12"
+  ],
+  "440930": [
+   "11",
+   "12"
+  ],
+  "440960": [
+   "11",
+   "12"
+  ],
+  "440961": [
+   "11",
+   "12"
+  ],
+  "440962": [
+   "11",
+   "12"
+  ],
+  "453400": [
+   "12"
+  ],
+  "456280": [
+   "11",
+   "12"
+  ],
+  "458430": [
+   "12"
+  ],
+  "459500": [
+   "11",
+   "12"
+  ],
+  "460460": [
+   "11",
+   "12"
+  ],
+  "465240": [
+   "11",
+   "12"
+  ],
+  "468460": [
+   "11",
+   "12"
+  ],
+  "470070": [
+   "11",
+   "12"
+  ],
+  "474960": [
+   "11",
+   "12"
+  ],
+  "475450": [
+   "11",
+   "12"
+  ],
+  "488010": [
+   "11",
+   "12"
+  ],
+  "492140": [
+   "11",
+   "12"
+  ],
+  "494630": [
+   "11",
+   "12"
+  ],
+  "499450": [
+   "12"
+  ],
+  "499520": [
+   "11",
+   "12"
+  ],
+  "507490": [
+   "11",
+   "12"
+  ],
+  "508340": [
+   "11",
+   "12"
+  ],
+  "509060": [
+   "11",
+   "12"
+  ],
+  "512030": [
+   "11",
+   "12"
+  ],
+  "512031": [
+   "11",
+   "12"
+  ],
+  "512032": [
+   "11",
+   "12"
+  ],
+  "512033": [
+   "11",
+   "12"
+  ],
+  "512034": [
+   "11",
+   "12"
+  ],
+  "512035": [
+   "11",
+   "12"
+  ],
+  "513710": [
+   "11",
+   "12"
+  ],
+  "515960": [
+   "11",
+   "12"
+  ],
+  "517710": [
+   "11",
+   "12"
+  ],
+  "520640": [
+   "11",
+   "12"
+  ],
+  "520642": [
+   "11",
+   "12"
+  ],
+  "520643": [
+   "11",
+   "12"
+  ],
+  "520644": [
+   "11",
+   "12"
+  ],
+  "520645": [
+   "11",
+   "12"
+  ],
+  "520646": [
+   "11",
+   "12"
+  ],
+  "521770": [
+   "11",
+   "12"
+  ],
+  "526870": [
+   "12"
+  ],
+  "529930": [
+   "11",
+   "12"
+  ],
+  "530590": [
+   "11",
+   "12"
+  ],
+  "530591": [
+   "11",
+   "12"
+  ],
+  "530592": [
+   "11",
+   "12"
+  ],
+  "530593": [
+   "11",
+   "12"
+  ],
+  "530594": [
+   "11",
+   "12"
+  ],
+  "530595": [
+   "11",
+   "12"
+  ],
+  "530596": [
+   "11",
+   "12"
+  ],
+  "530597": [
+   "11",
+   "12"
+  ],
+  "530598": [
+   "11",
+   "12"
+  ],
+  "530599": [
+   "11",
+   "12"
+  ],
+  "530610": [
+   "11",
+   "12"
+  ],
+  "530611": [
+   "11",
+   "12"
+  ],
+  "530710": [
+   "11",
+   "12"
+  ],
+  "530711": [
+   "11",
+   "12"
+  ],
+  "530940": [
+   "11",
+   "12"
+  ],
+  "532790": [
+   "12"
+  ],
+  "533590": [
+   "11",
+   "12"
+  ],
+  "533591": [
+   "11",
+   "12"
+  ],
+  "533592": [
+   "11",
+   "12"
+  ],
+  "534380": [
+   "11",
+   "12"
+  ],
+  "537570": [
+   "11",
+   "12"
+  ],
+  "540340": [
+   "11",
+   "12"
+  ],
+  "543550": [
+   "11",
+   "12"
+  ],
+  "543750": [
+   "11",
+   "12"
+  ],
+  "548430": [
+   "11",
+   "12"
+  ],
+  "552450": [
+   "11",
+   "12"
+  ],
+  "552460": [
+   "11",
+   "12"
+  ],
+  "552500": [
+   "11",
+   "12"
+  ],
+  "553850": [
+   "12"
+  ],
+  "553980": [
+   "11",
+   "12"
+  ],
+  "554380": [
+   "11",
+   "12"
+  ],
+  "554381": [
+   "11",
+   "12"
+  ],
+  "555160": [
+   "12"
+  ],
+  "555450": [
+   "11",
+   "12"
+  ],
+  "556470": [
+   "11",
+   "12"
+  ],
+  "558830": [
+   "11",
+   "12"
+  ],
+  "558831": [
+   "11",
+   "12"
+  ],
+  "558832": [
+   "11",
+   "12"
+  ],
+  "558833": [
+   "11",
+   "12"
+  ],
+  "558834": [
+   "11",
+   "12"
+  ],
+  "558835": [
+   "11",
+   "12"
+  ],
+  "558836": [
+   "11",
+   "12"
+  ],
+  "559650": [
+   "11",
+   "12"
+  ],
+  "564190": [
+   "11",
+   "12"
+  ],
+  "564200": [
+   "11",
+   "12"
+  ],
+  "564310": [
+   "11",
+   "12"
+  ],
+  "564320": [
+   "11",
+   "12"
+  ],
+  "564321": [
+   "11",
+   "12"
+  ],
+  "564322": [
+   "11",
+   "12"
+  ],
+  "564323": [
+   "11",
+   "12"
+  ],
+  "564324": [
+   "11",
+   "12"
+  ],
+  "565050": [
+   "11",
+   "12"
+  ],
+  "567670": [
+   "11",
+   "12"
+  ],
+  "568990": [
+   "11",
+   "12"
+  ],
+  "569000": [
+   "11",
+   "12"
+  ],
+  "573940": [
+   "11",
+   "12"
+  ],
+  "577901": [
+   "11",
+   "12"
+  ],
+  "578080": [
+   "11",
+   "12"
+  ],
+  "579270": [
+   "11",
+   "12"
+  ],
+  "579500": [
+   "11",
+   "12"
+  ],
+  "579501": [
+   "11",
+   "12"
+  ],
+  "579502": [
+   "11",
+   "12"
+  ],
+  "579503": [
+   "11",
+   "12"
+  ],
+  "579504": [
+   "11",
+   "12"
+  ],
+  "579505": [
+   "11",
+   "12"
+  ],
+  "579506": [
+   "11",
+   "12"
+  ],
+  "579507": [
+   "11",
+   "12"
+  ],
+  "579508": [
+   "11",
+   "12"
+  ],
+  "580140": [
+   "11",
+   "12"
+  ],
+  "582600": [
+   "11",
+   "12"
+  ],
+  "583810": [
+   "11",
+   "12"
+  ],
+  "584960": [
+   "11",
+   "12"
+  ],
+  "588660": [
+   "11",
+   "12"
+  ],
+  "594430": [
+   "11",
+   "12"
+  ],
+  "594431": [
+   "11",
+   "12"
+  ],
+  "594432": [
+   "11",
+   "12"
+  ],
+  "594433": [
+   "11",
+   "12"
+  ],
+  "594440": [
+   "11",
+   "12"
+  ],
+  "594450": [
+   "11",
+   "12"
+  ],
+  "594451": [
+   "11",
+   "12"
+  ],
+  "594452": [
+   "11",
+   "12"
+  ],
+  "594453": [
+   "11",
+   "12"
+  ],
+  "594454": [
+   "11",
+   "12"
+  ],
+  "594460": [
+   "11",
+   "12"
+  ],
+  "594461": [
+   "11",
+   "12"
+  ],
+  "594462": [
+   "11",
+   "12"
+  ],
+  "594463": [
+   "11",
+   "12"
+  ],
+  "594464": [
+   "11",
+   "12"
+  ],
+  "594470": [
+   "11",
+   "12"
+  ],
+  "594480": [
+   "11",
+   "12"
+  ],
+  "594570": [
+   "11",
+   "12"
+  ],
+  "594650": [
+   "12"
+  ],
+  "596190": [
+   "11",
+   "12"
+  ],
+  "597260": [
+   "11",
+   "12"
+  ],
+  "600610": [
+   "11",
+   "12"
+  ],
+  "601150": [
+   "12"
+  ],
+  "607080": [
+   "11",
+   "12"
+  ],
+  "609220": [
+   "11",
+   "12"
+  ],
+  "611360": [
+   "11",
+   "12"
+  ],
+  "612560": [
+   "11",
+   "12"
+  ],
+  "623130": [
+   "11",
+   "12"
+  ],
+  "623131": [
+   "11",
+   "12"
+  ],
+  "623132": [
+   "11",
+   "12"
+  ],
+  "623133": [
+   "11",
+   "12"
+  ],
+  "623134": [
+   "11",
+   "12"
+  ],
+  "627510": [
+   "11",
+   "12"
+  ],
+  "643910": [
+   "11",
+   "12"
+  ],
+  "645400": [
+   "11",
+   "12"
+  ],
+  "645401": [
+   "11",
+   "12"
+  ],
+  "645402": [
+   "11",
+   "12"
+  ],
+  "649310": [
+   "11",
+   "12"
+  ],
+  "649780": [
+   "11",
+   "12"
+  ],
+  "651460": [
+   "11",
+   "12"
+  ],
+  "661770": [
+   "11",
+   "12"
+  ],
+  "664270": [
+   "11",
+   "12"
+  ],
+  "668580": [
+   "12"
+  ],
+  "673130": [
+   "11",
+   "12"
+  ],
+  "686810": [
+   "11",
+   "12"
+  ],
+  "689570": [
+   "12"
+  ],
+  "694280": [
+   "12"
+  ],
+  "698670": [
+   "12"
+  ],
+  "700280": [
+   "11",
+   "12"
+  ],
+  "700282": [
+   "11",
+   "12"
+  ],
+  "700330": [
+   "11",
+   "12"
+  ],
+  "700600": [
+   "12"
+  ],
+  "703860": [
+   "11",
+   "12"
+  ],
+  "705050": [
+   "11",
+   "12"
+  ],
+  "707010": [
+   "11",
+   "12"
+  ],
+  "719670": [
+   "11",
+   "12"
+  ],
+  "725353": [
+   "11",
+   "12"
+  ],
+  "731040": [
+   "12"
+  ],
+  "732620": [
+   "12"
+  ],
+  "737040": [
+   "11",
+   "12"
+  ],
+  "737780": [
+   "11",
+   "12"
+  ],
+  "737800": [
+   "11",
+   "12"
+  ],
+  "739650": [
+   "11",
+   "12"
+  ],
+  "742420": [
+   "11",
+   "12"
+  ],
+  "747660": [
+   "12"
+  ],
+  "750130": [
+   "12"
+  ],
+  "750381": [
+   "11",
+   "12"
+  ],
+  "750920": [
+   "11",
+   "12"
+  ],
+  "754890": [
+   "11",
+   "12"
+  ],
+  "755790": [
+   "9.0",
+   "12"
+  ],
+  "757510": [
+   "11",
+   "12"
+  ],
+  "759590": [
+   "11",
+   "12"
+  ],
+  "760160": [
+   "11",
+   "12"
+  ],
+  "770720": [
+   "12"
+  ],
+  "777727": [
+   "12"
+  ],
+  "777728": [
+   "12"
+  ],
+  "777729": [
+   "12"
+  ],
+  "780310": [
+   "11",
+   "12"
+  ],
+  "783170": [
+   "11",
+   "12"
+  ],
+  "783870": [
+   "11",
+   "12"
+  ],
+  "784080": [
+   "11",
+   "12"
+  ],
+  "799200": [
+   "11",
+   "12"
+  ],
+  "801800": [
+   "12"
+  ],
+  "801860": [
+   "11",
+   "12"
+  ],
+  "806120": [
+   "11",
+   "12"
+  ],
+  "809090": [
+   "12"
+  ],
+  "809740": [
+   "11",
+   "12"
+  ],
+  "812760": [
+   "11",
+   "12"
+  ],
+  "813230": [
+   "12"
+  ],
+  "820520": [
+   "11",
+   "12"
+  ],
+  "822090": [
+   "11",
+   "12"
+  ],
+  "822091": [
+   "11",
+   "12"
+  ],
+  "822093": [
+   "11",
+   "12"
+  ],
+  "822094": [
+   "11",
+   "12"
+  ],
+  "822770": [
+   "11",
+   "12"
+  ],
+  "828790": [
+   "11",
+   "12"
+  ],
+  "831050": [
+   "12"
+  ],
+  "835860": [
+   "11",
+   "12"
+  ],
+  "835960": [
+   "12"
+  ],
+  "840820": [
+   "11",
+   "12"
+  ],
+  "844670": [
+   "11",
+   "12"
+  ],
+  "850170": [
+   "11",
+   "12"
+  ],
+  "853170": [
+   "11",
+   "12"
+  ],
+  "860510": [
+   "11",
+   "12"
+  ],
+  "863550": [
+   "11",
+   "12"
+  ],
+  "865610": [
+   "11",
+   "12"
+  ],
+  "868270": [
+   "11",
+   "12"
+  ],
+  "870780": [
+   "11",
+   "12"
+  ],
+  "872670": [
+   "11",
+   "12"
+  ],
+  "874260": [
+   "11",
+   "12"
+  ],
+  "883710": [
+   "11",
+   "12"
+  ],
+  "887050": [
+   "11",
+   "12"
+  ],
+  "888330": [
+   "11",
+   "12"
+  ],
+  "889910": [
+   "11",
+   "12"
+  ],
+  "889920": [
+   "11",
+   "12"
+  ],
+  "889921": [
+   "11",
+   "12"
+  ],
+  "893760": [
+   "11",
+   "12"
+  ],
+  "895950": [
+   "11",
+   "12"
+  ],
+  "900040": [
+   "11",
+   "12"
+  ],
+  "901553": [
+   "9.0c",
+   "11",
+   "12"
+  ],
+  "909594": [
+   "12"
+  ],
+  "909595": [
+   "12"
+  ],
+  "916440": [
+   "11",
+   "12"
+  ],
+  "920560": [
+   "11",
+   "12"
+  ],
+  "920561": [
+   "11",
+   "12"
+  ],
+  "920562": [
+   "11",
+   "12"
+  ],
+  "920563": [
+   "11",
+   "12"
+  ],
+  "920564": [
+   "11",
+   "12"
+  ],
+  "920565": [
+   "11",
+   "12"
+  ],
+  "920566": [
+   "11",
+   "12"
+  ],
+  "920567": [
+   "11",
+   "12"
+  ],
+  "920568": [
+   "11",
+   "12"
+  ],
+  "920569": [
+   "11",
+   "12"
+  ],
+  "920570": [
+   "11",
+   "12"
+  ],
+  "920571": [
+   "11",
+   "12"
+  ],
+  "920590": [
+   "11",
+   "12"
+  ],
+  "920591": [
+   "11",
+   "12"
+  ],
+  "920592": [
+   "11",
+   "12"
+  ],
+  "920593": [
+   "11",
+   "12"
+  ],
+  "920594": [
+   "11",
+   "12"
+  ],
+  "920595": [
+   "11",
+   "12"
+  ],
+  "920596": [
+   "11",
+   "12"
+  ],
+  "920597": [
+   "11",
+   "12"
+  ],
+  "920598": [
+   "11",
+   "12"
+  ],
+  "920599": [
+   "11",
+   "12"
+  ],
+  "920600": [
+   "11",
+   "12"
+  ],
+  "920601": [
+   "11",
+   "12"
+  ],
+  "922620": [
+   "12"
+  ],
+  "924220": [
+   "11",
+   "12"
+  ],
+  "924970": [
+   "11",
+   "12"
+  ],
+  "924980": [
+   "11",
+   "12"
+  ],
+  "925750": [
+   "11",
+   "12"
+  ],
+  "927350": [
+   "12"
+  ],
+  "928600": [
+   "11",
+   "12"
+  ],
+  "928960": [
+   "12"
+  ],
+  "934700": [
+   "12"
+  ],
+  "936790": [
+   "11",
+   "12"
+  ],
+  "938460": [
+   "9.0",
+   "12"
+  ],
+  "939850": [
+   "11",
+   "12"
+  ],
+  "941950": [
+   "12"
+  ],
+  "941951": [
+   "12"
+  ],
+  "941952": [
+   "12"
+  ],
+  "941953": [
+   "12"
+  ],
+  "941954": [
+   "12"
+  ],
+  "941955": [
+   "12"
+  ],
+  "941956": [
+   "12"
+  ],
+  "941957": [
+   "12"
+  ],
+  "941958": [
+   "12"
+  ],
+  "941959": [
+   "12"
+  ],
+  "941960": [
+   "12"
+  ],
+  "941961": [
+   "12"
+  ],
+  "942170": [
+   "11",
+   "12"
+  ],
+  "946940": [
+   "11",
+   "12"
+  ],
+  "947510": [
+   "11",
+   "12"
+  ],
+  "949900": [
+   "11",
+   "12"
+  ],
+  "950180": [
+   "12"
+  ],
+  "952060": [
+   "11",
+   "12"
+  ],
+  "952070": [
+   "11",
+   "12"
+  ],
+  "952320": [
+   "9.0",
+   "12"
+  ],
+  "955050": [
+   "11",
+   "12"
+  ],
+  "960290": [
+   "11",
+   "12"
+  ],
+  "961200": [
+   "11",
+   "12"
+  ],
+  "961440": [
+   "11",
+   "12"
+  ],
+  "962130": [
+   "11",
+   "12"
+  ],
+  "971790": [
+   "11",
+   "12"
+  ],
+  "973810": [
+   "11",
+   "12"
+  ],
+  "975400": [
+   "11",
+   "12"
+  ],
+  "976310": [
+   "11",
+   "12"
+  ],
+  "976590": [
+   "12"
+  ],
+  "979640": [
+   "11",
+   "12"
+  ],
+  "979690": [
+   "11",
+   "12"
+  ],
+  "990080": [
+   "12"
+  ],
+  "990380": [
+   "12"
+  ],
+  "992310": [
+   "11",
+   "12"
+  ],
+  "997070": [
+   "12"
+  ],
+  "1000360": [
+   "11",
+   "12"
+  ],
+  "1003243": [
+   "11",
+   "12"
+  ],
+  "1003590": [
+   "11",
+   "12"
+  ],
+  "1004640": [
+   "12"
+  ],
+  "1009820": [
+   "11",
+   "12"
+  ],
+  "1009821": [
+   "11",
+   "12"
+  ],
+  "1013140": [
+   "11",
+   "12"
+  ],
+  "1013910": [
+   "12"
+  ],
+  "1016240": [
+   "11",
+   "12"
+  ],
+  "1016800": [
+   "11",
+   "12"
+  ],
+  "1023980": [
+   "11",
+   "12"
+  ],
+  "1029690": [
+   "12"
+  ],
+  "1033060": [
+   "11",
+   "12"
+  ],
+  "1033078": [
+   "12"
+  ],
+  "1033082": [
+   "12"
+  ],
+  "1034510": [
+   "11",
+   "12"
+  ],
+  "1046480": [
+   "11",
+   "12"
+  ],
+  "1048250": [
+   "12"
+  ],
+  "1049120": [
+   "11",
+   "12"
+  ],
+  "1059220": [
+   "11",
+   "12"
+  ],
+  "1076740": [
+   "11",
+   "12"
+  ],
+  "1078920": [
+   "11",
+   "12"
+  ],
+  "1080110": [
+   "11",
+   "12"
+  ],
+  "1084160": [
+   "12"
+  ],
+  "1088850": [
+   "12"
+  ],
+  "1089270": [
+   "11",
+   "12"
+  ],
+  "1091500": [
+   "12"
+  ],
+  "1092140": [
+   "11",
+   "12"
+  ],
+  "1097840": [
+   "12"
+  ],
+  "1100830": [
+   "11",
+   "12"
+  ],
+  "1101790": [
+   "11",
+   "12"
+  ],
+  "1108280": [
+   "11",
+   "12"
+  ],
+  "1110910": [
+   "11",
+   "12"
+  ],
+  "1113000": [
+   "11",
+   "12"
+  ],
+  "1114290": [
+   "12"
+  ],
+  "1119730": [
+   "11",
+   "12"
+  ],
+  "1123920": [
+   "12"
+  ],
+  "1128920": [
+   "11",
+   "12"
+  ],
+  "1133870": [
+   "12"
+  ],
+  "1134100": [
+   "11",
+   "12"
+  ],
+  "1134570": [
+   "12"
+  ],
+  "1134710": [
+   "11",
+   "12"
+  ],
+  "1135280": [
+   "11",
+   "12"
+  ],
+  "1135700": [
+   "12"
+  ],
+  "1137300": [
+   "12"
+  ],
+  "1139900": [
+   "11",
+   "12"
+  ],
+  "1139940": [
+   "11",
+   "12"
+  ],
+  "1140100": [
+   "12"
+  ],
+  "1141790": [
+   "11",
+   "12"
+  ],
+  "1143840": [
+   "12"
+  ],
+  "1144200": [
+   "11",
+   "12"
+  ],
+  "1145350": [
+   "12"
+  ],
+  "1149460": [
+   "11",
+   "12"
+  ],
+  "1149620": [
+   "11",
+   "12"
+  ],
+  "1150440": [
+   "12"
+  ],
+  "1151640": [
+   "12"
+  ],
+  "1153410": [
+   "12"
+  ],
+  "1153640": [
+   "12"
+  ],
+  "1155310": [
+   "12"
+  ],
+  "1155330": [
+   "12"
+  ],
+  "1158240": [
+   "11",
+   "12"
+  ],
+  "1158730": [
+   "11",
+   "12"
+  ],
+  "1158760": [
+   "11",
+   "12"
+  ],
+  "1158940": [
+   "11",
+   "12"
+  ],
+  "1159060": [
+   "12"
+  ],
+  "1159690": [
+   "11",
+   "12"
+  ],
+  "1160220": [
+   "11",
+   "12"
+  ],
+  "1166470": [
+   "12"
+  ],
+  "1166471": [
+   "12"
+  ],
+  "1166472": [
+   "12"
+  ],
+  "1167630": [
+   "12"
+  ],
+  "1168280": [
+   "11",
+   "12"
+  ],
+  "1172470": [
+   "12"
+  ],
+  "1172620": [
+   "11",
+   "12"
+  ],
+  "1172650": [
+   "11",
+   "12"
+  ],
+  "1172710": [
+   "12"
+  ],
+  "1173690": [
+   "11",
+   "12"
+  ],
+  "1174180": [
+   "12"
+  ],
+  "1176130": [
+   "11",
+   "12"
+  ],
+  "1178830": [
+   "11",
+   "12"
+  ],
+  "1180490": [
+   "12"
+  ],
+  "1180491": [
+   "12"
+  ],
+  "1182900": [
+   "12"
+  ],
+  "1184050": [
+   "12"
+  ],
+  "1186112": [
+   "12"
+  ],
+  "1186125": [
+   "12"
+  ],
+  "1186130": [
+   "12"
+  ],
+  "1186640": [
+   "11",
+   "12"
+  ],
+  "1190291": [
+   "12"
+  ],
+  "1190340": [
+   "11",
+   "12"
+  ],
+  "1190460": [
+   "12"
+  ],
+  "1191490": [
+   "12"
+  ],
+  "1193840": [
+   "11",
+   "12"
+  ],
+  "1194630": [
+   "11",
+   "12"
+  ],
+  "1196590": [
+   "12"
+  ],
+  "1196600": [
+   "12"
+  ],
+  "1196780": [
+   "11",
+   "12"
+  ],
+  "1196781": [
+   "11",
+   "12"
+  ],
+  "1196782": [
+   "11",
+   "12"
+  ],
+  "1196783": [
+   "11",
+   "12"
+  ],
+  "1196784": [
+   "11",
+   "12"
+  ],
+  "1196785": [
+   "11",
+   "12"
+  ],
+  "1196786": [
+   "11",
+   "12"
+  ],
+  "1196787": [
+   "11",
+   "12"
+  ],
+  "1196788": [
+   "11",
+   "12"
+  ],
+  "1196789": [
+   "11",
+   "12"
+  ],
+  "1196790": [
+   "11",
+   "12"
+  ],
+  "1196791": [
+   "11",
+   "12"
+  ],
+  "1196792": [
+   "11",
+   "12"
+  ],
+  "1196793": [
+   "11",
+   "12"
+  ],
+  "1196794": [
+   "11",
+   "12"
+  ],
+  "1198780": [
+   "11",
+   "12"
+  ],
+  "1199880": [
+   "11",
+   "12"
+  ],
+  "1206410": [
+   "12"
+  ],
+  "1209530": [
+   "11",
+   "12"
+  ],
+  "1209531": [
+   "11",
+   "12"
+  ],
+  "1216230": [
+   "12"
+  ],
+  "1222370": [
+   "11",
+   "12"
+  ],
+  "1225140": [
+   "12"
+  ],
+  "1227690": [
+   "11",
+   "12"
+  ],
+  "1228530": [
+   "12"
+  ],
+  "1232240": [
+   "11",
+   "12"
+  ],
+  "1232250": [
+   "11",
+   "12"
+  ],
+  "1232251": [
+   "11",
+   "12"
+  ],
+  "1232252": [
+   "11",
+   "12"
+  ],
+  "1232253": [
+   "11",
+   "12"
+  ],
+  "1232254": [
+   "11",
+   "12"
+  ],
+  "1232255": [
+   "11",
+   "12"
+  ],
+  "1232256": [
+   "11",
+   "12"
+  ],
+  "1232257": [
+   "11",
+   "12"
+  ],
+  "1233060": [
+   "11",
+   "12"
+  ],
+  "1233061": [
+   "11",
+   "12"
+  ],
+  "1233062": [
+   "11",
+   "12"
+  ],
+  "1234950": [
+   "12"
+  ],
+  "1236300": [
+   "12"
+  ],
+  "1237358": [
+   "12"
+  ],
+  "1237950": [
+   "11",
+   "12"
+  ],
+  "1238810": [
+   "11",
+   "12"
+  ],
+  "1238840": [
+   "11",
+   "12"
+  ],
+  "1239520": [
+   "11",
+   "12"
+  ],
+  "1240440": [
+   "12"
+  ],
+  "1244460": [
+   "12"
+  ],
+  "1245480": [
+   "12"
+  ],
+  "1245620": [
+   "12"
+  ],
+  "1248130": [
+   "12"
+  ],
+  "1249970": [
+   "12"
+  ],
+  "1250410": [
+   "11",
+   "12"
+  ],
+  "1251000": [
+   "11",
+   "12"
+  ],
+  "1252330": [
+   "12"
+  ],
+  "1253990": [
+   "11",
+   "12"
+  ],
+  "1254240": [
+   "11",
+   "12"
+  ],
+  "1255000": [
+   "12"
+  ],
+  "1255001": [
+   "12"
+  ],
+  "1255560": [
+   "11",
+   "12"
+  ],
+  "1255630": [
+   "12"
+  ],
+  "1256890": [
+   "11",
+   "12"
+  ],
+  "1258500": [
+   "12"
+  ],
+  "1258510": [
+   "12"
+  ],
+  "1262240": [
+   "11",
+   "12"
+  ],
+  "1264250": [
+   "11",
+   "12"
+  ],
+  "1265780": [
+   "12"
+  ],
+  "1266700": [
+   "11",
+   "12"
+  ],
+  "1266950": [
+   "11",
+   "12"
+  ],
+  "1268750": [
+   "12"
+  ],
+  "1271700": [
+   "11",
+   "12"
+  ],
+  "1272080": [
+   "12"
+  ],
+  "1276340": [
+   "11",
+   "12"
+  ],
+  "1278170": [
+   "12"
+  ],
+  "1281590": [
+   "11",
+   "12"
+  ],
+  "1282100": [
+   "12"
+  ],
+  "1282270": [
+   "11",
+   "12"
+  ],
+  "1282490": [
+   "11",
+   "12"
+  ],
+  "1283090": [
+   "11",
+   "12"
+  ],
+  "1283091": [
+   "11",
+   "12"
+  ],
+  "1283400": [
+   "12"
+  ],
+  "1285190": [
+   "12"
+  ],
+  "1285380": [
+   "11",
+   "12"
+  ],
+  "1286320": [
+   "12"
+  ],
+  "1286680": [
+   "11",
+   "12"
+  ],
+  "1291102": [
+   "12"
+  ],
+  "1293160": [
+   "11",
+   "12"
+  ],
+  "1293830": [
+   "12"
+  ],
+  "1294130": [
+   "12"
+  ],
+  "1294560": [
+   "11",
+   "12"
+  ],
+  "1294810": [
+   "12"
+  ],
+  "1295160": [
+   "11",
+   "12"
+  ],
+  "1295350": [
+   "11",
+   "12"
+  ],
+  "1295660": [
+   "12"
+  ],
+  "1297900": [
+   "12"
+  ],
+  "1298140": [
+   "11",
+   "12"
+  ],
+  "1299480": [
+   "11",
+   "12"
+  ],
+  "1299690": [
+   "12"
+  ],
+  "1302230": [
+   "12"
+  ],
+  "1304600": [
+   "12"
+  ],
+  "1304601": [
+   "12"
+  ],
+  "1304930": [
+   "11",
+   "12"
+  ],
+  "1305020": [
+   "11",
+   "12"
+  ],
+  "1305720": [
+   "12"
+  ],
+  "1306970": [
+   "11",
+   "12"
+  ],
+  "1307710": [
+   "12"
+  ],
+  "1308090": [
+   "11",
+   "12"
+  ],
+  "1312800": [
+   "11",
+   "12"
+  ],
+  "1314460": [
+   "12"
+  ],
+  "1319890": [
+   "11",
+   "12"
+  ],
+  "1324130": [
+   "12"
+  ],
+  "1324970": [
+   "11",
+   "12"
+  ],
+  "1330470": [
+   "11",
+   "12"
+  ],
+  "1332340": [
+   "12"
+  ],
+  "1335170": [
+   "11",
+   "12"
+  ],
+  "1336321": [
+   "12"
+  ],
+  "1336322": [
+   "12"
+  ],
+  "1340990": [
+   "12"
+  ],
+  "1341290": [
+   "11",
+   "12"
+  ],
+  "1342490": [
+   "12"
+  ],
+  "1343240": [
+   "12"
+  ],
+  "1343500": [
+   "11",
+   "12"
+  ],
+  "1345890": [
+   "11",
+   "12"
+  ],
+  "1345990": [
+   "11",
+   "12"
+  ],
+  "1348140": [
+   "11",
+   "12"
+  ],
+  "1348150": [
+   "11",
+   "12"
+  ],
+  "1361210": [
+   "12"
+  ],
+  "1363480": [
+   "12"
+  ],
+  "1364020": [
+   "12"
+  ],
+  "1364190": [
+   "12"
+  ],
+  "1364224": [
+   "12"
+  ],
+  "1364780": [
+   "12"
+  ],
+  "1368130": [
+   "11",
+   "12"
+  ],
+  "1369030": [
+   "11",
+   "12"
+  ],
+  "1371690": [
+   "11",
+   "12"
+  ],
+  "1373960": [
+   "12"
+  ],
+  "1374340": [
+   "12"
+  ],
+  "1374490": [
+   "11",
+   "12"
+  ],
+  "1375400": [
+   "12"
+  ],
+  "1376200": [
+   "12"
+  ],
+  "1377040": [
+   "12"
+  ],
+  "1377700": [
+   "12"
+  ],
+  "1386900": [
+   "11",
+   "12"
+  ],
+  "1386970": [
+   "12"
+  ],
+  "1392860": [
+   "12"
+  ],
+  "1397380": [
+   "12"
+  ],
+  "1397381": [
+   "12"
+  ],
+  "1399080": [
+   "11",
+   "12"
+  ],
+  "1404210": [
+   "12"
+  ],
+  "1408020": [
+   "11",
+   "12"
+  ],
+  "1408610": [
+   "12"
+  ],
+  "1409670": [
+   "11",
+   "12"
+  ],
+  "1409690": [
+   "11",
+   "12"
+  ],
+  "1409920": [
+   "11",
+   "12"
+  ],
+  "1427500": [
+   "11",
+   "12"
+  ],
+  "1430190": [
+   "12"
+  ],
+  "1430610": [
+   "11",
+   "12"
+  ],
+  "1433140": [
+   "12"
+  ],
+  "1439300": [
+   "12"
+  ],
+  "1443010": [
+   "12"
+  ],
+  "1443011": [
+   "12"
+  ],
+  "1443012": [
+   "12"
+  ],
+  "1443013": [
+   "12"
+  ],
+  "1443014": [
+   "12"
+  ],
+  "1443015": [
+   "12"
+  ],
+  "1443016": [
+   "12"
+  ],
+  "1443017": [
+   "12"
+  ],
+  "1443018": [
+   "12"
+  ],
+  "1443019": [
+   "12"
+  ],
+  "1443020": [
+   "12"
+  ],
+  "1443021": [
+   "12"
+  ],
+  "1443022": [
+   "12"
+  ],
+  "1443023": [
+   "12"
+  ],
+  "1443024": [
+   "12"
+  ],
+  "1443025": [
+   "12"
+  ],
+  "1443026": [
+   "12"
+  ],
+  "1443027": [
+   "12"
+  ],
+  "1443028": [
+   "12"
+  ],
+  "1443029": [
+   "12"
+  ],
+  "1443040": [
+   "12"
+  ],
+  "1443440": [
+   "11",
+   "12"
+  ],
+  "1443780": [
+   "11",
+   "12"
+  ],
+  "1443790": [
+   "11",
+   "12"
+  ],
+  "1446780": [
+   "12"
+  ],
+  "1448440": [
+   "12"
+  ],
+  "1449110": [
+   "12"
+  ],
+  "1449560": [
+   "12"
+  ],
+  "1450570": [
+   "11",
+   "12"
+  ],
+  "1450571": [
+   "11",
+   "12"
+  ],
+  "1450572": [
+   "11",
+   "12"
+  ],
+  "1450900": [
+   "11",
+   "12"
+  ],
+  "1451190": [
+   "11",
+   "12"
+  ],
+  "1451810": [
+   "11",
+   "12"
+  ],
+  "1454970": [
+   "12"
+  ],
+  "1456180": [
+   "11",
+   "12"
+  ],
+  "1456210": [
+   "11",
+   "12"
+  ],
+  "1456360": [
+   "12"
+  ],
+  "1456361": [
+   "12"
+  ],
+  "1456362": [
+   "12"
+  ],
+  "1456363": [
+   "12"
+  ],
+  "1456370": [
+   "12"
+  ],
+  "1456371": [
+   "12"
+  ],
+  "1456372": [
+   "12"
+  ],
+  "1456373": [
+   "12"
+  ],
+  "1458140": [
+   "11",
+   "12"
+  ],
+  "1462040": [
+   "12"
+  ],
+  "1462810": [
+   "11",
+   "12"
+  ],
+  "1465470": [
+   "12"
+  ],
+  "1466860": [
+   "12"
+  ],
+  "1475810": [
+   "12"
+  ],
+  "1477940": [
+   "12"
+  ],
+  "1480500": [
+   "11",
+   "12"
+  ],
+  "1486920": [
+   "11",
+   "12"
+  ],
+  "1489970": [
+   "11",
+   "12"
+  ],
+  "1491000": [
+   "12"
+  ],
+  "1491410": [
+   "12"
+  ],
+  "1493640": [
+   "12"
+  ],
+  "1493750": [
+   "12"
+  ],
+  "1495710": [
+   "12"
+  ],
+  "1496260": [
+   "12"
+  ],
+  "1496790": [
+   "12"
+  ],
+  "1498570": [
+   "11",
+   "12"
+  ],
+  "1501750": [
+   "12"
+  ],
+  "1503200": [
+   "11",
+   "12"
+  ],
+  "1506440": [
+   "11",
+   "12"
+  ],
+  "1515640": [
+   "12"
+  ],
+  "1517290": [
+   "12"
+  ],
+  "1519350": [
+   "11",
+   "12"
+  ],
+  "1522160": [
+   "12"
+  ],
+  "1530470": [
+   "12"
+  ],
+  "1530640": [
+   "11",
+   "12"
+  ],
+  "1531430": [
+   "11",
+   "12"
+  ],
+  "1531602": [
+   "12"
+  ],
+  "1531603": [
+   "12"
+  ],
+  "1531604": [
+   "12"
+  ],
+  "1531605": [
+   "12"
+  ],
+  "1531606": [
+   "12"
+  ],
+  "1531607": [
+   "12"
+  ],
+  "1532690": [
+   "12"
+  ],
+  "1537830": [
+   "12"
+  ],
+  "1541780": [
+   "12"
+  ],
+  "1542040": [
+   "11",
+   "12"
+  ],
+  "1544020": [
+   "11",
+   "12"
+  ],
+  "1545860": [
+   "12"
+  ],
+  "1548750": [
+   "11",
+   "12"
+  ],
+  "1548850": [
+   "12"
+  ],
+  "1550260": [
+   "12"
+  ],
+  "1550270": [
+   "12"
+  ],
+  "1551360": [
+   "12"
+  ],
+  "1551980": [
+   "12"
+  ],
+  "1552970": [
+   "11",
+   "12"
+  ],
+  "1554690": [
+   "11",
+   "12"
+  ],
+  "1556200": [
+   "11",
+   "12"
+  ],
+  "1557620": [
+   "12"
+  ],
+  "1557621": [
+   "12"
+  ],
+  "1567020": [
+   "11",
+   "12"
+  ],
+  "1571390": [
+   "11",
+   "12"
+  ],
+  "1573670": [
+   "11",
+   "12"
+  ],
+  "1577250": [
+   "12"
+  ],
+  "1581901": [
+   "12"
+  ],
+  "1581931": [
+   "12"
+  ],
+  "1581934": [
+   "12"
+  ],
+  "1581936": [
+   "12"
+  ],
+  "1581937": [
+   "12"
+  ],
+  "1581938": [
+   "12"
+  ],
+  "1581939": [
+   "12"
+  ],
+  "1582650": [
+   "12"
+  ],
+  "1583230": [
+   "12"
+  ],
+  "1588550": [
+   "11",
+   "12"
+  ],
+  "1592630": [
+   "11",
+   "12"
+  ],
+  "1594040": [
+   "12"
+  ],
+  "1596170": [
+   "11",
+   "12"
+  ],
+  "1598441": [
+   "11",
+   "12"
+  ],
+  "1601550": [
+   "11",
+   "12"
+  ],
+  "1601570": [
+   "12"
+  ],
+  "1601580": [
+   "12"
+  ],
+  "1602000": [
+   "12"
+  ],
+  "1607011": [
+   "12"
+  ],
+  "1607012": [
+   "12"
+  ],
+  "1607013": [
+   "12"
+  ],
+  "1607014": [
+   "12"
+  ],
+  "1607015": [
+   "12"
+  ],
+  "1607016": [
+   "12"
+  ],
+  "1607017": [
+   "12"
+  ],
+  "1607018": [
+   "12"
+  ],
+  "1607019": [
+   "12"
+  ],
+  "1608280": [
+   "12"
+  ],
+  "1613280": [
+   "12"
+  ],
+  "1613281": [
+   "12"
+  ],
+  "1613282": [
+   "12"
+  ],
+  "1613283": [
+   "12"
+  ],
+  "1613284": [
+   "12"
+  ],
+  "1613285": [
+   "12"
+  ],
+  "1619990": [
+   "11",
+   "12"
+  ],
+  "1620730": [
+   "12"
+  ],
+  "1622910": [
+   "12"
+  ],
+  "1623730": [
+   "11",
+   "12"
+  ],
+  "1627570": [
+   "12"
+  ],
+  "1627720": [
+   "12"
+  ],
+  "1629000": [
+   "11",
+   "12"
+  ],
+  "1629010": [
+   "11",
+   "12"
+  ],
+  "1630110": [
+   "12"
+  ],
+  "1633340": [
+   "11",
+   "12"
+  ],
+  "1636440": [
+   "12"
+  ],
+  "1640500": [
+   "11",
+   "12"
+  ],
+  "1641480": [
+   "12"
+  ],
+  "1641960": [
+   "12"
+  ],
+  "1643320": [
+   "12"
+  ],
+  "1645820": [
+   "12"
+  ],
+  "1647450": [
+   "11",
+   "12"
+  ],
+  "1648020": [
+   "12"
+  ],
+  "1648531": [
+   "11",
+   "12"
+  ],
+  "1649010": [
+   "12"
+  ],
+  "1650550": [
+   "12"
+  ],
+  "1654660": [
+   "11",
+   "12"
+  ],
+  "1657090": [
+   "11",
+   "12"
+  ],
+  "1659040": [
+   "12"
+  ],
+  "1659420": [
+   "12"
+  ],
+  "1662400": [
+   "11",
+   "12"
+  ],
+  "1662430": [
+   "11",
+   "12"
+  ],
+  "1664220": [
+   "11",
+   "12"
+  ],
+  "1664640": [
+   "11",
+   "12"
+  ],
+  "1668560": [
+   "12"
+  ],
+  "1669000": [
+   "12"
+  ],
+  "1671080": [
+   "11",
+   "12"
+  ],
+  "1672210": [
+   "11",
+   "12"
+  ],
+  "1672810": [
+   "12"
+  ],
+  "1676130": [
+   "11",
+   "12"
+  ],
+  "1677280": [
+   "12"
+  ],
+  "1680880": [
+   "12"
+  ],
+  "1681430": [
+   "12"
+  ],
+  "1684350": [
+   "12"
+  ],
+  "1689620": [
+   "12"
+  ],
+  "1690710": [
+   "12"
+  ],
+  "1692250": [
+   "12"
+  ],
+  "1693980": [
+   "12"
+  ],
+  "1702010": [
+   "12"
+  ],
+  "1702820": [
+   "12"
+  ],
+  "1702821": [
+   "12"
+  ],
+  "1705820": [
+   "11",
+   "12"
+  ],
+  "1708091": [
+   "12"
+  ],
+  "1710580": [
+   "12"
+  ],
+  "1712350": [
+   "12"
+  ],
+  "1712442": [
+   "11",
+   "12"
+  ],
+  "1713870": [
+   "11",
+   "12"
+  ],
+  "1715480": [
+   "11",
+   "12"
+  ],
+  "1715730": [
+   "12"
+  ],
+  "1716740": [
+   "12"
+  ],
+  "1724940": [
+   "12"
+  ],
+  "1724941": [
+   "12"
+  ],
+  "1724942": [
+   "12"
+  ],
+  "1729740": [
+   "12"
+  ],
+  "1731070": [
+   "12"
+  ],
+  "1731080": [
+   "12"
+  ],
+  "1731081": [
+   "12"
+  ],
+  "1731100": [
+   "12"
+  ],
+  "1731101": [
+   "12"
+  ],
+  "1737870": [
+   "12"
+  ],
+  "1741240": [
+   "11",
+   "12"
+  ],
+  "1741380": [
+   "11",
+   "12"
+  ],
+  "1741760": [
+   "11",
+   "12"
+  ],
+  "1748411": [
+   "12"
+  ],
+  "1750030": [
+   "12"
+  ],
+  "1752080": [
+   "12"
+  ],
+  "1754230": [
+   "11",
+   "12"
+  ],
+  "1755910": [
+   "12"
+  ],
+  "1760130": [
+   "11",
+   "12"
+  ],
+  "1760190": [
+   "11",
+   "12"
+  ],
+  "1760250": [
+   "11",
+   "12"
+  ],
+  "1762930": [
+   "12"
+  ],
+  "1764060": [
+   "12"
+  ],
+  "1764061": [
+   "12"
+  ],
+  "1764062": [
+   "12"
+  ],
+  "1764063": [
+   "12"
+  ],
+  "1771300": [
+   "12"
+  ],
+  "1774580": [
+   "12"
+  ],
+  "1778840": [
+   "12"
+  ],
+  "1780970": [
+   "11",
+   "12"
+  ],
+  "1781000": [
+   "11",
+   "12"
+  ],
+  "1781070": [
+   "11",
+   "12"
+  ],
+  "1781100": [
+   "11",
+   "12"
+  ],
+  "1781130": [
+   "11",
+   "12"
+  ],
+  "1783160": [
+   "12"
+  ],
+  "1783560": [
+   "12"
+  ],
+  "1783630": [
+   "12"
+  ],
+  "1784700": [
+   "12"
+  ],
+  "1788010": [
+   "11",
+   "12"
+  ],
+  "1788250": [
+   "11",
+   "12"
+  ],
+  "1790600": [
+   "12"
+  ],
+  "1792750": [
+   "12"
+  ],
+  "1792751": [
+   "12"
+  ],
+  "1796410": [
+   "12"
+  ],
+  "1797050": [
+   "12"
+  ],
+  "1797160": [
+   "12"
+  ],
+  "1797280": [
+   "11",
+   "12"
+  ],
+  "1797340": [
+   "11",
+   "12"
+  ],
+  "1802380": [
+   "11",
+   "12"
+  ],
+  "1805480": [
+   "12"
+  ],
+  "1808500": [
+   "12"
+  ],
+  "1809700": [
+   "11",
+   "12"
+  ],
+  "1811260": [
+   "12"
+  ],
+  "1815780": [
+   "12"
+  ],
+  "1817070": [
+   "12"
+  ],
+  "1817150": [
+   "12"
+  ],
+  "1817190": [
+   "12"
+  ],
+  "1817230": [
+   "12"
+  ],
+  "1817800": [
+   "11",
+   "12"
+  ],
+  "1818430": [
+   "12"
+  ],
+  "1819222": [
+   "12"
+  ],
+  "1819223": [
+   "12"
+  ],
+  "1819224": [
+   "12"
+  ],
+  "1835740": [
+   "11",
+   "12"
+  ],
+  "1835741": [
+   "11",
+   "12"
+  ],
+  "1835750": [
+   "11",
+   "12"
+  ],
+  "1835751": [
+   "11",
+   "12"
+  ],
+  "1836450": [
+   "12"
+  ],
+  "1836730": [
+   "11",
+   "12"
+  ],
+  "1837620": [
+   "12"
+  ],
+  "1839450": [
+   "11",
+   "12"
+  ],
+  "1839940": [
+   "12"
+  ],
+  "1840080": [
+   "12"
+  ],
+  "1840320": [
+   "11",
+   "12"
+  ],
+  "1842960": [
+   "12"
+  ],
+  "1842961": [
+   "12"
+  ],
+  "1842962": [
+   "12"
+  ],
+  "1842963": [
+   "12"
+  ],
+  "1842964": [
+   "12"
+  ],
+  "1842965": [
+   "12"
+  ],
+  "1842966": [
+   "12"
+  ],
+  "1842967": [
+   "12"
+  ],
+  "1842968": [
+   "12"
+  ],
+  "1842969": [
+   "12"
+  ],
+  "1842970": [
+   "12"
+  ],
+  "1842971": [
+   "12"
+  ],
+  "1842972": [
+   "12"
+  ],
+  "1842973": [
+   "12"
+  ],
+  "1842974": [
+   "12"
+  ],
+  "1842975": [
+   "12"
+  ],
+  "1842976": [
+   "12"
+  ],
+  "1842977": [
+   "12"
+  ],
+  "1842978": [
+   "12"
+  ],
+  "1842979": [
+   "12"
+  ],
+  "1842980": [
+   "12"
+  ],
+  "1842981": [
+   "12"
+  ],
+  "1842982": [
+   "12"
+  ],
+  "1842983": [
+   "12"
+  ],
+  "1842984": [
+   "12"
+  ],
+  "1842985": [
+   "12"
+  ],
+  "1842986": [
+   "12"
+  ],
+  "1842987": [
+   "12"
+  ],
+  "1842988": [
+   "12"
+  ],
+  "1842989": [
+   "12"
+  ],
+  "1843310": [
+   "12"
+  ],
+  "1843540": [
+   "12"
+  ],
+  "1845330": [
+   "11",
+   "12"
+  ],
+  "1845910": [
+   "12"
+  ],
+  "1846200": [
+   "12"
+  ],
+  "1846201": [
+   "12"
+  ],
+  "1846202": [
+   "12"
+  ],
+  "1846380": [
+   "12"
+  ],
+  "1849250": [
+   "12"
+  ],
+  "1850050": [
+   "12"
+  ],
+  "1850570": [
+   "12"
+  ],
+  "1852860": [
+   "11",
+   "12"
+  ],
+  "1867240": [
+   "12"
+  ],
+  "1868320": [
+   "12"
+  ],
+  "1869290": [
+   "11",
+   "12"
+  ],
+  "1870120": [
+   "11",
+   "12"
+  ],
+  "1870121": [
+   "11",
+   "12"
+  ],
+  "1871310": [
+   "11",
+   "12"
+  ],
+  "1872750": [
+   "12"
+  ],
+  "1872751": [
+   "12"
+  ],
+  "1872800": [
+   "12"
+  ],
+  "1874000": [
+   "12"
+  ],
+  "1874880": [
+   "12"
+  ],
+  "1875170": [
+   "12"
+  ],
+  "1875580": [
+   "12"
+  ],
+  "1875830": [
+   "12"
+  ],
+  "1877020": [
+   "12"
+  ],
+  "1879140": [
+   "12"
+  ],
+  "1880830": [
+   "12"
+  ],
+  "1880831": [
+   "12"
+  ],
+  "1880832": [
+   "12"
+  ],
+  "1880833": [
+   "12"
+  ],
+  "1880837": [
+   "12"
+  ],
+  "1881120": [
+   "12"
+  ],
+  "1882470": [
+   "12"
+  ],
+  "1888160": [
+   "12"
+  ],
+  "1888930": [
+   "12"
+  ],
+  "1895880": [
+   "12"
+  ],
+  "1895900": [
+   "12"
+  ],
+  "1902960": [
+   "12"
+  ],
+  "1903340": [
+   "12"
+  ],
+  "1904900": [
+   "12"
+  ],
+  "1906530": [
+   "12"
+  ],
+  "1907400": [
+   "11",
+   "12"
+  ],
+  "1912410": [
+   "12"
+  ],
+  "1913210": [
+   "12"
+  ],
+  "1914980": [
+   "11",
+   "12"
+  ],
+  "1916640": [
+   "12"
+  ],
+  "1918830": [
+   "11",
+   "12"
+  ],
+  "1920290": [
+   "12"
+  ],
+  "1920490": [
+   "12"
+  ],
+  "1922631": [
+   "11",
+   "12"
+  ],
+  "1922632": [
+   "11",
+   "12"
+  ],
+  "1922633": [
+   "11",
+   "12"
+  ],
+  "1922634": [
+   "11",
+   "12"
+  ],
+  "1928420": [
+   "11",
+   "12"
+  ],
+  "1928870": [
+   "12"
+  ],
+  "1928980": [
+   "12"
+  ],
+  "1931730": [
+   "12"
+  ],
+  "1933000": [
+   "12"
+  ],
+  "1934570": [
+   "12"
+  ],
+  "1934680": [
+   "12"
+  ],
+  "1938010": [
+   "12"
+  ],
+  "1938090": [
+   "12"
+  ],
+  "1938420": [
+   "12"
+  ],
+  "1939970": [
+   "12"
+  ],
+  "1940030": [
+   "11",
+   "12"
+  ],
+  "1940850": [
+   "12"
+  ],
+  "1940852": [
+   "12"
+  ],
+  "1940853": [
+   "12"
+  ],
+  "1941540": [
+   "12"
+  ],
+  "1942660": [
+   "12"
+  ],
+  "1944840": [
+   "12"
+  ],
+  "1945600": [
+   "11",
+   "12"
+  ],
+  "1946700": [
+   "12"
+  ],
+  "1946960": [
+   "11",
+   "12"
+  ],
+  "1947000": [
+   "11",
+   "12"
+  ],
+  "1947010": [
+   "11",
+   "12"
+  ],
+  "1947011": [
+   "11",
+   "12"
+  ],
+  "1947012": [
+   "11",
+   "12"
+  ],
+  "1948430": [
+   "12"
+  ],
+  "1949030": [
+   "11",
+   "12"
+  ],
+  "1953520": [
+   "12"
+  ],
+  "1954200": [
+   "11",
+   "12"
+  ],
+  "1955230": [
+   "12"
+  ],
+  "1955960": [
+   "12"
+  ],
+  "1958731": [
+   "12"
+  ],
+  "1959430": [
+   "12"
+  ],
+  "1962700": [
+   "12"
+  ],
+  "1963210": [
+   "12"
+  ],
+  "1963610": [
+   "12"
+  ],
+  "1966010": [
+   "12"
+  ],
+  "1966410": [
+   "12"
+  ],
+  "1967430": [
+   "12"
+  ],
+  "1969380": [
+   "11",
+   "12"
+  ],
+  "1969900": [
+   "12"
+  ],
+  "1970150": [
+   "12"
+  ],
+  "1971870": [
+   "12"
+  ],
+  "1973530": [
+   "11",
+   "12"
+  ],
+  "1977170": [
+   "12"
+  ],
+  "1979440": [
+   "11",
+   "12"
+  ],
+  "1981790": [
+   "12"
+  ],
+  "1982980": [
+   "12"
+  ],
+  "1984660": [
+   "11",
+   "12"
+  ],
+  "1984661": [
+   "11",
+   "12"
+  ],
+  "1984662": [
+   "11",
+   "12"
+  ],
+  "1984730": [
+   "12"
+  ],
+  "1985810": [
+   "12"
+  ],
+  "1985820": [
+   "12"
+  ],
+  "1986350": [
+   "11",
+   "12"
+  ],
+  "1986480": [
+   "11",
+   "12"
+  ],
+  "1992100": [
+   "11",
+   "12"
+  ],
+  "1995520": [
+   "12"
+  ],
+  "1997660": [
+   "12"
+  ],
+  "2000100": [
+   "11",
+   "12"
+  ],
+  "2000890": [
+   "12"
+  ],
+  "2000950": [
+   "12"
+  ],
+  "2001120": [
+   "12"
+  ],
+  "2001760": [
+   "12"
+  ],
+  "2004260": [
+   "12"
+  ],
+  "2005310": [
+   "11",
+   "12"
+  ],
+  "2005311": [
+   "11",
+   "12"
+  ],
+  "2005972": [
+   "11",
+   "12"
+  ],
+  "2005983": [
+   "11",
+   "12"
+  ],
+  "2005984": [
+   "11",
+   "12"
+  ],
+  "2009100": [
+   "12"
+  ],
+  "2012510": [
+   "11",
+   "12"
+  ],
+  "2013360": [
+   "12"
+  ],
+  "2015180": [
+   "11",
+   "12"
+  ],
+  "2015680": [
+   "11",
+   "12"
+  ],
+  "2016260": [
+   "11",
+   "12"
+  ],
+  "2016590": [
+   "11",
+   "12"
+  ],
+  "2021370": [
+   "12"
+  ],
+  "2021870": [
+   "11",
+   "12"
+  ],
+  "2021871": [
+   "11",
+   "12"
+  ],
+  "2024160": [
+   "11",
+   "12"
+  ],
+  "2050650": [
+   "12"
+  ],
+  "2053800": [
+   "12"
+  ],
+  "2053801": [
+   "12"
+  ],
+  "2053802": [
+   "12"
+  ],
+  "2053803": [
+   "12"
+  ],
+  "2054970": [
+   "12"
+  ],
+  "2055280": [
+   "12"
+  ],
+  "2055590": [
+   "12"
+  ],
+  "2057870": [
+   "12"
+  ],
+  "2057880": [
+   "12"
+  ],
+  "2058180": [
+   "12"
+  ],
+  "2058190": [
+   "12"
+  ],
+  "2060130": [
+   "12"
+  ],
+  "2060310": [
+   "12"
+  ],
+  "2061230": [
+   "11",
+   "12"
+  ],
+  "2062120": [
+   "12"
+  ],
+  "2063510": [
+   "11",
+   "12"
+  ],
+  "2064650": [
+   "12"
+  ],
+  "2067050": [
+   "12"
+  ],
+  "2067350": [
+   "12"
+  ],
+  "2068340": [
+   "12"
+  ],
+  "2068341": [
+   "12"
+  ],
+  "2068342": [
+   "12"
+  ],
+  "2069250": [
+   "12"
+  ],
+  "2070270": [
+   "12"
+  ],
+  "2072450": [
+   "12"
+  ],
+  "2072560": [
+   "12"
+  ],
+  "2073620": [
+   "12"
+  ],
+  "2073850": [
+   "12"
+  ],
+  "2074340": [
+   "11",
+   "12"
+  ],
+  "2074920": [
+   "12"
+  ],
+  "2075010": [
+   "12"
+  ],
+  "2075800": [
+   "12"
+  ],
+  "2076050": [
+   "12"
+  ],
+  "2076051": [
+   "12"
+  ],
+  "2076052": [
+   "12"
+  ],
+  "2076053": [
+   "12"
+  ],
+  "2076054": [
+   "12"
+  ],
+  "2076280": [
+   "12"
+  ],
+  "2077750": [
+   "12"
+  ],
+  "2080850": [
+   "11",
+   "12"
+  ],
+  "2080851": [
+   "11",
+   "12"
+  ],
+  "2080852": [
+   "11",
+   "12"
+  ],
+  "2081470": [
+   "12"
+  ],
+  "2082930": [
+   "11",
+   "12"
+  ],
+  "2087540": [
+   "12"
+  ],
+  "2088380": [
+   "12"
+  ],
+  "2088781": [
+   "12"
+  ],
+  "2088783": [
+   "12"
+  ],
+  "2088785": [
+   "12"
+  ],
+  "2088786": [
+   "12"
+  ],
+  "2088787": [
+   "12"
+  ],
+  "2088788": [
+   "12"
+  ],
+  "2089250": [
+   "12"
+  ],
+  "2091020": [
+   "12"
+  ],
+  "2092840": [
+   "12"
+  ],
+  "2094070": [
+   "11",
+   "12"
+  ],
+  "2100280": [
+   "12"
+  ],
+  "2100870": [
+   "11",
+   "12"
+  ],
+  "2100871": [
+   "11",
+   "12"
+  ],
+  "2101210": [
+   "11",
+   "12"
+  ],
+  "2101940": [
+   "11",
+   "12"
+  ],
+  "2101960": [
+   "12"
+  ],
+  "2102450": [
+   "12"
+  ],
+  "2104480": [
+   "12"
+  ],
+  "2104482": [
+   "12"
+  ],
+  "2104483": [
+   "12"
+  ],
+  "2104485": [
+   "12"
+  ],
+  "2104486": [
+   "12"
+  ],
+  "2104487": [
+   "12"
+  ],
+  "2104488": [
+   "12"
+  ],
+  "2104870": [
+   "12"
+  ],
+  "2104890": [
+   "12"
+  ],
+  "2107670": [
+   "11",
+   "12"
+  ],
+  "2108330": [
+   "12"
+  ],
+  "2108630": [
+   "11",
+   "12"
+  ],
+  "2109300": [
+   "12"
+  ],
+  "2109301": [
+   "12"
+  ],
+  "2109303": [
+   "12"
+  ],
+  "2109304": [
+   "12"
+  ],
+  "2109305": [
+   "12"
+  ],
+  "2109306": [
+   "12"
+  ],
+  "2109307": [
+   "12"
+  ],
+  "2109308": [
+   "12"
+  ],
+  "2109309": [
+   "12"
+  ],
+  "2109310": [
+   "12"
+  ],
+  "2109311": [
+   "12"
+  ],
+  "2109312": [
+   "12"
+  ],
+  "2109313": [
+   "12"
+  ],
+  "2109314": [
+   "12"
+  ],
+  "2109315": [
+   "12"
+  ],
+  "2109316": [
+   "12"
+  ],
+  "2109317": [
+   "12"
+  ],
+  "2116120": [
+   "12"
+  ],
+  "2117330": [
+   "12"
+  ],
+  "2118360": [
+   "12"
+  ],
+  "2119740": [
+   "12"
+  ],
+  "2119800": [
+   "12"
+  ],
+  "2121510": [
+   "12"
+  ],
+  "2124490": [
+   "12"
+  ],
+  "2125861": [
+   "12"
+  ],
+  "2126170": [
+   "11",
+   "12"
+  ],
+  "2129530": [
+   "12"
+  ],
+  "2133410": [
+   "12"
+  ],
+  "2137370": [
+   "11",
+   "12"
+  ],
+  "2138330": [
+   "12"
+  ],
+  "2138970": [
+   "11",
+   "12"
+  ],
+  "2140330": [
+   "12"
+  ],
+  "2141300": [
+   "12"
+  ],
+  "2141610": [
+   "11",
+   "12"
+  ],
+  "2144430": [
+   "12"
+  ],
+  "2144440": [
+   "12"
+  ],
+  "2144740": [
+   "11",
+   "12"
+  ],
+  "2145780": [
+   "12"
+  ],
+  "2147450": [
+   "12"
+  ],
+  "2149010": [
+   "12"
+  ],
+  "2153350": [
+   "12"
+  ],
+  "2157830": [
+   "12"
+  ],
+  "2158250": [
+   "11",
+   "12"
+  ],
+  "2161390": [
+   "11",
+   "12"
+  ],
+  "2161700": [
+   "12"
+  ],
+  "2161710": [
+   "12"
+  ],
+  "2162800": [
+   "11",
+   "12"
+  ],
+  "2164210": [
+   "12"
+  ],
+  "2165500": [
+   "12"
+  ],
+  "2165590": [
+   "11",
+   "12"
+  ],
+  "2168440": [
+   "11",
+   "12"
+  ],
+  "2168441": [
+   "11",
+   "12"
+  ],
+  "2169200": [
+   "12"
+  ],
+  "2170190": [
+   "12"
+  ],
+  "2172010": [
+   "12"
+  ],
+  "2173130": [
+   "11",
+   "12"
+  ],
+  "2173131": [
+   "11",
+   "12"
+  ],
+  "2179800": [
+   "11",
+   "12"
+  ],
+  "2183900": [
+   "12"
+  ],
+  "2186990": [
+   "12"
+  ],
+  "2187220": [
+   "12"
+  ],
+  "2190430": [
+   "12"
+  ],
+  "2193910": [
+   "11",
+   "12"
+  ],
+  "2193911": [
+   "11",
+   "12"
+  ],
+  "2197320": [
+   "12"
+  ],
+  "2197321": [
+   "12"
+  ],
+  "2197322": [
+   "12"
+  ],
+  "2197323": [
+   "12"
+  ],
+  "2197324": [
+   "12"
+  ],
+  "2197325": [
+   "12"
+  ],
+  "2197326": [
+   "12"
+  ],
+  "2197327": [
+   "12"
+  ],
+  "2197328": [
+   "12"
+  ],
+  "2198470": [
+   "11",
+   "12"
+  ],
+  "2199420": [
+   "11",
+   "12"
+  ],
+  "2202120": [
+   "11",
+   "12"
+  ],
+  "2203380": [
+   "12"
+  ],
+  "2208700": [
+   "11",
+   "12"
+  ],
+  "2208701": [
+   "11",
+   "12"
+  ],
+  "2208920": [
+   "12"
+  ],
+  "2214820": [
+   "12"
+  ],
+  "2214821": [
+   "12"
+  ],
+  "2214822": [
+   "12"
+  ],
+  "2214823": [
+   "12"
+  ],
+  "2214824": [
+   "12"
+  ],
+  "2214825": [
+   "12"
+  ],
+  "2214826": [
+   "12"
+  ],
+  "2214830": [
+   "12"
+  ],
+  "2215200": [
+   "12"
+  ],
+  "2215390": [
+   "12"
+  ],
+  "2215430": [
+   "12"
+  ],
+  "2216070": [
+   "12"
+  ],
+  "2218530": [
+   "11",
+   "12"
+  ],
+  "2218531": [
+   "11",
+   "12"
+  ],
+  "2221490": [
+   "11",
+   "12"
+  ],
+  "2222340": [
+   "12"
+  ],
+  "2222341": [
+   "12"
+  ],
+  "2222342": [
+   "12"
+  ],
+  "2223840": [
+   "12"
+  ],
+  "2224460": [
+   "12"
+  ],
+  "2224461": [
+   "12"
+  ],
+  "2224462": [
+   "12"
+  ],
+  "2228280": [
+   "12"
+  ],
+  "2231020": [
+   "12"
+  ],
+  "2231770": [
+   "12"
+  ],
+  "2233120": [
+   "12"
+  ],
+  "2237040": [
+   "12"
+  ],
+  "2237300": [
+   "12"
+  ],
+  "2238040": [
+   "11",
+   "12"
+  ],
+  "2239550": [
+   "11",
+   "12"
+  ],
+  "2239575": [
+   "11",
+   "12"
+  ],
+  "2239577": [
+   "11",
+   "12"
+  ],
+  "2243670": [
+   "11",
+   "12"
+  ],
+  "2244210": [
+   "12"
+  ],
+  "2244510": [
+   "11",
+   "12"
+  ],
+  "2244780": [
+   "12"
+  ],
+  "2246340": [
+   "12"
+  ],
+  "2253100": [
+   "11",
+   "12"
+  ],
+  "2253140": [
+   "12"
+  ],
+  "2253141": [
+   "12"
+  ],
+  "2255370": [
+   "12"
+  ],
+  "2257970": [
+   "12"
+  ],
+  "2260160": [
+   "12"
+  ],
+  "2270010": [
+   "12"
+  ],
+  "2272330": [
+   "12"
+  ],
+  "2272540": [
+   "12"
+  ],
+  "2273910": [
+   "11",
+   "12"
+  ],
+  "2273980": [
+   "12"
+  ],
+  "2277560": [
+   "12"
+  ],
+  "2280170": [
+   "12"
+  ],
+  "2282350": [
+   "12"
+  ],
+  "2283550": [
+   "11",
+   "12"
+  ],
+  "2287220": [
+   "11",
+   "12"
+  ],
+  "2287330": [
+   "12"
+  ],
+  "2288340": [
+   "12"
+  ],
+  "2288430": [
+   "12"
+  ],
+  "2291670": [
+   "11",
+   "12"
+  ],
+  "2293060": [
+   "11",
+   "12"
+  ],
+  "2293920": [
+   "12"
+  ],
+  "2295060": [
+   "11",
+   "12"
+  ],
+  "2298540": [
+   "12"
+  ],
+  "2300120": [
+   "12"
+  ],
+  "2300320": [
+   "12"
+  ],
+  "2302800": [
+   "11",
+   "12"
+  ],
+  "2303680": [
+   "12"
+  ],
+  "2307350": [
+   "12"
+  ],
+  "2312690": [
+   "12"
+  ],
+  "2314670": [
+   "12"
+  ],
+  "2314700": [
+   "12"
+  ],
+  "2315050": [
+   "12"
+  ],
+  "2315690": [
+   "12"
+  ],
+  "2316580": [
+   "12"
+  ],
+  "2316610": [
+   "12"
+  ],
+  "2317940": [
+   "12"
+  ],
+  "2322010": [
+   "12"
+  ],
+  "2322840": [
+   "12"
+  ],
+  "2325281": [
+   "12"
+  ],
+  "2328320": [
+   "11",
+   "12"
+  ],
+  "2328850": [
+   "12"
+  ],
+  "2330080": [
+   "11",
+   "12"
+  ],
+  "2330100": [
+   "11",
+   "12"
+  ],
+  "2330150": [
+   "12"
+  ],
+  "2331020": [
+   "11",
+   "12"
+  ],
+  "2331330": [
+   "11",
+   "12"
+  ],
+  "2334530": [
+   "12"
+  ],
+  "2334531": [
+   "12"
+  ],
+  "2334532": [
+   "12"
+  ],
+  "2334533": [
+   "12"
+  ],
+  "2334534": [
+   "12"
+  ],
+  "2334535": [
+   "12"
+  ],
+  "2334536": [
+   "12"
+  ],
+  "2336440": [
+   "12"
+  ],
+  "2340960": [
+   "12"
+  ],
+  "2341550": [
+   "11",
+   "12"
+  ],
+  "2344320": [
+   "12"
+  ],
+  "2344520": [
+   "12"
+  ],
+  "2348780": [
+   "11",
+   "12"
+  ],
+  "2350280": [
+   "12"
+  ],
+  "2350790": [
+   "12"
+  ],
+  "2351330": [
+   "12"
+  ],
+  "2351530": [
+   "11",
+   "12"
+  ],
+  "2352620": [
+   "11",
+   "12"
+  ],
+  "2358720": [
+   "12"
+  ],
+  "2362050": [
+   "12"
+  ],
+  "2362060": [
+   "12"
+  ],
+  "2362290": [
+   "12"
+  ],
+  "2362291": [
+   "12"
+  ],
+  "2362292": [
+   "12"
+  ],
+  "2362293": [
+   "12"
+  ],
+  "2362294": [
+   "12"
+  ],
+  "2362295": [
+   "12"
+  ],
+  "2362296": [
+   "12"
+  ],
+  "2362740": [
+   "12"
+  ],
+  "2365950": [
+   "12"
+  ],
+  "2367610": [
+   "12"
+  ],
+  "2369390": [
+   "12"
+  ],
+  "2369450": [
+   "12"
+  ],
+  "2369454": [
+   "12"
+  ],
+  "2369456": [
+   "12"
+  ],
+  "2369458": [
+   "12"
+  ],
+  "2369470": [
+   "12"
+  ],
+  "2369472": [
+   "12"
+  ],
+  "2374450": [
+   "12"
+  ],
+  "2374460": [
+   "12"
+  ],
+  "2374461": [
+   "12"
+  ],
+  "2374462": [
+   "12"
+  ],
+  "2374463": [
+   "12"
+  ],
+  "2375550": [
+   "12"
+  ],
+  "2383990": [
+   "12"
+  ],
+  "2384070": [
+   "12"
+  ],
+  "2384071": [
+   "12"
+  ],
+  "2384072": [
+   "12"
+  ],
+  "2384073": [
+   "12"
+  ],
+  "2384074": [
+   "12"
+  ],
+  "2384075": [
+   "12"
+  ],
+  "2384076": [
+   "12"
+  ],
+  "2384580": [
+   "12"
+  ],
+  "2385220": [
+   "12"
+  ],
+  "2385221": [
+   "12"
+  ],
+  "2385222": [
+   "12"
+  ],
+  "2385223": [
+   "12"
+  ],
+  "2386730": [
+   "11",
+   "12"
+  ],
+  "2386860": [
+   "12"
+  ],
+  "2387160": [
+   "11",
+   "12"
+  ],
+  "2388130": [
+   "12"
+  ],
+  "2397300": [
+   "11",
+   "12"
+  ],
+  "2401180": [
+   "12"
+  ],
+  "2401181": [
+   "12"
+  ],
+  "2401830": [
+   "12"
+  ],
+  "2401850": [
+   "12"
+  ],
+  "2401860": [
+   "12"
+  ],
+  "2405060": [
+   "11",
+   "12"
+  ],
+  "2406370": [
+   "12"
+  ],
+  "2406770": [
+   "12"
+  ],
+  "2409760": [
+   "12"
+  ],
+  "2415270": [
+   "11",
+   "12"
+  ],
+  "2416900": [
+   "11",
+   "12"
+  ],
+  "2417350": [
+   "12"
+  ],
+  "2417351": [
+   "12"
+  ],
+  "2417610": [
+   "12"
+  ],
+  "2417770": [
+   "11",
+   "12"
+  ],
+  "2419090": [
+   "12"
+  ],
+  "2419480": [
+   "11",
+   "12"
+  ],
+  "2419481": [
+   "11",
+   "12"
+  ],
+  "2420110": [
+   "12"
+  ],
+  "2423690": [
+   "12"
+  ],
+  "2426120": [
+   "12"
+  ],
+  "2427410": [
+   "12"
+  ],
+  "2427420": [
+   "12"
+  ],
+  "2427430": [
+   "12"
+  ],
+  "2428540": [
+   "11",
+   "12"
+  ],
+  "2428810": [
+   "12"
+  ],
+  "2429640": [
+   "11",
+   "12"
+  ],
+  "2434440": [
+   "12"
+  ],
+  "2436840": [
+   "12"
+  ],
+  "2436841": [
+   "12"
+  ],
+  "2436842": [
+   "12"
+  ],
+  "2437170": [
+   "11",
+   "12"
+  ],
+  "2440510": [
+   "12"
+  ],
+  "2441600": [
+   "12"
+  ],
+  "2443630": [
+   "12"
+  ],
+  "2443720": [
+   "12"
+  ],
+  "2447000": [
+   "12"
+  ],
+  "2448970": [
+   "12"
+  ],
+  "2452280": [
+   "11",
+   "12"
+  ],
+  "2453160": [
+   "12"
+  ],
+  "2453170": [
+   "12"
+  ],
+  "2453190": [
+   "12"
+  ],
+  "2456740": [
+   "12"
+  ],
+  "2457220": [
+   "12"
+  ],
+  "2461850": [
+   "12"
+  ],
+  "2464530": [
+   "12"
+  ],
+  "2467810": [
+   "12"
+  ],
+  "2468250": [
+   "12"
+  ],
+  "2468730": [
+   "12"
+  ],
+  "2469350": [
+   "12"
+  ],
+  "2475790": [
+   "12"
+  ],
+  "2478370": [
+   "11",
+   "12"
+  ],
+  "2479650": [
+   "12"
+  ],
+  "2481710": [
+   "12"
+  ],
+  "2483190": [
+   "12"
+  ],
+  "2485260": [
+   "12"
+  ],
+  "2486150": [
+   "12"
+  ],
+  "2486820": [
+   "12"
+  ],
+  "2487150": [
+   "11",
+   "12"
+  ],
+  "2488520": [
+   "11",
+   "12"
+  ],
+  "2488530": [
+   "11",
+   "12"
+  ],
+  "2488620": [
+   "12"
+  ],
+  "2489020": [
+   "11",
+   "12"
+  ],
+  "2490990": [
+   "12"
+  ],
+  "2492640": [
+   "12"
+  ],
+  "2492670": [
+   "11",
+   "12"
+  ],
+  "2493530": [
+   "12"
+  ],
+  "2494130": [
+   "12"
+  ],
+  "2499860": [
+   "12"
+  ],
+  "2500370": [
+   "12"
+  ],
+  "2506610": [
+   "11",
+   "12"
+  ],
+  "2507300": [
+   "11",
+   "12"
+  ],
+  "2507950": [
+   "12"
+  ],
+  "2510710": [
+   "12"
+  ],
+  "2514130": [
+   "12"
+  ],
+  "2515020": [
+   "12"
+  ],
+  "2517300": [
+   "12"
+  ],
+  "2517310": [
+   "12"
+  ],
+  "2523720": [
+   "12"
+  ],
+  "2523770": [
+   "12"
+  ],
+  "2527360": [
+   "12"
+  ],
+  "2527390": [
+   "12"
+  ],
+  "2528110": [
+   "11",
+   "12"
+  ],
+  "2531310": [
+   "12"
+  ],
+  "2533600": [
+   "12"
+  ],
+  "2536520": [
+   "12"
+  ],
+  "2537590": [
+   "12"
+  ],
+  "2542020": [
+   "12"
+  ],
+  "2546270": [
+   "11",
+   "12"
+  ],
+  "2549070": [
+   "11",
+   "12"
+  ],
+  "2551500": [
+   "12"
+  ],
+  "2552430": [
+   "11",
+   "12"
+  ],
+  "2552440": [
+   "11",
+   "12"
+  ],
+  "2556990": [
+   "12"
+  ],
+  "2561460": [
+   "12"
+  ],
+  "2561520": [
+   "12"
+  ],
+  "2561580": [
+   "12"
+  ],
+  "2561880": [
+   "12"
+  ],
+  "2566340": [
+   "12"
+  ],
+  "2567870": [
+   "11",
+   "12"
+  ],
+  "2569760": [
+   "12"
+  ],
+  "2570840": [
+   "11",
+   "12"
+  ],
+  "2572010": [
+   "12"
+  ],
+  "2572020": [
+   "12"
+  ],
+  "2572030": [
+   "12"
+  ],
+  "2574580": [
+   "11",
+   "12"
+  ],
+  "2575620": [
+   "12"
+  ],
+  "2575630": [
+   "12"
+  ],
+  "2575640": [
+   "12"
+  ],
+  "2577930": [
+   "11",
+   "12"
+  ],
+  "2578120": [
+   "12"
+  ],
+  "2582320": [
+   "12"
+  ],
+  "2584270": [
+   "12"
+  ],
+  "2591280": [
+   "11",
+   "12"
+  ],
+  "2593290": [
+   "12"
+  ],
+  "2593600": [
+   "12"
+  ],
+  "2600880": [
+   "11",
+   "12"
+  ],
+  "2606620": [
+   "11",
+   "12"
+  ],
+  "2606640": [
+   "11",
+   "12"
+  ],
+  "2610650": [
+   "11",
+   "12"
+  ],
+  "2611170": [
+   "12"
+  ],
+  "2613870": [
+   "12"
+  ],
+  "2622380": [
+   "12"
+  ],
+  "2623190": [
+   "12"
+  ],
+  "2624870": [
+   "12"
+  ],
+  "2626910": [
+   "12"
+  ],
+  "2627260": [
+   "12"
+  ],
+  "2631250": [
+   "12"
+  ],
+  "2633140": [
+   "12"
+  ],
+  "2634950": [
+   "11",
+   "12"
+  ],
+  "2638890": [
+   "12"
+  ],
+  "2646460": [
+   "12"
+  ],
+  "2646730": [
+   "11",
+   "12"
+  ],
+  "2650130": [
+   "12"
+  ],
+  "2651280": [
+   "12"
+  ],
+  "2657050": [
+   "12"
+  ],
+  "2657060": [
+   "12"
+  ],
+  "2657070": [
+   "12"
+  ],
+  "2657080": [
+   "12"
+  ],
+  "2657100": [
+   "12"
+  ],
+  "2658450": [
+   "12"
+  ],
+  "2658940": [
+   "12"
+  ],
+  "2659060": [
+   "12"
+  ],
+  "2659070": [
+   "12"
+  ],
+  "2659080": [
+   "12"
+  ],
+  "2661300": [
+   "12"
+  ],
+  "2663810": [
+   "12"
+  ],
+  "2667170": [
+   "12"
+  ],
+  "2667180": [
+   "12"
+  ],
+  "2667190": [
+   "12"
+  ],
+  "2667200": [
+   "12"
+  ],
+  "2668510": [
+   "12"
+  ],
+  "2669320": [
+   "12"
+  ],
+  "2669350": [
+   "12"
+  ],
+  "2669410": [
+   "12"
+  ],
+  "2671240": [
+   "12"
+  ],
+  "2672610": [
+   "12"
+  ],
+  "2676320": [
+   "12"
+  ],
+  "2678080": [
+   "12"
+  ],
+  "2679830": [
+   "12"
+  ],
+  "2680010": [
+   "11",
+   "12"
+  ],
+  "2680660": [
+   "11",
+   "12"
+  ],
+  "2684660": [
+   "12"
+  ],
+  "2686630": [
+   "12"
+  ],
+  "2688060": [
+   "12"
+  ],
+  "2688950": [
+   "12"
+  ],
+  "2689210": [
+   "12"
+  ],
+  "2689700": [
+   "12"
+  ],
+  "2694490": [
+   "11",
+   "12"
+  ],
+  "2695430": [
+   "12"
+  ],
+  "2697930": [
+   "12"
+  ],
+  "2698780": [
+   "11",
+   "12"
+  ],
+  "2705130": [
+   "12"
+  ],
+  "2713000": [
+   "12"
+  ],
+  "2716350": [
+   "12"
+  ],
+  "2717260": [
+   "12"
+  ],
+  "2721550": [
+   "12"
+  ],
+  "2721560": [
+   "12"
+  ],
+  "2721570": [
+   "12"
+  ],
+  "2721670": [
+   "12"
+  ],
+  "2725260": [
+   "12"
+  ],
+  "2727510": [
+   "12"
+  ],
+  "2727660": [
+   "12"
+  ],
+  "2731870": [
+   "11",
+   "12"
+  ],
+  "2738000": [
+   "12"
+  ],
+  "2738630": [
+   "12"
+  ],
+  "2744050": [
+   "12"
+  ],
+  "2744060": [
+   "12"
+  ],
+  "2747330": [
+   "11",
+   "12"
+  ],
+  "2747660": [
+   "12"
+  ],
+  "2750080": [
+   "11",
+   "12"
+  ],
+  "2751140": [
+   "12"
+  ],
+  "2753000": [
+   "12"
+  ],
+  "2760720": [
+   "11",
+   "12"
+  ],
+  "2767030": [
+   "12"
+  ],
+  "2771110": [
+   "11",
+   "12"
+  ],
+  "2771280": [
+   "11",
+   "12"
+  ],
+  "2772130": [
+   "12"
+  ],
+  "2776970": [
+   "12"
+  ],
+  "2777010": [
+   "12"
+  ],
+  "2778060": [
+   "12"
+  ],
+  "2778580": [
+   "12"
+  ],
+  "2778590": [
+   "12"
+  ],
+  "2779320": [
+   "11",
+   "12"
+  ],
+  "2782050": [
+   "11",
+   "12"
+  ],
+  "2782920": [
+   "11",
+   "12"
+  ],
+  "2786570": [
+   "12"
+  ],
+  "2787320": [
+   "12"
+  ],
+  "2789680": [
+   "12"
+  ],
+  "2790060": [
+   "11",
+   "12"
+  ],
+  "2791490": [
+   "12"
+  ],
+  "2791500": [
+   "12"
+  ],
+  "2791510": [
+   "12"
+  ],
+  "2791920": [
+   "12"
+  ],
+  "2792140": [
+   "12"
+  ],
+  "2792150": [
+   "12"
+  ],
+  "2792170": [
+   "12"
+  ],
+  "2792180": [
+   "12"
+  ],
+  "2792280": [
+   "12"
+  ],
+  "2796130": [
+   "11",
+   "12"
+  ],
+  "2800230": [
+   "11",
+   "12"
+  ],
+  "2806050": [
+   "12"
+  ],
+  "2806640": [
+   "12"
+  ],
+  "2807960": [
+   "12"
+  ],
+  "2815060": [
+   "12"
+  ],
+  "2821610": [
+   "12"
+  ],
+  "2824520": [
+   "11",
+   "12"
+  ],
+  "2824590": [
+   "12"
+  ],
+  "2825190": [
+   "12"
+  ],
+  "2825200": [
+   "12"
+  ],
+  "2825860": [
+   "12"
+  ],
+  "2828710": [
+   "12"
+  ],
+  "2830030": [
+   "12"
+  ],
+  "2834090": [
+   "12"
+  ],
+  "2835590": [
+   "12"
+  ],
+  "2840000": [
+   "12"
+  ],
+  "2840770": [
+   "12"
+  ],
+  "2842040": [
+   "12"
+  ],
+  "2843460": [
+   "12"
+  ],
+  "2843470": [
+   "12"
+  ],
+  "2848330": [
+   "12"
+  ],
+  "2851890": [
+   "12"
+  ],
+  "2851900": [
+   "12"
+  ],
+  "2851910": [
+   "12"
+  ],
+  "2851920": [
+   "12"
+  ],
+  "2851930": [
+   "12"
+  ],
+  "2851940": [
+   "12"
+  ],
+  "2851950": [
+   "12"
+  ],
+  "2851960": [
+   "12"
+  ],
+  "2851970": [
+   "12"
+  ],
+  "2851980": [
+   "12"
+  ],
+  "2851990": [
+   "12"
+  ],
+  "2852000": [
+   "12"
+  ],
+  "2852010": [
+   "12"
+  ],
+  "2852020": [
+   "12"
+  ],
+  "2852030": [
+   "12"
+  ],
+  "2852040": [
+   "12"
+  ],
+  "2852050": [
+   "12"
+  ],
+  "2852060": [
+   "12"
+  ],
+  "2852070": [
+   "12"
+  ],
+  "2852080": [
+   "12"
+  ],
+  "2852190": [
+   "12"
+  ],
+  "2853730": [
+   "12"
+  ],
+  "2854480": [
+   "12"
+  ],
+  "2855560": [
+   "11",
+   "12"
+  ],
+  "2864560": [
+   "12"
+  ],
+  "2867690": [
+   "11",
+   "12"
+  ],
+  "2869510": [
+   "12"
+  ],
+  "2873440": [
+   "11",
+   "12"
+  ],
+  "2873460": [
+   "11",
+   "12"
+  ],
+  "2873470": [
+   "11",
+   "12"
+  ],
+  "2878960": [
+   "12"
+  ],
+  "2880540": [
+   "11",
+   "12"
+  ],
+  "2880550": [
+   "11",
+   "12"
+  ],
+  "2880560": [
+   "11",
+   "12"
+  ],
+  "2880570": [
+   "11",
+   "12"
+  ],
+  "2880590": [
+   "11",
+   "12"
+  ],
+  "2886900": [
+   "12"
+  ],
+  "2888500": [
+   "11",
+   "12"
+  ],
+  "2892640": [
+   "12"
+  ],
+  "2893570": [
+   "12"
+  ],
+  "2902170": [
+   "12"
+  ],
+  "2909400": [
+   "12"
+  ],
+  "2911770": [
+   "11",
+   "12"
+  ],
+  "2912150": [
+   "12"
+  ],
+  "2914280": [
+   "12"
+  ],
+  "2915350": [
+   "11",
+   "12"
+  ],
+  "2915570": [
+   "11",
+   "12"
+  ],
+  "2918090": [
+   "12"
+  ],
+  "2918300": [
+   "12"
+  ],
+  "2918370": [
+   "12"
+  ],
+  "2919380": [
+   "12"
+  ],
+  "2919390": [
+   "12"
+  ],
+  "2919400": [
+   "12"
+  ],
+  "2927350": [
+   "11",
+   "12"
+  ],
+  "2928600": [
+   "12"
+  ],
+  "2933080": [
+   "12"
+  ],
+  "2934390": [
+   "11",
+   "12"
+  ],
+  "2934780": [
+   "11",
+   "12"
+  ],
+  "2934790": [
+   "11",
+   "12"
+  ],
+  "2938460": [
+   "11",
+   "12"
+  ],
+  "2941030": [
+   "12"
+  ],
+  "2941050": [
+   "12"
+  ],
+  "2941060": [
+   "12"
+  ],
+  "2943650": [
+   "11",
+   "12"
+  ],
+  "2947440": [
+   "12"
+  ],
+  "2949120": [
+   "12"
+  ],
+  "2950340": [
+   "12"
+  ],
+  "2953480": [
+   "12"
+  ],
+  "2958130": [
+   "12"
+  ],
+  "2963530": [
+   "11",
+   "12"
+  ],
+  "2974310": [
+   "12"
+  ],
+  "2974330": [
+   "12"
+  ],
+  "2974340": [
+   "12"
+  ],
+  "2975950": [
+   "12"
+  ],
+  "2976250": [
+   "12"
+  ],
+  "2977270": [
+   "12"
+  ],
+  "2978540": [
+   "11",
+   "12"
+  ],
+  "2981090": [
+   "12"
+  ],
+  "2981100": [
+   "12"
+  ],
+  "2981110": [
+   "12"
+  ],
+  "2981410": [
+   "12"
+  ],
+  "2986450": [
+   "12"
+  ],
+  "2988580": [
+   "12"
+  ],
+  "2988900": [
+   "12"
+  ],
+  "2989180": [
+   "12"
+  ],
+  "2991160": [
+   "12"
+  ],
+  "2991170": [
+   "12"
+  ],
+  "2991180": [
+   "12"
+  ],
+  "2991190": [
+   "12"
+  ],
+  "2996830": [
+   "12"
+  ],
+  "2999530": [
+   "11",
+   "12"
+  ],
+  "3002050": [
+   "12"
+  ],
+  "3002850": [
+   "12"
+  ],
+  "3003500": [
+   "12"
+  ],
+  "3004650": [
+   "12"
+  ],
+  "3004660": [
+   "12"
+  ],
+  "3008130": [
+   "11",
+   "12"
+  ],
+  "3010850": [
+   "12"
+  ],
+  "3011850": [
+   "12"
+  ],
+  "3012220": [
+   "12"
+  ],
+  "3012890": [
+   "12"
+  ],
+  "3012900": [
+   "12"
+  ],
+  "3014320": [
+   "12"
+  ],
+  "3014330": [
+   "12"
+  ],
+  "3014630": [
+   "11",
+   "12"
+  ],
+  "3015760": [
+   "11",
+   "12"
+  ],
+  "3018120": [
+   "11",
+   "12"
+  ],
+  "3027260": [
+   "12"
+  ],
+  "3030370": [
+   "11",
+   "12"
+  ],
+  "3035200": [
+   "12"
+  ],
+  "3035210": [
+   "12"
+  ],
+  "3035220": [
+   "12"
+  ],
+  "3035230": [
+   "12"
+  ],
+  "3035240": [
+   "12"
+  ],
+  "3035260": [
+   "12"
+  ],
+  "3035570": [
+   "12"
+  ],
+  "3037350": [
+   "12"
+  ],
+  "3037360": [
+   "12"
+  ],
+  "3037780": [
+   "12"
+  ],
+  "3040220": [
+   "12"
+  ],
+  "3043530": [
+   "12"
+  ],
+  "3043580": [
+   "12"
+  ],
+  "3043940": [
+   "12"
+  ],
+  "3046600": [
+   "12"
+  ],
+  "3047140": [
+   "12"
+  ],
+  "3050900": [
+   "12"
+  ],
+  "3051490": [
+   "12"
+  ],
+  "3052150": [
+   "12"
+  ],
+  "3058630": [
+   "12"
+  ],
+  "3059520": [
+   "12"
+  ],
+  "3060810": [
+   "12"
+  ],
+  "3060820": [
+   "12"
+  ],
+  "3061810": [
+   "12"
+  ],
+  "3062610": [
+   "12"
+  ],
+  "3065800": [
+   "12"
+  ],
+  "3067190": [
+   "12"
+  ],
+  "3073500": [
+   "11",
+   "12"
+  ],
+  "3075820": [
+   "12"
+  ],
+  "3076160": [
+   "12"
+  ],
+  "3077540": [
+   "12"
+  ],
+  "3079070": [
+   "11",
+   "12"
+  ],
+  "3079250": [
+   "12"
+  ],
+  "3086580": [
+   "12"
+  ],
+  "3087220": [
+   "12"
+  ],
+  "3087240": [
+   "12"
+  ],
+  "3087250": [
+   "12"
+  ],
+  "3087260": [
+   "12"
+  ],
+  "3087270": [
+   "12"
+  ],
+  "3087430": [
+   "12"
+  ],
+  "3087460": [
+   "12"
+  ],
+  "3091180": [
+   "12"
+  ],
+  "3091190": [
+   "12"
+  ],
+  "3092530": [
+   "12"
+  ],
+  "3094480": [
+   "12"
+  ],
+  "3112260": [
+   "12"
+  ],
+  "3112600": [
+   "12"
+  ],
+  "3112750": [
+   "12"
+  ],
+  "3118100": [
+   "12"
+  ],
+  "3118110": [
+   "12"
+  ],
+  "3118120": [
+   "12"
+  ],
+  "3119880": [
+   "12"
+  ],
+  "3119920": [
+   "12"
+  ],
+  "3123080": [
+   "12"
+  ],
+  "3123410": [
+   "12"
+  ],
+  "3124540": [
+   "12"
+  ],
+  "3125750": [
+   "12"
+  ],
+  "3126630": [
+   "12"
+  ],
+  "3132930": [
+   "12"
+  ],
+  "3132990": [
+   "12"
+  ],
+  "3140220": [
+   "12"
+  ],
+  "3142080": [
+   "12"
+  ],
+  "3142090": [
+   "12"
+  ],
+  "3142100": [
+   "12"
+  ],
+  "3142110": [
+   "12"
+  ],
+  "3142680": [
+   "12"
+  ],
+  "3142690": [
+   "12"
+  ],
+  "3142700": [
+   "12"
+  ],
+  "3144860": [
+   "12"
+  ],
+  "3144890": [
+   "12"
+  ],
+  "3145920": [
+   "12"
+  ],
+  "3150270": [
+   "12"
+  ],
+  "3156770": [
+   "12"
+  ],
+  "3159330": [
+   "12"
+  ],
+  "3164330": [
+   "12"
+  ],
+  "3166820": [
+   "12"
+  ],
+  "3167460": [
+   "12"
+  ],
+  "3170420": [
+   "12"
+  ],
+  "3170430": [
+   "12"
+  ],
+  "3172000": [
+   "12"
+  ],
+  "3172660": [
+   "12"
+  ],
+  "3179550": [
+   "12"
+  ],
+  "3181480": [
+   "12"
+  ],
+  "3181500": [
+   "12"
+  ],
+  "3181540": [
+   "12"
+  ],
+  "3183280": [
+   "12"
+  ],
+  "3184520": [
+   "12"
+  ],
+  "3197520": [
+   "12"
+  ],
+  "3201450": [
+   "12"
+  ],
+  "3202690": [
+   "12"
+  ],
+  "3205210": [
+   "12"
+  ],
+  "3205220": [
+   "12"
+  ],
+  "3205230": [
+   "12"
+  ],
+  "3205240": [
+   "12"
+  ],
+  "3211430": [
+   "12"
+  ],
+  "3212020": [
+   "12"
+  ],
+  "3212040": [
+   "12"
+  ],
+  "3212440": [
+   "11",
+   "12"
+  ],
+  "3212450": [
+   "11",
+   "12"
+  ],
+  "3212460": [
+   "11",
+   "12"
+  ],
+  "3212470": [
+   "11",
+   "12"
+  ],
+  "3214130": [
+   "12"
+  ],
+  "3218100": [
+   "12"
+  ],
+  "3225560": [
+   "12"
+  ],
+  "3228010": [
+   "12"
+  ],
+  "3228520": [
+   "12"
+  ],
+  "3228590": [
+   "12"
+  ],
+  "3237520": [
+   "12"
+  ],
+  "3240220": [
+   "12"
+  ],
+  "3252020": [
+   "12"
+  ],
+  "3253320": [
+   "11",
+   "12"
+  ],
+  "3254050": [
+   "12"
+  ],
+  "3258690": [
+   "12"
+  ],
+  "3259780": [
+   "12"
+  ],
+  "3265140": [
+   "11",
+   "12"
+  ],
+  "3265150": [
+   "11",
+   "12"
+  ],
+  "3265160": [
+   "11",
+   "12"
+  ],
+  "3265250": [
+   "12"
+  ],
+  "3267510": [
+   "12"
+  ],
+  "3268050": [
+   "12"
+  ],
+  "3268060": [
+   "12"
+  ],
+  "3268090": [
+   "12"
+  ],
+  "3268110": [
+   "12"
+  ],
+  "3268220": [
+   "12"
+  ],
+  "3268230": [
+   "12"
+  ],
+  "3268240": [
+   "12"
+  ],
+  "3271050": [
+   "12"
+  ],
+  "3272530": [
+   "12"
+  ],
+  "3273240": [
+   "12"
+  ],
+  "3273980": [
+   "12"
+  ],
+  "3274400": [
+   "12"
+  ],
+  "3274410": [
+   "12"
+  ],
+  "3274430": [
+   "12"
+  ],
+  "3274580": [
+   "12"
+  ],
+  "3280350": [
+   "12"
+  ],
+  "3287520": [
+   "12"
+  ],
+  "3288210": [
+   "11",
+   "12"
+  ],
+  "3290690": [
+   "12"
+  ],
+  "3290710": [
+   "12"
+  ],
+  "3291710": [
+   "12"
+  ],
+  "3294570": [
+   "11",
+   "12"
+  ],
+  "3297400": [
+   "12"
+  ],
+  "3299920": [
+   "12"
+  ],
+  "3300410": [
+   "12"
+  ],
+  "3300460": [
+   "12"
+  ],
+  "3307520": [
+   "12"
+  ],
+  "3307530": [
+   "12"
+  ],
+  "3307540": [
+   "12"
+  ],
+  "3307910": [
+   "11",
+   "12"
+  ],
+  "3311600": [
+   "11",
+   "12"
+  ],
+  "3319840": [
+   "12"
+  ],
+  "3319850": [
+   "12"
+  ],
+  "3319860": [
+   "12"
+  ],
+  "3319870": [
+   "12"
+  ],
+  "3319880": [
+   "12"
+  ],
+  "3319890": [
+   "12"
+  ],
+  "3319900": [
+   "12"
+  ],
+  "3319910": [
+   "12"
+  ],
+  "3319920": [
+   "12"
+  ],
+  "3319930": [
+   "12"
+  ],
+  "3319940": [
+   "12"
+  ],
+  "3321460": [
+   "12"
+  ],
+  "3323210": [
+   "12"
+  ],
+  "3323880": [
+   "12"
+  ],
+  "3325070": [
+   "12"
+  ],
+  "3326230": [
+   "12"
+  ],
+  "3328900": [
+   "9.0",
+   "12"
+  ],
+  "3335310": [
+   "12"
+  ],
+  "3337040": [
+   "12"
+  ],
+  "3341000": [
+   "12"
+  ],
+  "3349210": [
+   "12"
+  ],
+  "3349410": [
+   "11",
+   "12"
+  ],
+  "3349420": [
+   "11",
+   "12"
+  ],
+  "3349430": [
+   "11",
+   "12"
+  ],
+  "3350030": [
+   "12"
+  ],
+  "3350580": [
+   "12"
+  ],
+  "3351550": [
+   "12"
+  ],
+  "3352690": [
+   "11",
+   "12"
+  ],
+  "3354750": [
+   "12"
+  ],
+  "3357650": [
+   "12"
+  ],
+  "3361290": [
+   "12"
+  ],
+  "3361300": [
+   "12"
+  ],
+  "3362550": [
+   "12"
+  ],
+  "3362570": [
+   "12"
+  ],
+  "3364840": [
+   "12"
+  ],
+  "3365540": [
+   "12"
+  ],
+  "3368600": [
+   "12"
+  ],
+  "3368620": [
+   "12"
+  ],
+  "3372350": [
+   "12"
+  ],
+  "3372360": [
+   "12"
+  ],
+  "3374910": [
+   "12"
+  ],
+  "3378960": [
+   "12"
+  ],
+  "3387160": [
+   "12"
+  ],
+  "3389260": [
+   "11",
+   "12"
+  ],
+  "3393110": [
+   "12"
+  ],
+  "3394140": [
+   "12"
+  ],
+  "3398380": [
+   "12"
+  ],
+  "3398520": [
+   "12"
+  ],
+  "3401790": [
+   "12"
+  ],
+  "3402720": [
+   "12"
+  ],
+  "3404260": [
+   "12"
+  ],
+  "3405340": [
+   "11",
+   "12"
+  ],
+  "3405690": [
+   "12"
+  ],
+  "3406020": [
+   "12"
+  ],
+  "3407330": [
+   "11",
+   "12"
+  ],
+  "3410460": [
+   "12"
+  ],
+  "3410470": [
+   "12"
+  ],
+  "3417410": [
+   "11",
+   "12"
+  ],
+  "3419520": [
+   "12"
+  ],
+  "3448280": [
+   "12"
+  ],
+  "3449370": [
+   "12"
+  ],
+  "3450310": [
+   "12"
+  ],
+  "3462740": [
+   "12"
+  ],
+  "3462750": [
+   "12"
+  ],
+  "3462760": [
+   "12"
+  ],
+  "3469800": [
+   "12"
+  ],
+  "3470710": [
+   "12"
+  ],
+  "3477690": [
+   "12"
+  ],
+  "3478250": [
+   "11",
+   "12"
+  ],
+  "3478280": [
+   "11",
+   "12"
+  ],
+  "3482560": [
+   "12"
+  ],
+  "3486530": [
+   "12"
+  ],
+  "3489700": [
+   "12"
+  ],
+  "3490290": [
+   "12"
+  ],
+  "3494340": [
+   "12"
+  ],
+  "3494350": [
+   "12"
+  ],
+  "3494370": [
+   "12"
+  ],
+  "3494380": [
+   "12"
+  ],
+  "3494390": [
+   "12"
+  ],
+  "3500390": [
+   "12"
+  ],
+  "3500810": [
+   "12"
+  ],
+  "3500970": [
+   "12"
+  ],
+  "3502600": [
+   "12"
+  ],
+  "3504780": [
+   "12"
+  ],
+  "3508440": [
+   "12"
+  ],
+  "3510890": [
+   "12"
+  ],
+  "3511550": [
+   "12"
+  ],
+  "3511560": [
+   "12"
+  ],
+  "3511570": [
+   "12"
+  ],
+  "3511580": [
+   "12"
+  ],
+  "3511590": [
+   "12"
+  ],
+  "3511600": [
+   "12"
+  ],
+  "3511940": [
+   "12"
+  ],
+  "3513350": [
+   "11",
+   "12"
+  ],
+  "3514930": [
+   "12"
+  ],
+  "3515610": [
+   "12"
+  ],
+  "3516780": [
+   "12"
+  ],
+  "3516830": [
+   "12"
+  ],
+  "3518320": [
+   "11",
+   "12"
+  ],
+  "3519570": [
+   "12"
+  ],
+  "3520070": [
+   "11",
+   "12"
+  ],
+  "3525400": [
+   "12"
+  ],
+  "3525970": [
+   "12"
+  ],
+  "3526590": [
+   "12"
+  ],
+  "3527290": [
+   "11",
+   "12"
+  ],
+  "3527760": [
+   "12"
+  ],
+  "3531720": [
+   "12"
+  ],
+  "3533860": [
+   "12"
+  ],
+  "3547420": [
+   "12"
+  ],
+  "3547480": [
+   "12"
+  ],
+  "3551550": [
+   "12"
+  ],
+  "3556530": [
+   "12"
+  ],
+  "3556540": [
+   "12"
+  ],
+  "3556550": [
+   "12"
+  ],
+  "3558720": [
+   "12"
+  ],
+  "3558810": [
+   "12"
+  ],
+  "3558820": [
+   "12"
+  ],
+  "3559240": [
+   "12"
+  ],
+  "3559880": [
+   "12"
+  ],
+  "3564740": [
+   "11",
+   "12"
+  ],
+  "3564860": [
+   "12"
+  ],
+  "3566840": [
+   "12"
+  ],
+  "3587890": [
+   "12"
+  ],
+  "3589750": [
+   "12"
+  ],
+  "3589760": [
+   "12"
+  ],
+  "3590420": [
+   "11",
+   "12"
+  ],
+  "3594180": [
+   "12"
+  ],
+  "3594250": [
+   "12"
+  ],
+  "3595230": [
+   "12"
+  ],
+  "3595270": [
+   "12"
+  ],
+  "3596170": [
+   "12"
+  ],
+  "3596180": [
+   "12"
+  ],
+  "3596190": [
+   "12"
+  ],
+  "3596200": [
+   "12"
+  ],
+  "3596210": [
+   "12"
+  ],
+  "3596220": [
+   "12"
+  ],
+  "3596810": [
+   "12"
+  ],
+  "3596900": [
+   "12"
+  ],
+  "3596920": [
+   "12"
+  ],
+  "3596930": [
+   "12"
+  ],
+  "3599690": [
+   "12"
+  ],
+  "3604200": [
+   "12"
+  ],
+  "3607720": [
+   "12"
+  ],
+  "3619270": [
+   "11",
+   "12"
+  ],
+  "3626510": [
+   "12"
+  ],
+  "3626520": [
+   "12"
+  ],
+  "3626530": [
+   "12"
+  ],
+  "3635880": [
+   "12"
+  ],
+  "3637470": [
+   "11",
+   "12"
+  ],
+  "3639070": [
+   "11",
+   "12"
+  ],
+  "3641780": [
+   "11",
+   "12"
+  ],
+  "3651190": [
+   "12"
+  ],
+  "3651200": [
+   "12"
+  ],
+  "3653760": [
+   "12"
+  ],
+  "3653770": [
+   "12"
+  ],
+  "3653780": [
+   "12"
+  ],
+  "3653790": [
+   "12"
+  ],
+  "3659280": [
+   "12"
+  ],
+  "3659690": [
+   "12"
+  ],
+  "3659770": [
+   "12"
+  ],
+  "3659830": [
+   "12"
+  ],
+  "3660220": [
+   "12"
+  ],
+  "3660380": [
+   "12"
+  ],
+  "3660390": [
+   "12"
+  ],
+  "3660400": [
+   "12"
+  ],
+  "3662250": [
+   "12"
+  ],
+  "3668680": [
+   "12"
+  ],
+  "3669870": [
+   "12"
+  ],
+  "3670000": [
+   "12"
+  ],
+  "3678620": [
+   "11",
+   "12"
+  ],
+  "3678630": [
+   "11",
+   "12"
+  ],
+  "3678640": [
+   "11",
+   "12"
+  ],
+  "3678650": [
+   "11",
+   "12"
+  ],
+  "3681010": [
+   "12"
+  ],
+  "3681880": [
+   "12"
+  ],
+  "3691700": [
+   "12"
+  ],
+  "3696410": [
+   "12"
+  ],
+  "3698980": [
+   "12"
+  ],
+  "3701350": [
+   "12"
+  ],
+  "3710290": [
+   "12"
+  ],
+  "3710300": [
+   "12"
+  ],
+  "3711510": [
+   "12"
+  ],
+  "3711570": [
+   "12"
+  ],
+  "3715570": [
+   "12"
+  ],
+  "3717330": [
+   "12"
+  ],
+  "3717340": [
+   "12"
+  ],
+  "3728160": [
+   "11",
+   "12"
+  ],
+  "3728950": [
+   "12"
+  ],
+  "3733960": [
+   "12"
+  ],
+  "3741460": [
+   "12"
+  ],
+  "3743240": [
+   "12"
+  ],
+  "3743800": [
+   "12"
+  ],
+  "3746540": [
+   "12"
+  ],
+  "3748510": [
+   "12"
+  ],
+  "3748540": [
+   "12"
+  ],
+  "3749050": [
+   "12"
+  ],
+  "3749060": [
+   "12"
+  ],
+  "3749080": [
+   "12"
+  ],
+  "3749090": [
+   "12"
+  ],
+  "3749550": [
+   "12"
+  ],
+  "3751230": [
+   "12"
+  ],
+  "3751260": [
+   "12"
+  ],
+  "3751350": [
+   "12"
+  ],
+  "3751360": [
+   "12"
+  ],
+  "3751380": [
+   "12"
+  ],
+  "3751400": [
+   "12"
+  ],
+  "3751950": [
+   "12"
+  ],
+  "3757150": [
+   "12"
+  ],
+  "3758190": [
+   "12"
+  ],
+  "3760560": [
+   "11",
+   "12"
+  ],
+  "3763830": [
+   "12"
+  ],
+  "3764200": [
+   "12"
+  ],
+  "3768760": [
+   "12"
+  ],
+  "3771400": [
+   "12"
+  ],
+  "3773900": [
+   "12"
+  ],
+  "3780200": [
+   "12"
+  ],
+  "3780210": [
+   "12"
+  ],
+  "3784940": [
+   "12"
+  ],
+  "3787240": [
+   "12"
+  ],
+  "3787730": [
+   "12"
+  ],
+  "3788090": [
+   "12"
+  ],
+  "3789050": [
+   "12"
+  ],
+  "3799610": [
+   "11",
+   "12"
+  ],
+  "3800280": [
+   "12"
+  ],
+  "3802770": [
+   "12"
+  ],
+  "3803320": [
+   "12"
+  ],
+  "3804130": [
+   "12"
+  ],
+  "3805230": [
+   "11",
+   "12"
+  ],
+  "3805250": [
+   "11",
+   "12"
+  ],
+  "3805260": [
+   "11",
+   "12"
+  ],
+  "3805270": [
+   "11",
+   "12"
+  ],
+  "3816570": [
+   "12"
+  ],
+  "3818060": [
+   "12"
+  ],
+  "3825480": [
+   "12"
+  ],
+  "3829370": [
+   "12"
+  ],
+  "3837640": [
+   "12"
+  ],
+  "3840380": [
+   "12"
+  ],
+  "3841510": [
+   "12"
+  ],
+  "3846460": [
+   "12"
+  ],
+  "3849030": [
+   "12"
+  ],
+  "3859630": [
+   "11",
+   "12"
+  ],
+  "3859930": [
+   "12"
+  ],
+  "3865300": [
+   "12"
+  ],
+  "3870690": [
+   "12"
+  ],
+  "3875910": [
+   "12"
+  ],
+  "3882410": [
+   "12"
+  ],
+  "3883890": [
+   "12"
+  ],
+  "3886200": [
+   "12"
+  ],
+  "3887680": [
+   "12"
+  ],
+  "3897660": [
+   "12"
+  ],
+  "3899360": [
+   "12"
+  ],
+  "3902620": [
+   "12"
+  ],
+  "3906660": [
+   "12"
+  ],
+  "3909960": [
+   "12"
+  ],
+  "3910170": [
+   "12"
+  ],
+  "3916150": [
+   "12"
+  ],
+  "3917090": [
+   "12"
+  ],
+  "3920610": [
+   "12"
+  ],
+  "3929860": [
+   "12"
+  ],
+  "3934040": [
+   "11",
+   "12"
+  ],
+  "3936520": [
+   "12"
+  ],
+  "3937220": [
+   "11",
+   "12"
+  ],
+  "3937550": [
+   "12"
+  ],
+  "3939890": [
+   "12"
+  ],
+  "3942910": [
+   "12"
+  ],
+  "3949040": [
+   "11",
+   "12"
+  ],
+  "3949550": [
+   "12"
+  ],
+  "3950810": [
+   "12"
+  ],
+  "3950820": [
+   "12"
+  ],
+  "3950830": [
+   "12"
+  ],
+  "3950850": [
+   "12"
+  ],
+  "3950870": [
+   "12"
+  ],
+  "3950880": [
+   "12"
+  ],
+  "3950900": [
+   "12"
+  ],
+  "3950910": [
+   "12"
+  ],
+  "3950930": [
+   "12"
+  ],
+  "3951580": [
+   "12"
+  ],
+  "3953150": [
+   "12"
+  ],
+  "3953180": [
+   "12"
+  ],
+  "3954230": [
+   "12"
+  ],
+  "3954250": [
+   "12"
+  ],
+  "3954260": [
+   "12"
+  ],
+  "3954470": [
+   "12"
+  ],
+  "3955500": [
+   "12"
+  ],
+  "3958690": [
+   "12"
+  ],
+  "3958700": [
+   "12"
+  ],
+  "3958710": [
+   "12"
+  ],
+  "3958720": [
+   "12"
+  ],
+  "3959440": [
+   "11",
+   "12"
+  ],
+  "3959450": [
+   "11",
+   "12"
+  ],
+  "3976440": [
+   "12"
+  ],
+  "3976880": [
+   "12"
+  ],
+  "3976890": [
+   "12"
+  ],
+  "3976900": [
+   "12"
+  ],
+  "3976910": [
+   "12"
+  ],
+  "3977730": [
+   "12"
+  ],
+  "3977740": [
+   "12"
+  ],
+  "3983000": [
+   "12"
+  ],
+  "3988930": [
+   "12"
+  ],
+  "3990600": [
+   "12"
+  ],
+  "3990800": [
+   "12"
+  ],
+  "3990820": [
+   "12"
+  ],
+  "4003800": [
+   "12"
+  ],
+  "4003930": [
+   "12"
+  ],
+  "4003950": [
+   "12"
+  ],
+  "4005770": [
+   "12"
+  ],
+  "4008520": [
+   "12"
+  ],
+  "4012990": [
+   "12"
+  ],
+  "4016300": [
+   "12"
+  ],
+  "4019420": [
+   "12"
+  ],
+  "4023080": [
+   "12"
+  ],
+  "4024620": [
+   "12"
+  ],
+  "4024630": [
+   "12"
+  ],
+  "4026810": [
+   "12"
+  ],
+  "4030870": [
+   "11",
+   "12"
+  ],
+  "4031210": [
+   "12"
+  ],
+  "4032350": [
+   "12"
+  ],
+  "4045820": [
+   "12"
+  ],
+  "4046730": [
+   "11",
+   "12"
+  ],
+  "4047270": [
+   "12"
+  ],
+  "4049180": [
+   "12"
+  ],
+  "4054180": [
+   "12"
+  ],
+  "4057080": [
+   "12"
+  ],
+  "4059840": [
+   "12"
+  ],
+  "4059850": [
+   "12"
+  ],
+  "4059860": [
+   "12"
+  ],
+  "4066020": [
+   "12"
+  ],
+  "4066030": [
+   "12"
+  ],
+  "4073600": [
+   "12"
+  ],
+  "4075240": [
+   "12"
+  ],
+  "4078430": [
+   "12"
+  ],
+  "4082970": [
+   "11",
+   "12"
+  ],
+  "4082980": [
+   "11",
+   "12"
+  ],
+  "4095900": [
+   "12"
+  ],
+  "4110950": [
+   "12"
+  ],
+  "4112550": [
+   "12"
+  ],
+  "4114220": [
+   "11",
+   "12"
+  ],
+  "4115450": [
+   "12"
+  ],
+  "4123350": [
+   "12"
+  ],
+  "4123370": [
+   "12"
+  ],
+  "4124750": [
+   "12"
+  ],
+  "4124760": [
+   "12"
+  ],
+  "4126040": [
+   "11",
+   "12"
+  ],
+  "4128140": [
+   "12"
+  ],
+  "4128260": [
+   "12"
+  ],
+  "4129920": [
+   "12"
+  ],
+  "4131660": [
+   "12"
+  ],
+  "4131670": [
+   "12"
+  ],
+  "4133510": [
+   "12"
+  ],
+  "4146830": [
+   "12"
+  ],
+  "4148250": [
+   "12"
+  ],
+  "4151500": [
+   "12"
+  ],
+  "4152490": [
+   "12"
+  ],
+  "4156640": [
+   "12"
+  ],
+  "4162040": [
+   "11",
+   "12"
+  ],
+  "4162940": [
+   "12"
+  ],
+  "4164290": [
+   "12"
+  ],
+  "4168120": [
+   "12"
+  ],
+  "4168130": [
+   "12"
+  ],
+  "4168610": [
+   "12"
+  ],
+  "4168620": [
+   "12"
+  ],
+  "4168630": [
+   "12"
+  ],
+  "4168640": [
+   "12"
+  ],
+  "4172530": [
+   "12"
+  ],
+  "4180380": [
+   "12"
+  ],
+  "4184400": [
+   "11",
+   "12"
+  ],
+  "4192200": [
+   "12"
+  ],
+  "4193060": [
+   "12"
+  ],
+  "4196240": [
+   "11",
+   "12"
+  ],
+  "4197930": [
+   "12"
+  ],
+  "4197940": [
+   "12"
+  ],
+  "4198760": [
+   "12"
+  ],
+  "4207340": [
+   "11",
+   "12"
+  ],
+  "4208730": [
+   "12"
+  ],
+  "4212570": [
+   "12"
+  ],
+  "4214820": [
+   "12"
+  ],
+  "4221990": [
+   "12"
+  ],
+  "4228930": [
+   "12"
+  ],
+  "4234670": [
+   "12"
+  ],
+  "4235640": [
+   "12"
+  ],
+  "4235650": [
+   "12"
+  ],
+  "4252750": [
+   "12"
+  ],
+  "4252780": [
+   "12"
+  ],
+  "4265340": [
+   "12"
+  ],
+  "4265420": [
+   "12"
+  ],
+  "4265460": [
+   "12"
+  ],
+  "4298680": [
+   "11",
+   "12"
+  ],
+  "4310610": [
+   "12"
+  ],
+  "4314720": [
+   "12"
+  ],
+  "4321300": [
+   "11",
+   "12"
+  ],
+  "4323990": [
+   "12"
+  ],
+  "4326710": [
+   "12"
+  ],
+  "4335780": [
+   "12"
+  ],
+  "4336170": [
+   "12"
+  ],
+  "4340990": [
+   "12"
+  ],
+  "4343530": [
+   "12"
+  ],
+  "4347910": [
+   "12"
+  ],
+  "4351720": [
+   "12"
+  ],
+  "4351900": [
+   "11",
+   "12"
+  ],
+  "4371500": [
+   "11",
+   "12"
+  ],
+  "4377450": [
+   "12"
+  ],
+  "4384550": [
+   "12"
+  ],
+  "4393620": [
+   "12"
+  ],
+  "4403940": [
+   "12"
+  ],
+  "4406010": [
+   "12"
+  ],
+  "4407820": [
+   "12"
+  ],
+  "4412680": [
+   "12"
+  ],
+  "4412690": [
+   "12"
+  ],
+  "4417550": [
+   "12"
+  ],
+  "4430060": [
+   "12"
+  ],
+  "4434900": [
+   "11",
+   "12"
+  ],
+  "4434940": [
+   "12"
+  ],
+  "4434950": [
+   "12"
+  ],
+  "4435490": [
+   "12"
+  ],
+  "4439260": [
+   "12"
+  ],
+  "4439280": [
+   "12"
+  ],
+  "4439300": [
+   "12"
+  ],
+  "4439750": [
+   "12"
+  ],
+  "4440380": [
+   "12"
+  ],
+  "4444140": [
+   "12"
+  ],
+  "4444150": [
+   "12"
+  ],
+  "4449300": [
+   "12"
+  ],
+  "4459850": [
+   "12"
+  ],
+  "4460240": [
+   "12"
+  ],
+  "4468750": [
+   "12"
+  ],
+  "4485640": [
+   "12"
+  ],
+  "4487450": [
+   "11",
+   "12"
+  ],
+  "4492160": [
+   "12"
+  ],
+  "4496490": [
+   "12"
+  ],
+  "4496510": [
+   "12"
+  ],
+  "4496530": [
+   "12"
+  ],
+  "4496550": [
+   "12"
+  ],
+  "4496580": [
+   "12"
+  ],
+  "4496600": [
+   "12"
+  ],
+  "4496620": [
+   "12"
+  ],
+  "4496640": [
+   "12"
+  ],
+  "4496660": [
+   "12"
+  ],
+  "4502380": [
+   "12"
+  ],
+  "4502390": [
+   "12"
+  ],
+  "4508340": [
+   "11",
+   "12"
+  ],
+  "4519690": [
+   "12"
+  ],
+  "4520020": [
+   "12"
+  ],
+  "4520030": [
+   "12"
+  ],
+  "4520040": [
+   "12"
+  ],
+  "4521800": [
+   "12"
+  ],
+  "4521810": [
+   "12"
+  ],
+  "4521820": [
+   "12"
+  ],
+  "4521830": [
+   "12"
+  ],
+  "4521840": [
+   "12"
+  ],
+  "4523380": [
+   "12"
+  ],
+  "4529180": [
+   "12"
+  ],
+  "4530150": [
+   "12"
+  ],
+  "4532800": [
+   "11",
+   "12"
+  ],
+  "4562050": [
+   "12"
+  ],
+  "4570720": [
+   "12"
+  ],
+  "4572870": [
+   "12"
+  ],
+  "4575730": [
+   "12"
+  ],
+  "4577390": [
+   "12"
+  ],
+  "4601250": [
+   "12"
+  ],
+  "4601570": [
+   "12"
+  ],
+  "4602480": [
+   "12"
+  ],
+  "4602520": [
+   "12"
+  ],
+  "4602530": [
+   "12"
+  ],
+  "4602540": [
+   "12"
+  ],
+  "4602550": [
+   "12"
+  ],
+  "4630440": [
+   "12"
+  ],
+  "4630450": [
+   "12"
+  ],
+  "4630460": [
+   "12"
+  ],
+  "4632450": [
+   "12"
+  ],
+  "4637140": [
+   "12"
+  ],
+  "4637200": [
+   "12"
+  ],
+  "4641840": [
+   "12"
+  ],
+  "4647130": [
+   "12"
+  ],
+  "4664770": [
+   "12"
+  ],
+  "4669520": [
+   "12"
+  ],
+  "4669960": [
+   "10",
+   "11",
+   "12"
+  ],
+  "4684710": [
+   "12"
+  ],
+  "4687390": [
+   "11",
+   "12"
+  ],
+  "4689870": [
+   "12"
+  ],
+  "4704690": [
+   "12"
+  ],
+  "4706890": [
+   "11",
+   "12"
+  ],
+  "4707780": [
+   "12"
+  ],
+  "4711720": [
+   "12"
+  ],
+  "4711740": [
+   "12"
+  ],
+  "4733900": [
+   "12"
+  ],
+  "4743810": [
+   "12"
+  ],
+  "4757750": [
+   "12"
+  ],
+  "4764990": [
+   "11",
+   "12"
+  ],
+  "4768180": [
+   "12"
+  ],
+  "4781590": [
+   "11",
+   "12"
+  ],
+  "4783050": [
+   "12"
+  ],
+  "4809930": [
+   "12"
+  ],
+  "4809960": [
+   "12"
+  ],
+  "4836540": [
+   "12"
+  ],
+  "4839960": [
+   "12"
+  ],
+  "4848500": [
+   "12"
+  ],
+  "4848520": [
+   "12"
+  ],
+  "4848530": [
+   "12"
+  ],
+  "4848540": [
+   "12"
+  ],
+  "4848580": [
+   "12"
+  ],
+  "4848590": [
+   "12"
+  ],
+  "4848600": [
+   "12"
+  ],
+  "4849350": [
+   "11",
+   "12"
+  ],
+  "4859070": [
+   "12"
+  ],
+  "4880100": [
+   "12"
+  ],
+  "4884860": [
+   "12"
+  ],
+  "4886450": [
+   "12"
+  ],
+  "4886920": [
+   "11",
+   "12"
+  ],
+  "4899410": [
+   "11",
+   "12"
+  ],
+  "4908050": [
+   "11",
+   "12"
+  ],
+  "4919810": [
+   "12"
+  ],
+  "4919860": [
+   "12"
+  ],
+  "4925780": [
+   "12"
+  ],
+  "4934950": [
+   "12"
+  ],
+  "4935250": [
+   "12"
+  ],
+  "4961870": [
+   "12"
+  ],
+  "4972180": [
+   "12"
+  ],
+  "4972320": [
+   "12"
+  ],
+  "4984870": [
+   "12"
+  ],
+  "5001840": [
+   "12"
+  ],
+  "5026660": [
+   "12"
+  ],
+  "5028560": [
+   "12"
+  ],
+  "5030920": [
+   "12"
+  ],
+  "5030930": [
+   "12"
+  ],
+  "5031290": [
+   "12"
+  ],
+  "5041150": [
+   "12"
+  ],
+  "5067360": [
+   "12"
+  ],
+  "5089020": [
+   "12"
+  ],
+  "5089460": [
+   "12"
+  ],
+  "5090500": [
+   "12"
+  ],
+  "5094350": [
+   "12"
+  ],
+  "5094360": [
+   "12"
+  ],
+  "5094370": [
+   "12"
+  ],
+  "5094380": [
+   "12"
+  ],
+  "5094390": [
+   "12"
+  ],
+  "5101950": [
+   "12"
+  ],
+  "5113010": [
+   "12"
+  ],
+  "5132160": [
+   "12"
+  ],
+  "5184670": [
+   "12"
+  ],
+  "5210790": [
+   "12"
+  ],
+  "5237010": [
+   "11",
+   "12"
+  ],
+  "5250300": [
+   "12"
+  ],
+  "5256740": [
+   "12"
+  ],
+  "5283790": [
+   "12"
+  ],
+  "5309180": [
+   "12"
+  ],
+  "5312420": [
+   "12"
+  ],
+  "5312450": [
+   "12"
+  ],
+  "5312670": [
+   "12"
+  ],
+  "5370600": [
+   "12"
+  ],
+  "5384860": [
+   "11",
+   "12"
+  ],
+  "5401680": [
+   "12"
+  ],
+  "5554080": [
+   "12"
+  ]
+ },
+ "directXSource": "PCGamingWiki contributors, https://www.pcgamingwiki.com (CC BY-NC-SA 3.0)",
+ "runtimes": {
+  "10220": [
+   "physx"
+  ],
+  "10250": [
+   "physx"
+  ],
+  "10260": [
+   "physx"
+  ],
+  "102600": [
+   "physx"
+  ],
+  "102622": [
+   "physx"
+  ],
+  "102623": [
+   "physx"
+  ],
+  "104700": [
+   "physx"
+  ],
+  "108100": [
+   "physx"
+  ],
+  "11040": [
+   "physx"
+  ],
+  "11050": [
+   "physx"
+  ],
+  "11140": [
+   "physx"
+  ],
+  "11190": [
+   "physx"
+  ],
+  "11200": [
+   "physx"
+  ],
+  "113404": [
+   "physx"
+  ],
+  "113420": [
+   "physx"
+  ],
+  "11420": [
+   "physx"
+  ],
+  "1238020": [
+   "physx"
+  ],
+  "1238040": [
+   "physx"
+  ],
+  "1238050": [
+   "physx"
+  ],
+  "12630": [
+   "physx"
+  ],
+  "12770": [
+   "physx"
+  ],
+  "12790": [
+   "physx"
+  ],
+  "12810": [
+   "physx"
+  ],
+  "13140": [
+   "physx"
+  ],
+  "13210": [
+   "physx"
+  ],
+  "1326290": [
+   "physx"
+  ],
+  "1338440": [
+   "physx"
+  ],
+  "1344840": [
+   "physx"
+  ],
+  "13510": [
+   "physx"
+  ],
+  "13540": [
+   "physx"
+  ],
+  "13640": [
+   "physx"
+  ],
+  "1431350": [
+   "physx"
+  ],
+  "15120": [
+   "physx"
+  ],
+  "15390": [
+   "physx"
+  ],
+  "16720": [
+   "physx"
+  ],
+  "16730": [
+   "physx"
+  ],
+  "17080": [
+   "physx"
+  ],
+  "1712840": [
+   "physx"
+  ],
+  "1721190": [
+   "physx"
+  ],
+  "17410": [
+   "physx"
+  ],
+  "17450": [
+   "physx"
+  ],
+  "17460": [
+   "physx"
+  ],
+  "18100": [
+   "physx"
+  ],
+  "18110": [
+   "physx"
+  ],
+  "18470": [
+   "physx"
+  ],
+  "1920": [
+   "physx"
+  ],
+  "1930": [
+   "physx"
+  ],
+  "19680": [
+   "physx"
+  ],
+  "200010": [
+   "physx"
+  ],
+  "200060": [
+   "physx"
+  ],
+  "200230": [
+   "physx"
+  ],
+  "200240": [
+   "physx"
+  ],
+  "200260": [
+   "physx"
+  ],
+  "200300": [
+   "physx"
+  ],
+  "200310": [
+   "physx"
+  ],
+  "200440": [
+   "physx"
+  ],
+  "200510": [
+   "physx"
+  ],
+  "200860": [
+   "physx"
+  ],
+  "200870": [
+   "physx"
+  ],
+  "200880": [
+   "physx"
+  ],
+  "200890": [
+   "physx"
+  ],
+  "200891": [
+   "physx"
+  ],
+  "201790": [
+   "physx"
+  ],
+  "201802": [
+   "physx"
+  ],
+  "201804": [
+   "physx"
+  ],
+  "201805": [
+   "physx"
+  ],
+  "201809": [
+   "physx"
+  ],
+  "202070": [
+   "physx"
+  ],
+  "202520": [
+   "physx"
+  ],
+  "202521": [
+   "physx"
+  ],
+  "202523": [
+   "physx"
+  ],
+  "202524": [
+   "physx"
+  ],
+  "203140": [
+   "physx"
+  ],
+  "203250": [
+   "physx"
+  ],
+  "203290": [
+   "physx"
+  ],
+  "203700": [
+   "physx"
+  ],
+  "203701": [
+   "physx"
+  ],
+  "203702": [
+   "physx"
+  ],
+  "204080": [
+   "physx"
+  ],
+  "204380": [
+   "physx"
+  ],
+  "204381": [
+   "physx"
+  ],
+  "204382": [
+   "physx"
+  ],
+  "204383": [
+   "physx"
+  ],
+  "204384": [
+   "physx"
+  ],
+  "204385": [
+   "physx"
+  ],
+  "204386": [
+   "physx"
+  ],
+  "204387": [
+   "physx"
+  ],
+  "204388": [
+   "physx"
+  ],
+  "204980": [
+   "physx"
+  ],
+  "205120": [
+   "physx"
+  ],
+  "205140": [
+   "physx"
+  ],
+  "205150": [
+   "physx"
+  ],
+  "205160": [
+   "physx"
+  ],
+  "205170": [
+   "physx"
+  ],
+  "205650": [
+   "physx"
+  ],
+  "205810": [
+   "physx"
+  ],
+  "205930": [
+   "physx"
+  ],
+  "207020": [
+   "physx"
+  ],
+  "208540": [
+   "physx"
+  ],
+  "208541": [
+   "physx"
+  ],
+  "208542": [
+   "physx"
+  ],
+  "208543": [
+   "physx"
+  ],
+  "208544": [
+   "physx"
+  ],
+  "208545": [
+   "physx"
+  ],
+  "208546": [
+   "physx"
+  ],
+  "209000": [
+   "physx"
+  ],
+  "209630": [
+   "physx"
+  ],
+  "209811": [
+   "physx"
+  ],
+  "209812": [
+   "physx"
+  ],
+  "21010": [
+   "physx"
+  ],
+  "21030": [
+   "physx"
+  ],
+  "210770": [
+   "physx"
+  ],
+  "211400": [
+   "physx"
+  ],
+  "213670": [
+   "physx"
+  ],
+  "214210": [
+   "physx"
+  ],
+  "214360": [
+   "physx"
+  ],
+  "214930": [
+   "physx"
+  ],
+  "214931": [
+   "physx"
+  ],
+  "214932": [
+   "physx"
+  ],
+  "214933": [
+   "physx"
+  ],
+  "215630": [
+   "physx"
+  ],
+  "21670": [
+   "physx"
+  ],
+  "21680": [
+   "physx"
+  ],
+  "216910": [
+   "physx"
+  ],
+  "217750": [
+   "physx"
+  ],
+  "217860": [
+   "physx"
+  ],
+  "218210": [
+   "physx"
+  ],
+  "219440": [
+   "physx"
+  ],
+  "219441": [
+   "physx"
+  ],
+  "219442": [
+   "physx"
+  ],
+  "219443": [
+   "physx"
+  ],
+  "219444": [
+   "physx"
+  ],
+  "219445": [
+   "physx"
+  ],
+  "219446": [
+   "physx"
+  ],
+  "219447": [
+   "physx"
+  ],
+  "219890": [
+   "physx"
+  ],
+  "220440": [
+   "physx"
+  ],
+  "220820": [
+   "physx"
+  ],
+  "220822": [
+   "physx"
+  ],
+  "220823": [
+   "physx"
+  ],
+  "220824": [
+   "physx"
+  ],
+  "220825": [
+   "physx"
+  ],
+  "22230": [
+   "physx"
+  ],
+  "222680": [
+   "physx"
+  ],
+  "223790": [
+   "physx"
+  ],
+  "223792": [
+   "physx"
+  ],
+  "223793": [
+   "physx"
+  ],
+  "224060": [
+   "physx"
+  ],
+  "224420": [
+   "physx"
+  ],
+  "224480": [
+   "physx"
+  ],
+  "224840": [
+   "physx"
+  ],
+  "225080": [
+   "physx"
+  ],
+  "225220": [
+   "physx"
+  ],
+  "225340": [
+   "physx"
+  ],
+  "225640": [
+   "physx"
+  ],
+  "226560": [
+   "physx"
+  ],
+  "226720": [
+   "physx"
+  ],
+  "22700": [
+   "physx"
+  ],
+  "228300": [
+   "physx"
+  ],
+  "228560": [
+   "physx"
+  ],
+  "229080": [
+   "physx"
+  ],
+  "230650": [
+   "physx"
+  ],
+  "230690": [
+   "physx"
+  ],
+  "230691": [
+   "physx"
+  ],
+  "230692": [
+   "physx"
+  ],
+  "232750": [
+   "physx"
+  ],
+  "232970": [
+   "physx"
+  ],
+  "233010": [
+   "physx"
+  ],
+  "23310": [
+   "physx"
+  ],
+  "233920": [
+   "physx"
+  ],
+  "233940": [
+   "physx"
+  ],
+  "233960": [
+   "physx"
+  ],
+  "234080": [
+   "physx"
+  ],
+  "234210": [
+   "physx"
+  ],
+  "234230": [
+   "physx"
+  ],
+  "234250": [
+   "physx"
+  ],
+  "234510": [
+   "physx"
+  ],
+  "235540": [
+   "physx"
+  ],
+  "2362420": [
+   "physx"
+  ],
+  "236570": [
+   "physx"
+  ],
+  "236790": [
+   "physx"
+  ],
+  "236970": [
+   "physx"
+  ],
+  "237110": [
+   "physx"
+  ],
+  "237618": [
+   "physx"
+  ],
+  "237619": [
+   "physx"
+  ],
+  "237620": [
+   "physx"
+  ],
+  "237621": [
+   "physx"
+  ],
+  "237800": [
+   "physx"
+  ],
+  "238230": [
+   "physx"
+  ],
+  "2383860": [
+   "physx"
+  ],
+  "239250": [
+   "physx"
+  ],
+  "239430": [
+   "physx"
+  ],
+  "242050": [
+   "physx"
+  ],
+  "24240": [
+   "physx"
+  ],
+  "243930": [
+   "physx"
+  ],
+  "24400": [
+   "physx"
+  ],
+  "24410": [
+   "physx"
+  ],
+  "24440": [
+   "physx"
+  ],
+  "24441": [
+   "physx"
+  ],
+  "24447": [
+   "physx"
+  ],
+  "24449": [
+   "physx"
+  ],
+  "24460": [
+   "physx"
+  ],
+  "24500": [
+   "physx"
+  ],
+  "245280": [
+   "physx"
+  ],
+  "245350": [
+   "physx"
+  ],
+  "245730": [
+   "physx"
+  ],
+  "246700": [
+   "physx"
+  ],
+  "246980": [
+   "physx"
+  ],
+  "247660": [
+   "physx"
+  ],
+  "247950": [
+   "physx"
+  ],
+  "24840": [
+   "physx"
+  ],
+  "248450": [
+   "physx"
+  ],
+  "24870": [
+   "physx"
+  ],
+  "24980": [
+   "physx"
+  ],
+  "250810": [
+   "physx"
+  ],
+  "252230": [
+   "physx"
+  ],
+  "252350": [
+   "physx"
+  ],
+  "254040": [
+   "physx"
+  ],
+  "254130": [
+   "physx"
+  ],
+  "255070": [
+   "physx"
+  ],
+  "256240": [
+   "physx"
+  ],
+  "257070": [
+   "physx"
+  ],
+  "257370": [
+   "physx"
+  ],
+  "257371": [
+   "physx"
+  ],
+  "258220": [
+   "physx"
+  ],
+  "258970": [
+   "physx"
+  ],
+  "2590": [
+   "physx"
+  ],
+  "259890": [
+   "physx"
+  ],
+  "261110": [
+   "physx"
+  ],
+  "261160": [
+   "physx"
+  ],
+  "261161": [
+   "physx"
+  ],
+  "261640": [
+   "physx"
+  ],
+  "262390": [
+   "physx"
+  ],
+  "265930": [
+   "physx"
+  ],
+  "266110": [
+   "physx"
+  ],
+  "266490": [
+   "physx"
+  ],
+  "270950": [
+   "physx"
+  ],
+  "273150": [
+   "physx"
+  ],
+  "273151": [
+   "physx"
+  ],
+  "273152": [
+   "physx"
+  ],
+  "273153": [
+   "physx"
+  ],
+  "27330": [
+   "physx"
+  ],
+  "273790": [
+   "physx"
+  ],
+  "275690": [
+   "physx"
+  ],
+  "277590": [
+   "physx"
+  ],
+  "277830": [
+   "physx"
+  ],
+  "278360": [
+   "physx"
+  ],
+  "279110": [
+   "physx"
+  ],
+  "279111": [
+   "physx"
+  ],
+  "279112": [
+   "physx"
+  ],
+  "279113": [
+   "physx"
+  ],
+  "279114": [
+   "physx"
+  ],
+  "281220": [
+   "physx"
+  ],
+  "285520": [
+   "physx"
+  ],
+  "289880": [
+   "physx"
+  ],
+  "289881": [
+   "physx"
+  ],
+  "296170": [
+   "physx"
+  ],
+  "298950": [
+   "physx"
+  ],
+  "29900": [
+   "physx"
+  ],
+  "301070": [
+   "physx"
+  ],
+  "301900": [
+   "physx"
+  ],
+  "302020": [
+   "physx"
+  ],
+  "302030": [
+   "physx"
+  ],
+  "3061910": [
+   "physx"
+  ],
+  "307550": [
+   "physx"
+  ],
+  "310490": [
+   "physx"
+  ],
+  "311120": [
+   "physx"
+  ],
+  "311140": [
+   "physx"
+  ],
+  "311400": [
+   "physx"
+  ],
+  "311590": [
+   "physx"
+  ],
+  "31300": [
+   "physx"
+  ],
+  "313070": [
+   "physx"
+  ],
+  "315440": [
+   "physx"
+  ],
+  "316410": [
+   "physx"
+  ],
+  "317970": [
+   "physx"
+  ],
+  "319090": [
+   "physx"
+  ],
+  "319410": [
+   "physx"
+  ],
+  "319630": [
+   "physx"
+  ],
+  "321260": [
+   "physx"
+  ],
+  "321430": [
+   "physx"
+  ],
+  "321940": [
+   "physx"
+  ],
+  "32420": [
+   "physx"
+  ],
+  "329030": [
+   "physx"
+  ],
+  "329880": [
+   "physx"
+  ],
+  "329910": [
+   "physx"
+  ],
+  "329920": [
+   "physx"
+  ],
+  "329930": [
+   "physx"
+  ],
+  "330730": [
+   "physx"
+  ],
+  "338140": [
+   "physx"
+  ],
+  "34010": [
+   "physx"
+  ],
+  "344450": [
+   "physx"
+  ],
+  "34600": [
+   "physx"
+  ],
+  "34670": [
+   "physx"
+  ],
+  "35010": [
+   "physx"
+  ],
+  "35020": [
+   "physx"
+  ],
+  "35060": [
+   "physx"
+  ],
+  "35140": [
+   "physx"
+  ],
+  "353700": [
+   "physx"
+  ],
+  "354380": [
+   "physx"
+  ],
+  "35450": [
+   "physx"
+  ],
+  "35460": [
+   "physx"
+  ],
+  "35700": [
+   "physx"
+  ],
+  "35720": [
+   "physx"
+  ],
+  "35725": [
+   "physx"
+  ],
+  "359600": [
+   "physx"
+  ],
+  "359610": [
+   "physx"
+  ],
+  "362410": [
+   "physx"
+  ],
+  "369200": [
+   "physx"
+  ],
+  "37000": [
+   "physx"
+  ],
+  "37700": [
+   "physx"
+  ],
+  "38220": [
+   "physx"
+  ],
+  "3843540": [
+   "physx"
+  ],
+  "385560": [
+   "physx"
+  ],
+  "39000": [
+   "physx"
+  ],
+  "39160": [
+   "physx"
+  ],
+  "39180": [
+   "physx"
+  ],
+  "39181": [
+   "physx"
+  ],
+  "39182": [
+   "physx"
+  ],
+  "39183": [
+   "physx"
+  ],
+  "39184": [
+   "physx"
+  ],
+  "39185": [
+   "physx"
+  ],
+  "39270": [
+   "physx"
+  ],
+  "39500": [
+   "physx"
+  ],
+  "39690": [
+   "physx"
+  ],
+  "39800": [
+   "physx"
+  ],
+  "40370": [
+   "physx"
+  ],
+  "40390": [
+   "physx"
+  ],
+  "406150": [
+   "physx"
+  ],
+  "40940": [
+   "physx"
+  ],
+  "412330": [
+   "physx"
+  ],
+  "412331": [
+   "physx"
+  ],
+  "412332": [
+   "physx"
+  ],
+  "412333": [
+   "physx"
+  ],
+  "414640": [
+   "physx"
+  ],
+  "419070": [
+   "physx"
+  ],
+  "42120": [
+   "physx"
+  ],
+  "42140": [
+   "physx"
+  ],
+  "42147": [
+   "physx"
+  ],
+  "425570": [
+   "physx"
+  ],
+  "425840": [
+   "physx"
+  ],
+  "42640": [
+   "physx"
+  ],
+  "42650": [
+   "physx"
+  ],
+  "42670": [
+   "physx"
+  ],
+  "427510": [
+   "physx"
+  ],
+  "428310": [
+   "physx"
+  ],
+  "428311": [
+   "physx"
+  ],
+  "428312": [
+   "physx"
+  ],
+  "43110": [
+   "physx"
+  ],
+  "43120": [
+   "physx"
+  ],
+  "43129": [
+   "physx"
+  ],
+  "43130": [
+   "physx"
+  ],
+  "43140": [
+   "physx"
+  ],
+  "43160": [
+   "physx"
+  ],
+  "4320": [
+   "physx"
+  ],
+  "432670": [
+   "physx"
+  ],
+  "436060": [
+   "physx"
+  ],
+  "436520": [
+   "physx"
+  ],
+  "437070": [
+   "physx"
+  ],
+  "4420": [
+   "physx"
+  ],
+  "4470": [
+   "physx"
+  ],
+  "45410": [
+   "physx"
+  ],
+  "456220": [
+   "physx"
+  ],
+  "456221": [
+   "physx"
+  ],
+  "45710": [
+   "physx"
+  ],
+  "46230": [
+   "physx"
+  ],
+  "463720": [
+   "physx"
+  ],
+  "47730": [
+   "physx"
+  ],
+  "47760": [
+   "physx"
+  ],
+  "47810": [
+   "physx"
+  ],
+  "47900": [
+   "physx"
+  ],
+  "47920": [
+   "physx"
+  ],
+  "489750": [
+   "physx"
+  ],
+  "49330": [
+   "physx"
+  ],
+  "49337": [
+   "physx"
+  ],
+  "49540": [
+   "physx"
+  ],
+  "50110": [
+   "physx"
+  ],
+  "50130": [
+   "physx"
+  ],
+  "50145": [
+   "physx"
+  ],
+  "50146": [
+   "physx"
+  ],
+  "50147": [
+   "physx"
+  ],
+  "50300": [
+   "physx"
+  ],
+  "50400": [
+   "physx"
+  ],
+  "50411": [
+   "physx"
+  ],
+  "50412": [
+   "physx"
+  ],
+  "50413": [
+   "physx"
+  ],
+  "50414": [
+   "physx"
+  ],
+  "50415": [
+   "physx"
+  ],
+  "50416": [
+   "physx"
+  ],
+  "50460": [
+   "physx"
+  ],
+  "520900": [
+   "physx"
+  ],
+  "530690": [
+   "physx"
+  ],
+  "530890": [
+   "physx"
+  ],
+  "57400": [
+   "physx"
+  ],
+  "57740": [
+   "physx"
+  ],
+  "63200": [
+   "physx"
+  ],
+  "6330": [
+   "physx"
+  ],
+  "6350": [
+   "physx"
+  ],
+  "6400": [
+   "physx"
+  ],
+  "65100": [
+   "physx"
+  ],
+  "65110": [
+   "physx"
+  ],
+  "65270": [
+   "physx"
+  ],
+  "655940": [
+   "physx"
+  ],
+  "65600": [
+   "physx"
+  ],
+  "65610": [
+   "physx"
+  ],
+  "65800": [
+   "physx"
+  ],
+  "65920": [
+   "physx"
+  ],
+  "65930": [
+   "physx"
+  ],
+  "66000": [
+   "physx"
+  ],
+  "66001": [
+   "physx"
+  ],
+  "66002": [
+   "physx"
+  ],
+  "67330": [
+   "physx"
+  ],
+  "67340": [
+   "physx"
+  ],
+  "67350": [
+   "physx"
+  ],
+  "67360": [
+   "physx"
+  ],
+  "67370": [
+   "physx"
+  ],
+  "690120": [
+   "physx"
+  ],
+  "7060": [
+   "physx"
+  ],
+  "73060": [
+   "physx"
+  ],
+  "747240": [
+   "physx"
+  ],
+  "7520": [
+   "physx"
+  ],
+  "755790": [
+   "physx"
+  ],
+  "7850": [
+   "physx"
+  ],
+  "823800": [
+   "physx"
+  ],
+  "854660": [
+   "physx"
+  ],
+  "8870": [
+   "physx"
+  ],
+  "8980": [
+   "physx"
+  ],
+  "8990": [
+   "physx"
+  ],
+  "901242": [
+   "physx"
+  ],
+  "901566": [
+   "physx"
+  ],
+  "90200": [
+   "physx"
+  ],
+  "90207": [
+   "physx"
+  ],
+  "90208": [
+   "physx"
+  ],
+  "90209": [
+   "physx"
+  ],
+  "90210": [
+   "physx"
+  ],
+  "91600": [
+   "physx"
+  ],
+  "92700": [
+   "physx"
+  ],
+  "92900": [
+   "physx"
+  ],
+  "938460": [
+   "physx"
+  ],
+  "9460": [
+   "physx"
+  ],
+  "952320": [
+   "physx"
+  ],
+  "97100": [
+   "physx"
+  ],
+  "99400": [
+   "physx"
+  ],
+  "99810": [
+   "physx"
+  ],
+  "99890": [
+   "physx"
+  ],
+  "gog.1087704043": [
+   "physx"
+  ],
+  "gog.1118483690": [
+   "physx"
+  ],
+  "gog.1129934535": [
+   "physx"
+  ],
+  "gog.1142020247": [
+   "physx"
+  ],
+  "gog.1166983063": [
+   "physx"
+  ],
+  "gog.1171070121": [
+   "physx"
+  ],
+  "gog.1177610018": [
+   "physx"
+  ],
+  "gog.1207658861": [
+   "physx"
+  ],
+  "gog.1207658928": [
+   "physx"
+  ],
+  "gog.1207658986": [
+   "physx"
+  ],
+  "gog.1207658993": [
+   "physx"
+  ],
+  "gog.1207659011": [
+   "physx"
+  ],
+  "gog.1207659020": [
+   "physx"
+  ],
+  "gog.1207659086": [
+   "physx"
+  ],
+  "gog.1207659214": [
+   "physx"
+  ],
+  "gog.1207659236": [
+   "physx"
+  ],
+  "gog.1207659239": [
+   "physx"
+  ],
+  "gog.1207659241": [
+   "physx"
+  ],
+  "gog.1207659256": [
+   "physx"
+  ],
+  "gog.1207659453": [
+   "physx"
+  ],
+  "gog.1207660043": [
+   "physx"
+  ],
+  "gog.1207660353": [
+   "physx"
+  ],
+  "gog.1207660553": [
+   "physx"
+  ],
+  "gog.1207660863": [
+   "physx"
+  ],
+  "gog.1207663173": [
+   "physx"
+  ],
+  "gog.1207663193": [
+   "physx"
+  ],
+  "gog.1207664183": [
+   "physx"
+  ],
+  "gog.1207664673": [
+   "physx"
+  ],
+  "gog.1207665233": [
+   "physx"
+  ],
+  "gog.1207665513": [
+   "physx"
+  ],
+  "gog.1207666183": [
+   "physx"
+  ],
+  "gog.1215553067": [
+   "physx"
+  ],
+  "gog.1244052225": [
+   "physx"
+  ],
+  "gog.1259935712": [
+   "physx"
+  ],
+  "gog.1260066469": [
+   "physx"
+  ],
+  "gog.1282519889": [
+   "physx"
+  ],
+  "gog.1284627191": [
+   "physx"
+  ],
+  "gog.1318522074": [
+   "physx"
+  ],
+  "gog.1345182195": [
+   "physx"
+  ],
+  "gog.1360785671": [
+   "physx"
+  ],
+  "gog.1408399958": [
+   "physx"
+  ],
+  "gog.1423479583": [
+   "physx"
+  ],
+  "gog.1430183808": [
+   "physx"
+  ],
+  "gog.1431357301": [
+   "physx"
+  ],
+  "gog.1436531655": [
+   "physx"
+  ],
+  "gog.1436885539": [
+   "physx"
+  ],
+  "gog.1444731636": [
+   "physx"
+  ],
+  "gog.1444731945": [
+   "physx"
+  ],
+  "gog.1446645601": [
+   "physx"
+  ],
+  "gog.1458826738": [
+   "physx"
+  ],
+  "gog.1460731213": [
+   "physx"
+  ],
+  "gog.1460731430": [
+   "physx"
+  ],
+  "gog.1460731635": [
+   "physx"
+  ],
+  "gog.1460731832": [
+   "physx"
+  ],
+  "gog.1482504285": [
+   "physx"
+  ],
+  "gog.1558688142": [
+   "physx"
+  ],
+  "gog.1580446481": [
+   "physx"
+  ],
+  "gog.1599295807": [
+   "physx"
+  ],
+  "gog.1625711693": [
+   "physx"
+  ],
+  "gog.1710761915": [
+   "physx"
+  ],
+  "gog.1714446439": [
+   "physx"
+  ],
+  "gog.1716122688": [
+   "physx"
+  ],
+  "gog.1752654506": [
+   "physx"
+  ],
+  "gog.1757179626": [
+   "physx"
+  ],
+  "gog.1787707874": [
+   "physx"
+  ],
+  "gog.1796017250": [
+   "physx"
+  ],
+  "gog.1816059595": [
+   "physx"
+  ],
+  "gog.1855184473": [
+   "physx"
+  ],
+  "gog.1862122311": [
+   "physx"
+  ],
+  "gog.1893001152": [
+   "physx"
+  ],
+  "gog.1908486934": [
+   "physx"
+  ],
+  "gog.1931614212": [
+   "physx"
+  ],
+  "gog.1949616134": [
+   "physx"
+  ],
+  "gog.1961257471": [
+   "physx"
+  ],
+  "gog.2064851015": [
+   "physx"
+  ],
+  "gog.2081563348": [
+   "physx"
+  ],
+  "gog.2117086633": [
+   "physx"
+  ]
+ },
+ "generated": "2026-11-28T17:56:04Z"
 }
