@@ -2,3 +2,6 @@
 build/
 .swiftpm/
 .DS_Store
+
+# Python caches from the tests
+__pycache__/
