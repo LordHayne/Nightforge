@@ -3,11 +3,12 @@
  "sources": {
   "umu-protonfixes": {
    "url": "https://github.com/Open-Wine-Components/umu-protonfixes",
-   "commit": "28a02c25e4b895131c9ebdeda411ec3646b38151",
+   "commit": "d4912aee4bc2f98dab47d8cdf843a6ca9e85978c",
    "license": "BSD-2-Clause"
   },
   "geforce-now": {
-   "url": "https://play.geforcenow.com"
+   "url": "https://play.geforcenow.com",
+   "from": "2026-11-15"
   },
   "areweanticheatyet": {
    "url": "https://areweanticheatyet.com",
@@ -54,13 +55,6 @@
    "name": "Outrun 2006: Coast 2 Coast",
    "winetricks": [
     "d3dx9"
-   ],
-   "source": "umu"
-  },
-  "6270": {
-   "name": "Ducati World Championship",
-   "winetricks": [
-    "icodecs"
    ],
    "source": "umu"
   },
@@ -325,10 +319,11 @@
    "source": "umu"
   },
   "40970": {
-   "name": "Stronghold Crusader HD\nFixes Multiplayer",
+   "name": "Stronghold Crusader HD\nFixes Multiplayer, the too fast cursor and the tiny cursor on large displays",
    "winetricks": [
     "directplay"
    ],
+   "partial": true,
    "source": "umu"
   },
   "42890": {
@@ -399,10 +394,10 @@
      "fullscreen": 4
     }
    },
-   "source": "mac+mac",
    "winetricks": [
     "physx"
-   ]
+   ],
+   "source": "mac"
   },
   "50620": {
    "name": "Darksiders",
@@ -411,13 +406,6 @@
     "d3dcompiler_43",
     "d3dcompiler_46",
     "d3dcompiler_47"
-   ],
-   "source": "umu"
-  },
-  "61500": {
-   "name": "Age of Wonders",
-   "winetricks": [
-    "icodecs"
    ],
    "source": "umu"
   },
@@ -747,6 +735,13 @@
     "BattlEye"
    ],
    "geforceNow": "d5105ca2-87c2-4ad1-ba46-72b41ce64171"
+  },
+  "223710": {
+   "name": "Cry of Fear",
+   "dllOverrides": {
+    "opengl32": "native,builtin"
+   },
+   "source": "umu"
   },
   "223750": {
    "name": "Fixes for DCS World Steam Edition",
@@ -1423,7 +1418,6 @@
   "356500": {
    "name": "STAR WARS Galactic Battlegrounds Saga",
    "winetricks": [
-    "icodecs",
     "directplay"
    ],
    "source": "umu"
@@ -3681,7 +3675,7 @@
    "arguments": [
     "-dx12"
    ],
-   "note": "Tested 2026-11-09 on M5 with D3DMetal on winecx 4.7.3: it starts on D3DMetal with -dx12. With -dx11 on DXMT and DXVK it stays at a small window without a picture.",
+   "note": "Tested 2026-11-10 on M5, macOS 27.0, winecx 4.7.3, the Steam version from Nightforge: a picture on D3DMetal with -dx12 after 84 s at the first start (shaders), 37 s after that; the way confirmed after 180 s. Before 0df3c58 every start crashed in its first second, on every way (PhysXUpdateLoader64 from the PhysX System Software calling D3DMetal's nvapi64); DXMT and DXVK not tried since.",
    "source": "mac"
   },
   "1433140": {
@@ -4827,8 +4821,7 @@
     "nvngx": ""
    },
    "note": "Tested 2026-11-07 on M5, macOS 27.0, winecx 4.7.3, the Steam version from Nightforge: reaches a match on DXMT at about 57 FPS, Direct in the Metal HUD, MetalFX spatial 1512x982 to 3024x1964. Needs CX_APPLEGPTK_LIBD3DSHARED_PATH (set for all winecx programs) and nvapi64 and nvngx off, as Recall does.",
-   "source": "mac",
-   "geforceNow": "405b1ba5-c881-4f2b-8f7d-cc9e7cd59b74"
+   "source": "mac"
   },
   "2359600": {
    "name": "Perfect New World",
@@ -4857,6 +4850,13 @@
    "antiCheat": [
     "BattlEye"
    ]
+  },
+  "2399420": {
+   "name": "Le Mans Ultimate",
+   "dllOverrides": {
+    "d3dx11_43": "builtin"
+   },
+   "source": "umu"
   },
   "2399830": {
    "name": "ARK: Survival Ascended",
@@ -5944,10 +5944,10 @@
      "fullscreen": 4
     }
    },
-   "source": "mac+mac",
    "winetricks": [
     "physx"
-   ]
+   ],
+   "source": "mac"
   },
   "gog.2049187585": {
    "name": "Control",
@@ -5967,8 +5967,8 @@
   },
   "400": {
    "graphics": "dxvk",
-   "status": "verified-local",
-   "date": "2026-10-07"
+   "status": "same-stack",
+   "reports": 1
   },
   "440": {
    "graphics": "dxmt",
@@ -5982,13 +5982,13 @@
   },
   "620": {
    "graphics": "dxvk",
-   "status": "verified-local",
-   "date": "2026-10-07"
+   "status": "same-stack",
+   "reports": 1
   },
   "730": {
    "graphics": "dxmt",
    "status": "same-stack",
-   "reports": 2
+   "reports": 3
   },
   "2320": {
    "graphics": "dxmt",
@@ -5999,8 +5999,9 @@
    "status": "community"
   },
   "4000": {
-   "graphics": "dxmt",
-   "status": "community"
+   "graphics": "dxvk",
+   "status": "same-stack",
+   "reports": 1
   },
   "10090": {
    "graphics": "dxmt",
@@ -6008,11 +6009,17 @@
   },
   "12210": {
    "graphics": "dxvk",
-   "status": "community"
+   "status": "same-stack",
+   "reports": 2
   },
   "15370": {
    "graphics": "dxmt",
    "status": "community"
+  },
+  "17470": {
+   "graphics": "dxvk",
+   "status": "same-stack",
+   "reports": 1
   },
   "24010": {
    "graphics": "dxmt",
@@ -6026,6 +6033,16 @@
   "32470": {
    "graphics": "dxmt",
    "status": "community"
+  },
+  "40970": {
+   "graphics": "d3dmetal",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "49520": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
   },
   "203160": {
    "graphics": "d3dmetal",
@@ -6052,6 +6069,11 @@
    "graphics": "dxmt",
    "status": "reported-upstream"
   },
+  "219990": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
   "225080": {
    "graphics": "dxmt",
    "status": "community"
@@ -6062,8 +6084,8 @@
   },
   "230410": {
    "graphics": "dxmt",
-   "status": "verified-local",
-   "date": "2026-09-10"
+   "status": "same-stack",
+   "reports": 1
   },
   "231430": {
    "graphics": "dxmt",
@@ -6082,10 +6104,20 @@
    "graphics": "dxmt",
    "status": "community"
   },
+  "238960": {
+   "graphics": "d3dmetal",
+   "status": "same-stack",
+   "reports": 1
+  },
   "244210": {
    "graphics": "d3dmetal",
    "status": "verified-local",
    "date": "2026-10-05"
+  },
+  "244630": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
   },
   "246070": {
    "graphics": "dxmt",
@@ -6127,7 +6159,7 @@
   "271590": {
    "graphics": "dxmt",
    "status": "same-stack",
-   "reports": 4
+   "reports": 7
   },
   "281990": {
    "graphics": "dxmt",
@@ -6139,7 +6171,8 @@
   },
   "284160": {
    "graphics": "d3dmetal",
-   "status": "community"
+   "status": "same-stack",
+   "reports": 1
   },
   "287390": {
    "graphics": "dxmt",
@@ -6163,7 +6196,8 @@
   },
   "304430": {
    "graphics": "dxmt",
-   "status": "community"
+   "status": "same-stack",
+   "reports": 3
   },
   "306910": {
    "graphics": "d3dmetal",
@@ -6221,7 +6255,8 @@
   },
   "356190": {
    "graphics": "dxmt",
-   "status": "reported-upstream"
+   "status": "same-stack",
+   "reports": 2
   },
   "359320": {
    "graphics": "d3dmetal",
@@ -6244,7 +6279,7 @@
    "status": "community"
   },
   "377530": {
-   "graphics": "dxmt",
+   "graphics": "dxvk",
    "status": "community"
   },
   "378540": {
@@ -6271,7 +6306,8 @@
   },
   "389730": {
    "graphics": "d3dmetal",
-   "status": "community"
+   "status": "same-stack",
+   "reports": 1
   },
   "392260": {
    "graphics": "dxvk",
@@ -6302,6 +6338,11 @@
   "427520": {
    "graphics": "dxmt",
    "status": "community"
+  },
+  "441870": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
   },
   "447040": {
    "graphics": "dxmt",
@@ -6342,7 +6383,7 @@
   "516750": {
    "graphics": "d3dmetal",
    "status": "same-stack",
-   "reports": 1
+   "reports": 2
   },
   "517630": {
    "graphics": "dxmt",
@@ -6367,11 +6408,16 @@
   "548430": {
    "graphics": "dxmt",
    "status": "same-stack",
-   "reports": 1
+   "reports": 2
   },
   "550320": {
    "graphics": "dxmt",
    "status": "community"
+  },
+  "552520": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
   },
   "553540": {
    "graphics": "dxmt",
@@ -6394,14 +6440,11 @@
    "status": "community"
   },
   "585420": {
-   "graphics": "dxmt",
-   "status": "community"
+   "graphics": "d3dmetal",
+   "status": "same-stack",
+   "reports": 1
   },
   "589360": {
-   "graphics": "dxmt",
-   "status": "reported-upstream"
-  },
-  "589370": {
    "graphics": "dxmt",
    "status": "reported-upstream"
   },
@@ -6520,6 +6563,10 @@
    "graphics": "dxmt",
    "status": "community"
   },
+  "798460": {
+   "graphics": "dxmt",
+   "status": "reported-upstream"
+  },
   "805550": {
    "graphics": "dxmt",
    "status": "community"
@@ -6553,6 +6600,11 @@
    "graphics": "dxmt",
    "status": "community"
   },
+  "899770": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
   "920210": {
    "graphics": "dxvk",
    "status": "community"
@@ -6564,11 +6616,6 @@
   "945360": {
    "graphics": "dxmt",
    "status": "community"
-  },
-  "949230": {
-   "graphics": "d3dmetal",
-   "status": "same-stack",
-   "reports": 1
   },
   "952060": {
    "graphics": "d3dmetal",
@@ -6624,6 +6671,11 @@
    "graphics": "dxmt",
    "status": "community"
   },
+  "1031500": {
+   "graphics": "dxvk",
+   "status": "same-stack",
+   "reports": 1
+  },
   "1044720": {
    "graphics": "d3dmetal",
    "status": "community"
@@ -6669,6 +6721,11 @@
    "graphics": "dxmt",
    "status": "reported-upstream"
   },
+  "1144200": {
+   "graphics": "d3dmetal",
+   "status": "same-stack",
+   "reports": 1
+  },
   "1145350": {
    "graphics": "dxmt",
    "status": "community"
@@ -6698,14 +6755,29 @@
    "graphics": "d3dmetal",
    "status": "community"
   },
+  "1164940": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
   "1167630": {
    "graphics": "dxmt",
    "status": "community"
+  },
+  "1172380": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
   },
   "1174180": {
    "graphics": "dxmt",
    "status": "verified-local",
    "date": "2026-10-05"
+  },
+  "1176470": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
   },
   "1180660": {
    "graphics": "dxmt",
@@ -6741,6 +6813,11 @@
    "status": "community"
   },
   "1222670": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "1224230": {
    "graphics": "dxmt",
    "status": "same-stack",
    "reports": 1
@@ -6821,6 +6898,11 @@
    "graphics": "d3dmetal",
    "status": "community"
   },
+  "1328660": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
   "1332010": {
    "graphics": "dxmt",
    "status": "community"
@@ -6843,7 +6925,8 @@
   },
   "1422450": {
    "graphics": "dxmt",
-   "status": "reported-upstream"
+   "status": "same-stack",
+   "reports": 1
   },
   "1422630": {
    "graphics": "d3dmetal",
@@ -6851,7 +6934,8 @@
   },
   "1426210": {
    "graphics": "dxmt",
-   "status": "community"
+   "status": "same-stack",
+   "reports": 1
   },
   "1446780": {
    "graphics": "d3dmetal",
@@ -6865,6 +6949,11 @@
    "graphics": "d3dmetal",
    "status": "community"
   },
+  "1466860": {
+   "graphics": "d3dmetal",
+   "status": "same-stack",
+   "reports": 1
+  },
   "1477590": {
    "graphics": "dxvk",
    "status": "community"
@@ -6876,6 +6965,11 @@
   "1486920": {
    "graphics": "dxmt",
    "status": "community"
+  },
+  "1506830": {
+   "graphics": "d3dmetal",
+   "status": "same-stack",
+   "reports": 1
   },
   "1517180": {
    "graphics": "d3dmetal",
@@ -6922,9 +7016,19 @@
    "graphics": "dxmt",
    "status": "community"
   },
+  "1602000": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
   "1602080": {
    "graphics": "dxmt",
    "status": "community"
+  },
+  "1621310": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
   },
   "1623730": {
    "graphics": "d3dmetal",
@@ -6974,6 +7078,11 @@
    "graphics": "dxmt",
    "status": "community"
   },
+  "1740720": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
   "1766060": {
    "graphics": "d3dmetal",
    "status": "community",
@@ -7000,6 +7109,11 @@
   "1794680": {
    "graphics": "dxmt",
    "status": "community"
+  },
+  "1799840": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
   },
   "1805320": {
    "graphics": "dxmt",
@@ -7055,6 +7169,11 @@
    "graphics": "d3dmetal",
    "status": "community"
   },
+  "1911360": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
   "1912410": {
    "graphics": "dxmt",
    "status": "same-stack",
@@ -7067,7 +7186,7 @@
   "1934680": {
    "graphics": "d3dmetal",
    "status": "same-stack",
-   "reports": 2
+   "reports": 4
   },
   "1943950": {
    "graphics": "d3dmetal",
@@ -7121,6 +7240,16 @@
    "status": "same-stack",
    "reports": 1
   },
+  "2131630": {
+   "graphics": "dxvk",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "2139460": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
   "2141730": {
    "graphics": "d3dmetal",
    "status": "community"
@@ -7133,9 +7262,18 @@
    "graphics": "dxmt",
    "status": "community"
   },
+  "2187220": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
   "2195910": {
    "graphics": "dxmt",
    "status": "community"
+  },
+  "2215430": {
+   "graphics": "d3dmetal",
+   "status": "same-stack",
+   "reports": 1
   },
   "2225070": {
    "graphics": "dxmt",
@@ -7171,13 +7309,19 @@
    "graphics": "dxmt",
    "status": "community"
   },
+  "2383950": {
+   "graphics": "d3dmetal",
+   "status": "same-stack",
+   "reports": 1
+  },
   "2402680": {
    "graphics": "dxmt",
    "status": "community"
   },
-  "2406770": {
+  "2411200": {
    "graphics": "d3dmetal",
-   "status": "community"
+   "status": "same-stack",
+   "reports": 2
   },
   "2416450": {
    "graphics": "dxmt",
@@ -7202,11 +7346,12 @@
   "2483190": {
    "graphics": "d3dmetal",
    "status": "same-stack",
-   "reports": 3
+   "reports": 4
   },
   "2499860": {
    "graphics": "dxmt",
-   "status": "community"
+   "status": "same-stack",
+   "reports": 2
   },
   "2521630": {
    "graphics": "dxmt",
@@ -7288,6 +7433,16 @@
    "graphics": "dxmt",
    "status": "community"
   },
+  "2738490": {
+   "graphics": "d3dmetal",
+   "status": "same-stack",
+   "reports": 1
+  },
+  "2767030": {
+   "graphics": "d3dmetal",
+   "status": "same-stack",
+   "reports": 1
+  },
   "2772750": {
    "graphics": "dxvk",
    "status": "community"
@@ -7296,11 +7451,20 @@
    "graphics": "d3dmetal",
    "status": "community"
   },
+  "2830030": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
   "2837600": {
    "graphics": "dxmt",
    "status": "community"
   },
   "2840000": {
+   "graphics": "d3dmetal",
+   "status": "community"
+  },
+  "2842890": {
    "graphics": "d3dmetal",
    "status": "community"
   },
@@ -7356,8 +7520,9 @@
    "status": "community"
   },
   "3241660": {
-   "graphics": "dxmt",
-   "status": "community"
+   "graphics": "dxvk",
+   "status": "same-stack",
+   "reports": 1
   },
   "3259780": {
    "graphics": "d3dmetal",
@@ -7366,6 +7531,11 @@
   "3279440": {
    "graphics": "dxmt",
    "status": "community"
+  },
+  "3293260": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
   },
   "3314060": {
    "graphics": "dxvk",
@@ -7492,6 +7662,11 @@
    "graphics": "dxmt",
    "status": "community"
   },
+  "4349140": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
   "4358690": {
    "graphics": "d3dmetal",
    "status": "community"
@@ -7527,6 +7702,11 @@
    "status": "same-stack",
    "reports": 1
   },
+  "4678800": {
+   "graphics": "d3dmetal",
+   "status": "same-stack",
+   "reports": 1
+  },
   "4704690": {
    "graphics": "d3dmetal",
    "status": "community"
@@ -7553,6 +7733,11 @@
    "status": "same-stack",
    "reports": 1
   },
+  "5094300": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
+  },
   "5149020": {
    "graphics": "dxmt",
    "status": "community"
@@ -7569,7 +7754,12 @@
    "graphics": "dxmt",
    "status": "same-stack",
    "reports": 1
+  },
+  "5378110": {
+   "graphics": "dxmt",
+   "status": "same-stack",
+   "reports": 1
   }
  },
- "generated": "2026-11-23T20:49:16Z"
+ "generated": "2026-11-28T17:52:07Z"
 }
