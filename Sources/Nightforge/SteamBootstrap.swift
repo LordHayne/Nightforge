@@ -104,7 +104,7 @@ enum SteamBootstrap: Equatable {
 
     /// The last 128 KB of a log: a bootstrap block with a whole download is ~30 KB (a line per
     /// package and per progress step). Empty when there's no log.
-    fileprivate static func tail(of log: URL) -> String {
+    static func tail(of log: URL) -> String {
         guard let handle = try? FileHandle(forReadingFrom: log) else { return "" }
         defer { try? handle.close() }
         let end = (try? handle.seekToEnd()) ?? 0

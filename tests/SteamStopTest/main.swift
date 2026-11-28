@@ -284,8 +284,48 @@ struct SteamStopTest {
               "every judgement of a Steam start goes through steamStartFailed (the watch and the restart)")
     }
 
+    /// A Steam on its way out isn't taken for a running one (23.11.2026, 19:57: the quit script of the Nightforge just
+    /// quit had asked it to end, the new one left it, and only the 45 s watch for a hung start brought it back).
+    static func endingSteamRule() async {
+        let start = "[2026-11-23 19:48:38] Client version: 1794536281"
+        let ask = #"[2026-11-23 19:57:45] ExecCommandLine: ""C:\Program Files (x86)\Steam\steam.exe" -noverifyfiles -shutdown""#
+        let own = #"[2026-11-23 19:48:44] ExecCommandLine: ""C:\Program Files (x86)\Steam\steam.exe" -no-cef-sandbox -silent""#
+        let bootUp = "[2026-11-23 19:48:38] Startup - updater built Nov 12 2026 18:00:27\r\n[2026-11-23 19:48:38] Verification skipped"
+        let bootDown = bootUp + "\r\n[2026-11-23 19:57:47] Shutdown"
+        check(Engine.steamEnding(console: [start, own, ask].joined(separator: "\n"), bootstrap: bootUp),
+              "asked to -shutdown since its start: ending")
+        check(!Engine.steamEnding(console: [start, own].joined(separator: "\n"), bootstrap: bootUp), "only its own start line: running")
+        check(!Engine.steamEnding(console: [ask, start, own].joined(separator: "\n"), bootstrap: bootUp),
+              "a -shutdown before its start was the last Steam's")
+        check(Engine.steamEnding(console: [start, own].joined(separator: "\n"), bootstrap: bootDown), "the bootstrapper's Shutdown last: ending")
+        check(!Engine.steamEnding(console: "", bootstrap: bootDown + "\r\n[2026-11-23 19:58:37] Startup - updater built Nov 12 2026"),
+              "a Startup after the Shutdown: the next one runs")
+        check(!Engine.steamEnding(console: "", bootstrap: ""), "no logs: nothing ending")
+
+        var notes: [String] = []
+        var looks = 0
+        let gone = await Engine.waitForEndingSteam(running: { looks += 1; return looks <= 3 }, pause: .milliseconds(1), limit: 80,
+                                                   log: { notes.append($0) })
+        check(gone && looks == 4, "waited until it was gone (\(looks) looks)")
+        check(notes.count == 1 && notes[0].contains("on its way out") && notes[0].contains("gone after 0.003 s"), "and says so: \(notes)")
+        notes = []
+        let stays = await Engine.waitForEndingSteam(running: { true }, pause: .milliseconds(1), limit: 5, log: { notes.append($0) })
+        check(!stays && notes.count == 1 && notes[0].contains("still runs after 0.005 s"), "a Steam that stays is left after the limit: \(notes)")
+        check(Engine.steamEndingWait * 4 == 80, "20 s at most, as stopSteam gives one it asked itself")
+
+        // In ensureSteamRunning: before deciding on "runs" – never with a game in its session, nor during an update.
+        let engine = (try? String(contentsOfFile: "Sources/Nightforge/Engine.swift", encoding: .utf8)) ?? ""
+        let body = engine.components(separatedBy: "static func ensureSteamRunning(").dropFirst().first ?? ""
+        let wait = body.range(of: "await waitForEndingSteam()")
+        let decide = body.range(of: "if isSteamRunning {")
+        check(wait != nil && decide != nil && wait!.lowerBound < decide!.lowerBound, "the wait comes before the decision")
+        check(body.contains("steamEnding,") && body.contains("!gameKeepsSession(ownProcesses()") && body.contains("!= .installing {"),
+              "only with no game in the session and no update going in")
+    }
+
     static func main() async {
         await leftovers()
+        await endingSteamRule()
         sessionEndReasons()
         hardStopRule()
         await waitToEndRule()

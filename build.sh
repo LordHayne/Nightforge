@@ -168,7 +168,20 @@ if [ "${1:-}" = "--install" ]; then
   if pgrep -qf "Applications/$APP.app/Contents/MacOS/$APP"; then
     osascript -e "tell application id \"io.github.lordhayne.nightforge\" to quit" >/dev/null 2>&1 || true
   fi
+  # The quit hands Steam's end to Nightforge's quit script (Engine.steamShutdownScript), which keeps running.
+  # Replaced and opened again meanwhile, the new copy met a Steam on its way out, or the script saw it come back and
+  # left the old Steam running (23.11.2026, 19:57). So: the app gone (15 s), then the script done (90 s: 30 s for a
+  # game's cloud saves, 20 s for Steam's -shutdown, the session's end); past that, on as before.
+  for _ in $(seq 1 30); do pgrep -qf "$HOME/Applications/$APP.app/Contents/MacOS/$APP" || break; sleep 0.5; done
   pkill -f "$HOME/Applications/$APP.app/Contents/MacOS/$APP" 2>/dev/null || true
+  QUIT_PID_FILE="$HOME/Library/Application Support/Nightforge/steam-shutdown.pid"
+  for i in $(seq 1 180); do
+    quit_pid="$(cat "$QUIT_PID_FILE" 2>/dev/null || true)"
+    quit_command="$( [ -n "$quit_pid" ] && ps -p "$quit_pid" -o command= 2>/dev/null || true)"
+    case "$quit_command" in *steam-shutdown.sh*) ;; *) break ;; esac
+    [ "$i" = 1 ] && echo "  Waiting for the quit script to end Steam (90 s at most) …"
+    sleep 0.5
+  done
   rm -rf "$HOME/Applications/$APP.app"
   # Nightforge's earlier name: quit and replace it (its data moves over on first start).
   if pgrep -qf "Nachtschicht.app/Contents/MacOS/Nachtschicht"; then

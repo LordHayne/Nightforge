@@ -3034,11 +3034,58 @@ enum Engine {
         commands.contains { command in GameProcesses.gameFolders.contains { command.contains($0.lowercased()) } }
     }
 
+    /// Steam is on its way out: since its newest start it was asked to "-shutdown" (console_log, from the "Client
+    /// version" its start opens with), or the newest of its bootstrapper's "Startup" and "Shutdown" is the second. On
+    /// 23.11.2026 at 19:57:45 the quit script of the Nightforge just quit asked Steam to end, the new one looked at
+    /// 19:57:48, saw it still running with the settings it wanted and left it – it ended at 19:57:50, and only the
+    /// watch for a hung start (45 s quiet) started it again, at 19:58:34. `console` and `bootstrap` are the logs' ends.
+    static func steamEnding(console: String, bootstrap: String) -> Bool {
+        let started = console.range(of: "Client version:", options: .backwards)?.upperBound ?? console.startIndex
+        let asked = console[started...].split(whereSeparator: \.isNewline)
+            .contains { $0.contains("ExecCommandLine:") && $0.contains(" -shutdown") }
+        let lines = bootstrap.split(whereSeparator: \.isNewline)
+        let last = lines.last { $0.contains("Startup - updater built") || $0.hasSuffix("] Shutdown") }
+        return asked || last?.hasSuffix("] Shutdown") == true
+    }
+
+    static var steamEnding: Bool {
+        steamEnding(console: SteamBootstrap.tail(of: steamRoot.appendingPathComponent("logs/console_log.txt")),
+                    bootstrap: SteamBootstrap.log(steamRoot: steamRoot))
+    }
+
+    /// How long a Steam that is ending (`steamEnding`) is waited for before Nightforge goes on as before, in seconds:
+    /// `stopSteam` gives one it asked itself as long.
+    static let steamEndingWait = 20
+
+    /// Waits until the ending Steam is gone, looking four times a second, at most `limit` looks; then a line in the
+    /// log either way. True when it ended. `running` and `log` stand in for the process list and wine.log in tests.
+    @discardableResult
+    static func waitForEndingSteam(running: () -> Bool = { isSteamRunning }, pause: Duration = .milliseconds(250),
+                                   limit: Int = steamEndingWait * 4, log: (String) -> Void = GameLog.note) async -> Bool {
+        var looks = 0
+        while running() {
+            guard looks < limit else {
+                log("Steam was asked to end but still runs after \(seconds(looks, of: pause)) s: left as it is")
+                return false
+            }
+            try? await Task.sleep(for: pause)
+            looks += 1
+        }
+        log("Steam was on its way out (asked to end before Nightforge looked): gone after \(seconds(looks, of: pause)) s, at \(GameLog.clock()), it starts again")
+        return true
+    }
+
     static func ensureSteamRunning(_ wine: URL, busy: Bool = false) async throws {
         let key = "steamConfigSignature"
         let current = UserDefaults.standard.string(forKey: key) == steamConfigSignature
         // No process list to be had: neither a second Steam is started nor this one ended.
         guard steamRunningKnown != nil else { return }
+        // A Steam on its way out is no running one: its end is waited for, and a new one starts below.
+        // Never while an update goes in: its restart ends one Steam and starts the next by itself (SteamBootstrap).
+        if isSteamRunning, !gameKeepsSession(ownProcesses().map { $0.command.lowercased() }), steamEnding,
+           SteamBootstrap(steamRoot: steamRoot) != .installing {
+            await waitForEndingSteam()
+        }
         // A Steam whose wineserver is gone: clear it away before starting afresh. A running game's
         // path (…\steamapps\common\…) also says "steam"; while one runs, its session stays.
         let ours = ownProcesses().map { $0.command.lowercased() }
