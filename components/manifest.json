@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generated": "2026-11-05T21:26:18Z",
+  "generated": "2026-11-28T12:56:23Z",
   "components": [
     {
       "id": "wine",
@@ -35,10 +35,10 @@
     {
       "id": "gamepad",
       "kind": "graphics",
-      "version": "4.7.3-15",
-      "url": "https://github.com/LordHayne/Nightforge/releases/download/gamepad-winecx4.7.3-15/nightforge-gamepad-winecx-4.7.3-15.tar.gz",
-      "sha256": "621b6a66219cf22dbbe2ccbeb8ad33c9a68e03f9c3a45cd2a7b2cc8274f98660",
-      "size": 632469,
+      "version": "4.7.3-25",
+      "url": "https://github.com/LordHayne/Nightforge/releases/download/gamepad-winecx4.7.3-25/nightforge-gamepad-winecx-4.7.3-25.tar.gz",
+      "sha256": "b60a247bb619b23722888763dbd32dbd367e482ce955b7c88239b983a58906b5",
+      "size": 633030,
       "license": "LGPL-2.1-or-later AND Zlib",
       "source": "https://github.com/LordHayne/Nightforge"
     },
@@ -65,10 +65,10 @@
     {
       "id": "graphics",
       "kind": "graphics",
-      "version": "11.18-dxmt0.80-17",
-      "url": "https://github.com/LordHayne/Nightforge/releases/download/graphics-11.18-dxmt0.80-17/nightforge-graphics-11.18-dxmt0.80-17.tar.gz",
-      "sha256": "669aded6abd15d70695614c5fc11343701f8349adadbb4eb63fa925d2218907c",
-      "size": 19685676,
+      "version": "11.18-dxmt0.80-19",
+      "url": "https://github.com/LordHayne/Nightforge/releases/download/graphics-11.18-dxmt0.80-19/nightforge-graphics-11.18-dxmt0.80-19.tar.gz",
+      "sha256": "c967e3bc7e802a41be873ddb0eb9db4487b261d5b997507736a308c7886e95b6",
+      "size": 19693829,
       "license": "LGPL-2.1-or-later",
       "source": "https://github.com/LordHayne/Nightforge"
     },
@@ -85,10 +85,10 @@
     {
       "id": "dxvk",
       "kind": "graphics",
-      "version": "3.1.1",
-      "url": "https://github.com/doitsujin/dxvk/releases/download/v3.1.1/dxvk-3.1.1.tar.gz",
-      "sha256": "40565b4a724aadc4433fa4e010b4b23916d9b1f1baeee64e17186db94f54e608",
-      "size": 18041512,
+      "version": "3.2",
+      "url": "https://github.com/doitsujin/dxvk/releases/download/v3.2/dxvk-3.2.tar.gz",
+      "sha256": "17449ed21602377971289eb2984750699825ac1bac3bbfa2426b2bba0f355692",
+      "size": 18662088,
       "license": "Zlib",
       "source": "https://github.com/doitsujin/dxvk"
     },
